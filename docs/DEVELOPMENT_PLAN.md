@@ -32,13 +32,14 @@ Production-domain work starts only after P0-01 through P0-05 pass. P0-06 closes 
 
 | ID | Work package | Depends on | Required evidence |
 | --- | --- | --- | --- |
+| P1-00 | Accept M1 internal contract and execution plan | P0-06 | M0 evidence review, accepted ADR, focused M1 Issues |
 | P1-01 | Define initial domain values and invariants | P0-05 | Construction/boundary tests; no platform dependencies |
-| P1-02 | Implement bounded pixel surface, snapshot, and patch | P1-01 | Invariant, patch inverse, determinism, and boundary tests |
-| P1-03 | Implement command result, change set, and gateway skeleton | P1-01 | Exhaustive dispatch and typed rejection tests |
-| P1-04 | Implement `ApplyStrokeCommand` and handler | P1-02, P1-03 | `QLT-007` contract tests and render invalidation result |
+| P1-02 | Implement immutable snapshot plus bounded pixel surface and patch | P1-01 | Invariant, patch inverse, determinism, and boundary tests |
+| P1-03 | Implement document state, command result, transition, and change set | P1-02 | Closed-result, state-construction, and transition contract tests |
+| P1-04 | Implement `ApplyStrokeCommand`, handler, and gateway | P1-03 | Exhaustive dispatch, `QLT-007` contract tests, render invalidation result |
 | P1-05 | Implement workspace reducer and gesture preview | P1-01 | Reducer determinism and state-ownership tests |
 | P1-06 | Build Compose vertical slice | P1-04, P1-05 | Touch-to-command integration without direct mutation |
-| P1-07 | Add canonical undo/redo for the slice | P1-04 | Apply/invert/replay and UI integration tests |
+| P1-07 | Add canonical undo/redo for the slice | P1-04, P1-06 | Apply/invert/replay and UI integration tests |
 | P1-08 | Record vertical-slice performance baseline | P1-06, P1-07 | Named profile, canvas sizes, latency/memory results |
 
 ## M2 work packages
