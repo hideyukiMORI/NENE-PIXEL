@@ -39,4 +39,4 @@ An ADR must include:
 
 | ADR | Status | Decision |
 | --- | --- | --- |
-| — | — | No decisions recorded yet |
+| [0001](0001-initial-build-toolchain.md) | accepted | Initial Android identity, toolchain, dependency authority, quality tools, and module creation order |
