@@ -1,6 +1,7 @@
 # Project Charter
 
-Status: normative  
+Status: normative
+
 Codename: `NENE-PIXEL`
 
 ## Mission

@@ -119,4 +119,3 @@ Once Git is initialized and CI exists, `main` must require:
 - no unresolved required review finding
 
 Direct pushes, force pushes, and branch deletion on `main` must be blocked.
-

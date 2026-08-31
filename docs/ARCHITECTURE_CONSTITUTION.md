@@ -1,6 +1,7 @@
 # Architecture Constitution
 
-Status: normative  
+Status: normative
+
 Change policy: accepted ADR plus migration plan required
 
 ## Normative language

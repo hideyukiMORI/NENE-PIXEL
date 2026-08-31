@@ -1,6 +1,7 @@
 # Project Layout and Dependency Rules
 
-Status: normative  
+Status: normative
+
 Package root: to be fixed by the initial scaffold ADR
 
 The module graph is part of the architecture. A package convention alone is not an adequate dependency boundary.
@@ -171,4 +172,3 @@ Forbidden package names:
 - `base` without a named abstraction contract
 
 Cross-module access must use the declared public API. Importing another module's `internal`, generated, test-fixture, or implementation package is prohibited.
-

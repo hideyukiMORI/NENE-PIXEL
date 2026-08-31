@@ -1,9 +1,9 @@
 # ADR NNNN: Decision title
 
-Status: proposed  
-Date: YYYY-MM-DD  
-Issue: #NNN  
-Affected rules: `ARC-NNN`, `KOT-NNN`
+- Status: proposed
+- Date: YYYY-MM-DD
+- Issue: #NNN
+- Affected rules: `ARC-NNN`, `KOT-NNN`
 
 ## Context
 
@@ -47,4 +47,3 @@ Describe how existing code/data moves to the new path, when the old path is remo
 - PR:
 - Supersedes:
 - Superseded by:
-

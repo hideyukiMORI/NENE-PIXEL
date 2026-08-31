@@ -179,4 +179,3 @@ Generated files MUST:
 File-level suppression is prohibited. A declaration-level `@Suppress`, lint ignore, static-analysis exclusion, or generated-code exclusion requires an active waiver ID in an adjacent comment and the PR description.
 
 `TODO`, `FIXME`, and commented-out code must include an Issue number or be removed before merge.
-

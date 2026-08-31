@@ -155,4 +155,3 @@ Important decisions must not remain only in chat, Issue comments, commit message
 - Code comments explain local non-obvious behavior, not project policy.
 
 When concise tool configuration and documentation disagree, documentation is the decision record but the merge must remain blocked until both are aligned.
-

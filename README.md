@@ -39,4 +39,3 @@ When goals conflict, use this order:
 6. Feature delivery speed
 
 Performance is not permission to bypass architecture. Performance-sensitive mutation is allowed only inside the controlled pixel-engine boundary defined by `ARC-005`.
-

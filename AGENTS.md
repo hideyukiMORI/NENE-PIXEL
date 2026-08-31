@@ -50,4 +50,3 @@ Every completed change must report:
 - active waiver IDs, or `none`
 
 Investigation-only requests do not authorize editing, committing, pushing, opening PRs, or changing external state.
-

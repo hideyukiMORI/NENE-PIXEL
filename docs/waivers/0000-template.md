@@ -1,11 +1,11 @@
 # WVR-NNNN: Short title
 
-Status: proposed  
-Rule: `KOT-NNN`  
-Issue: #NNN  
-Owner: name or team  
-Created: YYYY-MM-DD  
-Expires: YYYY-MM-DD
+- Status: proposed
+- Rule: `KOT-NNN`
+- Issue: #NNN
+- Owner: name or team
+- Created: YYYY-MM-DD
+- Expires: YYYY-MM-DD
 
 ## Exact scope
 
@@ -32,4 +32,3 @@ Explain the compliant approaches attempted and why they are not currently viable
 - Issue:
 - PR:
 - Benchmark/test evidence:
-

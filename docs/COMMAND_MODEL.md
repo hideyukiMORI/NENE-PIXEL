@@ -143,4 +143,3 @@ sealed interface CommandResult {
 ```
 
 `Rejected` represents an expected invalid operation. `Failed` represents an external or runtime failure. Neither is represented by `null`, `false`, or a generic exception.
-

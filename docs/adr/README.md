@@ -40,4 +40,3 @@ An ADR must include:
 | ADR | Status | Decision |
 | --- | --- | --- |
 | — | — | No decisions recorded yet |
-

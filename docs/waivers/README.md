@@ -27,4 +27,3 @@ Copy `0000-template.md` and add the active waiver to the index.
 | Waiver | Rule | Scope | Removal condition | Expiry |
 | --- | --- | --- | --- | --- |
 | — | — | — | No active waivers | — |
-
