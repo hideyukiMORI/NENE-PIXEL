@@ -1,0 +1,3 @@
+package io.github.hideyukimori.nenepixel.layer
+
+internal class LayerManager

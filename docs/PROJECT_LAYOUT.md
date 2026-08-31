@@ -34,10 +34,12 @@ The module graph is part of the architecture. A package convention alone is not 
     Reserved for future automation/MCP translation; absent until an ADR enables it
 
 :quality:architecture-rules
-    Custom detekt/architecture checks; added with the first executable rule
+    Active custom detekt rules and their focused rule tests
 ```
 
 Do not create empty future modules. The names above are reserved canonical destinations and are created only when their first concrete responsibility exists.
+
+The root `validateArchitecture` task reads the configured Gradle project graph and rejects unapproved module names, forbidden project dependencies, cycles, and platform dependencies in `:core:*`. The `:quality:architecture-rules` module is a build-only exception: application modules may load it through the `detektPlugins` configuration, but production code may not depend on it.
 
 ## Allowed dependency graph
 

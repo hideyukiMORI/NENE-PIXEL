@@ -1,0 +1,4 @@
+<!-- Waiver: WVR-0001 -->
+<Button
+    android:id="@+id/save_button"
+    tools:ignore="HardcodedText" />

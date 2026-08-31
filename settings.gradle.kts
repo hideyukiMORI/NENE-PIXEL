@@ -26,3 +26,4 @@ require(JavaVersion.current() == JavaVersion.VERSION_21) {
 rootProject.name = "NENE-PIXEL"
 
 include(":app:android")
+include(":quality:architecture-rules")

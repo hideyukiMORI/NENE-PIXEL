@@ -6,6 +6,7 @@
 - Owner: name or team
 - Created: YYYY-MM-DD
 - Expires: YYYY-MM-DD
+- Scope: `relative/path/File.kt#DeclarationName`
 
 ## Exact scope
 

@@ -1,6 +1,8 @@
 config:
   validation: true
   warningsAsErrors: true
+  excludes:
+    - "nene-architecture.*"
 
 complexity:
   CognitiveComplexMethod:
@@ -24,3 +26,7 @@ naming:
     active: true
     ignoreAnnotated:
       - Composable
+
+nene-architecture:
+  ForbiddenGenericName:
+    active: true

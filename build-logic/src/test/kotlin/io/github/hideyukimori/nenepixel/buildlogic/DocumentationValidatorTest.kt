@@ -122,6 +122,7 @@ internal class DocumentationValidatorTest {
         - Owner: test owner
         - Created: 2026-08-01
         - Expires: 2026-08-31
+        - Scope: `src/main/kotlin/Test.kt#test`
 
         ## Exact scope
         Scope.

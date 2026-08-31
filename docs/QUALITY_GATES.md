@@ -1,10 +1,10 @@
 # Quality Gates
 
-Status: normative; initial local implementation active
+Status: normative; initial local and architecture enforcement active
 
 `./gradlew check` is the single local source of truth. CI must call the same task rather than reconstructing a different check sequence.
 
-The `P0-03` implementation provides compiler warning failure, ktlint formatting, detekt, Android lint, build-logic unit tests, documentation validation, baseline rejection, dependency locking, and SHA-256 dependency verification. Architecture, contract, property, and domain test layers become executable when their owning modules and behavior are introduced by later work packages. The initial negative and restored-green checks are recorded in [Initial Gate Proofs](quality/INITIAL_GATE_PROOFS.md).
+The `P0-03` implementation provides compiler warning failure, ktlint formatting, detekt, Android lint, build-logic unit tests, documentation validation, baseline rejection, dependency locking, and SHA-256 dependency verification. `P0-05` adds the first architecture gates for the module graph, core platform isolation, generic naming, and suppression waivers. Contract, property, and domain test layers become executable when their owning modules and behavior are introduced by later work packages. Intentional-failure and restored-green checks are recorded in [Initial Gate Proofs](quality/INITIAL_GATE_PROOFS.md) and [Architecture Gate Proofs](quality/ARCHITECTURE_GATE_PROOFS.md).
 
 ## Gate integrity rules
 
@@ -51,25 +51,25 @@ Tool choice is not permission to duplicate responsibility. Exactly one formatter
 
 The first scaffolding milestones must automate these rules in order:
 
-| Rule | Mechanical enforcement |
-| --- | --- |
-| `ARC-002` | Gradle module dependency test and forbidden-import rules |
-| `ARC-003` | no Android/Compose dependencies in core module configurations |
-| `ARC-004` | package/API checks plus state-transition tests |
-| `ARC-005` | mutable type/import/API rules scoped to pixel engine |
-| `ARC-006` | forbidden reflection/service-locator/singleton rules |
-| `ARC-007` | forbidden direct clock/random/locale/environment calls in core |
-| `CMD-001` | no public document mutation APIs outside command runtime |
-| `CMD-002` | no workspace setters outside reducer |
-| `CMD-003` | exhaustive command-handler registry test |
-| `KOT-004` | forbidden `!!`; nullable public API inspection |
-| `KOT-011` | forbidden class/package name rules |
-| `KOT-013` | detekt complexity thresholds |
-| `KOT-014` | forbidden coroutine APIs and dispatcher ownership checks |
-| `KOT-017` | Compose dependency/import restrictions |
-| `KOT-022` | suppression comment/waiver validator |
+| Rule | Status | Mechanical enforcement |
+| --- | --- | --- |
+| `ARC-002` | active | Gradle rejects unknown modules, forbidden project-dependency directions, and cycles |
+| `ARC-003` | active | Gradle rejects Android/Compose dependencies declared by core configurations |
+| `ARC-004` | planned | package/API checks plus state-transition tests |
+| `ARC-005` | planned | mutable type/import/API rules scoped to pixel engine |
+| `ARC-006` | planned | forbidden reflection/service-locator/singleton rules |
+| `ARC-007` | planned | forbidden direct clock/random/locale/environment calls in core |
+| `CMD-001` | planned | no public document mutation APIs outside command runtime |
+| `CMD-002` | planned | no workspace setters outside reducer |
+| `CMD-003` | planned | exhaustive command-handler registry test |
+| `KOT-004` | planned | forbidden `!!`; nullable public API inspection |
+| `KOT-011` | active | custom detekt rule rejects unconditional generic type suffixes and package segments |
+| `KOT-013` | planned | detekt complexity thresholds |
+| `KOT-014` | planned | forbidden coroutine APIs and dispatcher ownership checks |
+| `KOT-017` | planned | Compose dependency/import restrictions |
+| `KOT-022` | active | repository validator rejects file-level and unwaived suppressions |
 
-Until a row is automated, every PR touching that area must explicitly self-review it. Unimplemented enforcement is tracked as project work, not silently treated as complete.
+Until a row is active, every PR touching that area must explicitly self-review it. Conditional `KOT-011` cases such as whether `Processor`, `Data`, `common`, or `base` has a precise domain meaning remain review obligations; the mechanical rule intentionally rejects only names that are always prohibited. Unimplemented enforcement is tracked as project work, not silently treated as complete.
 
 ## Test requirements
 
