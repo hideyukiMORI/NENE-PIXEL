@@ -10,10 +10,11 @@ This is the single setup path for the Android build established by [ADR 0001](ad
 - JDK 21 for the Gradle runtime and project toolchain
 - Android SDK Platform 37
 - Android SDK Build Tools 36.0.0
+- Android Emulator with a Pixel 8 Pro, API 35 Google Play x86_64 AVD named `Pixel_8_Pro_API_35` for the fixed M0 smoke profile
 
 Do not commit a machine-specific JDK path or Android SDK path. `JAVA_HOME`, Android Studio's Gradle JDK setting, and CI must all select JDK 21. Android Studio may continue to run the IDE itself on its bundled JBR.
 
-In Android Studio, open **Settings > Build, Execution, Deployment > Build Tools > Gradle** and select JDK 21 or the `JAVA_HOME` macro. Use **Settings > Languages & Frameworks > Android SDK** to install SDK Platform 37 and Build Tools 36.0.0.
+In Android Studio, open **Settings > Build, Execution, Deployment > Build Tools > Gradle** and select JDK 21 or the `JAVA_HOME` macro. Use **Settings > Languages & Frameworks > Android SDK** to install SDK Platform 37 and Build Tools 36.0.0. In **Device Manager**, create the fixed smoke AVD from the Pixel 8 Pro hardware profile and the API 35 Google Play x86_64 image, then name it `Pixel_8_Pro_API_35`.
 
 ## Verify the toolchain
 
@@ -38,12 +39,16 @@ Build the canonical debug artifact:
 
 To launch it, select the `app.android` configuration and a device in Android Studio, then choose **Run**. The expected smoke result is one activity displaying `NENE-PIXEL` with no editor or domain behavior.
 
+The M0 reproducibility smoke profile is a Pixel 8 Pro AVD running API 35 / Android 15 at 1344 x 2992. A physical or newer virtual device is useful additional coverage but does not replace this fixed profile when re-running the M0 proof.
+
 With a configured device and `adb` on `PATH`, the equivalent command-line path is:
 
 ```powershell
 .\gradlew.bat :app:android:installDebug
-adb shell am start -n io.github.hideyukimori.nenepixel/.MainActivity
+adb shell am start -W -n io.github.hideyukimori.nenepixel/.MainActivity
 ```
+
+The verified fresh-clone transcript, including cold-launch and clean-tree evidence, is recorded in [Fresh-clone and M0 Exit Proof](quality/FRESH_CLONE_PROOF.md).
 
 ## Run the canonical quality gate
 

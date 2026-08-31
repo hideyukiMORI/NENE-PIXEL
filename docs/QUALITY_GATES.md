@@ -4,7 +4,7 @@ Status: normative; initial local and architecture enforcement active
 
 `./gradlew check` is the single local source of truth. CI must call the same task rather than reconstructing a different check sequence.
 
-The `P0-03` implementation provides compiler warning failure, ktlint formatting, detekt, Android lint, build-logic unit tests, documentation validation, baseline rejection, dependency locking, and SHA-256 dependency verification. `P0-05` adds the first architecture gates for the module graph, core platform isolation, generic naming, and suppression waivers. Contract, property, and domain test layers become executable when their owning modules and behavior are introduced by later work packages. Intentional-failure and restored-green checks are recorded in [Initial Gate Proofs](quality/INITIAL_GATE_PROOFS.md) and [Architecture Gate Proofs](quality/ARCHITECTURE_GATE_PROOFS.md).
+The `P0-03` implementation provides compiler warning failure, ktlint formatting, detekt, Android lint, build-logic unit tests, documentation validation, baseline rejection, dependency locking, and SHA-256 dependency verification. `P0-05` adds the first architecture gates for the module graph, core platform isolation, generic naming, and suppression waivers. Contract, property, and domain test layers become executable when their owning modules and behavior are introduced by later work packages. Intentional-failure, restored-green, and clean-environment checks are recorded in [Initial Gate Proofs](quality/INITIAL_GATE_PROOFS.md), [Architecture Gate Proofs](quality/ARCHITECTURE_GATE_PROOFS.md), and [Fresh-clone and M0 Exit Proof](quality/FRESH_CLONE_PROOF.md).
 
 ## Gate integrity rules
 

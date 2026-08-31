@@ -28,6 +28,8 @@ Each milestone depends on all prior milestone exit criteria. Parallel work is al
 
 Requires M0 compiler, formatter, static analysis, test, Android lint, documentation, and CI gates to be executable. Architecture rules that cannot yet be automated must have explicit tracked Issues.
 
+Status: passed on 2026-09-01. See [Fresh-clone and M0 Exit Proof](quality/FRESH_CLONE_PROOF.md). Production Kotlin must still enter through the M1 work packages rather than bypassing their dependency order.
+
 ### Gate B — Project format may be frozen as v1
 
 Requires the M2 document model, command semantics, pixel representation, and limits to be measured and accepted. Prototype serialization is not called v1.
