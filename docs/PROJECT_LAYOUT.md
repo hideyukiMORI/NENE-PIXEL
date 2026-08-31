@@ -2,7 +2,7 @@
 
 Status: normative
 
-Package root: to be fixed by the initial scaffold ADR
+Package root: `io.github.hideyukimori.nenepixel` (fixed by [ADR 0001](adr/0001-initial-build-toolchain.md))
 
 The module graph is part of the architecture. A package convention alone is not an adequate dependency boundary.
 
