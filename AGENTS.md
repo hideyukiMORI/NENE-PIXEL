@@ -21,8 +21,13 @@ Before proposing or changing production code, read all of the following:
 6. `docs/QUALITY_GATES.md`
 7. `docs/DEVELOPMENT_WORKFLOW.md`
 8. `docs/GLOSSARY.md`
+9. `docs/ROADMAP.md`
+10. `docs/MILESTONES.md`
+11. `docs/MVP_SCOPE.md`
+12. `docs/DEVELOPMENT_PLAN.md`
+13. `docs/API_STRATEGY.md`
 
-Read relevant accepted ADRs and active waivers after the documents above.
+Read the active GitHub Issue, relevant accepted ADRs, and active waivers after the documents above.
 
 ## Agent rules
 
@@ -35,6 +40,8 @@ Read relevant accepted ADRs and active waivers after the documents above.
 - Do not expose mutable pixel storage outside the pixel-engine implementation boundary.
 - Do not add `@Suppress`, lint baselines, detekt baselines, generated-code exclusions, or dependency exceptions without an approved waiver.
 - Do not weaken a quality gate to make a change pass.
+- Do not treat a Markdown checklist as current task state. GitHub Issues are the TODO authority.
+- Do not introduce OpenAPI, HTTP, or MCP before the decision gate in `docs/API_STRATEGY.md` is satisfied.
 - Do not commit secrets, local SDK paths, signing materials, generated build output, IDE state, or private user assets.
 - Prefer the smallest change that fully follows the canonical path.
 

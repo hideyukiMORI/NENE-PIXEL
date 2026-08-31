@@ -10,7 +10,7 @@ Human memory and code-review attention are not enforcement mechanisms. The Kotli
 
 ## Status
 
-The project is in the governance and architecture-definition phase. Production code must not be added until the initial Gradle structure and quality gates implement the rules defined here.
+The project is in Milestone 0: executable foundation. Production code must not be added until the initial Gradle structure and quality gates implement the rules defined here.
 
 ## Canonical documents
 
@@ -26,6 +26,16 @@ Read these documents in order:
 8. [Glossary](docs/GLOSSARY.md)
 
 Architecture decisions live in [`docs/adr/`](docs/adr/README.md). Temporary and narrowly scoped rule exceptions live in [`docs/waivers/`](docs/waivers/README.md).
+
+## Delivery planning
+
+- [Roadmap](docs/ROADMAP.md)
+- [Milestones](docs/MILESTONES.md)
+- [MVP Scope](docs/MVP_SCOPE.md)
+- [Development Plan](docs/DEVELOPMENT_PLAN.md)
+- [API Strategy](docs/API_STRATEGY.md)
+
+GitHub Issues are the source of truth for current TODO state. Planning documents define order, scope, dependencies, and exit criteria; they do not duplicate live task status.
 
 ## Priority order
 
