@@ -121,6 +121,7 @@ internal class DecisionRecordValidator(
                 "owner" to Regex("(?m)^- Owner: \\S.+$"),
                 "creation date" to Regex("(?m)^- Created: \\d{4}-\\d{2}-\\d{2}$"),
                 "expiry" to waiverExpiryRegex,
+                "scope" to Regex("(?m)^- Scope: `[^`#]+#[^`#]+`$"),
             )
         val adrSections =
             listOf(

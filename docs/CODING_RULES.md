@@ -101,6 +101,8 @@ Prohibited type suffixes and names:
 
 Approved role suffixes include `Command`, `Handler`, `Query`, `Port`, `Adapter`, `Factory`, `Codec`, `Mapper`, `Reducer`, `Policy`, and `Renderer`, but only when the type performs that exact role.
 
+The mechanical `ForbiddenGenericName` rule rejects the unconditional type suffixes `Manager`, `Helper`, `Util`, `Utils`, and `Common`, plus the package segments `utils`, `helpers`, `managers`, and `misc`. Conditional terms such as `Processor`, `Data`, `common`, and `base` require semantic review until a reliable domain-aware rule exists; they must not be rejected by a broad text scan.
+
 ### KOT-012 — One primary declaration per file
 
 A file SHOULD contain one primary public/internal type and closely coupled private declarations. File names match the primary type. Grab-bag files and generic `Extensions.kt` are prohibited.
@@ -177,5 +179,7 @@ Generated files MUST:
 ### KOT-022 — Suppression is an exception, not a tool
 
 File-level suppression is prohibited. A declaration-level `@Suppress`, lint ignore, static-analysis exclusion, or generated-code exclusion requires an active waiver ID in an adjacent comment and the PR description.
+
+The adjacent source comment is `Waiver: WVR-NNNN` on the line immediately before the suppression. Its waiver file must be active, unexpired, and have an exact `Scope` matching both the source path and suppressed declaration or XML element. Wildcards and file-level suppressions are not accepted by the gate.
 
 `TODO`, `FIXME`, and commented-out code must include an Issue number or be removed before merge.

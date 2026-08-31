@@ -53,12 +53,12 @@ Run every required local check through one command:
 .\gradlew.bat check
 ```
 
-`check` is the only merge-gate authority. It compiles project-owned Kotlin with warnings as errors, verifies formatting, runs detekt and Android lint with warnings as errors, runs build-logic unit tests, validates documentation and baseline policy, and checks the committed dependency locks and SHA-256 verification metadata.
+`check` is the only merge-gate authority. It compiles project-owned Kotlin with warnings as errors, verifies formatting, runs detekt and Android lint with warnings as errors, runs architecture-rule and build-logic unit tests, validates module dependencies and suppression waivers, validates documentation and baseline policy, and checks the committed dependency locks and SHA-256 verification metadata.
 
 When formatting is the only failure, apply the one authoritative formatter and then rerun the complete gate:
 
 ```powershell
-.\gradlew.bat ktlintFormat :app:android:ktlintFormat :build-logic:ktlintFormat
+.\gradlew.bat ktlintFormat :app:android:ktlintFormat :quality:architecture-rules:ktlintFormat :build-logic:ktlintFormat
 .\gradlew.bat check
 ```
 
@@ -68,12 +68,14 @@ The following narrow commands are diagnostic tools, not substitutes for `check`:
 .\gradlew.bat :app:android:compileDebugKotlin
 .\gradlew.bat :app:android:ktlintMainSourceSetCheck
 .\gradlew.bat :app:android:detekt
+.\gradlew.bat validateArchitecture
+.\gradlew.bat :quality:architecture-rules:test
 .\gradlew.bat :build-logic:test
 .\gradlew.bat :app:android:lintDebug
 .\gradlew.bat validateDocumentation validateNoBaselines
 ```
 
-Do not create lint or detekt baselines and do not exclude project-owned source sets. The initial intentional-failure evidence is recorded in [Initial Gate Proofs](quality/INITIAL_GATE_PROOFS.md).
+Do not create lint or detekt baselines and do not exclude project-owned source sets. Initial intentional-failure evidence is recorded in [Initial Gate Proofs](quality/INITIAL_GATE_PROOFS.md) and [Architecture Gate Proofs](quality/ARCHITECTURE_GATE_PROOFS.md).
 
 ## Update dependencies reproducibly
 

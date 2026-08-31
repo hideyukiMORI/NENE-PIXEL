@@ -22,6 +22,8 @@ WVR-NNNN-short-kebab-title.md
 
 Copy `0000-template.md` and add the active waiver to the index.
 
+`Scope` uses a repository-relative source path followed by the declaration name, for example `app/android/src/main/kotlin/io/github/hideyukimori/nenepixel/LayerRenderer.kt#LayerRenderer`. For XML use the element's `android:id`, or its tag when no ID exists. Place `// Waiver: WVR-NNNN` immediately above a Kotlin suppression or an equivalent waiver comment immediately above an XML/noinspection suppression. A file-level suppression is prohibited even when a waiver exists.
+
 ## Active waiver index
 
 | Waiver | Rule | Scope | Removal condition | Expiry |

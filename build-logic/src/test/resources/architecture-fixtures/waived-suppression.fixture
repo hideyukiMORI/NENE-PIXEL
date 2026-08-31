@@ -1,0 +1,5 @@
+package example
+
+// Waiver: WVR-0001
+@Suppress("MagicNumber")
+internal class Layer

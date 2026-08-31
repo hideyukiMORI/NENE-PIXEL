@@ -1,0 +1,4 @@
+package example
+
+@Suppress("MagicNumber")
+internal class Layer
