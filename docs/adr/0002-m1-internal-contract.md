@@ -139,6 +139,6 @@ There is no product code or stored document to migrate. P1 work implements this 
 ## Related
 
 - Issue: #17
-- PR: pending
+- PR: #26
 - Supersedes: none
 - Superseded by: none
