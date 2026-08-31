@@ -1,8 +1,10 @@
 # Quality Gates
 
-Status: normative target; implementation begins with the Gradle scaffold
+Status: normative; initial local implementation active
 
-`./gradlew check` will be the single local source of truth. CI must call the same tasks rather than reconstructing a different check sequence.
+`./gradlew check` is the single local source of truth. CI must call the same task rather than reconstructing a different check sequence.
+
+The `P0-03` implementation provides compiler warning failure, ktlint formatting, detekt, Android lint, build-logic unit tests, documentation validation, baseline rejection, dependency locking, and SHA-256 dependency verification. Architecture, contract, property, and domain test layers become executable when their owning modules and behavior are introduced by later work packages. The initial negative and restored-green checks are recorded in [Initial Gate Proofs](quality/INITIAL_GATE_PROOFS.md).
 
 ## Gate integrity rules
 

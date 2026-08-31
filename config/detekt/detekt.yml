@@ -1,0 +1,26 @@
+config:
+  validation: true
+  warningsAsErrors: true
+
+complexity:
+  CognitiveComplexMethod:
+    active: true
+    allowedComplexity: 10
+  LongMethod:
+    active: true
+    allowedLines: 40
+  LongParameterList:
+    active: true
+    allowedFunctionParameters: 4
+    allowedConstructorParameters: 4
+    ignoreDefaultParameters: false
+    ignoreDataClasses: false
+  NestedBlockDepth:
+    active: true
+    allowedDepth: 3
+
+naming:
+  FunctionNaming:
+    active: true
+    ignoreAnnotated:
+      - Composable

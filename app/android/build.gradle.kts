@@ -1,6 +1,15 @@
+import org.gradle.api.artifacts.dsl.LockMode
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.compose.compiler)
+    alias(libs.plugins.detekt)
+    alias(libs.plugins.ktlint)
+}
+
+dependencyLocking {
+    lockAllConfigurations()
+    lockMode = LockMode.STRICT
 }
 
 val applicationPackage = "io.github.hideyukimori.nenepixel"
@@ -33,6 +42,32 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+
+    lint {
+        abortOnError = true
+        checkDependencies = true
+        checkReleaseBuilds = true
+        warningsAsErrors = true
+    }
+}
+
+ktlint {
+    version = libs.versions.ktlint.engine
+    android = true
+    ignoreFailures = false
+    outputToConsole = true
+    relative = true
+}
+
+detekt {
+    toolVersion = libs.versions.detekt.get()
+    config.setFrom(rootProject.file("config/detekt/detekt.yml"))
+    buildUponDefaultConfig = true
+    allRules = false
+    parallel = true
+    ignoreFailures = false
+    failOnSeverity = dev.detekt.gradle.extensions.FailOnSeverity.Warning
+    basePath = rootProject.projectDir
 }
 
 dependencies {
