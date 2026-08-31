@@ -30,6 +30,10 @@ Turn written rules into a reproducible build and merge gate before product behav
 - Android debug shell launches on the supported emulator/device profile
 - `main` cannot merge a PR with failing required checks
 
+### Exit evidence
+
+M0 passed all exit criteria on 2026-09-01. The command-by-command review is recorded in [Fresh-clone and M0 Exit Proof](quality/FRESH_CLONE_PROOF.md). M1 work may begin without weakening any M0 gate.
+
 ## M1 — Minimal Vertical Slice
 
 ### Purpose

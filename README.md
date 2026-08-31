@@ -10,7 +10,7 @@ Human memory and code-review attention are not enforcement mechanisms. The Kotli
 
 ## Status
 
-The project is in Milestone 0: executable foundation. Production code must not be added until the initial Gradle structure and quality gates implement the rules defined here.
+Milestone 0 is complete: the executable foundation has passed its fresh-clone, quality-gate, CI-protection, and emulator launch criteria. Milestone 1 is next; production code may be introduced only through its planned vertical-slice work packages and the canonical paths defined here.
 
 ## Canonical documents
 
