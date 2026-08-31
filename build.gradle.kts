@@ -40,5 +40,6 @@ tasks.named("check") {
     dependsOn("ktlintCheck")
     dependsOn(gradle.includedBuild("build-logic").task(":check"))
     dependsOn(":app:android:check")
+    dependsOn(":core:domain:check")
     dependsOn(":quality:architecture-rules:check")
 }

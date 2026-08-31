@@ -68,6 +68,33 @@ internal class ModuleArchitectureValidatorTest {
         assertContains(violations, "ARC-003 prohibits implementation dependency")
     }
 
+    @Test
+    fun `domain production dependency outside Kotlin standard library is rejected`() {
+        val violations =
+            validate(
+                modules = setOf(":", QUALITY, DOMAIN),
+                externalDependencies =
+                    listOf(externalDependency("implementation", "org.example", "unexpected-runtime")),
+            )
+
+        assertContains(violations, "ARC-003 permits only Kotlin standard library production dependencies")
+    }
+
+    @Test
+    fun `domain standard library and test dependencies are accepted`() {
+        val violations =
+            validate(
+                modules = setOf(":", QUALITY, DOMAIN),
+                externalDependencies =
+                    listOf(
+                        externalDependency("implementation", "org.jetbrains.kotlin", "kotlin-stdlib"),
+                        externalDependency("testImplementation", "org.junit.jupiter", "junit-jupiter"),
+                    ),
+            )
+
+        assertTrue(violations.isEmpty(), violations.joinToString(separator = "\n"))
+    }
+
     private fun validate(
         modules: Set<String>,
         moduleDependencies: List<DeclaredModuleDependency> = emptyList(),
@@ -80,6 +107,12 @@ internal class ModuleArchitectureValidatorTest {
         configuration: String,
         target: String,
     ): DeclaredModuleDependency = DeclaredModuleDependency(source, configuration, target)
+
+    private fun externalDependency(
+        configuration: String,
+        group: String,
+        name: String,
+    ): DeclaredExternalDependency = DeclaredExternalDependency(DOMAIN, configuration, group, name)
 
     private fun assertContains(
         violations: List<ArchitectureViolation>,

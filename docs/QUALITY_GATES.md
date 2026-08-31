@@ -54,7 +54,7 @@ The first scaffolding milestones must automate these rules in order:
 | Rule | Status | Mechanical enforcement |
 | --- | --- | --- |
 | `ARC-002` | active | Gradle rejects unknown modules, forbidden project-dependency directions, and cycles |
-| `ARC-003` | active | Gradle rejects Android/Compose dependencies declared by core configurations |
+| `ARC-003` | active | Gradle rejects Android/Compose dependencies declared by core configurations and non-stdlib production dependencies declared by domain |
 | `ARC-004` | planned | package/API checks plus state-transition tests |
 | `ARC-005` | planned | mutable type/import/API rules scoped to pixel engine |
 | `ARC-006` | planned | forbidden reflection/service-locator/singleton rules |
