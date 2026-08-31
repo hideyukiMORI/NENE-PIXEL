@@ -40,7 +40,10 @@ jobs:
           validate-wrappers: true
 
       - name: Install the declared Android SDK
-        run: "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37" "build-tools;36.0.0"
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "platforms;android-37" \
+            "build-tools;36.0.0"
 
       - name: Run canonical checks and build the supported artifact
         run: ./gradlew check :app:android:assembleDebug --stacktrace
