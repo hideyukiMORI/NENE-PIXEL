@@ -33,7 +33,7 @@ Production-domain work starts only after P0-01 through P0-05 pass. P0-06 closes 
 | ID | Work package | Depends on | Required evidence |
 | --- | --- | --- | --- |
 | P1-00 | Accept M1 internal contract and execution plan | P0-06 | M0 evidence review, accepted ADR, focused M1 Issues |
-| P1-01 | Define initial domain values and invariants | P0-05 | Construction/boundary tests; no platform dependencies |
+| P1-01 | Define initial domain values and invariants | P1-00 | Boundary/equality/containment/overflow tests; stdlib-only dependency gate |
 | P1-02 | Implement immutable snapshot plus bounded pixel surface and patch | P1-01 | Invariant, patch inverse, determinism, and boundary tests |
 | P1-03 | Implement document state, command result, transition, and change set | P1-02 | Closed-result, state-construction, and transition contract tests |
 | P1-04 | Implement `ApplyStrokeCommand`, handler, and gateway | P1-03 | Exhaustive dispatch, `QLT-007` contract tests, render invalidation result |

@@ -62,6 +62,7 @@ public class KotlinLibraryPlugin : Plugin<Project> {
         target.tasks.withType<KotlinCompile>().configureEach {
             compilerOptions {
                 allWarningsAsErrors.set(true)
+                freeCompilerArgs.add("-Xconsistent-data-class-copy-visibility")
                 jvmTarget.set(JvmTarget.JVM_17)
             }
         }

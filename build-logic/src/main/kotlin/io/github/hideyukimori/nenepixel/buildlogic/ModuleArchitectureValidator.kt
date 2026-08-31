@@ -24,6 +24,7 @@ internal class ModuleArchitectureValidator(
             addAll(validateDependencyDirections())
             addAll(validateCycles())
             addAll(validateCorePlatformDependencies())
+            addAll(validateDomainProductionDependencies())
         }.sorted()
 
     private fun validateModuleNames(): List<ArchitectureViolation> =
@@ -82,14 +83,35 @@ internal class ModuleArchitectureValidator(
                 )
             }
 
+    private fun validateDomainProductionDependencies(): List<ArchitectureViolation> =
+        externalDependencies
+            .filter { dependency -> dependency.source == DOMAIN_MODULE }
+            .filter { dependency -> dependency.isProductionDependency() }
+            .filterNot { dependency -> dependency.isKotlinStandardLibrary() }
+            .map { dependency ->
+                ArchitectureViolation(
+                    dependency.source,
+                    "ARC-003 permits only Kotlin standard library production dependencies; " +
+                        "found ${dependency.configuration} dependency on '${dependency.group}:${dependency.name}'.",
+                )
+            }
+
     private fun DeclaredModuleDependency.isArchitectureToolingDependency(): Boolean =
         configuration == "detektPlugins" && target == ARCHITECTURE_RULES_MODULE
 
     private fun DeclaredExternalDependency.isPlatformDependency(): Boolean =
         platformGroupPrefixes.any(group::startsWith) || name.endsWith("-android")
 
+    private fun DeclaredExternalDependency.isProductionDependency(): Boolean =
+        configuration in productionDependencyConfigurations
+
+    private fun DeclaredExternalDependency.isKotlinStandardLibrary(): Boolean =
+        group == KOTLIN_GROUP && name in kotlinStandardLibraryModules
+
     private companion object {
         const val ARCHITECTURE_RULES_MODULE = ":quality:architecture-rules"
+        const val DOMAIN_MODULE = ":core:domain"
+        const val KOTLIN_GROUP = "org.jetbrains.kotlin"
 
         val knownModules =
             setOf(
@@ -101,7 +123,7 @@ internal class ModuleArchitectureValidator(
                 ":presentation",
                 ":presentation:compose",
                 ":core:application",
-                ":core:domain",
+                DOMAIN_MODULE,
                 ":core:pixel-engine",
                 ":core:project-format",
                 ":adapters:persistence",
@@ -122,7 +144,7 @@ internal class ModuleArchitectureValidator(
                 ":presentation" to emptySet(),
                 ":presentation:compose" to setOf(":core:application", ":core:domain"),
                 ":core:application" to setOf(":core:domain", ":core:pixel-engine"),
-                ":core:domain" to emptySet(),
+                DOMAIN_MODULE to emptySet(),
                 ":core:pixel-engine" to setOf(":core:domain"),
                 ":core:project-format" to setOf(":core:domain"),
                 ":adapters:persistence" to setOf(":core:application", ":core:project-format"),
@@ -138,6 +160,10 @@ internal class ModuleArchitectureValidator(
                 "com.google.android.",
                 "org.jetbrains.compose",
             )
+
+        val productionDependencyConfigurations = setOf("api", "compileOnly", "implementation", "runtimeOnly")
+        val kotlinStandardLibraryModules =
+            setOf("kotlin-stdlib", "kotlin-stdlib-common", "kotlin-stdlib-jdk7", "kotlin-stdlib-jdk8")
     }
 }
 
