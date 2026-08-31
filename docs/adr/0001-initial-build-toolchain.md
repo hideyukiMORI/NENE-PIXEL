@@ -13,15 +13,15 @@ The development host has Android Studio `AI-261.26222.65.2613.15948027`, JBR 21.
 
 The version decision uses these primary sources:
 
-- [Android Gradle plugin 9.2 release notes](https://developer.android.com/build/releases/agp-9-2-0-release-notes): AGP 9.2 supports API 37 and requires Gradle 9.4.1, SDK Build Tools 36.0.0, and JDK 17 or newer. The 9.2.1 patch fixes an R8 class-loading defect in 9.2.0.
+- [Android Gradle plugin 9.3 release notes](https://developer.android.com/build/releases/agp-9-3-0-release-notes): AGP 9.3 supports API 37 and requires Gradle 9.5.0 or newer, SDK Build Tools 36.0.0, and JDK 17 or newer. The 9.3.2 patch fixes a lint crash present in earlier 9.3 releases.
 - [Gradle Java compatibility](https://docs.gradle.org/current/userguide/compatibility.html): Gradle can run on Java 21 from Gradle 8.5 onward.
 - [AGP built-in Kotlin migration](https://developer.android.com/build/migrate-to-built-in-kotlin): AGP 9 enables built-in Kotlin and removes the need for `org.jetbrains.kotlin.android`.
-- [AGP 9.2 fixed issues](https://developer.android.com/build/releases/agp-9-2-0-release-notes#fixed_issues): AGP 9.2 updates its Kotlin Gradle plugin dependency to 2.3.10.
+- [Kotlin releases](https://kotlinlang.org/docs/releases.html): Kotlin 2.4.10 is the current stable compiler line.
 - [Compose setup](https://developer.android.com/develop/ui/compose/setup-compose-dependencies-and-compiler): Compose 1.12 requires compile SDK 37 and AGP 9; the current stable Compose BOM is `2026.08.00`.
 - [Compose BOM guidance](https://developer.android.com/develop/ui/compose/bom): the BOM is the canonical way to keep Compose libraries compatible, while the Compose compiler follows the Kotlin compiler version.
 - [ktlint Gradle plugin releases](https://github.com/JLLeitschuh/ktlint-gradle/releases): plugin 14.2.0 supports Gradle 9 and AGP built-in Kotlin.
 - [ktlint releases](https://github.com/ktlint/ktlint/releases/tag/1.8.0): ktlint 1.8.0 is the current formatter engine.
-- [detekt compatibility](https://detekt.dev/docs/introduction/compatibility/): detekt 2.0 alphas support AGP 9 built-in Kotlin; 2.0.0-alpha.6 is the current release and is tested on the current Kotlin/Gradle generation.
+- [detekt compatibility](https://detekt.dev/docs/introduction/compatibility/): detekt 2.0 alphas support AGP 9 built-in Kotlin; 2.0.0-alpha.6 is tested with Kotlin 2.4.10, Gradle 9.6.1, and AGP 9.3.1.
 
 ## Decision
 
@@ -34,7 +34,7 @@ The version decision uses these primary sources:
 - Minimum SDK: 26
 - Compile SDK: 37
 - Target SDK: 37
-- SDK Build Tools: use AGP 9.2.1's default, currently 36.0.0; do not override it in a module
+- SDK Build Tools: use AGP 9.3.2's default, currently 36.0.0; do not override it in a module
 
 Package names below the root follow the owning module and capability. A second root, abbreviated application ID, or debug-only application ID is prohibited unless an ADR changes the identity contract.
 
@@ -45,11 +45,11 @@ Package names below the root follow the owning module and capability. A second r
 | Gradle runtime JDK | JDK 21 | Android Studio Gradle JDK, `JAVA_HOME`, and CI |
 | Java toolchain | 21 | toolchain selection for project-owned compilation |
 | Android JVM bytecode target | 17 | Java `sourceCompatibility`/`targetCompatibility` and Kotlin `jvmTarget` |
-| Gradle Wrapper | 9.4.1 | the only supported Gradle entry point |
-| Android Gradle plugin | 9.2.1 | all Android modules |
-| Kotlin | AGP built-in Kotlin 2.3.10 | Android modules; no `org.jetbrains.kotlin.android` plugin |
-| Kotlin JVM plugin | 2.3.10 | future non-Android core/build modules, matching the Android compiler line |
-| Compose compiler plugin | 2.3.10 | Compose modules, matching built-in Kotlin |
+| Gradle Wrapper | 9.7.1 | the only supported Gradle entry point |
+| Android Gradle plugin | 9.3.2 | all Android modules |
+| Kotlin | AGP built-in Kotlin with Kotlin plugin line 2.4.10 | Android modules; no `org.jetbrains.kotlin.android` plugin |
+| Kotlin JVM plugin | 2.4.10 | future non-Android core/build modules, matching the Android compiler line |
+| Compose compiler plugin | 2.4.10 | Compose modules, matching built-in Kotlin |
 | Compose libraries | BOM 2026.08.00 | all Compose dependency constraints |
 
 JDK 21 is the build runtime and toolchain. Android bytecode remains at JVM 17 because it is the conservative Android contract supported by the selected ecosystem and avoids making Java 21 bytecode a hidden minimum. Project Kotlin code uses progressive mode only after a separate, evidence-backed decision; warnings are errors from the first source file.
@@ -123,7 +123,7 @@ Rejected because the SDK is replaceable local state, while Compose 1.12 requires
 
 ### Run Gradle on JBR 25
 
-Rejected because JDK 21 is already installed, is supported by Gradle 9.4.1, and provides a narrower reproducible runtime. Android Studio's current JBR does not become the project contract merely because it launches the IDE.
+Rejected because JDK 21 is already installed, is supported by Gradle 9.7.1, and provides a narrower reproducible runtime. Android Studio's current JBR does not become the project contract merely because it launches the IDE.
 
 ### Apply `org.jetbrains.kotlin.android`
 
@@ -163,7 +163,7 @@ Rejected because empty modules make future boundaries look decided without execu
 
 ## Enforcement impact
 
-- `P0-02` must create wrapper 9.4.1, the version catalog, repository policy, Android API levels, built-in Kotlin, Compose compiler/BOM, toolchains, and the launchable app shell.
+- `P0-02` must create wrapper 9.7.1, the version catalog, repository policy, Android API levels, built-in Kotlin, Compose compiler/BOM, toolchains, and the launchable app shell.
 - `P0-03` must add ktlint, detekt, lint strictness, test engines, dependency controls, documentation validation, and the aggregate `check` with intentional-failure evidence.
 - `P0-04` must run the same wrapper and `check` on JDK 21 in CI.
 - `P0-05` must add the first architecture-rule module rather than an empty placeholder.

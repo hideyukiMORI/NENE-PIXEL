@@ -23,7 +23,8 @@ Read these documents in order:
 5. [Kotlin Coding Rules](docs/CODING_RULES.md)
 6. [Quality Gates](docs/QUALITY_GATES.md)
 7. [Development Workflow](docs/DEVELOPMENT_WORKFLOW.md)
-8. [Glossary](docs/GLOSSARY.md)
+8. [Development Setup](docs/DEVELOPMENT_SETUP.md)
+9. [Glossary](docs/GLOSSARY.md)
 
 Architecture decisions live in [`docs/adr/`](docs/adr/README.md). Temporary and narrowly scoped rule exceptions live in [`docs/waivers/`](docs/waivers/README.md).
 
