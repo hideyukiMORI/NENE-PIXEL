@@ -45,6 +45,47 @@ With a configured device and `adb` on `PATH`, the equivalent command-line path i
 adb shell am start -n io.github.hideyukimori.nenepixel/.MainActivity
 ```
 
+## Run the canonical quality gate
+
+Run every required local check through one command:
+
+```powershell
+.\gradlew.bat check
+```
+
+`check` is the only merge-gate authority. It compiles project-owned Kotlin with warnings as errors, verifies formatting, runs detekt and Android lint with warnings as errors, runs build-logic unit tests, validates documentation and baseline policy, and checks the committed dependency locks and SHA-256 verification metadata.
+
+When formatting is the only failure, apply the one authoritative formatter and then rerun the complete gate:
+
+```powershell
+.\gradlew.bat ktlintFormat :app:android:ktlintFormat :build-logic:ktlintFormat
+.\gradlew.bat check
+```
+
+The following narrow commands are diagnostic tools, not substitutes for `check`:
+
+```powershell
+.\gradlew.bat :app:android:compileDebugKotlin
+.\gradlew.bat :app:android:ktlintMainSourceSetCheck
+.\gradlew.bat :app:android:detekt
+.\gradlew.bat :build-logic:test
+.\gradlew.bat :app:android:lintDebug
+.\gradlew.bat validateDocumentation validateNoBaselines
+```
+
+Do not create lint or detekt baselines and do not exclude project-owned source sets. The initial intentional-failure evidence is recorded in [Initial Gate Proofs](quality/INITIAL_GATE_PROOFS.md).
+
+## Update dependencies reproducibly
+
+Dependency or plugin upgrades belong in a focused change. Edit exact versions only in `gradle/libs.versions.toml`, review primary-source release notes, and regenerate all dependency evidence with:
+
+```powershell
+.\gradlew.bat check --write-locks --write-verification-metadata sha256 --no-configuration-cache
+.\gradlew.bat check
+```
+
+Review every lock and checksum change before committing it. The first command is intentionally exceptional: normal builds must never write dependency state.
+
 ## Local-only files
 
 Android Studio may create `.idea/`, `.gradle/`, `.kotlin/`, `local.properties`, module `build/` directories, and `*.iml`. These are local state and must remain ignored. Dependency/plugin versions belong only in `gradle/libs.versions.toml`; local files are never a second version authority.
