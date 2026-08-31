@@ -35,6 +35,14 @@ Exploration may happen without an Issue when it is read-only and produces no rep
 12. Merge only after required gates pass.
 13. Return local `main` to a clean, synchronized state.
 
+## Continuous integration
+
+Every pull request and every push to `main` runs the `quality` job in `.github/workflows/ci.yml`. The job uses JDK 21 and the committed Gradle Wrapper to execute the canonical `check` task plus `:app:android:assembleDebug`; it does not recreate quality policy in workflow shell steps.
+
+External actions are limited to official checkout, Java setup, and Gradle setup actions and are pinned to immutable commit SHAs. The workflow token has only `contents: read`. Gradle uses its open-source basic cache provider: pull requests may restore cache entries but cannot write them, while trusted `main` runs may update them. Concurrency is scoped to the workflow and pull request or ref, and a newer run cancels the stale run for the same scope.
+
+The required status-check context is exactly `quality`. The active repository ruleset for the default branch requires a pull request, an up-to-date successful `quality` result, and resolved review threads; it rejects force pushes and branch deletion. Ruleset state is repository configuration and must be read back through the GitHub API when changed. Initial positive and negative evidence is recorded in [CI and Main Protection Proofs](quality/CI_PROOFS.md).
+
 ## Branch and commit conventions
 
 Branch format:
