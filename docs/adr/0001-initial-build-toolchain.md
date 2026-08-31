@@ -65,7 +65,7 @@ AGP built-in Kotlin is mandatory. `org.jetbrains.kotlin.android`, `kotlin-androi
 - dependency verification checksums and signatures live in Gradle verification metadata
 - dependency lock state lives in Gradle lockfiles
 
-Dynamic versions, version ranges, `latest.*`, snapshots, module-local repositories, and dependency versions written directly in module build files are prohibited. `pluginManagement` uses `google()`, `mavenCentral()`, and `gradlePluginPortal()`. Dependency resolution uses only `google()` and `mavenCentral()` and fails when a project declares its own repository.
+Dynamic versions, version ranges, `latest.*`, snapshots, module-local repositories, and dependency versions written directly in module build files are prohibited. `pluginManagement` uses `google()`, `mavenCentral()`, and `gradlePluginPortal()`. Application and module dependency resolution uses only `google()` and `mavenCentral()` and fails when a project declares its own repository. The included `build-logic` build MAY use exclusive-content resolution from `gradlePluginPortal()` only for a pinned Gradle plugin implementation group that is unavailable from those repositories; the allowed group MUST be explicit and versions remain owned by the root version catalog.
 
 Root build scripts declare plugin aliases with `apply false`. Repeated build policy moves to tested convention plugins only when a second real consumer exists. `buildSrc`, copied configuration blocks, and empty convention plugins are prohibited.
 

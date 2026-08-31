@@ -60,8 +60,19 @@ testing {
     }
 }
 
+dependencies {
+    implementation(libs.detekt.gradle.plugin)
+    implementation(libs.kotlin.gradle.plugin)
+    implementation(libs.ktlint.gradle.plugin)
+    testImplementation(gradleTestKit())
+}
+
 gradlePlugin {
     plugins {
+        create("kotlinLibrary") {
+            id = "nene.kotlin-library"
+            implementationClass = "io.github.hideyukimori.nenepixel.buildlogic.KotlinLibraryPlugin"
+        }
         create("rootQuality") {
             id = "nene.root-quality"
             implementationClass = "io.github.hideyukimori.nenepixel.buildlogic.RootQualityPlugin"

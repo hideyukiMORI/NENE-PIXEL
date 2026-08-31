@@ -11,6 +11,14 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        exclusiveContent {
+            forRepository {
+                gradlePluginPortal()
+            }
+            filter {
+                includeGroup("org.jlleitschuh.gradle")
+            }
+        }
     }
     versionCatalogs {
         create("libs") {
