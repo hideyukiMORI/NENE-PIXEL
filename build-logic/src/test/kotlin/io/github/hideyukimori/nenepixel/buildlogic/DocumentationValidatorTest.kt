@@ -20,7 +20,7 @@ internal class DocumentationValidatorTest {
         write("docs/adr/0001-test.md", validAdr())
         write("docs/waivers/README.md", "No active waivers.\n")
 
-        assertNoViolations()
+        assertViolationContains("intentional CI merge-block proof")
     }
 
     @Test
