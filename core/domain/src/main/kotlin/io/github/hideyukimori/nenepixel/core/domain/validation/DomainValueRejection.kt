@@ -45,6 +45,8 @@ public sealed interface DomainValueRejection {
         public val position: PixelPosition,
     ) : DomainValueRejection
 
+    public data object EmptyStrokePath : DomainValueRejection
+
     public data class ColorChannelOutsideRange internal constructor(
         public val attemptedValue: Int,
     ) : DomainValueRejection

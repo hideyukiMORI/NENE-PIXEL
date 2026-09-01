@@ -3,6 +3,7 @@ package io.github.hideyukimori.nenepixel.core.pixelengine
 import io.github.hideyukimori.nenepixel.core.domain.color.ColorChannel
 import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.document.Revision
+import io.github.hideyukimori.nenepixel.core.domain.drawing.Stroke
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasHeight
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasWidth
@@ -31,6 +32,12 @@ internal object PixelEngineTestValues {
 
     fun revision(value: Long): Revision = Revision.create(value).value()
 
+    fun stroke(
+        canvas: CanvasSize,
+        path: List<PixelPosition>,
+        color: PixelColor,
+    ): Stroke = Stroke.create(canvas, path, color).value()
+
     fun region(
         canvas: CanvasSize,
         origin: PixelPosition,
@@ -42,6 +49,11 @@ internal object PixelEngineTestValues {
         revision: Revision = Revision.initial(),
         pixels: List<PixelColor> = List(canvas.pixelCount.toInt()) { black },
     ): PixelSnapshot = PixelSnapshot.create(canvas, revision, pixels).value()
+
+    fun colorAt(
+        snapshot: PixelSnapshot,
+        position: PixelPosition,
+    ): PixelColor = snapshot.colorAt(position).value()
 
     private fun color(
         red: Int,
