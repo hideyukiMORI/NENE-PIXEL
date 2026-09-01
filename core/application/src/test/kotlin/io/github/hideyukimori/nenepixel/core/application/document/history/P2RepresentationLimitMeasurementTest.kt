@@ -48,7 +48,11 @@ internal class P2RepresentationLimitMeasurementTest {
                 patchMetrics() +
                 historyMetrics()
 
-        P2RepresentationMeasurementReport.write(metrics, analysisRows())
+        P2RepresentationMeasurementReport.write(
+            metrics = metrics,
+            analyses = analysisRows(),
+            candidates = P2CandidateMeasurement.measure(allocationCounter),
+        )
     }
 
     private fun snapshotMetrics(): List<P2MeasurementMetric> =
@@ -647,7 +651,7 @@ private data class P2PatchDigest(
     val contentHash: Int,
 )
 
-private class P2ThreadAllocationCounter private constructor(
+internal class P2ThreadAllocationCounter private constructor(
     private val bean: ThreadMXBean,
 ) {
     fun currentThreadBytes(): Long = bean.getThreadAllocatedBytes(Thread.currentThread().threadId())

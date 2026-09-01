@@ -7,7 +7,7 @@ import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 internal enum class P2CandidateRepresentation(
     val candidateId: String,
 ) {
-    CurrentObjectList("current-object-list-v1"),
+    CurrentObjectList("current-object-list-fixture-v1"),
     FlatPackedRgba8888("flat-packed-rgba8888-v1"),
     TiledCowRgba8888T16("tiled-cow-rgba8888-t16-v1"),
     TiledCowRgba8888T32("tiled-cow-rgba8888-t32-v1"),
