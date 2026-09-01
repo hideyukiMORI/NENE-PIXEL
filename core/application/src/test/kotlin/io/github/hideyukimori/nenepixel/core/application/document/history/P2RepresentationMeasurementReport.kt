@@ -29,10 +29,11 @@ internal object P2RepresentationMeasurementReport {
     }
 
     private fun currentMetadataRows(): List<String> =
-        metadataRows("nene-pixel-p2-representation-limits-host-current-v2") +
+        metadataRows("nene-pixel-p2-representation-limits-host-current-v3") +
             metadataRow(
                 "current_boundary",
-                "executed current representation; retained heap, ART, PSS, and rendering are not measured",
+                "executed current representation including duplicate/no-op reference-clear fixtures, " +
+                    "shuffled patch create, and late conflict; retained heap, ART, PSS, and rendering are not measured",
             )
 
     private fun candidateMetadataRows(): List<String> =

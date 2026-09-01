@@ -35,10 +35,10 @@ import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.fail
 import java.lang.management.ManagementFactory
-import kotlin.math.ceil
 
 internal class P2RepresentationLimitMeasurementTest {
     private val allocationCounter: P2ThreadAllocationCounter = P2ThreadAllocationCounter.create()
+    private val measurementRunner: P2HostMeasurementRunner = P2HostMeasurementRunner(allocationCounter)
 
     @Test
     fun `measure current representation workloads and emit excluded candidate analysis`() {
@@ -46,7 +46,8 @@ internal class P2RepresentationLimitMeasurementTest {
             snapshotMetrics() +
                 commandMetrics() +
                 patchMetrics() +
-                historyMetrics()
+                historyMetrics() +
+                P2CanonicalGapMeasurement.measure(measurementRunner)
 
         P2RepresentationMeasurementReport.write(
             metrics = metrics,
@@ -141,7 +142,9 @@ internal class P2RepresentationLimitMeasurementTest {
                 name = "p2_command_dense_eraser_equivalent",
                 edge = edge,
                 pathPositions = edge * edge,
-                boundary = "full-canvas opaque red to canonical black; representation-equivalent eraser workload",
+                boundary =
+                    "full-canvas opaque red to the current black reference-clear fixture; " +
+                        "not semantic blank or eraser selection",
             )
         return measureCommand(descriptor, ::densePath, initialColor = red, resultColor = black)
     }
@@ -149,8 +152,8 @@ internal class P2RepresentationLimitMeasurementTest {
     private fun measureDenseSameColorNoOp(edge: Int): P2MeasurementMetric {
         val size = canvas(edge, edge)
         val path = densePath(size)
-        val initial = state(size)
-        val measuredStroke = stroke(size, path, black)
+        val initial = state(size, pixels = List(size.pixelCount.toInt()) { red })
+        val measuredStroke = stroke(size, path, red)
         val command = ApplyStrokeCommand.create(initial.id, initial.revision, measuredStroke)
         val descriptor =
             P2MeasurementDescriptor(
@@ -164,8 +167,8 @@ internal class P2RepresentationLimitMeasurementTest {
                     ),
                 sampling = P2SamplingPlan(DENSE_WARMUPS, DENSE_SAMPLES),
                 boundary =
-                    "CommandGateway.execute full-canvas same-color stroke; " +
-                        "canonical no-effective-change rejection",
+                    "CommandGateway.execute full-canvas opaque-red same-color stroke; " +
+                        "typed no-effective-change",
             )
         return measure(descriptor) {
             val gateway = CommandGateway.create(initial)
@@ -479,9 +482,9 @@ internal class P2RepresentationLimitMeasurementTest {
             workload =
                 P2WorkloadShape(
                     canvas = P2CanvasShape(edge, edge),
-                    pathPositions = edge * edge,
+                    pathPositions = 0,
                     changeCount = edge * edge,
-                    historyEntries = 1,
+                    historyEntries = 0,
                 ),
             sampling = P2SamplingPlan(DENSE_WARMUPS, DENSE_SAMPLES),
             boundary = boundary,
@@ -490,43 +493,7 @@ internal class P2RepresentationLimitMeasurementTest {
     private fun <T : Any, K : Any> measure(
         descriptor: P2MeasurementDescriptor,
         prepare: () -> P2MeasuredOperation<T, K>,
-    ): P2MeasurementMetric {
-        var deterministicKey: K? = null
-        repeat(descriptor.sampling.warmupIterations) {
-            val operation = prepare()
-            val result = operation.execute()
-            operation.verify(result)
-            deterministicKey = deterministicKey.assertDeterministic(operation.deterministicKey(result))
-        }
-        val latencies = LongArray(descriptor.sampling.sampleCount)
-        val allocations = LongArray(descriptor.sampling.sampleCount)
-        repeat(descriptor.sampling.sampleCount) { index ->
-            val operation = prepare()
-            val allocationBefore = allocationCounter.currentThreadBytes()
-            val timeBefore = System.nanoTime()
-            val result = operation.execute()
-            latencies[index] = System.nanoTime() - timeBefore
-            allocations[index] = allocationCounter.currentThreadBytes() - allocationBefore
-            operation.verify(result)
-            deterministicKey = deterministicKey.assertDeterministic(operation.deterministicKey(result))
-        }
-        return P2MeasurementMetric(
-            descriptor = descriptor,
-            samples = P2RawSamples(latencies, allocations),
-            latency =
-                P2Percentiles(
-                    median = latencies.percentile(MEDIAN_PERCENTILE),
-                    p95 = latencies.percentile(P95_PERCENTILE),
-                    p99 = latencies.percentile(P99_PERCENTILE),
-                ),
-            allocation =
-                P2Percentiles(
-                    median = allocations.percentile(MEDIAN_PERCENTILE),
-                    p95 = allocations.percentile(P95_PERCENTILE),
-                    p99 = allocations.percentile(P99_PERCENTILE),
-                ),
-        )
-    }
+    ): P2MeasurementMetric = measurementRunner.measure(descriptor, prepare)
 
     private fun highCardinalityPixels(size: CanvasSize): List<PixelColor> =
         List(size.pixelCount.toInt()) { index ->
@@ -565,13 +532,6 @@ internal class P2RepresentationLimitMeasurementTest {
 
     private fun ChangeSet.digest(): P2PatchDigest = patch.digest()
 
-    private fun <T : Any> T?.assertDeterministic(actual: T): T {
-        if (this != null) {
-            assertEquals(this, actual)
-        }
-        return actual
-    }
-
     private fun CommandResult.requiredApplied(): CommandResult.Applied =
         assertInstanceOf(CommandResult.Applied::class.java, this)
 
@@ -594,12 +554,6 @@ internal class P2RepresentationLimitMeasurementTest {
             is DomainValueResult.Rejected -> fail("Measurement value was rejected: $rejection")
         }
 
-    private fun LongArray.percentile(percentile: Double): Long {
-        val sorted = sortedArray()
-        val index = ceil(sorted.size * percentile).toInt().coerceIn(1, sorted.size) - 1
-        return sorted[index]
-    }
-
     private companion object {
         const val STANDARD_WARMUPS: Int = 5
         const val STANDARD_SAMPLES: Int = 10
@@ -609,9 +563,6 @@ internal class P2RepresentationLimitMeasurementTest {
         const val HISTORY_SAMPLES: Int = 7
         const val DENSE_EDGE: Int = 256
         const val MAX_EXECUTED_DENSE_CHANGES: Int = 65_536
-        const val MEDIAN_PERCENTILE: Double = 0.50
-        const val P95_PERCENTILE: Double = 0.95
-        const val P99_PERCENTILE: Double = 0.99
         val SNAPSHOT_EDGES: List<Int> = listOf(64, 256, 1024)
         val SPARSE_EDGES: List<Int> = listOf(64, 256, 1024)
         val DENSE_EDGES: List<Int> = listOf(64, 128, 256)
