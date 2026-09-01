@@ -35,6 +35,16 @@ public sealed interface DomainValueRejection {
         public val size: CanvasSize,
     ) : DomainValueRejection
 
+    public data class PixelSnapshotSizeMismatch internal constructor(
+        public val expectedPixelCount: Long,
+        public val actualPixelCount: Int,
+    ) : DomainValueRejection
+
+    public data class PixelPositionOutsideCanvas internal constructor(
+        public val canvas: CanvasSize,
+        public val position: PixelPosition,
+    ) : DomainValueRejection
+
     public data class ColorChannelOutsideRange internal constructor(
         public val attemptedValue: Int,
     ) : DomainValueRejection
