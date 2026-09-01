@@ -16,7 +16,7 @@ Current evidence state:
 | --- | --- | --- |
 | Immutable M1 sparse host reproduction | complete for the rerun recorded below | starting evidence only |
 | Current-main P2 representation route | current canonical host route, preliminary physical command screening, and one final-protocol affected-frame batch complete | incomplete; full matrix, retained memory, and compositor correlation required |
-| Analytical storage candidates | current object-graph structure rows recorded; packed candidates not yet measured | incomplete and required |
+| Analytical storage candidates | flat packed and tiled/COW square/rectangular snapshot/apply screening recorded; palette U8 contract tested | incomplete; duplicate/no-op, patch/inverse layout, semantics, retained and physical evidence required |
 | Named emulator | ART command harness complete in explicit auxiliary mode | cannot satisfy physical evidence |
 | Named physical minimum Android device | profile fixed, preliminary command screening and one final-protocol affected-frame batch recorded | valid physical evidence; complete physical matrix still blocking |
 | Accepted representation or hard limits | none | ADR remains proposed |
@@ -112,18 +112,21 @@ their boundaries comparable without turning them into pass/fail claims.
 
 ## Current-main P2 host route
 
-The separately named current-main route was run from branch `adr/38-pixel-color-limits` with the
-following command:
+The separately named current-main route was rerun from branch `adr/38-pixel-color-limits` at
+source commit `71dbd2d40ad69d7505404ffc401f09c308ea1489`. The exact command was:
 
 ```powershell
 .\gradlew.bat measureP2RepresentationLimits --rerun-tasks --no-build-cache
 ```
 
-Result: final recorded rerun success in 12 seconds in one 512 MiB worker. Schema
-`nene-pixel-p2-representation-limits-host-current-v1` contains 17 metric summaries and 146 raw
-samples. Schema `nene-pixel-p2-representation-limits-host-candidates-v1` contains six typed
-analysis rows. Every executed sample retained its exact snapshot, revision, patch/inverse,
+Result: final recorded rerun success in 16 seconds in one 512 MiB worker. Schema
+`nene-pixel-p2-representation-limits-host-current-v2` contains 17 metric summaries and 146 raw
+samples. Schema `nene-pixel-p2-representation-limits-host-candidates-v2` contains 350 test-only
+candidate metric summaries, 3,500 raw candidate samples, and six typed current-structure analysis
+rows. Every current-path sample retained its exact snapshot, revision, patch/inverse,
 full-canvas affected region, unaffected pixels, history availability, and typed no-op assertions.
+Every candidate sample matched the independent row-major semantic pixels and exact inverse
+digest; candidate correctness failures and cross-candidate digest mismatches were both zero.
 
 The diagnostic route uses five warmups and ten samples for standard rows and three warmups and
 seven samples for dense/history rows. Its p99 is therefore the observed maximum, not sufficient
@@ -131,24 +134,42 @@ physical-profile p99 evidence.
 
 | Raw path | Bytes | SHA-256 |
 | --- | ---: | --- |
-| `build/reports/p2/representation-limits/host-current.csv` | 38,455 | `A470F2D186F93993957E89DD93F74E4B55E16FB25F1B9D145BBD902DDDB2CB87` |
-| `build/reports/p2/representation-limits/host-candidates.csv` | 3,186 | `3EFE2DE8FC2FF4C0BB7349F4FE32ACE997350EDB11FAAA485F8C90A36FCA05C7` |
+| `build/reports/p2/representation-limits/host-current.csv` | 47,094 | `AE444DDC6A7C57F8A710299775C040DC6D26BDF741304E097EA8AD4B20B4E0CB` |
+| `build/reports/p2/representation-limits/host-candidates.csv` | 1,663,848 | `E9BF3836DE284A377108D20CA8BA029D63A4FE34B4657DA3193046AAF25EE163` |
 
 Selected observations show why this run cannot authorize current limits:
 
 | Workload | Canvas / changes | Host p95 ns | Host p99 ns | p95 allocated bytes |
 | --- | --- | ---: | ---: | ---: |
-| sparse pencil-equivalent | 1024 x 1024 / 1,024 | 21,175,200 | 21,175,200 | 8,591,792 |
-| dense pencil-equivalent | 256 x 256 / 65,536 | 30,082,100 | 30,082,100 | 13,196,248 |
-| dense eraser-equivalent | 256 x 256 / 65,536 | 22,886,300 | 22,886,300 | 13,196,248 |
-| dense same-color no-op | 256 x 256 / 0 changes | 4,335,900 | 4,335,900 | 4,670,280 |
-| dense forward patch apply | 256 x 256 / 65,536 | 2,828,700 | 2,828,700 | 524,480 |
+| sparse pencil-equivalent | 1024 x 1024 / 1,024 | 21,822,899 | 21,822,899 | 8,591,792 |
+| dense pencil-equivalent | 256 x 256 / 65,536 | 21,932,500 | 21,932,500 | 13,196,272 |
+| dense eraser-equivalent | 256 x 256 / 65,536 | 17,065,400 | 17,065,400 | 13,196,248 |
+| dense same-color no-op | 256 x 256 / 0 changes | 4,271,800 | 4,271,800 | 4,670,280 |
+| dense forward patch apply | 256 x 256 / 65,536 | 20,141,699 | 20,141,699 | 524,480 |
 
 These are HotSpot current-thread observations. They exclude retained heap, renderer work, ART,
-PSS, and frames. The candidate CSV records current logical reference/change counts and explicitly
-excludes unexecuted 512-square and 2048-square dense rows, a 50,000-square non-indexable current
-canvas, and a 256-square / 32-entry retained workload. It does not yet compare flat packed or
-tiled/COW implementations.
+PSS, and frames. The candidate route separately screens square and area-equivalent rectangular
+canvases at 4,096, 16,384, and 65,536 pixels. Snapshot build uses one semantic color, exactly 256
+colors, and deterministic high-entropy RGBA. High-entropy apply uses one pixel, diagonal, full
+row, full column, 25%, 50%, and 100% serpentine changes. Selected 256-square one-pixel rows show
+the copy boundary without selecting a candidate:
+
+| Test-only candidate | Host p95 ns | p95 allocated bytes | Logical snapshot payload | Copied payload |
+| --- | ---: | ---: | ---: | ---: |
+| current object-list fixture | 73,300 | 524,520 | 65,536 references | 65,536 references |
+| flat packed RGBA8888 | 31,500 | 262,296 | 262,144 bytes | 262,144 bytes |
+| tiled/COW RGBA8888, tile 16 | 2,700 | 2,400 | 262,144 bytes | 1,024 bytes |
+| tiled/COW RGBA8888, tile 32 | 9,100 | 4,688 | 262,144 bytes | 4,096 bytes |
+| tiled/COW RGBA8888, tile 64 | 9,800 | 16,784 | 262,144 bytes | 16,384 bytes |
+
+The ten host samples are diagnostic and do not rank the candidates. The object-list row is a
+test-only structural fixture; canonical production behavior remains in `host-current.csv`. The
+common packed test-driver patch is not a measured candidate patch/inverse layout. Palette U8
+pack/index correctness, unsigned index 255, and typed rejection of a 257th semantic color are
+covered by contract tests, but palette performance remains blocked on semantic ownership. The
+candidate CSV also retains the current logical reference/change analysis and explicit exclusions.
+Duplicate/no-op/eraser-equivalent inputs, candidate-specific patch/inverse storage, analytical
+history retention, retained heap, ART, PSS, and frames remain required.
 
 ## Auxiliary Android harness proof
 
