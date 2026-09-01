@@ -48,11 +48,14 @@ internal enum class P2CandidatePathKind(
 }
 
 internal data class P2CandidateMeasurementDescriptor(
-    val representation: P2CandidateRepresentation,
+    val configuration: P2CandidateConfiguration,
     val operation: P2CandidateOperationKind,
     val canvas: P2CanvasShape,
     val boundary: String,
 ) {
+    val representation: P2CandidateRepresentation
+        get() = configuration.snapshotRepresentation
+
     val pathKind: P2CandidatePathKind
         get() = operation.pathKind
 
@@ -87,7 +90,7 @@ internal data class P2CandidateCorrectness(
 
 internal data class P2CandidateMeasurementOutcome(
     val storage: P2CandidateStorageCounts,
-    val patchPayloadBytes: Long,
+    val patchStorage: P2CandidatePatchPairStorage,
     val units: P2CandidateUnitCounts,
     val correctness: P2CandidateCorrectness,
 )
@@ -118,11 +121,10 @@ internal data class P2CandidatePercentiles(
 internal object P2CandidateMeasurement {
     fun measure(allocationCounter: P2ThreadAllocationCounter): List<P2CandidateMeasurementMetric> =
         CANDIDATE_CANVASES.flatMap { canvas ->
-            P2CandidateRepresentation.entries
-                .filterNot { representation -> representation == P2CandidateRepresentation.PaletteValueU8 }
-                .flatMap { representation ->
+            P2CandidateConfiguration.entries
+                .flatMap { configuration ->
                     P2CandidateOperationKind.entries.map { operation ->
-                        measureCandidate(allocationCounter, descriptor(representation, operation, canvas))
+                        measureCandidate(allocationCounter, descriptor(configuration, operation, canvas))
                     }
                 }
         }
@@ -155,12 +157,12 @@ internal object P2CandidateMeasurement {
     }
 
     private fun descriptor(
-        representation: P2CandidateRepresentation,
+        configuration: P2CandidateConfiguration,
         operation: P2CandidateOperationKind,
         canvas: P2CanvasShape,
     ): P2CandidateMeasurementDescriptor =
         P2CandidateMeasurementDescriptor(
-            representation = representation,
+            configuration = configuration,
             operation = operation,
             canvas = canvas,
             boundary =
@@ -209,14 +211,14 @@ private class P2CandidateMeasurementFixture private constructor(
     private val descriptor: P2CandidateMeasurementDescriptor,
     private val input: P2CandidateSemanticInput,
     private val initial: P2CandidateSnapshot?,
-    private val changes: P2CandidateChanges?,
+    private val patch: P2CandidatePatch?,
 ) {
     fun execute(): P2CandidateExecution =
         if (descriptor.operation.isSnapshotBuild) {
             P2CandidateExecution.Built(buildSnapshot())
         } else {
             P2CandidateExecution.Applied(
-                requireNotNull(initial).apply(requireNotNull(changes)),
+                requireNotNull(initial).apply(requireNotNull(patch)).requiredApplication(),
             )
         }
 
@@ -232,7 +234,7 @@ private class P2CandidateMeasurementFixture private constructor(
         assertSemanticPixels(snapshot, input.packed)
         return P2CandidateMeasurementOutcome(
             storage = snapshot.storage,
-            patchPayloadBytes = 0L,
+            patchStorage = emptyPatchStorage(),
             units = P2CandidateUnitCounts(0, 0, 0, descriptor.representation.tileEdge()),
             correctness = P2CandidateCorrectness(snapshot.semanticDigest(), snapshot.semanticDigest(), "pass"),
         )
@@ -240,15 +242,21 @@ private class P2CandidateMeasurementFixture private constructor(
 
     private fun verifyApplication(application: P2CandidateApplication): P2CandidateMeasurementOutcome {
         val before = requireNotNull(initial)
-        val patch = requireNotNull(changes)
+        val changes = requireNotNull(patch)
         val expected = input.packed.copyOf()
-        repeat(patch.changeCount) { index -> expected[patch.positionAt(index)] = patch.afterAt(index) }
+        repeat(changes.changeCount) { index -> expected[changes.positionAt(index)] = changes.afterAt(index) }
         assertSemanticPixels(application.snapshot, expected)
-        val restored = application.snapshot.apply(patch.inverse()).snapshot
+        val inverse = changes.inverse()
+        val restored =
+            application.snapshot
+                .apply(inverse)
+                .requiredApplication()
+                .snapshot
+        assertSemanticPixels(restored, input.packed)
         check(before == restored) { "Candidate inverse round trip failed." }
         return P2CandidateMeasurementOutcome(
             storage = copiedStorage(application),
-            patchPayloadBytes = patch.primitivePayloadBytes,
+            patchStorage = changes.pairStorage(inverse),
             units =
                 P2CandidateUnitCounts(
                     application.touchedUnits,
@@ -282,7 +290,7 @@ private class P2CandidateMeasurementFixture private constructor(
     }
 
     private fun buildSnapshot(): P2CandidateSnapshot =
-        descriptor.representation.createSnapshot(descriptor.canvas, input.colors)
+        descriptor.configuration.createSnapshot(descriptor.canvas, input.colors)
 
     companion object {
         fun create(descriptor: P2CandidateMeasurementDescriptor): P2CandidateMeasurementFixture {
@@ -291,11 +299,18 @@ private class P2CandidateMeasurementFixture private constructor(
             if (descriptor.operation.isSnapshotBuild) {
                 return P2CandidateMeasurementFixture(descriptor, input, null, null)
             }
-            val initial = descriptor.representation.createSnapshot(descriptor.canvas, input.colors)
+            val initial = descriptor.configuration.createSnapshot(descriptor.canvas, input.colors)
             val positions = descriptor.changePositions()
-            val after = positions.map { position -> packed[position] xor ALPHA_XOR_MASK }.toIntArray()
-            val changes = P2CandidateChanges.create(initial, positions, after)
-            return P2CandidateMeasurementFixture(descriptor, input, initial, changes)
+            val after = positions.map { position -> P2PackedRgba8888.unpack(packed[position] xor ALPHA_XOR_MASK) }
+            val patch =
+                P2CandidatePatchFactory
+                    .create(
+                        descriptor.configuration,
+                        initial,
+                        positions,
+                        after,
+                    ).requiredPatch()
+            return P2CandidateMeasurementFixture(descriptor, input, initial, patch)
         }
 
         private fun semanticPixels(
@@ -350,35 +365,54 @@ private data class P2CandidateSemanticInput(
     val packed: IntArray,
 )
 
-private fun P2CandidateRepresentation.createSnapshot(
+internal fun P2CandidateConfiguration.createSnapshot(
     canvas: P2CanvasShape,
     colors: List<PixelColor>,
 ): P2CandidateSnapshot =
-    when (this) {
+    if (snapshotRepresentation == P2CandidateRepresentation.CurrentObjectList) {
+        P2CurrentObjectCandidateSnapshot.create(canvas, 0L, colors)
+    } else {
+        createSnapshot(canvas, 0L, colors.packed())
+    }
+
+internal fun P2CandidateConfiguration.createSnapshot(
+    canvas: P2CanvasShape,
+    revision: Long,
+    packed: IntArray,
+): P2CandidateSnapshot =
+    when (snapshotRepresentation) {
         P2CandidateRepresentation.CurrentObjectList -> {
-            P2CurrentObjectCandidateSnapshot.create(canvas, 0L, colors)
+            P2CurrentObjectCandidateSnapshot.create(canvas, revision, packed.map(P2PackedRgba8888::unpack))
         }
 
         P2CandidateRepresentation.FlatPackedRgba8888 -> {
-            P2FlatPackedCandidateSnapshot.create(canvas, 0L, colors.packed())
+            P2FlatPackedCandidateSnapshot.create(canvas, revision, packed)
         }
 
         P2CandidateRepresentation.TiledCowRgba8888T16 -> {
-            P2TiledCowCandidateSnapshot.create(canvas, 0L, colors.packed(), tileEdge = 16)
+            P2TiledCowCandidateSnapshot.create(canvas, revision, packed, tileEdge = 16)
         }
 
         P2CandidateRepresentation.TiledCowRgba8888T32 -> {
-            P2TiledCowCandidateSnapshot.create(canvas, 0L, colors.packed(), tileEdge = 32)
+            P2TiledCowCandidateSnapshot.create(canvas, revision, packed, tileEdge = 32)
         }
 
         P2CandidateRepresentation.TiledCowRgba8888T64 -> {
-            P2TiledCowCandidateSnapshot.create(canvas, 0L, colors.packed(), tileEdge = 64)
+            P2TiledCowCandidateSnapshot.create(canvas, revision, packed, tileEdge = 64)
         }
 
         P2CandidateRepresentation.PaletteValueU8 -> {
             error("Palette performance remains semantically pending.")
         }
     }
+
+private fun emptyPatchStorage(): P2CandidatePatchPairStorage =
+    P2CandidatePatchPairStorage(
+        forward = P2CandidatePatchStorageCounts.Empty,
+        inverseAdditional = P2CandidatePatchStorageCounts.Empty,
+        shared = P2CandidatePatchStorageCounts.Empty,
+        retainedUnion = P2CandidatePatchStorageCounts.Empty,
+    )
 
 private fun List<PixelColor>.packed(): IntArray = map(P2PackedRgba8888::pack).toIntArray()
 

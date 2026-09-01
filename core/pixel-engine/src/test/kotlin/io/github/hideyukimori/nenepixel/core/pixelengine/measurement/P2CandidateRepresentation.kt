@@ -44,73 +44,6 @@ internal data class P2CandidateApplication(
     val sharedUnits: Int,
 )
 
-internal class P2CandidateChanges private constructor(
-    private val storage: P2CandidateChangeStorage,
-    val revisions: P2CandidateRevisionTransition,
-    private val inverse: Boolean,
-) {
-    val changeCount: Int
-        get() = storage.positions.size
-
-    val primitivePayloadBytes: Long
-        get() = storage.positions.size.toLong() * CHANGE_FIELD_COUNT * Int.SIZE_BYTES
-
-    fun positionAt(index: Int): Int = storage.positions[index]
-
-    fun beforeAt(index: Int): Int = if (inverse) storage.after[index] else storage.before[index]
-
-    fun afterAt(index: Int): Int = if (inverse) storage.before[index] else storage.after[index]
-
-    fun inverse(): P2CandidateChanges = P2CandidateChanges(storage, revisions.inverse(), !inverse)
-
-    fun assertApplicableTo(snapshot: P2CandidateSnapshot) {
-        check(snapshot.revision == revisions.before) { "Candidate revision mismatch." }
-        repeat(changeCount) { index ->
-            check(snapshot.packedAt(positionAt(index)) == beforeAt(index)) {
-                "Candidate before-value mismatch at row-major index ${positionAt(index)}."
-            }
-        }
-    }
-
-    companion object {
-        fun create(
-            snapshot: P2CandidateSnapshot,
-            positions: IntArray,
-            after: IntArray,
-        ): P2CandidateChanges {
-            require(positions.size == after.size) { "Candidate positions and values must have equal size." }
-            require(positions.isNotEmpty()) { "Candidate changes must not be empty." }
-            val ordered = positions.indices.sortedBy(positions::get)
-            val canonicalPositions = IntArray(ordered.size) { index -> positions[ordered[index]] }
-            require(canonicalPositions.toSet().size == canonicalPositions.size) {
-                "Candidate changes must have unique positions."
-            }
-            require(canonicalPositions.all { position -> position in 0 until snapshot.shape.pixelCount.toInt() }) {
-                "Candidate change is outside the canvas."
-            }
-            val canonicalAfter = IntArray(ordered.size) { index -> after[ordered[index]] }
-            val before = IntArray(ordered.size) { index -> snapshot.packedAt(canonicalPositions[index]) }
-            require(before.indices.all { index -> before[index] != canonicalAfter[index] }) {
-                "Candidate change must alter every position."
-            }
-            val revisions = P2CandidateRevisionTransition(snapshot.revision, Math.addExact(snapshot.revision, 1L))
-            return P2CandidateChanges(
-                storage = P2CandidateChangeStorage(canonicalPositions, before, canonicalAfter),
-                revisions = revisions,
-                inverse = false,
-            )
-        }
-
-        private const val CHANGE_FIELD_COUNT: Long = 3L
-    }
-}
-
-private data class P2CandidateChangeStorage(
-    val positions: IntArray,
-    val before: IntArray,
-    val after: IntArray,
-)
-
 internal abstract class P2CandidateSnapshot {
     abstract val representation: P2CandidateRepresentation
     abstract val shape: P2CanvasShape
@@ -119,7 +52,23 @@ internal abstract class P2CandidateSnapshot {
 
     abstract fun packedAt(index: Int): Int
 
-    abstract fun apply(changes: P2CandidateChanges): P2CandidateApplication
+    abstract fun colorAt(index: Int): PixelColor
+
+    abstract fun matchesColor(
+        index: Int,
+        color: PixelColor,
+    ): Boolean
+
+    fun apply(patch: P2CandidatePatch): P2CandidatePatchApplicationResult {
+        val rejection = patch.applicationRejection(this)
+        return if (rejection == null) {
+            P2CandidatePatchApplicationResult.Applied(applyVerified(patch))
+        } else {
+            P2CandidatePatchApplicationResult.Rejected(rejection)
+        }
+    }
+
+    protected abstract fun applyVerified(patch: P2CandidatePatch): P2CandidateApplication
 
     fun semanticDigest(): Int {
         var digest = shape.hashCode()
@@ -142,10 +91,6 @@ internal abstract class P2CandidateSnapshot {
     private fun semanticPixelsEqual(other: P2CandidateSnapshot): Boolean =
         (0 until shape.pixelCount.toInt()).all { index -> packedAt(index) == other.packedAt(index) }
 
-    protected fun P2CandidateChanges.requireApplicable() {
-        assertApplicableTo(this@P2CandidateSnapshot)
-    }
-
     private companion object {
         const val HASH_MULTIPLIER: Int = 31
     }
@@ -162,15 +107,21 @@ internal class P2CurrentObjectCandidateSnapshot private constructor(
 
     override fun packedAt(index: Int): Int = P2PackedRgba8888.pack(pixels[index])
 
-    override fun apply(changes: P2CandidateChanges): P2CandidateApplication {
-        changes.requireApplicable()
+    override fun colorAt(index: Int): PixelColor = pixels[index]
+
+    override fun matchesColor(
+        index: Int,
+        color: PixelColor,
+    ): Boolean = pixels[index] == color
+
+    override fun applyVerified(patch: P2CandidatePatch): P2CandidateApplication {
         val next = pixels.toMutableList()
-        repeat(changes.changeCount) { index ->
-            next[changes.positionAt(index)] = P2PackedRgba8888.unpack(changes.afterAt(index))
+        repeat(patch.changeCount) { index ->
+            next[patch.positionAt(index)] = patch.colorAfterAt(index)
         }
         return P2CandidateApplication(
-            snapshot = P2CurrentObjectCandidateSnapshot(shape, changes.revisions.after, next.toList()),
-            touchedUnits = changes.changeCount,
+            snapshot = P2CurrentObjectCandidateSnapshot(shape, patch.revisions.after, next.toList()),
+            touchedUnits = patch.changeCount,
             copiedUnits = pixels.size,
             sharedUnits = 0,
         )
@@ -199,13 +150,19 @@ internal class P2FlatPackedCandidateSnapshot private constructor(
 
     override fun packedAt(index: Int): Int = pixels[index]
 
-    override fun apply(changes: P2CandidateChanges): P2CandidateApplication {
-        changes.requireApplicable()
+    override fun colorAt(index: Int): PixelColor = P2PackedRgba8888.unpack(pixels[index])
+
+    override fun matchesColor(
+        index: Int,
+        color: PixelColor,
+    ): Boolean = pixels[index] == P2PackedRgba8888.pack(color)
+
+    override fun applyVerified(patch: P2CandidatePatch): P2CandidateApplication {
         val next = pixels.copyOf()
-        repeat(changes.changeCount) { index -> next[changes.positionAt(index)] = changes.afterAt(index) }
+        repeat(patch.changeCount) { index -> next[patch.positionAt(index)] = patch.afterAt(index) }
         return P2CandidateApplication(
-            snapshot = P2FlatPackedCandidateSnapshot(shape, changes.revisions.after, next),
-            touchedUnits = changes.changeCount,
+            snapshot = P2FlatPackedCandidateSnapshot(shape, patch.revisions.after, next),
+            touchedUnits = patch.changeCount,
             copiedUnits = pixels.size,
             sharedUnits = 0,
         )
@@ -234,17 +191,23 @@ internal class P2TiledCowCandidateSnapshot private constructor(
 
     override fun packedAt(index: Int): Int = layout.packedAt(shape, index)
 
-    override fun apply(changes: P2CandidateChanges): P2CandidateApplication {
-        changes.requireApplicable()
+    override fun colorAt(index: Int): PixelColor = P2PackedRgba8888.unpack(packedAt(index))
+
+    override fun matchesColor(
+        index: Int,
+        color: PixelColor,
+    ): Boolean = packedAt(index) == P2PackedRgba8888.pack(color)
+
+    override fun applyVerified(patch: P2CandidatePatch): P2CandidateApplication {
         val copiedTiles = layout.tiles.copyOf()
-        val touched = changes.touchedTileIndexes(shape, layout.tileEdge)
+        val touched = patch.touchedTileIndexes(shape, layout.tileEdge)
         touched.forEach { tileIndex -> copiedTiles[tileIndex] = copiedTiles[tileIndex].copyOf() }
-        repeat(changes.changeCount) { index ->
-            layout.write(copiedTiles, shape, changes.positionAt(index), changes.afterAt(index))
+        repeat(patch.changeCount) { index ->
+            layout.write(copiedTiles, shape, patch.positionAt(index), patch.afterAt(index))
         }
         val nextLayout = P2CandidateTileLayout(layout.tileEdge, copiedTiles)
         return P2CandidateApplication(
-            snapshot = P2TiledCowCandidateSnapshot(shape, changes.revisions.after, nextLayout),
+            snapshot = P2TiledCowCandidateSnapshot(shape, patch.revisions.after, nextLayout),
             touchedUnits = touched.size,
             copiedUnits = touched.size,
             sharedUnits = layout.tiles.size - touched.size,
@@ -420,7 +383,7 @@ internal object P2PackedRgba8888 {
     private const val CHANNEL_MASK: Int = 0xff
 }
 
-private fun P2CandidateChanges.touchedTileIndexes(
+private fun P2CandidatePatch.touchedTileIndexes(
     shape: P2CanvasShape,
     tileEdge: Int,
 ): Set<Int> {

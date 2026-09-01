@@ -4,7 +4,6 @@ import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertNotEquals
-import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 
 internal class P2CandidateRepresentationContractTest {
@@ -45,11 +44,14 @@ internal class P2CandidateRepresentationContractTest {
         val packed = deterministicPixels(shape)
         val snapshots = candidateSnapshots(shape, packed.map(P2PackedRgba8888::unpack), packed)
         val positions = intArrayOf(shape.pixelCount.toInt() - 1, 17, 0, 16)
-        val after = positions.map { index -> packed[index] xor ALPHA_XOR_MASK }.toIntArray()
-        val changes = P2CandidateChanges.create(snapshots.first(), positions, after)
+        val after = positions.map { index -> P2PackedRgba8888.unpack(packed[index] xor ALPHA_XOR_MASK) }
 
-        assertEquals(positions.sorted(), List(changes.changeCount, changes::positionAt))
-        snapshots.forEach { initial -> assertRoundTrip(initial, changes) }
+        snapshots.forEach { initial ->
+            val configuration = initial.configuration()
+            val patch = P2CandidatePatchFactory.create(configuration, initial, positions, after).requiredPatch()
+            assertEquals(positions.sorted(), List(patch.changeCount, patch::positionAt))
+            assertRoundTrip(initial, patch)
+        }
     }
 
     @Test
@@ -58,9 +60,17 @@ internal class P2CandidateRepresentationContractTest {
         val packed = deterministicPixels(shape)
         val initial = P2TiledCowCandidateSnapshot.create(shape, 0L, packed, tileEdge = 16)
         val positions = intArrayOf(0, 16, 17, shape.pixelCount.toInt() - 1)
-        val after = positions.map { index -> packed[index] xor ALPHA_XOR_MASK }.toIntArray()
+        val after = positions.map { index -> P2PackedRgba8888.unpack(packed[index] xor ALPHA_XOR_MASK) }
+        val patch =
+            P2CandidatePatchFactory
+                .create(
+                    P2CandidateConfiguration.TiledCowT16SharedInverse,
+                    initial,
+                    positions,
+                    after,
+                ).requiredPatch()
 
-        val applied = initial.apply(P2CandidateChanges.create(initial, positions, after))
+        val applied = initial.apply(patch).requiredApplication()
 
         assertEquals(3, applied.touchedUnits)
         assertEquals(3, applied.copiedUnits)
@@ -90,35 +100,57 @@ internal class P2CandidateRepresentationContractTest {
     }
 
     @Test
-    fun `candidate changes reject duplicate outside and unchanged entries before apply`() {
+    fun `candidate patches return typed duplicate outside and unchanged rejections`() {
         val shape = P2CanvasShape(width = 4, height = 4)
         val packed = deterministicPixels(shape)
         val snapshot = P2FlatPackedCandidateSnapshot.create(shape, 0L, packed)
-        val changed = packed[0] xor ALPHA_XOR_MASK
+        val changed = P2PackedRgba8888.unpack(packed[0] xor ALPHA_XOR_MASK)
 
-        assertThrows(IllegalArgumentException::class.java) {
-            P2CandidateChanges.create(snapshot, intArrayOf(0, 0), intArrayOf(changed, changed))
-        }
-        assertThrows(IllegalArgumentException::class.java) {
-            P2CandidateChanges.create(snapshot, intArrayOf(packed.size), intArrayOf(changed))
-        }
-        assertThrows(IllegalArgumentException::class.java) {
-            P2CandidateChanges.create(snapshot, intArrayOf(0), intArrayOf(packed[0]))
-        }
+        val configuration = P2CandidateConfiguration.FlatPackedSharedInverse
+        assertCreationRejection<P2CandidatePatchCreationRejection.DuplicatePosition>(
+            P2CandidatePatchFactory.create(configuration, snapshot, intArrayOf(0, 0), listOf(changed, changed)),
+        )
+        assertCreationRejection<P2CandidatePatchCreationRejection.PositionOutsideCanvas>(
+            P2CandidatePatchFactory.create(configuration, snapshot, intArrayOf(packed.size), listOf(changed)),
+        )
+        assertCreationRejection<P2CandidatePatchCreationRejection.UnchangedPixel>(
+            P2CandidatePatchFactory.create(
+                configuration,
+                snapshot,
+                intArrayOf(0),
+                listOf(P2PackedRgba8888.unpack(packed[0])),
+            ),
+        )
     }
 
     private fun assertRoundTrip(
         initial: P2CandidateSnapshot,
-        changes: P2CandidateChanges,
+        patch: P2CandidatePatch,
     ) {
-        val applied = initial.apply(changes)
-        assertEquals(changes.revisions.after, applied.snapshot.revision)
+        val applied = initial.apply(patch).requiredApplication()
+        assertEquals(patch.revisions.after, applied.snapshot.revision)
         assertNotEquals(initial.semanticDigest(), applied.snapshot.semanticDigest())
 
-        val restored = applied.snapshot.apply(changes.inverse()).snapshot
+        val restored =
+            applied.snapshot
+                .apply(patch.inverse())
+                .requiredApplication()
+                .snapshot
         assertEquals(initial, restored)
         assertEquals(initial.semanticDigest(), restored.semanticDigest())
     }
+
+    private inline fun <reified T : P2CandidatePatchCreationRejection> assertCreationRejection(
+        result: P2CandidatePatchCreationResult,
+    ) {
+        val rejected = assertInstanceOf(P2CandidatePatchCreationResult.Rejected::class.java, result)
+        assertInstanceOf(T::class.java, rejected.rejection)
+    }
+
+    private fun P2CandidateSnapshot.configuration(): P2CandidateConfiguration =
+        P2CandidateConfiguration.entries.single { configuration ->
+            configuration.snapshotRepresentation == representation
+        }
 
     private fun candidateSnapshots(
         shape: P2CanvasShape,

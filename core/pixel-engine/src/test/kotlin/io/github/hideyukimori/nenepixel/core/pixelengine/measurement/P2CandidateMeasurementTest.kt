@@ -5,8 +5,10 @@ import org.junit.jupiter.api.Test
 internal class P2CandidateMeasurementTest {
     @Test
     fun `measure test-only pixel-engine candidates`() {
-        val candidates = P2CandidateMeasurement.measure(P2ThreadAllocationCounter.create())
+        val allocationCounter = P2ThreadAllocationCounter.create()
+        val candidates = P2CandidateMeasurement.measure(allocationCounter)
+        val patchCandidates = P2CandidatePatchMeasurement.measure(allocationCounter)
 
-        P2CandidateMeasurementReport.write(candidates)
+        P2CandidateMeasurementReport.write(candidates, patchCandidates)
     }
 }
