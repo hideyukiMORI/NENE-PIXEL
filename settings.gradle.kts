@@ -27,4 +27,5 @@ rootProject.name = "NENE-PIXEL"
 
 include(":app:android")
 include(":core:domain")
+include(":core:pixel-engine")
 include(":quality:architecture-rules")
