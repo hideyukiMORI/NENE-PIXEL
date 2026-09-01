@@ -16,7 +16,7 @@ Current evidence state:
 | --- | --- | --- |
 | Immutable M1 sparse host reproduction | complete for the rerun recorded below | starting evidence only |
 | Current-main P2 representation route | current canonical host route, preliminary physical command screening, and one final-protocol affected-frame batch complete | incomplete; full matrix, retained memory, and compositor correlation required |
-| Analytical storage candidates | flat packed and tiled/COW square/rectangular snapshot/apply screening recorded; palette U8 contract tested | incomplete; duplicate/no-op, patch/inverse layout, semantics, retained and physical evidence required |
+| Analytical storage candidates | flat packed and tiled/COW square/rectangular snapshot/apply, dense native patch/inverse, and raw duplicate/no-op/reference-clear screening recorded; palette U8 contract tested | incomplete; sparse/rectangular native patches, semantics, retained and physical evidence required |
 | Named emulator | ART command harness complete in explicit auxiliary mode | cannot satisfy physical evidence |
 | Named physical minimum Android device | profile fixed, preliminary command screening and one final-protocol affected-frame batch recorded | valid physical evidence; complete physical matrix still blocking |
 | Accepted representation or hard limits | none | ADR remains proposed |
@@ -192,8 +192,9 @@ candidate-native dense patch/inverse slice below closes the previous common-driv
 fixed configurations. Palette U8 pack/index correctness, unsigned index 255, and typed rejection
 of a 257th semantic color are covered by contract tests, but palette performance remains blocked
 on semantic ownership. The current CSV retains the logical reference/change analysis and explicit
-exclusions. Candidate duplicate/no-op/reference-clear inputs, analytical history retention,
-retained heap, ART, PSS, and frames remain required.
+exclusions. The schema v5 raw-path slice below closes the dense candidate
+duplicate/no-op/reference-clear input gap. Analytical history retention, retained heap, ART, PSS,
+and frames remain required.
 
 ### Pre-fixed candidate patch and inverse slice
 
@@ -280,9 +281,11 @@ revision `0/0`, identical input/output SHA-256 pixel digests, and no materialize
 Canonical-order, forward-patch, inverse-patch, lifecycle, operation-state, and unaffected-pixel
 SHA-256 fields matched across all five configurations for each operation.
 
-This slice does not implement production history, candidate duplicate/no-op/reference-clear raw
-paths, retained-history budgets, physical ART/PSS/frame comparisons, semantic color decisions, or
-production migration. Those remain subsequent evidence gates while ADR 0005 is proposed.
+At schema v4, this slice did not implement production history, candidate
+duplicate/no-op/reference-clear raw paths, retained-history budgets, physical ART/PSS/frame
+comparisons, semantic color decisions, or production migration. The raw-path portion is addressed
+by the separately pre-fixed schema v5 slice below; the other gates remain while ADR 0005 is
+proposed.
 
 ### Pre-fixed candidate raw-path slice
 
@@ -330,6 +333,46 @@ source pixels, every ordered raw position including duplicates, and the target R
 canonical-change digest includes ordered position/before/after triples; `NoChanges` uses a tagged
 empty digest. These fields make `P -> C` and raw-input identity independently auditable while the
 existing position-only canonical-order digest retains its v4 meaning.
+
+#### Recorded schema v5 raw-path result
+
+The pre-fixed route was collected from source commit
+`d4ddc0a6bf01ff941e42632bc638f4cffdd740dd`. The schema v5 artifact contains 400 candidate metric
+rows and 4,000 raw sample rows in total. The new raw-path portion contains all 20 unique
+workload/configuration metric pairs and 200 samples. Recomputing median, p95, and p99 latency and
+allocation from those samples produced zero mismatches. Raw matrix, typed-result, digest,
+affected-region, lifecycle, no-op absence/storage, and cross-configuration failures were all zero.
+
+| Raw path | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `build/reports/p2/representation-limits/host-current.csv` | 48,963 | `F4837AD6991B069DF26BA7DD8B82857E7445CC93B0D85C6976C710451973D41E` |
+| `build/reports/p2/representation-limits/host-candidates.csv` | 4,168,816 | `25075A9152A5E5C319EF17471A18E95EABC2C25815654B1FDE0B77568CB2E0A5` |
+
+Each cell below is `p95 latency ns / p95 allocated bytes`. Ten samples make p95 and p99 the
+observed maximum; the values are diagnostic and do not rank candidates. The raw-only candidate
+boundary must not be compared directly with current `CommandGateway` rows.
+
+| Configuration | Duplicate changed | Reference-clear changed | Reference-clear no-op | Same-color no-op |
+| --- | ---: | ---: | ---: | ---: |
+| object analytical/materialized | 5,528,200 / 9,107,352 | 4,328,300 / 8,845,208 | 930,300 / 327,728 | 706,400 / 327,728 |
+| flat packed/shared | 5,437,700 / 8,515,472 | 4,269,600 / 8,253,328 | 762,100 / 327,728 | 480,000 / 327,728 |
+| tiled/COW T16 packed/shared | 7,511,300 / 8,515,472 | 5,951,000 / 8,253,328 | 1,430,400 / 327,728 | 1,179,300 / 327,728 |
+| tiled/COW T32 packed/shared | 6,139,200 / 8,515,472 | 7,854,700 / 8,253,328 | 1,317,200 / 327,728 | 1,856,300 / 327,728 |
+| tiled/COW T64 packed/shared | 7,957,700 / 8,515,472 | 6,774,800 / 8,253,328 | 1,103,100 / 327,728 | 1,748,200 / 327,728 |
+
+All ten `Rasterized` rows collapsed or filtered the raw input to exactly 65,536 row-major changes,
+reported the full `0:0:256:256` region, preserved the source during creation, applied at revision
+`0 -> 1`, and restored every pixel and revision through the inverse. All ten `NoChanges` rows
+retained lifecycle `0 -> 0 -> 0`, reported all 65,536 pixels unaffected, left region and patch
+digests absent, and recorded zero in every patch-storage field. For each workload, raw-input,
+canonical-change, patch, lifecycle, operation-state, and unaffected-pixel digests matched across
+the five configurations. The existing strict patch factory continues to reject direct duplicate
+or unchanged canonical input; only the upstream test-only raw boundary collapses and filters it.
+
+This result closes only the dense host raw-input slice. It does not select black as blank or eraser,
+compare equivalent production and candidate raw-only latency boundaries, implement product
+history, or provide candidate retained-heap, ART, PSS, frame, sparse/rectangular native-patch,
+semantic-color, maximum-boundary, or production-migration evidence.
 
 ## Auxiliary Android harness proof
 
