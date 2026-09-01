@@ -189,10 +189,10 @@ property is quoted because PowerShell otherwise splits property names containing
   "-Pandroid.testInstrumentationRunnerArguments.nene.p2.sampleCount=2"
 ```
 
-For decision evidence, omit `nene.p2.allowEmulatorAuxiliary`, use the completed stable physical
-profile ID, and retain the default five warmups and twenty samples or the larger protocol fixed
-in the completed profile table. The harness rejects an emulator before measurement unless the
-auxiliary flag is explicitly true. The managed connected-test task can uninstall its packages
+For physical route screening, omit `nene.p2.allowEmulatorAuxiliary`, use the completed stable
+physical profile ID, and retain the default five warmups and twenty samples. Final decision
+evidence instead uses the expanded protocol fixed below. The harness rejects an emulator before
+measurement unless the auxiliary flag is explicitly true. The managed connected-test task can uninstall its packages
 after execution, so the on-device CSV must be copied before teardown when collecting the final
 raw artifact set; its byte length and SHA-256 are then recorded in this ledger.
 
@@ -286,24 +286,26 @@ passing measured candidate causes the matrix to be extended before a maximum is 
 
 ### Final physical collection protocol
 
-The twenty-sample command run below qualifies the physical route but does not supply final p99
+The twenty-sample command run above qualifies the physical route but does not supply final p99
 tail evidence. Before any representation or hard-limit selection, final command and affected-
 frame batches use five warmups and 200 measured samples per reported maximum workload. The
 nearest-rank p95 and p99 are computed from the 200 raw rows; no outlier is discarded.
 
-PSS decision evidence uses five independent instrumentation invocations and preserves one raw
-checkpoint artifact per invocation. A final batch is invalid if its active display mode changes,
-the device-wide thermal status exceeds 1 before, during, or after the batch, or the frame listener
-reports a dropped callback. Power-saving mode remains disabled and the device remains USB
-powered and awake. No process kill, network mutation, or device reset is introduced between
-checkpoints unless the entire five-checkpoint protocol is restarted and the change is recorded.
+PSS decision evidence uses five independent instrumentation invocations and preserves one
+run-indexed raw artifact per invocation. The final Android harness records thermal status and
+active display mode before measured samples, after every 25 measured samples, and after the final
+sample in the same raw CSV. A batch is invalid if the display mode changes, any checkpoint has
+device-wide thermal status above 1, or the frame listener reports a dropped callback. Power-
+saving mode remains disabled and the device remains USB powered and awake. No process kill,
+network mutation, or device reset is introduced between checkpoints unless the entire five-
+checkpoint protocol is restarted and the change is recorded.
 
-The physical display is active at 90 Hz. Affected-frame deadline pass/fail uses the per-frame
+The physical display is active at 90 Hz. The required frame instrumentation will use the per-frame
 platform `FrameMetrics.DEADLINE`, not a substituted 16.67 ms period. The separate p99 overrun
-allowance remains 16.67 ms as pre-fixed above. The instrumentation CSV calls its direct boundary
-the first exact app-issued frame: it links exact `EditorRenderState` and a post-content draw
-generation to copied frame metrics, and rejects unavailable timing fields or listener drops.
-Compose image capture verifies the resulting pixels outside the timed interval.
+allowance remains 16.67 ms as pre-fixed above. Its CSV must call the direct boundary the first
+exact app-issued frame, link exact `EditorRenderState` and a post-content draw generation to
+copied frame metrics, and reject unavailable timing fields or listener drops. Compose image
+capture must verify the resulting pixels outside the timed interval.
 
 An app-issued frame is not proof of physical SurfaceFlinger presentation. Final evidence for the
 existing command-to-visible-correctness wording must additionally correlate the recorded API 36
@@ -330,7 +332,7 @@ inverse round trip, affected region, unaffected pixels, and atomic no-op or reje
 
 ## P2 raw artifact contract
 
-Current-main measurements must use the separately named Gradle route
+Current-main host measurements must use the separately named Gradle route
 `measureP2RepresentationLimits`, a schema beginning `nene-pixel-p2-representation-limits-`, and
 metric names that do not reuse `translated_controller_commit` or the P2 viewport transform
 boundary. Planned ignored paths are fixed as follows before collection:
@@ -340,7 +342,8 @@ boundary. Planned ignored paths are fixed as follows before collection:
 | `build/reports/p2/representation-limits/host-current.csv` | current canonical host metrics and correctness columns |
 | `build/reports/p2/representation-limits/host-candidates.csv` | analytical candidate metrics with candidate identity |
 | `build/reports/p2/representation-limits/device-core.csv` | physical ART latency, allocation, GC, live-heap, and correctness observations |
-| `build/reports/p2/representation-limits/device-memory.csv` | baseline and five-checkpoint PSS plus retained/post-GC readings |
+| `build/reports/p2/representation-limits/device-memory-run-01.csv` through `device-memory-run-05.csv` | one immutable PSS/retained/post-GC checkpoint invocation each; individual checksums required |
+| `build/reports/p2/representation-limits/device-memory.csv` | deterministic aggregate over the five run-indexed memory artifacts |
 | `build/reports/p2/representation-limits/device-frames.csv` | frame deadline, overrun, and command-to-first-correct-frame observations |
 | `build/reports/p2/representation-limits/device-profile.txt` | exact physical profile fields and their sources |
 | `build/reports/p2/representation-limits/device-logcat.txt` | scoped fatal, ANR, GC, thermal, and measurement logs |
