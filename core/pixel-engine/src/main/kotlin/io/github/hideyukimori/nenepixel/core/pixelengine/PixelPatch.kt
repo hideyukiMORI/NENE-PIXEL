@@ -1,7 +1,13 @@
 package io.github.hideyukimori.nenepixel.core.pixelengine
 
 import io.github.hideyukimori.nenepixel.core.domain.document.Revision
+import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasHeight
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
+import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasWidth
+import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
+import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelRegion
+import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelX
+import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelY
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 
@@ -9,6 +15,7 @@ public class PixelPatch private constructor(
     public val canvas: CanvasSize,
     public val beforeRevision: Revision,
     public val afterRevision: Revision,
+    public val affectedRegion: PixelRegion,
     private val changes: List<PixelChange>,
 ) {
     public val changeCount: Int
@@ -51,6 +58,7 @@ public class PixelPatch private constructor(
             canvas = canvas,
             beforeRevision = afterRevision,
             afterRevision = beforeRevision,
+            affectedRegion = affectedRegion,
             changes = changes.map(PixelChange::inverse),
         )
 
@@ -61,10 +69,11 @@ public class PixelPatch private constructor(
                     canvas == other.canvas &&
                     beforeRevision == other.beforeRevision &&
                     afterRevision == other.afterRevision &&
+                    affectedRegion == other.affectedRegion &&
                     changes == other.changes
             )
 
-    override fun hashCode(): Int = listOf(canvas, beforeRevision, afterRevision, changes).hashCode()
+    override fun hashCode(): Int = listOf(canvas, beforeRevision, afterRevision, affectedRegion, changes).hashCode()
 
     override fun toString(): String =
         "PixelPatch(canvas=$canvas, beforeRevision=$beforeRevision, " +
@@ -82,7 +91,15 @@ public class PixelPatch private constructor(
             val canonicalChanges = changes.sortedWith(ROW_MAJOR_ORDER)
             val rejection = validateChanges(canvas, canonicalChanges)
             return if (rejection == null) {
-                PixelPatchCreationResult.Created(PixelPatch(canvas, beforeRevision, afterRevision, canonicalChanges))
+                PixelPatchCreationResult.Created(
+                    PixelPatch(
+                        canvas = canvas,
+                        beforeRevision = beforeRevision,
+                        afterRevision = afterRevision,
+                        affectedRegion = affectedRegion(canvas, canonicalChanges),
+                        changes = canonicalChanges,
+                    ),
+                )
             } else {
                 creationRejected(rejection)
             }
@@ -113,6 +130,27 @@ public class PixelPatch private constructor(
         private fun creationRejected(rejection: PixelPatchCreationRejection): PixelPatchCreationResult =
             PixelPatchCreationResult.Rejected(rejection)
 
+        private fun affectedRegion(
+            canvas: CanvasSize,
+            changes: List<PixelChange>,
+        ): PixelRegion {
+            val minimumX = changes.minOf { change -> change.position.x.value }
+            val minimumY = changes.minOf { change -> change.position.y.value }
+            val maximumX = changes.maxOf { change -> change.position.x.value }
+            val maximumY = changes.maxOf { change -> change.position.y.value }
+            val origin =
+                PixelPosition.create(
+                    PixelX.create(minimumX).requiredValue(),
+                    PixelY.create(minimumY).requiredValue(),
+                )
+            val size =
+                CanvasSize.create(
+                    CanvasWidth.create(maximumX - minimumX + 1).requiredValue(),
+                    CanvasHeight.create(maximumY - minimumY + 1).requiredValue(),
+                )
+            return PixelRegion.create(canvas, origin, size).requiredValue()
+        }
+
         private fun rejected(rejection: PixelPatchApplicationRejection): PixelPatchApplicationResult =
             PixelPatchApplicationResult.Rejected(rejection)
 
@@ -123,3 +161,9 @@ public class PixelPatch private constructor(
             )
     }
 }
+
+private fun <T> DomainValueResult<T>.requiredValue(): T =
+    when (this) {
+        is DomainValueResult.Created -> value
+        is DomainValueResult.Rejected -> error("A validated pixel-patch invariant was rejected: $rejection")
+    }

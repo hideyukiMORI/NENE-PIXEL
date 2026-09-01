@@ -7,6 +7,7 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasHeight
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasWidth
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
+import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelRegion
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelX
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelY
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
@@ -29,6 +30,12 @@ internal object PixelEngineTestValues {
     ): PixelPosition = PixelPosition.create(PixelX.create(x).value(), PixelY.create(y).value())
 
     fun revision(value: Long): Revision = Revision.create(value).value()
+
+    fun region(
+        canvas: CanvasSize,
+        origin: PixelPosition,
+        size: CanvasSize,
+    ): PixelRegion = PixelRegion.create(canvas, origin, size).value()
 
     fun snapshot(
         canvas: CanvasSize,

@@ -5,6 +5,7 @@ import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.c
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.green
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.position
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.red
+import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.region
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.revision
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelPatchAssertions.created
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelPatchAssertions.creationRejected
@@ -28,6 +29,26 @@ internal class PixelPatchCreationTest {
         assertEquals(fromCanonical.hashCode(), fromUnordered.hashCode())
         assertEquals(2, fromUnordered.changeCount)
         assertEquals(revision(5L), fromUnordered.afterRevision)
+    }
+
+    @Test
+    fun `affected region is the deterministic minimum bound and survives inversion`() {
+        val canvas = canvas(4, 3)
+        val patch =
+            created(
+                PixelPatch.create(
+                    canvas,
+                    revision(0L),
+                    listOf(
+                        PixelChange.create(position(3, 2), black, red),
+                        PixelChange.create(position(1, 0), black, green),
+                    ),
+                ),
+            )
+        val expected = region(canvas, position(1, 0), canvas(3, 3))
+
+        assertEquals(expected, patch.affectedRegion)
+        assertEquals(expected, patch.inverse().affectedRegion)
     }
 
     @Test
