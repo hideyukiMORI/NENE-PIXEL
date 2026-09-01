@@ -3,17 +3,18 @@
 - Status: accepted
 - Date: 2026-08-31
 - Issue: #5
-- Affected rules: `ARC-002`, `ARC-003`, `ARC-006`, `ARC-012`, `KOT-008`, `QLT-001`, `QLT-002`, `QLT-003`, `QLT-005`
+- Affected rules: `ARC-002`, `ARC-003`, `ARC-006`, `ARC-012`, `KOT-008`, `QLT-001`, `QLT-002`, `QLT-003`, `QLT-004`, `QLT-005`
 
 ## Context
 
 NENE-PIXEL needs one reproducible Android scaffold before production code exists. The Android Studio wizard must not silently choose the package, module graph, language plugin, dependency versions, or quality tools.
 
-The development host has Android Studio `AI-261.26222.65.2613.15948027`, JBR 21.0.11, and Android SDK platforms 34 and 35. The selected Compose release requires a newer SDK, so the existing local SDK is evidence about setup work, not a reason to select an older project contract.
+The development host has Android Studio `AI-261.26222.65.2613.15948027`, JBR 21.0.11, and Android SDK platforms 34 and 35. The selected Compose release requires a newer SDK, so the existing local SDK is evidence about setup work, not a reason to select an older project contract. The installed IDE is Android Studio Quail 3 / 2026.1.3, whose official compatibility range ends at AGP 9.3; it is not a supported sync or run path after the AGP 9.4 update. The Gradle Wrapper CLI remains the canonical path until a stable Android Studio release explicitly lists AGP 9.4 support.
 
 The version decision uses these primary sources:
 
-- [Android Gradle plugin 9.3 release notes](https://developer.android.com/build/releases/agp-9-3-0-release-notes): AGP 9.3 supports API 37 and requires Gradle 9.5.0 or newer, SDK Build Tools 36.0.0, and JDK 17 or newer. The 9.3.2 patch fixes a lint crash present in earlier 9.3 releases.
+- [Android Gradle plugin 9.4 release notes](https://developer.android.com/build/releases/agp-9-4-0-release-notes): AGP 9.4 is a minor release, supports API 37, and requires Gradle 9.6.0 or newer, SDK Build Tools 36.0.0, and JDK 17 or newer.
+- [Android Studio releases and AGP compatibility](https://developer.android.com/studio/releases): Android Studio Quail 3 / 2026.1.3 supports AGP 7.1 through 9.3. A preview IDE may be evaluated separately, but does not become the canonical project path before its exact build is verified.
 - [Gradle Java compatibility](https://docs.gradle.org/current/userguide/compatibility.html): Gradle can run on Java 21 from Gradle 8.5 onward.
 - [AGP built-in Kotlin migration](https://developer.android.com/build/migrate-to-built-in-kotlin): AGP 9 enables built-in Kotlin and removes the need for `org.jetbrains.kotlin.android`.
 - [Kotlin releases](https://kotlinlang.org/docs/releases.html): Kotlin 2.4.10 is the current stable compiler line.
@@ -34,7 +35,7 @@ The version decision uses these primary sources:
 - Minimum SDK: 26
 - Compile SDK: 37
 - Target SDK: 37
-- SDK Build Tools: use AGP 9.3.2's default, currently 36.0.0; do not override it in a module
+- SDK Build Tools: use AGP 9.4.0's default, currently 36.0.0; do not override it in a module
 
 Package names below the root follow the owning module and capability. A second root, abbreviated application ID, or debug-only application ID is prohibited unless an ADR changes the identity contract.
 
@@ -46,7 +47,7 @@ Package names below the root follow the owning module and capability. A second r
 | Java toolchain | 21 | toolchain selection for project-owned compilation |
 | Android JVM bytecode target | 17 | Java `sourceCompatibility`/`targetCompatibility` and Kotlin `jvmTarget` |
 | Gradle Wrapper | 9.7.1 | the only supported Gradle entry point |
-| Android Gradle plugin | 9.3.2 | all Android modules |
+| Android Gradle plugin | 9.4.0 | all Android modules |
 | Kotlin | AGP built-in Kotlin with Kotlin plugin line 2.4.10 | Android modules; no `org.jetbrains.kotlin.android` plugin |
 | Kotlin JVM plugin | 2.4.10 | future non-Android core/build modules, matching the Android compiler line |
 | Compose compiler plugin | 2.4.10 | Compose modules, matching built-in Kotlin |
@@ -110,6 +111,12 @@ Core modules begin as Kotlin/JVM modules restricted to multiplatform-compatible 
 - A major tool upgrade, minimum SDK change, language-mode change, or gate-semantics change requires an ADR. A compatible patch update does not.
 - Release notes and compatibility tables from primary sources are required evidence.
 - When a selected version is unavailable or incompatible, downgrade is not implicit. Record the failure, update this ADR or supersede it, then keep one version path.
+
+Issue #48 recorded the compatible AGP 9.4.0 minor update on 2026-09-02 after the canonical CI lint
+gate began rejecting 9.3.2 as outdated. The existing Gradle 9.7.1, JDK 21, Build Tools 36.0.0,
+compile/target SDK 37, built-in Kotlin, dependency authority, and gate semantics remain unchanged.
+The installed Quail 3 IDE is outside the AGP 9.4 compatibility range, so the wrapper CLI is the
+supported path until a compatible stable IDE is listed and verified.
 
 ## Rejected alternatives
 
@@ -178,6 +185,7 @@ If a selected tool cannot produce the initial clean build, stop the scaffold cha
 ## Related
 
 - Issue: #5
+- Compatible minor update: #48
 - PR: #11
 - Supersedes: none
 - Superseded by: none
