@@ -1,13 +1,9 @@
 package io.github.hideyukimori.nenepixel.buildlogic
 
-import dev.detekt.gradle.extensions.DetektExtension
-import dev.detekt.gradle.extensions.FailOnSeverity
 import org.gradle.api.JavaVersion
 import org.gradle.api.Plugin
 import org.gradle.api.Project
-import org.gradle.api.artifacts.VersionCatalog
 import org.gradle.api.artifacts.VersionCatalogsExtension
-import org.gradle.api.artifacts.dsl.LockMode
 import org.gradle.api.plugins.JavaPluginExtension
 import org.gradle.api.plugins.jvm.JvmTestSuite
 import org.gradle.jvm.toolchain.JavaLanguageVersion
@@ -19,7 +15,6 @@ import org.gradle.testing.base.TestingExtension
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-import org.jlleitschuh.gradle.ktlint.KtlintExtension
 
 public class KotlinLibraryPlugin : Plugin<Project> {
     public override fun apply(target: Project) {
@@ -31,11 +26,11 @@ public class KotlinLibraryPlugin : Plugin<Project> {
 
         val libraries = target.extensions.getByType<VersionCatalogsExtension>().named("libs")
         configureToolchains(target)
-        configureDependencies(target)
+        target.configureStrictDependencyLocking()
         configureKotlin(target)
-        configureKtlint(target, libraries.version("ktlint-engine"))
-        configureDetekt(target, libraries.version("detekt"))
-        configureTests(target, libraries.version("junit"))
+        target.configureKtlint(libraries.requiredVersion("ktlint-engine"), android = false)
+        target.configureDetekt(libraries.requiredVersion("detekt"))
+        configureTests(target, libraries.requiredVersion("junit"))
     }
 
     private fun configureToolchains(target: Project) {
@@ -45,13 +40,6 @@ public class KotlinLibraryPlugin : Plugin<Project> {
             }
             sourceCompatibility = JavaVersion.VERSION_17
             targetCompatibility = JavaVersion.VERSION_17
-        }
-    }
-
-    private fun configureDependencies(target: Project) {
-        target.dependencyLocking {
-            lockAllConfigurations()
-            lockMode.set(LockMode.STRICT)
         }
     }
 
@@ -68,34 +56,6 @@ public class KotlinLibraryPlugin : Plugin<Project> {
         }
     }
 
-    private fun configureKtlint(
-        target: Project,
-        version: String,
-    ) {
-        target.extensions.configure<KtlintExtension> {
-            this.version.set(version)
-            ignoreFailures.set(false)
-            outputToConsole.set(true)
-            relative.set(true)
-        }
-    }
-
-    private fun configureDetekt(
-        target: Project,
-        version: String,
-    ) {
-        target.extensions.configure<DetektExtension> {
-            toolVersion.set(version)
-            config.setFrom(target.rootProject.file("config/detekt/detekt.yml"))
-            buildUponDefaultConfig.set(true)
-            allRules.set(false)
-            parallel.set(true)
-            ignoreFailures.set(false)
-            failOnSeverity.set(FailOnSeverity.Warning)
-            basePath.set(target.rootProject.projectDir)
-        }
-    }
-
     private fun configureTests(
         target: Project,
         junitVersion: String,
@@ -106,12 +66,6 @@ public class KotlinLibraryPlugin : Plugin<Project> {
             }
         }
     }
-
-    private fun VersionCatalog.version(alias: String): String =
-        findVersion(alias)
-            .orElseThrow {
-                IllegalStateException("Missing version catalog alias '$alias'.")
-            }.requiredVersion
 
     private companion object {
         const val JAVA_TOOLCHAIN_VERSION: Int = 21

@@ -26,6 +26,7 @@ require(JavaVersion.current() == JavaVersion.VERSION_21) {
 rootProject.name = "NENE-PIXEL"
 
 include(":app:android")
+include(":presentation:compose")
 include(":core:application")
 include(":core:domain")
 include(":core:pixel-engine")

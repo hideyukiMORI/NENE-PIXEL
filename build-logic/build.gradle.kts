@@ -61,6 +61,8 @@ testing {
 }
 
 dependencies {
+    implementation(libs.android.gradle.plugin)
+    implementation(libs.compose.compiler.gradle.plugin)
     implementation(libs.detekt.gradle.plugin)
     implementation(libs.kotlin.gradle.plugin)
     implementation(libs.ktlint.gradle.plugin)
@@ -72,6 +74,10 @@ gradlePlugin {
         create("kotlinLibrary") {
             id = "nene.kotlin-library"
             implementationClass = "io.github.hideyukimori.nenepixel.buildlogic.KotlinLibraryPlugin"
+        }
+        create("androidCompose") {
+            id = "nene.android-compose"
+            implementationClass = "io.github.hideyukimori.nenepixel.buildlogic.AndroidComposePlugin"
         }
         create("rootQuality") {
             id = "nene.root-quality"
