@@ -194,6 +194,34 @@ current CSV retains the logical reference/change analysis and explicit exclusion
 duplicate/no-op/reference-clear inputs, candidate-specific patch/inverse storage, analytical
 history retention, retained heap, ART, PSS, and frames remain required.
 
+### Pre-fixed candidate patch and inverse slice
+
+Before collecting candidate schema v4, the next host slice fixes the snapshot and patch layout as
+one test-only configuration. It compares the object-list snapshot with materialized object-change
+inverse records against flat packed and tiled/COW snapshots with canonical packed triplets and a
+directional inverse view over shared backing arrays. The five configuration IDs are distinct from
+the snapshot-only candidate IDs and cover object-list, flat packed, and tiled/COW edges 16, 32,
+and 64. Palette performance remains excluded.
+
+The fixed operations are shuffled patch create, inverse create, forward apply, inverse apply,
+exact forward/inverse round trip, and final-record late conflict. Every sample must preserve
+canonical row-major ordering, exact affected region, source/applied/restored revision, complete
+semantic and unaffected pixels, and atomic typed rejection. Application results are closed as
+`Applied`, `ShapeMismatch`, `RevisionMismatch`, or `BeforeValueMismatch`; expected rejection is
+evidence rather than an exception.
+
+Schema v4 records configuration, snapshot representation, patch layout, inverse storage kind,
+forward and inverse record counts, primitive payload bytes and reference slots in separate units,
+shared backing payload, canonical-order digest, affected-region bounds, before/after/restored
+revision and pixel digests, result or rejection kind, and raw timing/allocation samples. Reference
+slots are not converted to estimated bytes. Input generation and full correctness verification
+remain outside the timed interval. The HotSpot rows are diagnostic only and cannot select a
+candidate or a hard limit.
+
+This slice does not implement production history, candidate duplicate/no-op/reference-clear raw
+paths, retained-history budgets, physical ART/PSS/frame comparisons, semantic color decisions, or
+production migration. Those remain subsequent evidence gates while ADR 0005 is proposed.
+
 ## Auxiliary Android harness proof
 
 The Android command harness compiled and ran on the `Pixel_8_Pro_API_35` AVD only after the
