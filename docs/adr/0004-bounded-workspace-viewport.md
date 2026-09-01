@@ -94,7 +94,7 @@ ViewportTransform.apply(
 ): ViewportValueResult<ViewportState>
 ```
 
-`ViewportSurfaceBounds` is the four finite physical-pixel edges `left`, `top`, `right`, and `bottom` of one document pixel; bounds may extend beyond the visible surface at zoom. `ViewportMappingResult` is `Mapped(value)`, `OutsideSurface`, or `OutsideCanvas`. `ViewportGridVisibility` is `Visible` or `Hidden`. Transform creation or application rejects unsafe non-finite derived arithmetic, and callers preserve the current viewport on rejection.
+`ViewportSurfaceBounds` is the four finite physical-pixel edges `left`, `top`, `right`, and `bottom` of one document pixel; bounds may extend beyond the visible surface at zoom. `ViewportMappingResult` is `Mapped(value)`, `OutsideSurface`, or `OutsideCanvas`. `ViewportGridVisibility` is `Visible` or `Hidden`. Transform creation or application rejects unsafe non-finite derived arithmetic. Creation also rejects a transform whose canonical adjacent document edges are not strictly increasing in `Double`, because such a transform cannot preserve half-open ownership or pixel-center round trips before P2-01 establishes tighter canvas limits. Callers preserve the current viewport on rejection.
 
 Surface dimensions, density, derived transform coefficients, pointer membership, and grid visibility are not stored in `WorkspaceState`.
 
