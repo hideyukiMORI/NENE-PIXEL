@@ -46,11 +46,12 @@ Production-domain work starts only after P0-01 through P0-05 pass. P0-06 closes 
 
 | ID | Work package | Depends on | Required evidence |
 | --- | --- | --- | --- |
-| P2-01 | Accept pixel/color representation and limit ADR | P1-08 | Benchmarks, memory analysis, compatibility consequences |
+| P2-00 | Accept M2 evidence and execution plan | P1-08 | M1 external completion read-back, unresolved-constraint review, focused M2 Issues |
+| P2-01 | Accept pixel/color representation and limit ADR | P2-00 | Benchmarks, memory analysis, compatibility consequences |
 | P2-02 | Implement validated new-document flow | P2-01 | Boundary/rejection tests and UI flow |
 | P2-03 | Complete pencil and eraser semantics | P2-02 | Gesture/no-op/cancellation/overlap tests |
 | P2-04 | Implement palette/active-color workflow | P2-01 | Single state owner and color round-trip tests |
-| P2-05 | Implement viewport pan/zoom/grid mapping | P1-05 | Density/transform/property tests; no document mutation |
+| P2-05 | Implement viewport pan/zoom/grid mapping | P2-00, P1-05 | Density/transform/property tests; no document mutation |
 | P2-06 | Implement bounded multi-step history | P2-03, P2-04 | History limit, dirty-state, undo/redo replay tests |
 | P2-07 | Run core drawing acceptance and performance review | P2-03 through P2-06 | MVP drawing journey plus updated benchmarks |
 
@@ -78,10 +79,10 @@ The next-milestone planning Issue must:
 
 ## Immediate execution order
 
-After this plan is accepted:
+After M1 completion:
 
-1. Create GitHub Milestones M0 through M6 from `MILESTONES.md`.
-2. Create focused GitHub Issues for P0-01 through P0-06.
-3. Start only P0-01.
-4. Do not create an Android Studio project manually before P0-01 fixes the canonical scaffold inputs.
-5. Do not begin OpenAPI work; revisit it only at the M6 decision gate.
+1. P2-00 reads back M1 completion evidence and creates focused P2-01 through P2-07 Issues.
+2. P2-01 records physical Android, dense/tool-specific, and history-memory evidence before accepting representation or hard product limits.
+3. P2-02 and P2-04 begin only after the P2-01 ADR is accepted. P2-05 may proceed independently after P2-00 because it changes only workspace behavior.
+4. P2-03 follows the validated document flow; P2-06 follows completed drawing and palette semantics; P2-07 reviews the complete M2 journey.
+5. Do not begin M3 project-format work before P2-07 satisfies the M2 exit criteria, and do not begin OpenAPI work before the M6 decision gate.

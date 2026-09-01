@@ -1,6 +1,6 @@
 # M1 Vertical-slice Baseline and Exit Proof
 
-Status: local implementation and exit evidence verified on 2026-09-01 for `P1-08` / Issue #25. The final required-CI, Issue, and milestone state is read back after the linked PR reaches `main`; the M1 milestone is not closed before that read-back reports zero open Issues.
+Status: complete. Local implementation and exit evidence were verified on 2026-09-01 for `P1-08` / Issue #25. PR #36 passed required CI and merged to `main`; Issue #25 and the M1 milestone were then closed and read back with zero open M1 Issues.
 
 ## Measurement route
 
@@ -114,8 +114,8 @@ Ignored local evidence is under `app/android/build/smoke/issue25/`: `before.png`
 - A P2 benchmark set must add representative dense and tool-specific workloads before deciding worst-case canvas, patch, or multi-level-history limits.
 - Any decision that changes ownership, public module APIs, canonical mutation flow, or the accepted representation contract requires the P2-01 ADR before implementation. This baseline authorizes no such change.
 
-## External closure order
+## External closure evidence
 
-At the start of P1-08, GitHub milestone 2 had two open Issues: #24 and #25. After PR #35 merged, #24 closed and #25 became the only open M1 Issue. The P1-08 PR must pass required CI and merge; then Issue #25 is closed, the milestone API is read back with `open_issues: 0`, and only then is the M1 milestone closed. That final state belongs to the GitHub Issue/milestone record and must not be claimed early in this document.
+At the start of P1-08, GitHub milestone 2 had two open Issues: #24 and #25. After PR #35 merged, #24 closed and #25 became the only open M1 Issue. PR #36 then passed required `quality` run `33477940423` and merged by squash as `37c0f57d59a73fd962c285e79e8e193a81402d31`. The merge closed Issue #25. The milestone API was read back with `open_issues: 0` and `closed_issues: 10` before milestone 2 was closed at `2026-09-01T06:40:33Z`; its final state was read back as closed with zero open Issues. The subsequent `main` push `quality` run `33478612479` also succeeded.
 
 Active waivers: none.
