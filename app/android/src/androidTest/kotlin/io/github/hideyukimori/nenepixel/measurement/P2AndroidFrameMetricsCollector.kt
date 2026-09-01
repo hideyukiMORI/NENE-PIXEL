@@ -83,7 +83,10 @@ internal class P2AndroidFrameMetricsCollector(
         expectedState: EditorRenderState,
     ) {
         lock.withLock {
-            expectedDraw = ExpectedDraw(generation, expectedState)
+            expectedDraw?.let { previous ->
+                check(generation > previous.generation) { "Frame generations must increase monotonically." }
+            }
+            expectedDraw = ExpectedDraw(generation, expectedState, markers.size, frames.size)
         }
     }
 
@@ -128,7 +131,7 @@ internal class P2AndroidFrameMetricsCollector(
                 }
                 correlatedFrame(generation)?.let { correlated -> return correlated }
                 val remaining = deadline - System.nanoTime()
-                check(remaining > 0L) { "Timed out waiting for exact frame generation $generation." }
+                check(remaining > 0L) { timeoutMessage(generation) }
                 updated.awaitNanos(remaining)
             }
         }
@@ -155,24 +158,57 @@ internal class P2AndroidFrameMetricsCollector(
     }
 
     private fun correlatedFrame(generation: Long): P2CorrelatedFrame? {
-        val marker =
-            markers
-                .asSequence()
-                .filter { candidate -> candidate.generation == generation && candidate.exactState }
-                .minByOrNull(P2CanonicalDrawMarker::callbackNanos) ?: return null
-        val frame =
-            frames
-                .asSequence()
-                .filter { candidate -> candidate.vsyncNanos >= 0L }
-                .firstOrNull { candidate ->
-                    TimeUnit.NANOSECONDS.toMillis(candidate.vsyncNanos) == marker.drawingTimeMillis
-                } ?: return null
-        return P2CorrelatedFrame(marker, frame)
+        val expected = expectedDraw?.takeIf { draw -> draw.generation == generation } ?: return null
+        return markers
+            .asSequence()
+            .drop(expected.markerStartIndex)
+            .filter { marker -> marker.generation == generation && marker.exactState }
+            .sortedBy(P2CanonicalDrawMarker::callbackNanos)
+            .mapNotNull { marker ->
+                matchingFrame(marker, expected.frameStartIndex)?.let { frame -> P2CorrelatedFrame(marker, frame) }
+            }.firstOrNull()
     }
+
+    private fun matchingFrame(
+        marker: P2CanonicalDrawMarker,
+        frameStartIndex: Int,
+    ): P2CopiedFrameMetrics? =
+        frames
+            .asSequence()
+            .drop(frameStartIndex)
+            .filter { frame -> frame.vsyncNanos > 0L }
+            .firstOrNull { frame ->
+                TimeUnit.NANOSECONDS.toMillis(frame.vsyncNanos) == marker.drawingTimeMillis
+            }
+
+    private fun timeoutMessage(generation: Long): String {
+        val generationMarkers = markers.filter { candidate -> candidate.generation == generation }
+        val marker = generationMarkers.lastOrNull()
+        val latestFrame = frames.lastOrNull()
+        return "Timed out waiting for exact frame generation $generation; " +
+            "markerDrawingTimeMillis=${marker?.drawingTimeMillis}; " +
+            "latestIntendedVsyncMillis=${latestFrame?.intendedVsyncNanos?.let(TimeUnit.NANOSECONDS::toMillis)}; " +
+            "latestVsyncMillis=${latestFrame?.vsyncNanos?.let(TimeUnit.NANOSECONDS::toMillis)}; " +
+            "closestVsyncDeltaMillis=${marker?.let(::closestVsyncDeltaMillis)}; " +
+            "generationMarkerCount=${generationMarkers.size}; " +
+            "exactGenerationMarkerCount=${generationMarkers.count(P2CanonicalDrawMarker::exactState)}; " +
+            "markerCount=${markers.size}; frameCount=${frames.size}; droppedReports=$totalDroppedReports."
+    }
+
+    private fun closestVsyncDeltaMillis(marker: P2CanonicalDrawMarker): Long? =
+        frames
+            .asSequence()
+            .map(P2CopiedFrameMetrics::vsyncNanos)
+            .filter { vsyncNanos -> vsyncNanos > 0L }
+            .map { vsyncNanos ->
+                kotlin.math.abs(TimeUnit.NANOSECONDS.toMillis(vsyncNanos) - marker.drawingTimeMillis)
+            }.minOrNull()
 
     private data class ExpectedDraw(
         val generation: Long,
         val state: EditorRenderState,
+        val markerStartIndex: Int,
+        val frameStartIndex: Int,
     )
 
     private companion object {

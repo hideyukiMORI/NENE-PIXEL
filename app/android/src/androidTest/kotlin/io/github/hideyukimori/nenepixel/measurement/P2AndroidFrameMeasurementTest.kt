@@ -132,6 +132,7 @@ internal class P2AndroidFrameMeasurementTest {
             renderStatePublishedNanos = System.nanoTime()
             displayed.value = P2DisplayedFrame(measuredGeneration, expectedRenderState)
         }
+        composeRule.waitForIdle()
 
         assertEquals(expectedRenderState, workload.verifyApplied(result))
         val correlated = collector.awaitFirstCorrectFrame(measuredGeneration, FRAME_TIMEOUT_MILLIS)
