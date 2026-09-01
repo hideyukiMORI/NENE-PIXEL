@@ -18,7 +18,7 @@ Current evidence state:
 | Current-main P2 representation route | current canonical host route and preliminary physical command screening complete | incomplete; full matrix, renderer, frames, and retained-history evidence required |
 | Analytical storage candidates | current object-graph structure rows recorded; packed candidates not yet measured | incomplete and required |
 | Named emulator | ART command harness complete in explicit auxiliary mode | cannot satisfy physical evidence |
-| Named physical minimum Android device | profile fixed and preliminary command screening recorded below | valid physical starting evidence; complete physical matrix still blocking |
+| Named physical minimum Android device | profile fixed, preliminary command screening recorded, frame route compiled but not run | valid physical starting evidence; complete physical matrix still blocking |
 | Accepted representation or hard limits | none | ADR remains proposed |
 
 Active waivers: none.
@@ -242,6 +242,41 @@ renderer projection, frames, or packed representation candidates. Final tail col
 use a larger pre-declared sample protocol, and PSS will use five independent invocation
 checkpoints.
 
+## Physical Android frame route readiness
+
+Commit `25915073c76c6648706e10df3ed9ad9f7e3270b6` adds the separately named
+`P2AndroidFrameMeasurementTest` and schema `nene-pixel-p2-android-frame-measurement-v1`.
+The route compiles, passes app/presentation lint, detekt, and ktlint, and assembles the debug app
+and test APKs. It has not yet run on the physical profile, so it supplies no frame result.
+
+The route uses a debug-only presentation bridge that delegates to the canonical `EditorScreen`
+and `PixelCanvas`; it is absent from release compilation and adds no release API or dependency.
+The test runs in the real `MainActivity` window, copies `FrameMetrics` immediately on its callback
+thread, correlates exact state/draw generations, and verifies all logical pixel centers through
+Compose image capture outside the timed interval. It records thermal, display, power-save,
+interactive, USB-power, and battery checkpoints before samples, every 25 samples, and after the
+batch. Missing required timing values, callback drops, thermal status above 1, display changes,
+power-save mode, a non-interactive display, or loss of USB power invalidates the run.
+
+The planned physical invocation is:
+
+```powershell
+.\gradlew.bat :app:android:assembleDebug :app:android:assembleDebugAndroidTest
+adb -s <PHYSICAL_DEVICE_SERIAL> install -r -t app/android/build/outputs/apk/debug/android-debug.apk
+adb -s <PHYSICAL_DEVICE_SERIAL> install -r -t app/android/build/outputs/apk/androidTest/debug/android-debug-androidTest.apk
+adb -s <PHYSICAL_DEVICE_SERIAL> shell am instrument -w -r `
+  -e class io.github.hideyukimori.nenepixel.measurement.P2AndroidFrameMeasurementTest `
+  -e nene.p2.physicalProfileId NENE-P2-ALLDOCUBE-IPL80MP-A16-API36 `
+  -e nene.p2.candidateId current-flat-dense-256-square `
+  -e nene.p2.runIndex 1 `
+  -e nene.p2.sourceCommit 25915073c76c6648706e10df3ed9ad9f7e3270b6 `
+  io.github.hideyukimori.nenepixel.test/androidx.test.runner.AndroidJUnitRunner
+```
+
+The defaults are five warmups and 200 measured frames. The device CSV path is
+`files/p2-measurements/p2-android-frame-measurement.csv`; it is copied to the planned
+`device-frames.csv` host path and checksummed before teardown.
+
 ## Starting implementation evidence
 
 This inventory names the current path that candidate measurements must compare and that a later
@@ -300,12 +335,12 @@ saving mode remains disabled and the device remains USB powered and awake. No pr
 network mutation, or device reset is introduced between checkpoints unless the entire five-
 checkpoint protocol is restarted and the change is recorded.
 
-The physical display is active at 90 Hz. The required frame instrumentation will use the per-frame
+The physical display is active at 90 Hz. The frame instrumentation uses the per-frame
 platform `FrameMetrics.DEADLINE`, not a substituted 16.67 ms period. The separate p99 overrun
-allowance remains 16.67 ms as pre-fixed above. Its CSV must call the direct boundary the first
-exact app-issued frame, link exact `EditorRenderState` and a post-content draw generation to
-copied frame metrics, and reject unavailable timing fields or listener drops. Compose image
-capture must verify the resulting pixels outside the timed interval.
+allowance remains 16.67 ms as pre-fixed above. Its CSV calls the direct boundary the first exact
+app-issued frame, links exact `EditorRenderState` and a post-content draw generation to copied
+frame metrics, and rejects unavailable timing fields or listener drops. Compose image capture
+verifies the resulting pixels outside the timed interval.
 
 An app-issued frame is not proof of physical SurfaceFlinger presentation. Final evidence for the
 existing command-to-visible-correctness wording must additionally correlate the recorded API 36
@@ -384,9 +419,11 @@ the Android configuration and separate supported-device verification.
 
 Host, emulator-smoke, and preliminary physical command evidence are currently available. The
 physical screening does not include the complete workload matrix, renderer/retained-history
-memory, five independent PSS checkpoints, or frame/compositor evidence. Its twenty samples per
-workload are also insufficient final p99 tail evidence. The emulator remains useful only for
-functional interaction checks and cannot fill any of those physical gaps.
+memory, five independent PSS checkpoints, or frame/compositor results. The frame harness is
+compiled but not physically executed, and its timeline IDs still require Perfetto correlation.
+The command screening's twenty samples per workload are also insufficient final p99 tail
+evidence. The emulator remains useful only for functional interaction checks and cannot fill any
+of those physical gaps.
 
 Therefore:
 
