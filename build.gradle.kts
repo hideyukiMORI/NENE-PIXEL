@@ -5,6 +5,7 @@ plugins {
     id("nene.root-quality")
     alias(libs.plugins.kotlin.jvm) apply false
     alias(libs.plugins.android.application) apply false
+    alias(libs.plugins.android.library) apply false
     alias(libs.plugins.compose.compiler) apply false
     alias(libs.plugins.detekt) apply false
     alias(libs.plugins.ktlint)
@@ -40,6 +41,7 @@ tasks.named("check") {
     dependsOn("ktlintCheck")
     dependsOn(gradle.includedBuild("build-logic").task(":check"))
     dependsOn(":app:android:check")
+    dependsOn(":presentation:compose:check")
     dependsOn(":core:application:check")
     dependsOn(":core:domain:check")
     dependsOn(":core:pixel-engine:check")
