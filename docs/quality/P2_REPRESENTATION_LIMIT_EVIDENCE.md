@@ -15,10 +15,10 @@ Current evidence state:
 | Evidence | State | Decision use |
 | --- | --- | --- |
 | Immutable M1 sparse host reproduction | complete for the rerun recorded below | starting evidence only |
-| Current-main P2 representation route | current canonical host route complete; physical route not run | auxiliary starting evidence only |
+| Current-main P2 representation route | current canonical host route and preliminary physical command screening complete | incomplete; full matrix, renderer, frames, and retained-history evidence required |
 | Analytical storage candidates | current object-graph structure rows recorded; packed candidates not yet measured | incomplete and required |
 | Named emulator | ART command harness complete in explicit auxiliary mode | cannot satisfy physical evidence |
-| Named physical minimum Android device | not yet recorded | blocking |
+| Named physical minimum Android device | profile fixed and preliminary command screening recorded below | valid physical starting evidence; complete physical matrix still blocking |
 | Accepted representation or hard limits | none | ADR remains proposed |
 
 Active waivers: none.
@@ -196,6 +196,52 @@ auxiliary flag is explicitly true. The managed connected-test task can uninstall
 after execution, so the on-device CSV must be copied before teardown when collecting the final
 raw artifact set; its byte length and SHA-256 are then recorded in this ledger.
 
+## Preliminary physical Android command screening
+
+The command harness was run after the physical profile below was fixed, with test code unchanged
+from commit `5b9675a5a77186c9ce5e5095bc88b5a485ad18fc` and the profile-recording document at
+commit `5922535634033954bbb10319c6e63c019e48d799`. The app and test APKs were assembled, installed,
+and invoked with the physical device selected explicitly. The raw device file and host copy had
+identical byte lengths and SHA-256.
+
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `build/reports/p2/representation-limits/device-core.csv` | 123,032 | `9292794F58CDDE42CF46E6AF733E7A524312C4045369BBBFA25C24ECB68E0645` |
+| `app/android/build/outputs/apk/debug/android-debug.apk` | 11,698,623 | `E263F56E483541097206FCB0BB5004DEB3C9A833867CAB1429FDCC83F50EE7DF` |
+| `app/android/build/outputs/apk/androidTest/debug/android-debug-androidTest.apk` | 1,211,189 | `51431D89A30DBDC76B5C38BE88BAA13CFEFDEBECED6E8EFF990EE9795E893025` |
+
+The run used five warmups and twenty samples for each of five workloads at 16, 64, and 256,
+for 300 measured samples. All exact state, revision, history, ChangeSet, and typed no-op
+assertions passed. Twenty samples give a useful screening result, but p99 is the observed maximum
+and is not final tail evidence. No representation or hard limit is selected from this run.
+
+| 256-square workload | p95 latency | p99 latency | p95 ART allocation |
+| --- | ---: | ---: | ---: |
+| sparse apply | 21.639 ms | 21.987 ms | 6.594 MiB |
+| dense apply | 120.381 ms | 121.785 ms | 20.156 MiB |
+| dense same-color no-op | 35.879 ms | 45.864 ms | 5.141 MiB |
+| undo | 34.776 ms | 37.276 ms | 8.344 MiB |
+| redo | 34.293 ms | 42.377 ms | 8.344 MiB |
+
+Every 16- and 64-square workload passed the command-latency screening targets. Every 256-square
+workload failed p95 <= 8.0 ms and p99 <= 16.67 ms. Blocking-GC count remained zero for all
+300 measured operations. Non-blocking GC occurred in 42 samples, including every 256-square
+dense apply sample, with 79 collections and 2,548 ms total runtime-stat GC time.
+
+The process baseline was 2,057,536 bytes post-GC Java heap and 89,903 KiB total PSS. Across
+command samples, maximum post-GC heap was 7,174,000 bytes and total PSS ranged from 84,568 to
+90,595 KiB. These command-only readings are numerically below the heap/PSS headroom targets, but
+they exclude render projection and retained analytical history and therefore are not a formal
+pass. Maximum heap minus baseline was 5,116,464 bytes, above the 2,684,355-byte churn threshold;
+the required cap-rejection plus ten-cycle workload was not executed, so this is a signal for the
+next matrix rather than a formal churn failure.
+
+This screening does not cover rectangular and partial-density workloads, raw duplicate paths,
+standalone patch boundaries, conflicts, limit rejection, multi-entry analytical retention,
+renderer projection, frames, or packed representation candidates. Final tail collection will
+use a larger pre-declared sample protocol, and PSS will use five independent invocation
+checkpoints.
+
 ## Starting implementation evidence
 
 This inventory names the current path that candidate measurements must compare and that a later
@@ -237,6 +283,33 @@ canvas, patch, stroke, or history maximum.
 
 A candidate fails if any applicable condition fails. Results are not interpolated. A largest
 passing measured candidate causes the matrix to be extended before a maximum is claimed.
+
+### Final physical collection protocol
+
+The twenty-sample command run below qualifies the physical route but does not supply final p99
+tail evidence. Before any representation or hard-limit selection, final command and affected-
+frame batches use five warmups and 200 measured samples per reported maximum workload. The
+nearest-rank p95 and p99 are computed from the 200 raw rows; no outlier is discarded.
+
+PSS decision evidence uses five independent instrumentation invocations and preserves one raw
+checkpoint artifact per invocation. A final batch is invalid if its active display mode changes,
+the device-wide thermal status exceeds 1 before, during, or after the batch, or the frame listener
+reports a dropped callback. Power-saving mode remains disabled and the device remains USB
+powered and awake. No process kill, network mutation, or device reset is introduced between
+checkpoints unless the entire five-checkpoint protocol is restarted and the change is recorded.
+
+The physical display is active at 90 Hz. Affected-frame deadline pass/fail uses the per-frame
+platform `FrameMetrics.DEADLINE`, not a substituted 16.67 ms period. The separate p99 overrun
+allowance remains 16.67 ms as pre-fixed above. The instrumentation CSV calls its direct boundary
+the first exact app-issued frame: it links exact `EditorRenderState` and a post-content draw
+generation to copied frame metrics, and rejects unavailable timing fields or listener drops.
+Compose image capture verifies the resulting pixels outside the timed interval.
+
+An app-issued frame is not proof of physical SurfaceFlinger presentation. Final evidence for the
+existing command-to-visible-correctness wording must additionally correlate the recorded API 36
+frame-timeline vsync ID with a retained Perfetto/FrameTimeline artifact. Until that correlation is
+present, app-issued timing is useful physical renderer evidence but cannot satisfy the visible-
+frame acceptance condition by itself.
 
 ### Required workload matrix
 
@@ -281,6 +354,10 @@ count, or profile cannot be recovered from the file and this ledger.
 This profile was fixed from read-only device queries before the first physical instrumentation
 measurement. Each value says whether it was reported by the device/tool or fixed by this
 measurement protocol. The device's hardware serial is intentionally not retained in evidence.
+This is the selected M2 performance-reference device, not evidence of the supported Android API
+floor or a claim that every lower-memory device is supported. Its UMS9360 application behavior
+is the reference used for the representation decision; compatibility floors remain governed by
+the Android configuration and separate supported-device verification.
 
 | Field | Value | Source / reported or inferred |
 | --- | --- | --- |
@@ -289,23 +366,24 @@ measurement protocol. The device's hardware serial is intentionally not retained
 | SoC and ABI | Spreadtrum UMS9360 (`ums9360`); `arm64-v8a` | `getprop ro.soc.*`, `ro.board.platform`, and `ro.product.cpu.abilist` reported |
 | Physical RAM | 7,937,848 kB reported by kernel (approximately 7.57 GiB usable) | `/proc/meminfo` `MemTotal` reported |
 | Android release, API, and build fingerprint | Android 16; API 36; `ALLDOCUBE/iPlay80miniPro/T830:16/BP2A.250605.031.A3/94010:user/release-keys`; security patch 2026-05-05 | `getprop` reported |
-| ART/runtime | Android Runtime on a `user` build; heap growth limit 256 MiB, heap size 512 MiB, heap start 16 MiB | `getprop dalvik.vm.*` reported; exact test-process values are emitted before workload sampling |
+| ART/runtime | ART 2.1.0 arm64 on a `user` build; heap growth limit 256 MiB, heap size 512 MiB, heap start 16 MiB | `dalvikvm -showversion` and `getprop dalvik.vm.*` reported; exact test-process values are emitted before workload sampling |
 | App variant and commit | `debug` plus `debugAndroidTest`; `5b9675a5a77186c9ce5e5095bc88b5a485ad18fc` | Git and Gradle route reported |
 | Display resolution and refresh rate | physical 1200 x 1920; active/supported mode 90 Hz; physical density 320 dpi with 272 dpi override | `wm` and `dumpsys display` reported |
-| `memoryClass` and `Runtime.maxMemory` | captured in the CSV baseline row before measured workload samples | `ActivityManager.memoryClass` and `Runtime.maxMemory()` reported by the harness; final values pending first run |
+| `memoryClass` and `Runtime.maxMemory` | 256 MiB and 268,435,456 bytes | `ActivityManager.memoryClass` and `Runtime.maxMemory()` reported in physical CSV metadata before workload samples |
 | Power mode | awake; low-power mode disabled; USB powered | `dumpsys power`, `settings get global low_power`, and `dumpsys battery` reported at pre-run query |
 | Battery level and charging state | 69%; USB powered/charging; battery temperature 30.7 C | `dumpsys battery` reported at 2026-09-01 19:10 JST |
-| Thermal status before/during/after | pre-run overall status 1; current skin 37.482 C and SoC 40.08 C, both status 1; during/after values pending the run artifact | `dumpsys thermalservice` reported at 2026-09-01 19:10 JST |
-| Background-process and network conditions | ordinary user background state; no process kill, network mutation, or device reset performed | fixed non-invasive protocol; exact scoped process/log observations pending raw collection |
-| Warmup, sample, restart, and GC protocol | five warmups and twenty samples per workload; one instrumentation invocation; a fresh gateway per sample; two explicit Java GC/finalization passes only before each post-GC memory capture | fixed by runner defaults and harness implementation |
+| Thermal status before/during/after | pre-run overall status 1, skin 37.482 C, SoC 40.08 C; post-run overall status 1, skin 37.827 C, SoC 38.365 C; all named sensor statuses 1 | `dumpsys thermalservice` reported at 2026-09-01 19:10 and 19:18 JST; the preliminary CSV does not contain an in-run checkpoint |
+| Background-process and network conditions | unconstrained user background/network state; no process kill, network mutation, or device reset; therefore preliminary screening only | reported non-invasive condition; final validity conditions are fixed in the protocol above |
+| Warmup, sample, restart, and GC protocol | preliminary screening: five warmups and twenty samples; final tail batches: five warmups and 200 samples; a fresh gateway per sample; two explicit Java GC/finalization passes only before post-GC memory capture | preliminary route fixed before its run; expanded final protocol fixed before candidate or frame collection |
 | Connected transport and measurement tools | one physical device over USB ADB; AndroidJUnitRunner; `Debug.getRuntimeStats`, `Debug.getMemoryInfo`, `Runtime`, `ActivityManager`, `dumpsys`, and host SHA-256 | device/tool reported and protocol-fixed |
 
 ## Current blocker
 
-Only host evidence and an emulator smoke profile are currently available. The named emulator is
-`Pixel_8_Pro_API_35`, Pixel 8 Pro AVD, Android 15 / API 35, x86_64, 1344 x 2992. It is useful for
-functional interaction checks but does not supply physical RAM pressure, real SoC/ABI timing,
-thermal behavior, representative ART/PSS behavior, display deadlines, or compositor evidence.
+Host, emulator-smoke, and preliminary physical command evidence are currently available. The
+physical screening does not include the complete workload matrix, renderer/retained-history
+memory, five independent PSS checkpoints, or frame/compositor evidence. Its twenty samples per
+workload are also insufficient final p99 tail evidence. The emulator remains useful only for
+functional interaction checks and cannot fill any of those physical gaps.
 
 Therefore:
 
@@ -328,7 +406,7 @@ Complete this section only after all required collection succeeds:
 | Accepted raw-stroke and patch limits | pending |
 | Accepted history-entry and retained-change limits | pending |
 | Largest measured passing candidates | pending |
-| Physical profile ID | pending |
+| Physical profile ID | `NENE-P2-ALLDOCUBE-IPL80MP-A16-API36`; identity fixed, complete evidence pending |
 | Raw artifact checksum set | pending |
 | Correctness result | pending |
 | ADR 0005 acceptance commit | pending |
