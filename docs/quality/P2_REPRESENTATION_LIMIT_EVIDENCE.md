@@ -15,10 +15,10 @@ Current evidence state:
 | Evidence | State | Decision use |
 | --- | --- | --- |
 | Immutable M1 sparse host reproduction | complete for the rerun recorded below | starting evidence only |
-| Current-main P2 representation route | current canonical host route and preliminary physical command screening complete | incomplete; full matrix, renderer, frames, and retained-history evidence required |
+| Current-main P2 representation route | current canonical host route, preliminary physical command screening, and one final-protocol affected-frame batch complete | incomplete; full matrix, retained memory, and compositor correlation required |
 | Analytical storage candidates | current object-graph structure rows recorded; packed candidates not yet measured | incomplete and required |
 | Named emulator | ART command harness complete in explicit auxiliary mode | cannot satisfy physical evidence |
-| Named physical minimum Android device | profile fixed, preliminary command screening recorded, frame route compiled but not run | valid physical starting evidence; complete physical matrix still blocking |
+| Named physical minimum Android device | profile fixed, preliminary command screening and one final-protocol affected-frame batch recorded | valid physical evidence; complete physical matrix still blocking |
 | Accepted representation or hard limits | none | ADR remains proposed |
 
 Active waivers: none.
@@ -242,7 +242,7 @@ renderer projection, frames, or packed representation candidates. Final tail col
 use a larger pre-declared sample protocol, and PSS will use five independent invocation
 checkpoints.
 
-## Physical Android frame route readiness
+## Physical Android affected-frame result
 
 Commit `25915073c76c6648706e10df3ed9ad9f7e3270b6` adds the separately named
 `P2AndroidFrameMeasurementTest` and schema `nene-pixel-p2-android-frame-measurement-v1`.
@@ -262,7 +262,35 @@ contractual `View.getDrawingTime()` to `FrameMetrics.VSYNC_TIMESTAMP` match, sea
 markers for the generation after the per-arm buffer baseline, and requires monotonically
 increasing generations. Timeout diagnostics now retain marker/frame counts, nearest VSYNC delta,
 both VSYNC timestamp forms, and dropped-report count. The corrected route is compiled and quality
-checked but not yet physically executed.
+checked.
+
+The corrected invocation ran after a 2026-09-01 21:12:13 JST preflight and completed in 139.951
+seconds with `OK (1 test)`. It used five warmups and 200 measured samples. The CSV reports ten
+environment checkpoints: before samples, after every 25 samples, and after the batch. Every
+checkpoint retained display mode 1 at 1200 x 1920 and 90 Hz, thermal status 1, power saving
+disabled, an interactive display, USB power, and 89% battery. A post-run device query retained
+thermal status 1, USB power, power saving disabled, and an awake display.
+
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `build/reports/p2/representation-limits/device-frames.csv` | 123,670 | `27B0A3A5010B2E79796B42D0468AAFD5C6FF06B500D996FD1F63ABAC24E9E369` |
+| `app/android/build/outputs/apk/debug/android-debug.apk` | 11,664,182 | `CD655DF7F6CE61821D6C485C5C0163153E81EF5AE4C639722EE022EA4E51C88F` |
+| `app/android/build/outputs/apk/androidTest/debug/android-debug-androidTest.apk` | 1,216,157 | `9907F22061A8EF92CB4A4D2917157BCCD1495C155B14D9608AC3A2CE6335418E` |
+
+The collection is valid renderer evidence but the current 256-square dense route fails the
+pre-fixed affected-frame conditions:
+
+| Observation over 200 nearest-rank samples | Result | Pre-fixed target | Outcome |
+| --- | ---: | ---: | --- |
+| Total affected-frame duration p95 | 204.600 ms | p95 meets the per-frame deadline | fail; 0 / 200 met the recorded 10.000 ms deadline |
+| Affected-frame overrun p99 | 199.535 ms | <= 16.67 ms | fail |
+| Command start to first exact app-issued frame p95 | 303.046 ms | <= 33.33 ms visible correctness | numerically fail and not compositor proof |
+
+All 200 samples had exact render state, matching revision and snapshot hash, zero image mismatch
+across all 65,536 logical pixels, a positive and unique API 36 frame-timeline vsync ID, and zero
+FrameMetrics report drops. The direct command-to-frame value is specifically a test-clock-
+synchronized app-issued latency because the Compose test rule drives recomposition to idle; it is
+not claimed as natural production scheduling or physical SurfaceFlinger presentation latency.
 
 The route uses a debug-only presentation bridge that delegates to the canonical `EditorScreen`
 and `PixelCanvas`; it is absent from release compilation and adds no release API or dependency.
@@ -273,10 +301,10 @@ interactive, USB-power, and battery checkpoints before samples, every 25 samples
 batch. Missing required timing values, callback drops, thermal status above 1, display changes,
 power-save mode, a non-interactive display, or loss of USB power invalidates the run.
 
-The planned physical invocation is:
+The recorded physical invocation was:
 
 ```powershell
-.\gradlew.bat :app:android:assembleDebug :app:android:assembleDebugAndroidTest
+.\gradlew.bat :app:android:assembleDebug :app:android:assembleDebugAndroidTest --rerun-tasks --no-build-cache
 adb -s <PHYSICAL_DEVICE_SERIAL> install -r -t app/android/build/outputs/apk/debug/android-debug.apk
 adb -s <PHYSICAL_DEVICE_SERIAL> install -r -t app/android/build/outputs/apk/androidTest/debug/android-debug-androidTest.apk
 adb -s <PHYSICAL_DEVICE_SERIAL> shell am instrument -w -r `
@@ -435,10 +463,10 @@ the Android configuration and separate supported-device verification.
 ## Current blocker
 
 Host, emulator-smoke, and preliminary physical command evidence are currently available. The
-physical screening does not include the complete workload matrix, renderer/retained-history
-memory, five independent PSS checkpoints, or frame/compositor results. The first physical frame
-attempt was invalid before sampling; the corrected harness is compiled but not physically
-executed, and its timeline IDs still require Perfetto correlation.
+physical screening does not include the complete workload matrix, retained-history memory, five
+independent PSS checkpoints, or compositor correlation. The corrected affected-frame batch is
+valid and fails the pre-fixed timing conditions for the current dense 256-square route; its
+timeline IDs still require Perfetto correlation before any visible-frame claim.
 The command screening's twenty samples per workload are also insufficient final p99 tail
 evidence. The emulator remains useful only for functional interaction checks and cannot fill any
 of those physical gaps.
