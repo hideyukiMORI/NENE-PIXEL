@@ -276,28 +276,29 @@ After each final collection, this document must add byte length and SHA-256 for 
 An artifact is not decision evidence if its metric boundary, commit, candidate, workload, sample
 count, or profile cannot be recovered from the file and this ledger.
 
-## Named physical minimum profile template
+## Named physical minimum profile
 
-This table must be completed before the first physical measurement. Each value must say whether
-it is reported by the device/tool or inferred from product documentation.
+This profile was fixed from read-only device queries before the first physical instrumentation
+measurement. Each value says whether it was reported by the device/tool or fixed by this
+measurement protocol. The device's hardware serial is intentionally not retained in evidence.
 
 | Field | Value | Source / reported or inferred |
 | --- | --- | --- |
-| Stable profile ID | pending | pending |
-| Manufacturer and model | pending | pending |
-| SoC and ABI | pending | pending |
-| Physical RAM | pending | pending |
-| Android release, API, and build fingerprint | pending | pending |
-| ART/runtime | pending | pending |
-| App variant and commit | pending | pending |
-| Display resolution and refresh rate | pending | pending |
-| `memoryClass` and `Runtime.maxMemory` | pending | pending |
-| Power mode | pending | pending |
-| Battery level and charging state | pending | pending |
-| Thermal status before/during/after | pending | pending |
-| Background-process and network conditions | pending | pending |
-| Warmup, sample, restart, and GC protocol | pending | pending |
-| Connected transport and measurement tools | pending | pending |
+| Stable profile ID | `NENE-P2-ALLDOCUBE-IPL80MP-A16-API36` | fixed by this ledger before instrumentation |
+| Manufacturer and model | ALLDOCUBE iPlay80miniPro; product/device `iPlay80miniPro` / `T830` | `getprop` reported |
+| SoC and ABI | Spreadtrum UMS9360 (`ums9360`); `arm64-v8a` | `getprop ro.soc.*`, `ro.board.platform`, and `ro.product.cpu.abilist` reported |
+| Physical RAM | 7,937,848 kB reported by kernel (approximately 7.57 GiB usable) | `/proc/meminfo` `MemTotal` reported |
+| Android release, API, and build fingerprint | Android 16; API 36; `ALLDOCUBE/iPlay80miniPro/T830:16/BP2A.250605.031.A3/94010:user/release-keys`; security patch 2026-05-05 | `getprop` reported |
+| ART/runtime | Android Runtime on a `user` build; heap growth limit 256 MiB, heap size 512 MiB, heap start 16 MiB | `getprop dalvik.vm.*` reported; exact test-process values are emitted before workload sampling |
+| App variant and commit | `debug` plus `debugAndroidTest`; `5b9675a5a77186c9ce5e5095bc88b5a485ad18fc` | Git and Gradle route reported |
+| Display resolution and refresh rate | physical 1200 x 1920; active/supported mode 90 Hz; physical density 320 dpi with 272 dpi override | `wm` and `dumpsys display` reported |
+| `memoryClass` and `Runtime.maxMemory` | captured in the CSV baseline row before measured workload samples | `ActivityManager.memoryClass` and `Runtime.maxMemory()` reported by the harness; final values pending first run |
+| Power mode | awake; low-power mode disabled; USB powered | `dumpsys power`, `settings get global low_power`, and `dumpsys battery` reported at pre-run query |
+| Battery level and charging state | 69%; USB powered/charging; battery temperature 30.7 C | `dumpsys battery` reported at 2026-09-01 19:10 JST |
+| Thermal status before/during/after | pre-run overall status 1; current skin 37.482 C and SoC 40.08 C, both status 1; during/after values pending the run artifact | `dumpsys thermalservice` reported at 2026-09-01 19:10 JST |
+| Background-process and network conditions | ordinary user background state; no process kill, network mutation, or device reset performed | fixed non-invasive protocol; exact scoped process/log observations pending raw collection |
+| Warmup, sample, restart, and GC protocol | five warmups and twenty samples per workload; one instrumentation invocation; a fresh gateway per sample; two explicit Java GC/finalization passes only before each post-GC memory capture | fixed by runner defaults and harness implementation |
+| Connected transport and measurement tools | one physical device over USB ADB; AndroidJUnitRunner; `Debug.getRuntimeStats`, `Debug.getMemoryInfo`, `Runtime`, `ActivityManager`, `dumpsys`, and host SHA-256 | device/tool reported and protocol-fixed |
 
 ## Current blocker
 
