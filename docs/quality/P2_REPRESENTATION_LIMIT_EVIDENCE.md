@@ -196,26 +196,56 @@ history retention, retained heap, ART, PSS, and frames remain required.
 
 ### Pre-fixed candidate patch and inverse slice
 
-Before collecting candidate schema v4, the next host slice fixes the snapshot and patch layout as
-one test-only configuration. It compares the object-list snapshot with materialized object-change
-inverse records against flat packed and tiled/COW snapshots with canonical packed triplets and a
-directional inverse view over shared backing arrays. The five configuration IDs are distinct from
-the snapshot-only candidate IDs and cover object-list, flat packed, and tiled/COW edges 16, 32,
-and 64. Palette performance remains excluded.
+Before collecting candidate schema v4, the next host slice fixes five test-only snapshot/patch
+configurations. Palette performance remains excluded.
 
-The fixed operations are shuffled patch create, inverse create, forward apply, inverse apply,
-exact forward/inverse round trip, and final-record late conflict. Every sample must preserve
-canonical row-major ordering, exact affected region, source/applied/restored revision, complete
-semantic and unaffected pixels, and atomic typed rejection. Application results are closed as
-`Applied`, `SnapshotRepresentationMismatch`, `ShapeMismatch`, `RevisionMismatch`, or
-`BeforeValueMismatch`; expected rejection is evidence rather than an exception.
+| Configuration ID | Snapshot | Patch and inverse |
+| --- | --- | --- |
+| `current-object-list__int-position-object-records-materialized-inverse-v1` | object-list RGBA | analytical `Int`-position object records; materialized inverse records |
+| `flat-packed-rgba8888__packed-triplets-shared-inverse-v1` | flat packed RGBA8888 | canonical position/before/after `IntArray` triplets; shared directional inverse |
+| `tiled-cow-rgba8888-t16__packed-triplets-shared-inverse-v1` | tiled/COW RGBA8888, edge 16 | the same packed triplet and shared inverse contract |
+| `tiled-cow-rgba8888-t32__packed-triplets-shared-inverse-v1` | tiled/COW RGBA8888, edge 32 | the same packed triplet and shared inverse contract |
+| `tiled-cow-rgba8888-t64__packed-triplets-shared-inverse-v1` | tiled/COW RGBA8888, edge 64 | the same packed triplet and shared inverse contract |
+
+The object-record patch is a logical analytical fixture, not a byte-for-byte model of production
+`PixelChange`: it retains a primitive `Int` position plus `before` and `after` `PixelColor`
+references. The snapshot portion remains the object-list candidate used by the preceding host
+matrix.
+
+The standalone workload is exactly one 256x256 canvas with 65,536 changed pixels and a full-canvas
+affected region. Independent initial and after semantic colors are submitted in reverse row-major
+order and retained canonically in row-major position order. The late conflict is injected at the
+final canonical position, 65,535. Each operation has five warmups and ten diagnostic samples for
+five configurations, producing 30 metric rows and 300 raw sample rows. For operation index `n`,
+the five-configuration order starts at configuration index `n mod 5` and wraps once; a
+configuration's ten samples remain contiguous rather than interleaved.
+
+| Operation | Timed interval |
+| --- | --- |
+| shuffled patch create | shared order canonicalization, candidate-native record/array materialization, and defensive ownership |
+| inverse create | materialized object-record inverse or packed directional inverse-view creation |
+| forward apply | complete typed preflight validation followed by candidate-native forward snapshot apply |
+| inverse apply | complete typed preflight validation followed by candidate-native inverse snapshot apply |
+| exact round trip | forward apply, inverse creation, and inverse apply |
+| final-record late conflict | complete typed preflight through the final before-value mismatch and rejection return; no output snapshot materialization |
+
+Fixture construction, semantic input generation, and full correctness verification are outside
+every timed interval. Every sample must preserve canonical ordering, exact affected region,
+source/applied/restored revision, complete semantic and unaffected pixels, and atomic typed
+rejection. Application results are closed as `Applied`, `SnapshotRepresentationMismatch`,
+`ShapeMismatch`, `RevisionMismatch`, or `BeforeValueMismatch`; expected rejection is evidence
+rather than an exception.
 
 Schema v4 records configuration, snapshot representation, patch layout, inverse storage kind,
 forward and inverse record counts, primitive payload bytes and reference slots in separate units,
 shared backing payload, canonical-order digest, affected-region bounds, before/after/restored
-revision and pixel digests, result or rejection kind, and raw timing/allocation samples. Reference
-slots are not converted to estimated bytes. Input generation and full correctness verification
-remain outside the timed interval. The HotSpot rows are diagnostic only and cannot select a
+revision and pixel digests, result or rejection kind, and raw timing/allocation samples. Logical
+object storage counts each record's primitive position, two color-reference fields, one occupied
+list-element reference slot, and the record itself. Logical packed storage counts the payload and
+three owned primitive arrays. Wrapper, list, and array headers, spare list capacity, and shared
+`PixelColor` referents are excluded. Forward, inverse-additional, shared, and retained-union counts
+use those same units; reference slots are not converted to estimated bytes, and none of these
+counts are retained-heap evidence. The HotSpot rows are diagnostic only and cannot select a
 candidate or a hard limit.
 
 This slice does not implement production history, candidate duplicate/no-op/reference-clear raw
