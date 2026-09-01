@@ -207,8 +207,8 @@ The fixed operations are shuffled patch create, inverse create, forward apply, i
 exact forward/inverse round trip, and final-record late conflict. Every sample must preserve
 canonical row-major ordering, exact affected region, source/applied/restored revision, complete
 semantic and unaffected pixels, and atomic typed rejection. Application results are closed as
-`Applied`, `ShapeMismatch`, `RevisionMismatch`, or `BeforeValueMismatch`; expected rejection is
-evidence rather than an exception.
+`Applied`, `SnapshotRepresentationMismatch`, `ShapeMismatch`, `RevisionMismatch`, or
+`BeforeValueMismatch`; expected rejection is evidence rather than an exception.
 
 Schema v4 records configuration, snapshot representation, patch layout, inverse storage kind,
 forward and inverse record counts, primitive payload bytes and reference slots in separate units,
