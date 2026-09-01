@@ -10,7 +10,7 @@ Human memory and code-review attention are not enforcement mechanisms. The Kotli
 
 ## Status
 
-Milestone 0 is complete: the executable foundation has passed its fresh-clone, quality-gate, CI-protection, and emulator launch criteria. Milestone 1 is next; production code may be introduced only through its planned vertical-slice work packages and the canonical paths defined here.
+Milestones 0 and 1 are complete: the executable foundation and the first touch-to-command vertical slice have passed their documented exit criteria. Milestone 2 is next; production changes may be introduced only through its focused core-drawing work packages, beginning with the evidence and decision gates defined in `P2-00` and `P2-01`.
 
 ## Canonical documents
 
