@@ -5,6 +5,7 @@ import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentId
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.document.Revision
+import io.github.hideyukimori.nenepixel.core.domain.drawing.Stroke
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasHeight
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasWidth
@@ -46,7 +47,14 @@ internal object ApplicationTestValues {
         canvas: CanvasSize,
         revision: Revision = Revision.initial(),
         pixels: List<PixelColor> = List(canvas.pixelCount.toInt()) { black },
-    ): DocumentState = DocumentState.create(DOCUMENT_ID, snapshot(canvas, revision, pixels))
+        documentId: DocumentId = defaultDocumentId,
+    ): DocumentState = DocumentState.create(documentId, snapshot(canvas, revision, pixels))
+
+    fun stroke(
+        canvas: CanvasSize,
+        path: List<PixelPosition>,
+        color: PixelColor,
+    ): Stroke = Stroke.create(canvas, path, color).value()
 
     fun patch(
         canvas: CanvasSize,
@@ -88,5 +96,6 @@ internal object ApplicationTestValues {
             is DomainValueResult.Rejected -> fail("Test value was rejected: $rejection")
         }
 
-    private val DOCUMENT_ID: DocumentId = DocumentId.create("0".repeat(32)).value()
+    val defaultDocumentId: DocumentId = DocumentId.create("0".repeat(32)).value()
+    val otherDocumentId: DocumentId = DocumentId.create("1".repeat(32)).value()
 }
