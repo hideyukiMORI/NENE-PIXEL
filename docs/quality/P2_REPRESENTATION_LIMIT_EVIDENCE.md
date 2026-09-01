@@ -284,6 +284,53 @@ This slice does not implement production history, candidate duplicate/no-op/refe
 paths, retained-history budgets, physical ART/PSS/frame comparisons, semantic color decisions, or
 production migration. Those remain subsequent evidence gates while ADR 0005 is proposed.
 
+### Pre-fixed candidate raw-path slice
+
+Before collecting candidate schema v5, the next host slice fixes one test-only raw-path boundary
+in front of the five configurations above. It mirrors the current `rasterizeStroke` contract:
+ordered raw positions use first-occurrence-wins duplicate collapse, source-equal target colors are
+filtered, effective changes alone enter the strict candidate-native patch factory, and an empty
+effective set returns typed `NoChanges` without creating a patch. The strict factory continues to
+reject duplicate or unchanged canonical patch input. This is one shared test-only path inside the
+pixel-engine test boundary, not a second production implementation.
+
+The canvas is exactly 256x256 (`N=65,536`). Opaque black is only a reference-clear fixture; this
+slice does not select semantic blank or eraser behavior. Opaque red and opaque black are the only
+input colors, so every workload is independent of the unresolved palette-ownership decision.
+
+| Workload | Source to target | Raw order | Raw positions | Unique positions | Duplicates | Unchanged unique | Effective changes | Result |
+| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |
+| duplicate changed | black to red | paired row-major (`0,0,1,1,...`) | 131,072 | 65,536 | 65,536 | 0 | 65,536 | `Rasterized` |
+| changed reference-clear | red to black | row-major | 65,536 | 65,536 | 0 | 0 | 65,536 | `Rasterized` |
+| reference-clear no-op | black to black | row-major | 65,536 | 65,536 | 0 | 65,536 | 0 | `NoChanges` |
+| same-color no-op | red to red | row-major | 65,536 | 65,536 | 0 | 65,536 | 0 | `NoChanges` |
+
+Each workload has five warmups and ten diagnostic samples for all five configurations, producing
+20 metric rows and 200 raw sample rows. For workload index `n`, configuration execution starts at
+index `n mod 5` and wraps once; each configuration's samples remain contiguous. The timed interval
+contains the raw position scan, duplicate collapse, source-color comparison, canonical change
+collection, candidate-native patch materialization and defensive ownership when changes exist,
+and the typed result return. Immutable snapshot/input fixture construction, digests, apply/inverse
+round trip, and full correctness verification remain outside timing. These raw-only values are not
+directly comparable with current `CommandGateway` rows that include command dispatch, apply, and
+history commit.
+
+Every sample must prove that the ordered raw-input digest and source snapshot revision/pixel
+digest are unchanged. `Rasterized` must additionally prove exact change count, row-major order,
+before/after values, full affected region, apply revision `0 -> 1`, exact inverse restoration to
+revision 0, and zero unaffected pixels. `NoChanges` must prove no patch or inverse was created,
+revision and every pixel remain unchanged, all `N` pixels are unaffected, affected-region fields
+are absent, and every persistent patch-storage count is zero. Result and semantic evidence must
+match across all five configurations.
+
+Schema v5 adds `raw_input_digest_sha256`, `unique_path_positions`,
+`duplicate_path_positions`, `unchanged_unique_positions`, and
+`canonical_change_digest_sha256`. The raw digest includes canvas, source revision and row-major
+source pixels, every ordered raw position including duplicates, and the target RGBA value. The
+canonical-change digest includes ordered position/before/after triples; `NoChanges` uses a tagged
+empty digest. These fields make `P -> C` and raw-input identity independently auditable while the
+existing position-only canonical-order digest retains its v4 meaning.
+
 ## Auxiliary Android harness proof
 
 The Android command harness compiled and ran on the `Pixel_8_Pro_API_35` AVD only after the
