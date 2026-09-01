@@ -1,5 +1,6 @@
 package io.github.hideyukimori.nenepixel.core.pixelengine.measurement
 
+import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import java.security.MessageDigest
 
 internal object P2CandidateDigest {
@@ -23,6 +24,50 @@ internal object P2CandidateDigest {
         changed.indices.filterNot(changed::get).forEach { index ->
             digest.updateInt(index)
             digest.updateInt(snapshot.packedAt(index))
+        }
+        return digest.digest().hex()
+    }
+
+    fun allIndexedPixels(snapshot: P2CandidateSnapshot): String {
+        val digest = sha256()
+        digest.updateInt(snapshot.shape.width)
+        digest.updateInt(snapshot.shape.height)
+        repeat(snapshot.shape.pixelCount.toInt()) { index ->
+            digest.updateInt(index)
+            digest.updateInt(snapshot.packedAt(index))
+        }
+        return digest.digest().hex()
+    }
+
+    fun rawInput(
+        snapshot: P2CandidateSnapshot,
+        rawPositions: IntArray,
+        target: PixelColor,
+    ): String {
+        val digest = sha256()
+        digest.updateInt(RAW_INPUT_TAG)
+        digest.updateInt(snapshot.shape.width)
+        digest.updateInt(snapshot.shape.height)
+        digest.updateLong(snapshot.revision)
+        repeat(snapshot.shape.pixelCount.toInt()) { index -> digest.updateInt(snapshot.packedAt(index)) }
+        digest.updateInt(rawPositions.size)
+        rawPositions.forEach(digest::updateInt)
+        digest.updateInt(P2PackedRgba8888.pack(target))
+        return digest.digest().hex()
+    }
+
+    fun canonicalChanges(patch: P2CandidatePatch?): String {
+        val digest = sha256()
+        if (patch == null) {
+            digest.updateInt(EMPTY_CANONICAL_CHANGES_TAG)
+        } else {
+            digest.updateInt(CANONICAL_CHANGES_TAG)
+            digest.updateInt(patch.changeCount)
+            repeat(patch.changeCount) { index ->
+                digest.updateInt(patch.positionAt(index))
+                digest.updateInt(patch.beforeAt(index))
+                digest.updateInt(patch.afterAt(index))
+            }
         }
         return digest.digest().hex()
     }
@@ -53,6 +98,10 @@ internal object P2CandidateDigest {
     }
 
     private fun sha256(): MessageDigest = MessageDigest.getInstance("SHA-256")
+
+    private const val RAW_INPUT_TAG: Int = 0x52415731
+    private const val CANONICAL_CHANGES_TAG: Int = 0x43484e31
+    private const val EMPTY_CANONICAL_CHANGES_TAG: Int = 0x43484e30
 }
 
 internal fun assertCandidatePixels(

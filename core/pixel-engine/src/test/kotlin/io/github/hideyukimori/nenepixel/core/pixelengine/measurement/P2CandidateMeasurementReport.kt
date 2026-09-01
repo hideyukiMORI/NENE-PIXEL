@@ -7,13 +7,15 @@ internal object P2CandidateMeasurementReport {
     fun write(
         candidates: List<P2CandidateMeasurementMetric>,
         patchCandidates: List<P2CandidatePatchMeasurementMetric>,
+        rawPathCandidates: List<P2CandidateRawPathMeasurementMetric>,
     ) {
         val outputDirectory = System.getProperty(OUTPUT_DIRECTORY_PROPERTY)?.let(Path::of) ?: return
         Files.createDirectories(outputDirectory)
         val rows =
             metadataRows() +
                 candidates.flatMap(::candidateMetricRows) +
-                patchCandidates.flatMap(::patchMetricRows)
+                patchCandidates.flatMap(::patchMetricRows) +
+                rawPathCandidates.flatMap(::rawPathMetricRows)
         Files.writeString(
             outputDirectory.resolve("host-candidates.csv"),
             rows.joinToString(System.lineSeparator(), postfix = System.lineSeparator()),
@@ -25,7 +27,7 @@ internal object P2CandidateMeasurementReport {
     private fun baseMetadataRows(): List<String> =
         listOf(
             csvRow(*REPORT_COLUMNS.toTypedArray()),
-            metadataRow("schema", "nene-pixel-p2-representation-limits-host-candidates-v4"),
+            metadataRow("schema", "nene-pixel-p2-representation-limits-host-candidates-v5"),
             metadataRow("profile", HOST_PROFILE),
             metadataRow("os", systemDescription()),
             metadataRow("jvm", jvmDescription()),
@@ -54,7 +56,8 @@ internal object P2CandidateMeasurementReport {
                 "64x64|16x256|256x16|128x128|64x256|256x64|256x256; " +
                     "one|256|high-entropy RGBA snapshot build; high-entropy one|diagonal|row|column|" +
                     "25%|50%|100% apply; 256x256-only dense shuffled create|inverse create|forward apply|" +
-                    "inverse apply|round trip|late conflict; 5 warmups and 10 diagnostic samples",
+                    "inverse apply|round trip|late conflict plus raw duplicate changed|reference-clear changed|" +
+                    "reference-clear no-op|same-color no-op; 5 warmups and 10 diagnostic samples",
             ),
             metadataRow(
                 "semantic_oracle",
@@ -71,8 +74,8 @@ internal object P2CandidateMeasurementReport {
             ),
             metadataRow(
                 "unit_boundary",
-                "candidate snapshot/apply/standalone-patch rows execute no raw stroke or history retention; " +
-                    "path_positions=0, history_entries=0, and change_count is the native patch size",
+                "candidate snapshot/apply/standalone-patch rows use path_positions=0; raw-path rows use the " +
+                    "ordered raw count P and effective canonical change count C; all rows use history_entries=0",
             ),
             metadataRow(
                 "patch_logical_storage_boundary",
@@ -82,7 +85,7 @@ internal object P2CandidateMeasurementReport {
             ),
             metadataRow(
                 "candidate_gaps",
-                "duplicate/no-op/reference-clear paths, retained history, heap, ART, PSS, frames, and semantic " +
+                "retained history, heap, ART, PSS, frames, sparse/rectangular native patches, and semantic " +
                     "selection remain pending",
             ),
             metadataRow("cross_configuration_correctness", "all patch semantic and lifecycle digests matched"),
@@ -90,6 +93,22 @@ internal object P2CandidateMeasurementReport {
                 "palette_status",
                 "U8 value-palette pack/index correctness and 257-color typed rejection tested; " +
                     "performance comparison blocked on palette semantic ownership",
+            ),
+        ) + rawPathMetadataRows()
+
+    private fun rawPathMetadataRows(): List<String> =
+        listOf(
+            metadataRow(
+                "raw_candidate_boundary",
+                "test-only raw scan, first-occurrence duplicate collapse, source-color filter, canonical change " +
+                    "collection, candidate-native patch materialization, and typed result; fixture generation, " +
+                    "apply/inverse, history, and verification excluded",
+            ),
+            metadataRow(
+                "raw_candidate_matrix",
+                "256x256; opaque black/red analytical fixtures; paired-row-major duplicate changed, " +
+                    "row-major reference-clear changed/no-op and same-color no-op; 5 configurations; " +
+                    "20 metrics and 200 samples",
             ),
         )
 
@@ -111,6 +130,20 @@ internal object P2CandidateMeasurementReport {
         listOf(patchRow(metric, P2CandidateReportSample("metric", null, null, null))) +
             metric.samples.latenciesNanos.indices.map { index ->
                 patchRow(
+                    metric,
+                    P2CandidateReportSample(
+                        recordType = "sample",
+                        index = index,
+                        latencyNanos = metric.samples.latenciesNanos[index],
+                        allocatedBytes = metric.samples.allocatedBytes[index],
+                    ),
+                )
+            }
+
+    private fun rawPathMetricRows(metric: P2CandidateRawPathMeasurementMetric): List<String> =
+        listOf(rawPathRow(metric, P2CandidateReportSample("metric", null, null, null))) +
+            metric.samples.latenciesNanos.indices.map { index ->
+                rawPathRow(
                     metric,
                     P2CandidateReportSample(
                         recordType = "sample",
@@ -201,6 +234,38 @@ internal object P2CandidateMeasurementReport {
         )
     }
 
+    private fun rawPathRow(
+        metric: P2CandidateRawPathMeasurementMetric,
+        sample: P2CandidateReportSample,
+    ): String {
+        val descriptor = metric.descriptor
+        val outcome = metric.outcome
+        return rowByColumn(
+            *rawPathBaseValues(metric, sample.recordType).toTypedArray(),
+            *sample.rawPathValues(metric).toTypedArray(),
+            *configurationValues(descriptor.configuration).toTypedArray(),
+            "operation_kind" to descriptor.operation.csvName,
+            "operation_boundary" to descriptor.protocol.boundary,
+            "content_kind" to descriptor.contentKind,
+            "path_kind" to "raw_single_color_path",
+            "color_cardinality" to 1,
+            "tile_edge" to descriptor.configuration.snapshotRepresentation.reportTileEdge(),
+            "primitive_payload_bytes" to outcome.storage.snapshot.primitivePayloadBytes,
+            "reference_slots" to outcome.storage.snapshot.referenceSlots,
+            *patchStorageValues(outcome.storage.patch).toTypedArray(),
+            *patchResultValues(outcome.result).toTypedArray(),
+            *rawPathStateValues(outcome.state).toTypedArray(),
+            "raw_input_digest_sha256" to outcome.correctness.rawInputDigest,
+            "canonical_change_digest_sha256" to outcome.correctness.canonicalChangeDigest,
+            "canonical_order_digest_sha256" to outcome.correctness.canonicalOrderDigest,
+            "forward_patch_digest_sha256" to outcome.correctness.forwardPatchDigest,
+            "inverse_patch_digest_sha256" to outcome.correctness.inversePatchDigest,
+            "execution_order" to descriptor.protocol.executionOrder,
+            "input_order" to descriptor.protocol.inputOrder,
+            "correctness_status" to outcome.correctness.status,
+        )
+    }
+
     private fun patchResultValues(result: P2CandidatePatchResultEvidence): List<Pair<String, Any>> =
         listOf(
             "result_kind" to result.resultKind,
@@ -214,6 +279,16 @@ internal object P2CandidateMeasurementReport {
             operationValues(state.operation) +
             listOf(
                 "unaffected_pixel_count" to 0,
+                "unaffected_input_digest_sha256" to state.unaffected.inputDigest,
+                "unaffected_output_digest_sha256" to state.unaffected.outputDigest,
+            )
+
+    private fun rawPathStateValues(state: P2CandidateRawPathStateEvidence): List<Pair<String, Any>> =
+        (state.affectedRegion?.let(::regionValues) ?: emptyList()) +
+            lifecycleValues(state.lifecycle) +
+            operationValues(state.operation) +
+            listOf(
+                "unaffected_pixel_count" to state.unaffectedPixelCount,
                 "unaffected_input_digest_sha256" to state.unaffected.inputDigest,
                 "unaffected_output_digest_sha256" to state.unaffected.outputDigest,
             )
@@ -270,6 +345,31 @@ internal object P2CandidateMeasurementReport {
             "pixel_count" to descriptor.canvas.pixelCount,
             "path_positions" to 0,
             "change_count" to descriptor.canvas.pixelCount,
+            "history_entries" to 0,
+            "total_retained_changes" to 0,
+            "warmup" to CANDIDATE_WARMUPS,
+            "samples" to CANDIDATE_SAMPLES,
+            "boundary" to descriptor.protocol.boundary,
+        )
+    }
+
+    private fun rawPathBaseValues(
+        metric: P2CandidateRawPathMeasurementMetric,
+        recordType: String,
+    ): List<Pair<String, Any>> {
+        val descriptor = metric.descriptor
+        return listOf(
+            "record_type" to recordType,
+            "name" to "p2_candidate_${descriptor.operation.csvName}",
+            "status" to "measured_test_only",
+            "canvas_width" to descriptor.canvas.width,
+            "canvas_height" to descriptor.canvas.height,
+            "pixel_count" to descriptor.canvas.pixelCount,
+            "path_positions" to descriptor.pathPositions,
+            "unique_path_positions" to descriptor.uniquePathPositions,
+            "duplicate_path_positions" to descriptor.duplicatePathPositions,
+            "unchanged_unique_positions" to descriptor.unchangedUniquePositions,
+            "change_count" to descriptor.changeCount,
             "history_entries" to 0,
             "total_retained_changes" to 0,
             "warmup" to CANDIDATE_WARMUPS,
@@ -341,6 +441,26 @@ internal object P2CandidateMeasurementReport {
             )
         }
 
+    private fun P2CandidateReportSample.rawPathValues(
+        metric: P2CandidateRawPathMeasurementMetric,
+    ): List<Pair<String, Any>> =
+        if (index == null) {
+            listOf(
+                "latency_median_ns" to metric.percentiles.latency.median,
+                "latency_p95_ns" to metric.percentiles.latency.p95,
+                "latency_p99_ns" to metric.percentiles.latency.p99,
+                "allocated_median_bytes" to metric.percentiles.allocation.median,
+                "allocated_p95_bytes" to metric.percentiles.allocation.p95,
+                "allocated_p99_bytes" to metric.percentiles.allocation.p99,
+            )
+        } else {
+            listOf(
+                "sample_index" to index,
+                "latency_ns" to requireNotNull(latencyNanos),
+                "allocated_bytes" to requireNotNull(allocatedBytes),
+            )
+        }
+
     private fun P2CandidateRepresentation.reportTileEdge(): Int =
         when (this) {
             P2CandidateRepresentation.TiledCowRgba8888T16 -> 16
@@ -386,6 +506,9 @@ internal object P2CandidateMeasurementReport {
             "canvas_height",
             "pixel_count",
             "path_positions",
+            "unique_path_positions",
+            "duplicate_path_positions",
+            "unchanged_unique_positions",
             "change_count",
             "history_entries",
             "total_retained_changes",
@@ -456,6 +579,8 @@ internal object P2CandidateMeasurementReport {
             "unaffected_input_digest_sha256",
             "unaffected_output_digest_sha256",
             "canonical_order_digest_sha256",
+            "raw_input_digest_sha256",
+            "canonical_change_digest_sha256",
             "forward_patch_digest_sha256",
             "inverse_patch_digest_sha256",
             "execution_order",

@@ -8,7 +8,8 @@ internal class P2CandidateMeasurementTest {
         val allocationCounter = P2ThreadAllocationCounter.create()
         val candidates = P2CandidateMeasurement.measure(allocationCounter)
         val patchCandidates = P2CandidatePatchMeasurement.measure(allocationCounter)
+        val rawPathCandidates = P2CandidateRawPathMeasurement.measure(allocationCounter)
 
-        P2CandidateMeasurementReport.write(candidates, patchCandidates)
+        P2CandidateMeasurementReport.write(candidates, patchCandidates, rawPathCandidates)
     }
 }
