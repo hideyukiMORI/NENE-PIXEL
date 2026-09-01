@@ -7,6 +7,8 @@ public class EditorCallbacks internal constructor(
     private val pointerMove: (PixelPosition) -> EditorRenderState,
     private val pointerEnd: (PixelPosition) -> EditorRenderState,
     private val pointerCancel: () -> EditorRenderState,
+    private val undo: () -> EditorRenderState,
+    private val redo: () -> EditorRenderState,
 ) {
     public fun onPointerDown(position: PixelPosition): EditorRenderState = pointerDown(position)
 
@@ -15,4 +17,8 @@ public class EditorCallbacks internal constructor(
     public fun onPointerEnd(position: PixelPosition): EditorRenderState = pointerEnd(position)
 
     public fun onPointerCancel(): EditorRenderState = pointerCancel()
+
+    public fun onUndo(): EditorRenderState = undo()
+
+    public fun onRedo(): EditorRenderState = redo()
 }

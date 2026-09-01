@@ -1,0 +1,129 @@
+package io.github.hideyukimori.nenepixel.presentation.compose.editor
+
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.percentOffset
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipe
+import io.github.hideyukimori.nenepixel.core.application.document.command.CommandGateway
+import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReducer
+import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceState
+import io.github.hideyukimori.nenepixel.core.domain.color.ColorChannel
+import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
+import io.github.hideyukimori.nenepixel.core.domain.document.DocumentId
+import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
+import io.github.hideyukimori.nenepixel.core.domain.document.Revision
+import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasHeight
+import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
+import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasWidth
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
+import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Rule
+import org.junit.Test
+
+internal class UndoRedoEditorTest {
+    @get:Rule
+    val composeRule = createComposeRule()
+
+    @Test
+    fun strokeUndoRedoControlsRestoreExactSnapshotsAndRevisions() {
+        val controller = controller()
+        val initial = controller.renderState
+        composeRule.setContent {
+            NenePixelEditor(initialState = initial, callbacks = controller.callbacks)
+        }
+
+        composeRule.onNodeWithText("Undo").assertIsNotEnabled()
+        composeRule.onNodeWithText("Redo").assertIsNotEnabled()
+        composeRule
+            .onNodeWithContentDescription("16 by 16 pixel canvas")
+            .performTouchInput {
+                swipe(
+                    start = percentOffset(START_PERCENT, START_PERCENT),
+                    end = percentOffset(END_PERCENT, END_PERCENT),
+                    durationMillis = SWIPE_DURATION_MILLIS,
+                )
+            }
+        composeRule.waitForIdle()
+
+        val drawn = controller.renderState
+        assertEquals(1L, drawn.snapshot.revision.value)
+        assertTrue(drawn.canUndo)
+        assertFalse(drawn.canRedo)
+        composeRule.onNodeWithText("Undo").assertIsEnabled().performClick()
+        composeRule.waitForIdle()
+
+        val undone = controller.renderState
+        assertEquals(initial.snapshot, undone.snapshot)
+        assertEquals(0L, undone.snapshot.revision.value)
+        assertFalse(undone.canUndo)
+        assertTrue(undone.canRedo)
+        composeRule.onNodeWithText("Redo").assertIsEnabled().performClick()
+        composeRule.waitForIdle()
+
+        val redone = controller.renderState
+        assertEquals(drawn.snapshot, redone.snapshot)
+        assertEquals(1L, redone.snapshot.revision.value)
+        assertTrue(redone.canUndo)
+        assertFalse(redone.canRedo)
+    }
+
+    private fun controller(): FixedSliceEditorController {
+        val size =
+            CanvasSize.create(
+                CanvasWidth.create(CANVAS_EDGE).requiredValue(),
+                CanvasHeight.create(CANVAS_EDGE).requiredValue(),
+            )
+        val background = color(CHANNEL_MAX, CHANNEL_MAX, CHANNEL_MAX)
+        val activeColor = color(CHANNEL_MAX, CHANNEL_MIN, CHANNEL_MIN)
+        val snapshot =
+            PixelSnapshot
+                .create(size, Revision.initial(), List(size.pixelCount.toInt()) { background })
+                .requiredValue()
+        val document =
+            DocumentState.create(
+                DocumentId.create(DOCUMENT_ID).requiredValue(),
+                snapshot,
+            )
+        return FixedSliceEditorController.create(
+            CommandGateway.create(document),
+            WorkspaceReducer.create(),
+            WorkspaceState.create(activeColor),
+        )
+    }
+
+    private fun color(
+        red: Int,
+        green: Int,
+        blue: Int,
+    ): PixelColor =
+        PixelColor.create(
+            ColorChannel.create(red).requiredValue(),
+            ColorChannel.create(green).requiredValue(),
+            ColorChannel.create(blue).requiredValue(),
+            ColorChannel.create(CHANNEL_MAX).requiredValue(),
+        )
+
+    private fun <T> DomainValueResult<T>.requiredValue(): T =
+        when (this) {
+            is DomainValueResult.Created -> value
+            is DomainValueResult.Rejected -> error("Invalid UI test fixture: $rejection")
+        }
+
+    private companion object {
+        const val CANVAS_EDGE: Int = 16
+        const val CHANNEL_MIN: Int = 0
+        const val CHANNEL_MAX: Int = 255
+        const val START_PERCENT: Float = 0.05f
+        const val END_PERCENT: Float = 0.25f
+        const val SWIPE_DURATION_MILLIS: Long = 300L
+        const val DOCUMENT_ID: String = "22222222222222222222222222222222"
+    }
+}

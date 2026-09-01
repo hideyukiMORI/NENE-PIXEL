@@ -114,6 +114,8 @@ Undo/redo MUST operate on committed `ChangeSet` records or their canonical inver
 
 Undo and redo themselves enter through the application command boundary.
 
+`Revision` is the version recorded on a specific committed `DocumentState` and its patches in this transition contract. Applying a recorded canonical inverse restores its recorded before revision, and redo restores its recorded after revision. A revision value does not uniquely identify a state across abandoned and replacement branches, and it is not a globally monotonic event or audit sequence; any future asynchronous lineage or audit sequence requires a distinct type and an accepted ADR.
+
 ### CMD-009 — Queries never mutate
 
 Queries MUST return immutable projections and MUST NOT modify document, workspace, history, caches visible outside their owner, or persistence state.

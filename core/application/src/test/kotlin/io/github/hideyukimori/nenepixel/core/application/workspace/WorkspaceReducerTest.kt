@@ -108,7 +108,7 @@ internal class WorkspaceReducerTest {
         assertEquals(red, cancelled.activeColor)
         assertEquals(FixedSliceViewport, cancelled.viewport)
         assertNull(cancelled.preview)
-        assertEquals(document, gateway.documentState)
+        assertEquals(document, gateway.runtimeState.documentState)
 
         val repeated = rejected(reducer.reduce(cancelled, WorkspaceAction.CancelGesturePreview))
         assertEquals(WorkspaceActionRejection.NoActivePreview, repeated.rejection)
@@ -129,7 +129,7 @@ internal class WorkspaceReducerTest {
         assertEquals(listOf(position(0, 0), position(1, 0)), prepared.stroke.positions())
         assertEquals(green, prepared.nextState.activeColor)
         assertNull(prepared.nextState.preview)
-        assertEquals(document, gateway.documentState)
+        assertEquals(document, gateway.runtimeState.documentState)
 
         val outOfOrder = rejected(reducer.reduce(prepared.nextState, WorkspaceAction.PrepareGestureCommit))
         assertEquals(WorkspaceActionRejection.NoActivePreview, outOfOrder.rejection)

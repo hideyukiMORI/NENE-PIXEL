@@ -8,6 +8,8 @@ public class EditorRenderState internal constructor(
     public val snapshot: PixelSnapshot,
     public val activeColor: PixelColor,
     public val preview: ToolGesture?,
+    public val canUndo: Boolean,
+    public val canRedo: Boolean,
 ) {
     override fun equals(other: Any?): Boolean =
         this === other ||
@@ -15,17 +17,22 @@ public class EditorRenderState internal constructor(
                 other is EditorRenderState &&
                     snapshot == other.snapshot &&
                     activeColor == other.activeColor &&
-                    preview == other.preview
+                    preview == other.preview &&
+                    canUndo == other.canUndo &&
+                    canRedo == other.canRedo
             )
 
     override fun hashCode(): Int =
-        ((snapshot.hashCode() * HASH_MULTIPLIER) + activeColor.hashCode()) * HASH_MULTIPLIER +
-            (preview?.hashCode() ?: 0)
+        listOf(snapshot, activeColor, preview, canUndo, canRedo)
+            .fold(INITIAL_HASH) { hash, value -> hash * HASH_MULTIPLIER + (value?.hashCode() ?: 0) }
 
     override fun toString(): String =
-        "EditorRenderState(snapshot=$snapshot, activeColor=$activeColor, preview=$preview)"
+        "EditorRenderState(" +
+            "snapshot=$snapshot, activeColor=$activeColor, preview=$preview, " +
+            "canUndo=$canUndo, canRedo=$canRedo)"
 
     private companion object {
+        const val INITIAL_HASH: Int = 1
         const val HASH_MULTIPLIER: Int = 31
     }
 }

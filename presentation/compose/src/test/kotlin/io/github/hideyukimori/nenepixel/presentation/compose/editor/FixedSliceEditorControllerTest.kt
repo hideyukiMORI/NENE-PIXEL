@@ -18,13 +18,41 @@ import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestVal
 import io.github.hideyukimori.nenepixel.presentation.compose.input.FixedCanvasTouchTranslator
 import io.github.hideyukimori.nenepixel.presentation.compose.input.TouchTranslation
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertSame
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.fail
 
 internal class FixedSliceEditorControllerTest {
+    @Test
+    fun `history callbacks project exact draw undo redo states`() {
+        val fixture = fixture()
+        val initial = fixture.controller.renderState
+        assertFalse(initial.canUndo)
+        assertFalse(initial.canRedo)
+
+        fixture.controller.pointerDown(position(0, 0))
+        val drawn = fixture.controller.pointerEnd(position(1, 0)).renderState
+        assertTrue(drawn.canUndo)
+        assertFalse(drawn.canRedo)
+        assertEquals(1L, drawn.snapshot.revision.value)
+
+        val undone = fixture.controller.callbacks.onUndo()
+        assertEquals(initial.snapshot, undone.snapshot)
+        assertFalse(undone.canUndo)
+        assertTrue(undone.canRedo)
+        assertEquals(0L, undone.snapshot.revision.value)
+
+        val redone = fixture.controller.callbacks.onRedo()
+        assertEquals(drawn.snapshot, redone.snapshot)
+        assertTrue(redone.canUndo)
+        assertFalse(redone.canRedo)
+        assertEquals(1L, redone.snapshot.revision.value)
+    }
+
     @Test
     fun `down and move only project preview then end executes exactly one command`() {
         val fixture = fixture()
@@ -92,7 +120,7 @@ internal class FixedSliceEditorControllerTest {
         val touchResult = executeTranslatedTouch(touch, samples)
 
         assertEquals(directOutcome.commandResult, touchResult)
-        assertEquals(direct.gateway.documentState, touch.gateway.documentState)
+        assertEquals(direct.gateway.runtimeState.documentState, touch.gateway.runtimeState.documentState)
         assertEquals(directOutcome.workspaceState, touch.controller.workspaceState)
     }
 
@@ -112,7 +140,7 @@ internal class FixedSliceEditorControllerTest {
         }
         val prepared = fixture.reducer.reduce(workspace, WorkspaceAction.PrepareGestureCommit)
         val commit = assertInstanceOf(WorkspaceReductionResult.CommitPrepared::class.java, prepared)
-        val target = fixture.gateway.documentState
+        val target = fixture.gateway.runtimeState.documentState
         return DirectOutcome(
             commandResult =
                 fixture.gateway.execute(
