@@ -118,6 +118,7 @@ Owns behavior coordination:
 - `CommandGateway`
 - command handlers and validation
 - `WorkspaceReducer`
+- validated workspace viewport values and the portable canonical forward/inverse transform
 - history and undo/redo coordination
 - query projections
 - ports for persistence, clocks, identifiers, and future external effects
@@ -142,10 +143,11 @@ Owns display and interaction translation:
 - screens and composables
 - view models/presenters
 - pointer/stylus/keyboard input adapters
+- translation of raw surface, density, and pointer data into validated viewport inputs
 - tool previews
 - accessibility and Android-facing presentation behavior
 
-It renders immutable state and emits commands/actions. It contains no persistence calls or document transition logic.
+It renders immutable state and emits commands/actions. Rendering and input consume the same application-owned viewport transform; presentation owns no competing matrix or rounding policy. It contains no persistence calls or document transition logic.
 
 ### `:adapters:persistence`
 

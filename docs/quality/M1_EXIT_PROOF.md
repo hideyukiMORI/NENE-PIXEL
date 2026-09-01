@@ -4,11 +4,16 @@ Status: complete. Local implementation and exit evidence were verified on 2026-0
 
 ## Measurement route
 
-The reproducible route is owned by Gradle and uses the existing JUnit engines and project dependencies only:
+The historical M1 interaction boundary is immutable at merge commit `37c0f57d59a73fd962c285e79e8e193a81402d31`. Reproduce it from an isolated worktree so later replacement of the fixed translator cannot silently change the meaning of an M1 metric:
 
 ```powershell
+git worktree add ..\NENE-PIXEL-m1-proof 37c0f57d59a73fd962c285e79e8e193a81402d31
+Push-Location ..\NENE-PIXEL-m1-proof
 .\gradlew.bat measureM1VerticalSlice --rerun-tasks --no-build-cache
+Pop-Location
 ```
+
+The route is owned by Gradle at that commit and uses the existing JUnit engines and project dependencies only. From ADR 0004 onward, current `main` MUST use the separately named P2 viewport measurement route and metric boundary; `measureM1VerticalSlice` and `translated_controller_commit` MUST NOT be reused with different mapping semantics.
 
 The root task runs one isolated 512 MiB test worker and selects two normal test classes. `M1CoreMeasurementTest` measures snapshot construction, the canonical `rasterizeStroke` patch builder, and `CommandGateway.execute` for apply, undo, and redo. `M1InteractionMeasurementTest` measures offset translation, gesture preview reduction, one gateway command, and render-state projection. Using one worker keeps the JVM, heap, fork, and allocation-counter conditions identical across the core and interaction rows.
 
@@ -91,6 +96,7 @@ The results make no statement that one canvas or operation is fast enough. In pa
 ## Verification
 
 ```powershell
+# Run from the isolated 37c0f57 worktree described above.
 .\gradlew.bat measureM1VerticalSlice --rerun-tasks --no-build-cache
 .\gradlew.bat :core:application:ktlintCheck :core:application:detekt :presentation:compose:ktlintCheck :presentation:compose:detekt
 .\gradlew.bat check :app:android:assembleDebug --stacktrace

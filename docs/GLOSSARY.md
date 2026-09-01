@@ -10,6 +10,18 @@ One concept has one canonical name. New synonyms in code are prohibited. Add or 
 | `DocumentId` | Validated 32-character lowercase hexadecimal identity of one Document | document key, UUID string |
 | `DocumentState` | Immutable saved and undoable truth of a Document | editor state, model data |
 | `WorkspaceState` | Immutable ephemeral editor/session state not saved in the Document | temporary document, UI model |
+| `ViewportZoom` | Validated finite fit-relative viewport factor in the closed range 1.0 through 64.0 | raw scale Double, saved zoom |
+| `ViewportCenter` | Validated finite preferred center in continuous document-edge coordinates | screen pan, surface offset |
+| `ViewportState` | Workspace-owned fit-relative zoom and document-coordinate center | camera state, transform matrix |
+| `ViewportSurface` | Validated physical-pixel extent and pixels-per-dp used as a viewport transform input | canvas size, Compose Size |
+| `ViewportSurfacePoint` | Validated finite point in physical-pixel surface coordinates | Compose Offset, document point |
+| `ViewportGesture` | Previous and current pair of validated surface points for one atomic two-pointer transform | raw pointer event, tool gesture |
+| `ViewportTransform` | Immutable canonical forward/inverse mapping derived from CanvasSize, ViewportSurface, and ViewportState | UI matrix, touch translator |
+| `ViewportSurfaceBounds` | Four finite physical-pixel edges of one projected document pixel | PixelRegion, Compose Rect |
+| `ViewportGridVisibility` | Derived visible/hidden grid result from cell scale and density | grid preference, workspace flag |
+| `ViewportMappingResult` | Closed mapped/outside-surface/outside-canvas result of viewport conversion | nullable mapping, Boolean inside |
+| `ViewportValueResult` | Closed created/rejected result for viewport value or derived-transform validation | DomainValueResult, nullable viewport |
+| `ViewportValueRejection` | Closed expected reason a viewport value or derived calculation is invalid | exception, error string |
 | `RenderCache` | Disposable derived data used only to accelerate rendering | state, document cache |
 | `CanvasSize` | Validated pixel width and height of the drawable coordinate space | image size when referring to document coordinates |
 | `CanvasWidth` / `CanvasHeight` | Positive typed axis dimensions used to construct CanvasSize | width/height Int at a core boundary |

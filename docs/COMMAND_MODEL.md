@@ -132,6 +132,10 @@ If commands later cross a process or automation boundary, serialized command DTO
 
 Cancellation before commit leaves `DocumentState` unchanged. Cancellation after an atomic commit does not silently roll the commit back; it is followed by an explicit undo command if reversal is required.
 
+Viewport pan and zoom enter only through `WorkspaceAction.SetViewport`. The reducer installs the viewport and removes any active drawing preview in one transition, before two-pointer transformation may begin. This action never emits or executes a `DocumentCommand`, and therefore leaves `DocumentState`, `Revision`, and history unchanged.
+
+Presentation may own pointer identifiers and the local one-pointer/two-pointer/suppressed phase needed to translate raw events. It MUST derive mapping from the current workspace viewport and current Document canvas through the canonical core `ViewportTransform`; it MUST NOT retain an authoritative matrix, viewport snapshot, or alternate rounding rule. After a second or additional pointer interrupts drawing, drawing resumes only after all pointers are up and a fresh gesture begins.
+
 ## Canonical result vocabulary
 
 Concrete names may be introduced through the first implementation ADR, but the result algebra must remain closed:
