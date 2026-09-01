@@ -11,6 +11,7 @@ public class WorkspaceReducer private constructor() {
             is WorkspaceAction.ExtendGesturePreview -> extendGesturePreview(state, action)
             WorkspaceAction.CancelGesturePreview -> cancelGesturePreview(state)
             WorkspaceAction.PrepareGestureCommit -> prepareGestureCommit(state)
+            is WorkspaceAction.SetViewport -> setViewport(state, action)
         }
 
     private fun changeActiveColor(
@@ -77,6 +78,16 @@ public class WorkspaceReducer private constructor() {
                 nextState = state.withoutPreview(),
                 stroke = state.preview.prepareStroke(),
             )
+        }
+
+    private fun setViewport(
+        state: WorkspaceState,
+        action: WorkspaceAction.SetViewport,
+    ): WorkspaceReductionResult =
+        if (action.viewport == state.viewport && state.preview == null) {
+            unchanged(state, WorkspaceNoChangeReason.ViewportAlreadySet)
+        } else {
+            WorkspaceReductionResult.Reduced(state.withViewport(action.viewport))
         }
 
     private fun outsideCanvas(

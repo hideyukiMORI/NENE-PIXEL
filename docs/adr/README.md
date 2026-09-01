@@ -42,3 +42,4 @@ An ADR must include:
 | [0001](0001-initial-build-toolchain.md) | accepted | Initial Android identity, toolchain, dependency authority, quality tools, and module creation order |
 | [0002](0002-m1-internal-contract.md) | accepted | M1 value, snapshot, state, command, and module ownership with executable package order |
 | [0003](0003-recorded-revision-undo-semantics.md) | accepted | Canonical undo/redo restores the revisions recorded by the committed ChangeSet |
+| [0004](0004-bounded-workspace-viewport.md) | accepted | Bounded workspace viewport, canonical render/input mapping, and multi-touch arbitration |

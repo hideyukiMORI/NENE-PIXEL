@@ -1,5 +1,6 @@
 package io.github.hideyukimori.nenepixel.core.application.workspace
 
+import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportState
 import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
@@ -21,4 +22,8 @@ public sealed interface WorkspaceAction {
     public data object CancelGesturePreview : WorkspaceAction
 
     public data object PrepareGestureCommit : WorkspaceAction
+
+    public data class SetViewport(
+        public val viewport: ViewportState,
+    ) : WorkspaceAction
 }

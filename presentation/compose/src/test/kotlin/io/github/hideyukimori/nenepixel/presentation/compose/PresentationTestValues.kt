@@ -51,7 +51,7 @@ internal object PresentationTestValues {
         val document = DocumentState.create(DocumentId.create(DOCUMENT_ID).requiredValue(), snapshot)
         val gateway = CommandGateway.create(document)
         val reducer = WorkspaceReducer.create()
-        val initialWorkspace = WorkspaceState.create(activeColor)
+        val initialWorkspace = WorkspaceState.create(activeColor, canvas)
         return EditorFixture(
             initialDocument = document,
             gateway = gateway,

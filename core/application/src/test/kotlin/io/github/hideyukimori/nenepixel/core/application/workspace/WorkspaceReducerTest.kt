@@ -10,6 +10,9 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceRedu
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReductionAssertions.reduced
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReductionAssertions.rejected
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReductionAssertions.unchanged
+import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportState
+import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportValueResult
+import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportZoom
 import io.github.hideyukimori.nenepixel.core.domain.drawing.Stroke
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -21,12 +24,13 @@ internal class WorkspaceReducerTest {
     private val reducer = WorkspaceReducer.create()
 
     @Test
-    fun `initial workspace contains only active color fixed viewport and no preview`() {
-        val first = WorkspaceState.create(red)
-        val equal = WorkspaceState.create(red)
+    fun `initial workspace contains active color fit viewport and no preview`() {
+        val canvas = canvas(16, 8)
+        val first = WorkspaceState.create(red, canvas)
+        val equal = WorkspaceState.create(red, canvas)
 
         assertEquals(red, first.activeColor)
-        assertEquals(FixedSliceViewport, first.viewport)
+        assertEquals(ViewportState.initial(canvas), first.viewport)
         assertNull(first.preview)
         assertEquals(equal, first)
         assertEquals(equal.hashCode(), first.hashCode())
@@ -35,7 +39,7 @@ internal class WorkspaceReducerTest {
     @Test
     fun `active color changes without changing an active preview color`() {
         val canvas = canvas(2, 1)
-        val previewing = begin(WorkspaceState.create(red), canvas, position(0, 0))
+        val previewing = begin(WorkspaceState.create(red, canvas), canvas, position(0, 0))
 
         val changed =
             reduced(
@@ -53,7 +57,7 @@ internal class WorkspaceReducerTest {
     @Test
     fun `begin validates phase before bounds and creates one immutable sample`() {
         val canvas = canvas(2, 1)
-        val initial = WorkspaceState.create(red)
+        val initial = WorkspaceState.create(red, canvas)
         val previewing = begin(initial, canvas, position(0, 0))
 
         assertEquals(canvas, previewing.preview?.canvas)
@@ -77,7 +81,7 @@ internal class WorkspaceReducerTest {
     @Test
     fun `extend preserves order makes consecutive duplicates unchanged and accepts revisits`() {
         val canvas = canvas(2, 1)
-        val initial = WorkspaceState.create(red)
+        val initial = WorkspaceState.create(red, canvas)
         val withoutPreview =
             rejected(reducer.reduce(initial, WorkspaceAction.ExtendGesturePreview(position(2, 0))))
         assertEquals(WorkspaceActionRejection.NoActivePreview, withoutPreview.rejection)
@@ -101,12 +105,12 @@ internal class WorkspaceReducerTest {
     fun `cancel clears only preview and never involves document state`() {
         val document = state(canvas(2, 1))
         val gateway = CommandGateway.create(document)
-        val previewing = begin(WorkspaceState.create(red), document.size, position(0, 0))
+        val previewing = begin(WorkspaceState.create(red, document.size), document.size, position(0, 0))
 
         val cancelled = reduced(reducer.reduce(previewing, WorkspaceAction.CancelGesturePreview))
 
         assertEquals(red, cancelled.activeColor)
-        assertEquals(FixedSliceViewport, cancelled.viewport)
+        assertEquals(ViewportState.initial(document.size), cancelled.viewport)
         assertNull(cancelled.preview)
         assertEquals(document, gateway.runtimeState.documentState)
 
@@ -119,7 +123,11 @@ internal class WorkspaceReducerTest {
     fun `commit preparation returns one stroke clears preview and executes no command`() {
         val document = state(canvas(2, 1))
         val gateway = CommandGateway.create(document)
-        val previewing = extend(begin(WorkspaceState.create(red), document.size, position(0, 0)), position(1, 0))
+        val previewing =
+            extend(
+                begin(WorkspaceState.create(red, document.size), document.size, position(0, 0)),
+                position(1, 0),
+            )
         val recolored = reduced(reducer.reduce(previewing, WorkspaceAction.ChangeActiveColor(green)))
 
         val prepared = prepared(reducer.reduce(recolored, WorkspaceAction.PrepareGestureCommit))
@@ -151,11 +159,43 @@ internal class WorkspaceReducerTest {
                 WorkspaceAction.CancelGesturePreview,
             )
 
-        val first = replay(WorkspaceState.create(red), actions)
-        val second = replay(WorkspaceState.create(red), actions)
+        val first = replay(WorkspaceState.create(red, canvas), actions)
+        val second = replay(WorkspaceState.create(red, canvas), actions)
 
         assertEquals(first, second)
         assertEquals(first.last().nextState, second.last().nextState)
+    }
+
+    @Test
+    fun `set viewport changes only workspace viewport and atomically cancels preview`() {
+        val canvas = canvas(2, 1)
+        val document = state(canvas)
+        val gateway = CommandGateway.create(document)
+        val initial = WorkspaceState.create(red, canvas)
+        val previewing = begin(initial, canvas, position(0, 0))
+        val changedViewport = ViewportState.create(zoom(2.0), initial.viewport.center)
+
+        val changed = reduced(reducer.reduce(previewing, WorkspaceAction.SetViewport(changedViewport)))
+
+        assertEquals(changedViewport, changed.viewport)
+        assertEquals(red, changed.activeColor)
+        assertNull(changed.preview)
+        assertEquals(document, gateway.runtimeState.documentState)
+    }
+
+    @Test
+    fun `set same viewport cancels preview once then becomes unchanged`() {
+        val canvas = canvas(2, 1)
+        val initial = WorkspaceState.create(red, canvas)
+        val previewing = begin(initial, canvas, position(0, 0))
+
+        val cancelled = reduced(reducer.reduce(previewing, WorkspaceAction.SetViewport(initial.viewport)))
+        val repeated = unchanged(reducer.reduce(cancelled, WorkspaceAction.SetViewport(initial.viewport)))
+
+        assertEquals(initial.viewport, cancelled.viewport)
+        assertNull(cancelled.preview)
+        assertEquals(WorkspaceNoChangeReason.ViewportAlreadySet, repeated.reason)
+        assertSame(cancelled, repeated.nextState)
     }
 
     private fun begin(
@@ -194,6 +234,12 @@ internal class WorkspaceReducerTest {
     private fun ToolGesture.positions(): List<PixelPosition> = buildList { forEachPosition(::add) }
 
     private fun Stroke.positions(): List<PixelPosition> = buildList { forEachPosition(::add) }
+
+    private fun zoom(value: Double): ViewportZoom =
+        when (val result = ViewportZoom.create(value)) {
+            is ViewportValueResult.Created -> result.value
+            is ViewportValueResult.Rejected -> error("Test zoom was rejected: ${result.rejection}")
+        }
 
     private data class Replay(
         val state: WorkspaceState,

@@ -24,6 +24,7 @@ import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -75,6 +76,48 @@ internal class UndoRedoEditorTest {
         assertFalse(redone.canRedo)
     }
 
+    @Test
+    fun secondPointerCancelsDrawThenTransformsViewportWithoutDocumentHistory() {
+        val controller = controller()
+        val initial = controller.renderState
+        composeRule.setContent {
+            NenePixelEditor(initialState = initial, callbacks = controller.callbacks)
+        }
+
+        composeRule
+            .onNodeWithContentDescription("16 by 16 pixel canvas")
+            .performTouchInput {
+                down(pointerId = 0, position = percentOffset(0.20f, 0.20f))
+                moveTo(pointerId = 0, position = percentOffset(0.30f, 0.30f))
+                down(pointerId = 1, position = percentOffset(0.80f, 0.80f))
+                moveTo(pointerId = 0, position = percentOffset(0.15f, 0.15f))
+                moveTo(pointerId = 1, position = percentOffset(0.85f, 0.85f))
+                up(pointerId = 0)
+                up(pointerId = 1)
+            }
+        composeRule.waitForIdle()
+
+        val transformed = controller.renderState
+        assertNotEquals(initial.viewport, transformed.viewport)
+        assertEquals(initial.snapshot, transformed.snapshot)
+        assertEquals(0L, transformed.snapshot.revision.value)
+        assertFalse(transformed.canUndo)
+        assertFalse(transformed.canRedo)
+
+        composeRule
+            .onNodeWithContentDescription("16 by 16 pixel canvas")
+            .performTouchInput {
+                swipe(
+                    start = percentOffset(START_PERCENT, START_PERCENT),
+                    end = percentOffset(END_PERCENT, END_PERCENT),
+                    durationMillis = SWIPE_DURATION_MILLIS,
+                )
+            }
+        composeRule.waitForIdle()
+
+        assertEquals(1L, controller.renderState.snapshot.revision.value)
+    }
+
     private fun controller(): FixedSliceEditorController {
         val size =
             CanvasSize.create(
@@ -95,7 +138,7 @@ internal class UndoRedoEditorTest {
         return FixedSliceEditorController.create(
             CommandGateway.create(document),
             WorkspaceReducer.create(),
-            WorkspaceState.create(activeColor),
+            WorkspaceState.create(activeColor, size),
         )
     }
 
