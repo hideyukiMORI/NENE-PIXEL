@@ -20,7 +20,7 @@ One concept has one canonical name. New synonyms in code are prohibited. Add or 
 | `PixelColor` | Semantic red, green, blue, and alpha channels independent of pixel-engine storage | packed color, Android Color |
 | `PaletteIndex` | Non-negative typed position of a PaletteEntry | palette Int, color index |
 | `PaletteEntry` | A palette slot with its typed color value/metadata | color id, swatch data |
-| `Revision` | Non-negative monotonic version of committed DocumentState | version Int, timestamp |
+| `Revision` | Non-negative version of the exact committed DocumentState; canonical undo restores the recorded prior revision | global event sequence, timestamp |
 | `Layer` | An ordered document element contributing pixels/visibility | plane, sheet |
 | `Frame` | One animation frame containing an ordered layer state | page, image |
 | `PixelSurface` | Pixel-engine abstraction for a bounded raster surface | bitmap when referring to the core abstraction |

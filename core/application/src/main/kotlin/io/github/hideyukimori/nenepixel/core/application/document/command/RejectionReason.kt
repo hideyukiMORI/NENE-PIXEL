@@ -31,4 +31,8 @@ public sealed interface RejectionReason {
     public data object NoEffectiveChange : RejectionReason
 
     public data object RevisionOverflow : RejectionReason
+
+    public data object NoUndoAvailable : RejectionReason
+
+    public data object NoRedoAvailable : RejectionReason
 }

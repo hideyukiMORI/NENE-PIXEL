@@ -2,6 +2,7 @@ package io.github.hideyukimori.nenepixel.core.application.document.command
 
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandResultAssertions.applied
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandResultAssertions.rejected
+import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryAvailability
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.black
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.canvas
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.colorAt
@@ -41,19 +42,19 @@ internal class CommandGatewayTest {
         val firstResult = firstGateway.execute(command)
         val secondResult = secondGateway.execute(command)
         val changeSet = applied(firstResult)
-        val restored = appliedSnapshot(changeSet.inversePatch.applyTo(firstGateway.documentState.snapshot))
+        val restored = appliedSnapshot(changeSet.inversePatch.applyTo(firstGateway.runtimeState.documentState.snapshot))
 
         assertEquals(firstResult, secondResult)
-        assertEquals(firstGateway.documentState, secondGateway.documentState)
+        assertEquals(firstGateway.runtimeState.documentState, secondGateway.runtimeState.documentState)
         assertEquals(revision(0L), changeSet.beforeRevision)
         assertEquals(revision(1L), changeSet.afterRevision)
         assertEquals(region(initial, position(0, 0), canvas(3, 1)), changeSet.renderInvalidation)
-        assertEquals(red, colorAt(firstGateway.documentState.snapshot, position(0, 0)))
-        assertEquals(green, colorAt(firstGateway.documentState.snapshot, position(1, 0)))
-        assertEquals(red, colorAt(firstGateway.documentState.snapshot, position(2, 0)))
+        assertEquals(red, colorAt(firstGateway.runtimeState.documentState.snapshot, position(0, 0)))
+        assertEquals(green, colorAt(firstGateway.runtimeState.documentState.snapshot, position(1, 0)))
+        assertEquals(red, colorAt(firstGateway.runtimeState.documentState.snapshot, position(2, 0)))
         assertEquals(initial.snapshot, restored)
         assertEquals(
-            firstGateway.documentState.snapshot,
+            firstGateway.runtimeState.documentState.snapshot,
             appliedSnapshot(changeSet.patch.applyTo(restored)),
         )
     }
@@ -74,7 +75,7 @@ internal class CommandGatewayTest {
         val mismatch = assertInstanceOf(RejectionReason.TargetDocumentMismatch::class.java, reason)
         assertEquals(otherDocumentId, mismatch.expected)
         assertEquals(defaultDocumentId, mismatch.actual)
-        assertEquals(initial, gateway.documentState)
+        assertEquals(initial, gateway.runtimeState.documentState)
     }
 
     @Test
@@ -93,7 +94,7 @@ internal class CommandGatewayTest {
         val mismatch = assertInstanceOf(RejectionReason.RevisionMismatch::class.java, reason)
         assertEquals(revision(1L), mismatch.expected)
         assertEquals(revision(2L), mismatch.actual)
-        assertEquals(initial, gateway.documentState)
+        assertEquals(initial, gateway.runtimeState.documentState)
     }
 
     @Test
@@ -112,7 +113,7 @@ internal class CommandGatewayTest {
         val mismatch = assertInstanceOf(RejectionReason.CanvasMismatch::class.java, reason)
         assertEquals(largerCanvas, mismatch.expected)
         assertEquals(initial.size, mismatch.actual)
-        assertEquals(initial, gateway.documentState)
+        assertEquals(initial, gateway.runtimeState.documentState)
     }
 
     @Test
@@ -122,7 +123,7 @@ internal class CommandGatewayTest {
         val command = command(initial, stroke(initial.size, listOf(position(0, 0), position(0, 0)), red))
 
         assertEquals(RejectionReason.NoEffectiveChange, rejected(gateway.execute(command)))
-        assertEquals(initial, gateway.documentState)
+        assertEquals(initial, gateway.runtimeState.documentState)
     }
 
     @Test
@@ -132,7 +133,7 @@ internal class CommandGatewayTest {
         val command = command(initial, stroke(initial.size, listOf(position(0, 0)), red))
 
         assertEquals(RejectionReason.RevisionOverflow, rejected(gateway.execute(command)))
-        assertEquals(initial, gateway.documentState)
+        assertEquals(initial, gateway.runtimeState.documentState)
     }
 
     @Test
@@ -152,8 +153,8 @@ internal class CommandGatewayTest {
         assertInstanceOf(RejectionReason.RevisionMismatch::class.java, rejected(gateway.execute(staleGreenCommand)))
         applied(gateway.execute(currentGreenCommand))
 
-        assertEquals(revision(2L), gateway.documentState.revision)
-        assertEquals(green, colorAt(gateway.documentState.snapshot, position(0, 0)))
+        assertEquals(revision(2L), gateway.runtimeState.documentState.revision)
+        assertEquals(green, colorAt(gateway.runtimeState.documentState.snapshot, position(0, 0)))
     }
 
     @Test
@@ -173,11 +174,16 @@ internal class CommandGatewayTest {
                 RejectionReason.RevisionMismatch::class.java,
                 rejected(results.single { result -> result is CommandResult.Rejected }).javaClass,
             )
-            assertEquals(revision(1L), gateway.documentState.revision)
-            val first = colorAt(gateway.documentState.snapshot, position(0, 0))
-            val second = colorAt(gateway.documentState.snapshot, position(1, 0))
+            assertEquals(revision(1L), gateway.runtimeState.documentState.revision)
+            val first = colorAt(gateway.runtimeState.documentState.snapshot, position(0, 0))
+            val second = colorAt(gateway.runtimeState.documentState.snapshot, position(1, 0))
             assertEquals(first, second)
             assertTrue(first == red || first == green)
+            assertEquals(HistoryAvailability.UndoAvailable, gateway.runtimeState.historyAvailability)
+            val committed = gateway.runtimeState.documentState
+            applied(gateway.execute(UndoCommand.create(committed.id, committed.revision)))
+            assertEquals(initial, gateway.runtimeState.documentState)
+            assertEquals(HistoryAvailability.RedoAvailable, gateway.runtimeState.historyAvailability)
         }
     }
 

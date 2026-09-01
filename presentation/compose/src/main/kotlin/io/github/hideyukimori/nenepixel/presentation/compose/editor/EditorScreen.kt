@@ -40,6 +40,7 @@ internal fun EditorScreen(
             ) {
                 Text(text = "NENE-PIXEL", style = MaterialTheme.typography.headlineSmall)
                 ActiveColorIndicator(renderState)
+                HistoryControls(renderState, callbacks, onRenderStateChanged)
                 PixelCanvas(
                     renderState = renderState,
                     callbacks = callbacks,

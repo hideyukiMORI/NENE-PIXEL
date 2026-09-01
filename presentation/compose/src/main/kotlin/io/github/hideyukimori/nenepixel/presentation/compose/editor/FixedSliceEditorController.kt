@@ -2,6 +2,8 @@ package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
 import io.github.hideyukimori.nenepixel.core.application.document.command.ApplyStrokeCommand
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandGateway
+import io.github.hideyukimori.nenepixel.core.application.document.command.CommandResult
+import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryAvailability
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceAction
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReducer
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReductionResult
@@ -11,6 +13,7 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 
 public class FixedSliceEditorController private constructor(
     private val commandGateway: CommandGateway,
+    private val historyCommandAdapter: HistoryCommandAdapter,
     private val workspaceReducer: WorkspaceReducer,
     initialWorkspaceState: WorkspaceState,
 ) {
@@ -25,17 +28,19 @@ public class FixedSliceEditorController private constructor(
             pointerMove = { position -> pointerMove(position).renderState },
             pointerEnd = { position -> pointerEnd(position).renderState },
             pointerCancel = { pointerCancel().renderState },
+            undo = { commandExecuted(historyCommandAdapter.undo()).renderState },
+            redo = { commandExecuted(historyCommandAdapter.redo()).renderState },
         )
 
     internal val documentState: DocumentState
-        get() = commandGateway.documentState
+        get() = commandGateway.runtimeState.documentState
 
     internal val workspaceState: WorkspaceState
         get() = currentWorkspaceState
 
     internal fun pointerDown(position: PixelPosition): EditorInteractionResult =
         reduceWorkspace(
-            WorkspaceAction.BeginGesturePreview(commandGateway.documentState.size, position),
+            WorkspaceAction.BeginGesturePreview(commandGateway.runtimeState.documentState.size, position),
         )
 
     internal fun pointerMove(position: PixelPosition): EditorInteractionResult =
@@ -47,7 +52,7 @@ public class FixedSliceEditorController private constructor(
         return when (extension) {
             is WorkspaceReductionResult.Reduced -> prepareAndExecute()
             is WorkspaceReductionResult.Unchanged -> prepareAndExecute()
-            is WorkspaceReductionResult.Rejected -> cancelRejectedEnd()
+            is WorkspaceReductionResult.Rejected -> reduceWorkspace(WorkspaceAction.CancelGesturePreview)
             is WorkspaceReductionResult.CommitPrepared -> unexpectedExtensionResult()
         }
     }
@@ -66,16 +71,17 @@ public class FixedSliceEditorController private constructor(
     }
 
     private fun execute(preparation: WorkspaceReductionResult.CommitPrepared): EditorInteractionResult {
-        val target = commandGateway.documentState
+        val target = commandGateway.runtimeState.documentState
         val command = ApplyStrokeCommand.create(target.id, target.revision, preparation.stroke)
         val result = commandGateway.execute(command)
-        return EditorInteractionResult.CommandExecuted(
+        return commandExecuted(result)
+    }
+
+    private fun commandExecuted(result: CommandResult): EditorInteractionResult =
+        EditorInteractionResult.CommandExecuted(
             renderState = createRenderState(),
             commandResult = result,
         )
-    }
-
-    private fun cancelRejectedEnd(): EditorInteractionResult = reduceWorkspace(WorkspaceAction.CancelGesturePreview)
 
     private fun reduceWorkspace(action: WorkspaceAction): EditorInteractionResult {
         val reduction = workspaceReducer.reduce(currentWorkspaceState, action)
@@ -86,12 +92,16 @@ public class FixedSliceEditorController private constructor(
     private fun workspaceReduced(reduction: WorkspaceReductionResult): EditorInteractionResult =
         EditorInteractionResult.WorkspaceReduced(createRenderState(), reduction)
 
-    private fun createRenderState(): EditorRenderState =
-        EditorRenderState(
-            snapshot = commandGateway.documentState.snapshot,
+    private fun createRenderState(): EditorRenderState {
+        val runtimeState = commandGateway.runtimeState
+        return EditorRenderState(
+            snapshot = runtimeState.documentState.snapshot,
             activeColor = currentWorkspaceState.activeColor,
             preview = currentWorkspaceState.preview,
+            canUndo = runtimeState.historyAvailability == HistoryAvailability.UndoAvailable,
+            canRedo = runtimeState.historyAvailability == HistoryAvailability.RedoAvailable,
         )
+    }
 
     private fun unexpectedExtensionResult(): Nothing =
         error("ExtendGesturePreview unexpectedly prepared a document commit.")
@@ -102,6 +112,11 @@ public class FixedSliceEditorController private constructor(
             workspaceReducer: WorkspaceReducer,
             initialWorkspaceState: WorkspaceState,
         ): FixedSliceEditorController =
-            FixedSliceEditorController(commandGateway, workspaceReducer, initialWorkspaceState)
+            FixedSliceEditorController(
+                commandGateway,
+                HistoryCommandAdapter(commandGateway),
+                workspaceReducer,
+                initialWorkspaceState,
+            )
     }
 }
