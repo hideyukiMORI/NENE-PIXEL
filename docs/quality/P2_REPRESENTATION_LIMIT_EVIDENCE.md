@@ -113,21 +113,22 @@ their boundaries comparable without turning them into pass/fail claims.
 ## Current-main P2 host route
 
 The separately named current-main route was rerun from branch `adr/38-pixel-color-limits` at
-source commit `e0b0b586c1e2f8c9adcf7ba272919afd8e8189dc`. The exact command was:
+source commit `691f8dd8b97bf9bf66a53339e172a94daae8e71e`. The exact command was:
 
 ```powershell
 .\gradlew.bat measureP2RepresentationLimits --rerun-tasks --no-build-cache
 ```
 
-Result: final recorded rerun success in 18 seconds with separately named 512 MiB application and
+Result: final recorded rerun success in 44 seconds with separately named 512 MiB application and
 pixel-engine test workers. Schema `nene-pixel-p2-representation-limits-host-current-v4` contains
 21 metric summaries, 174 raw samples, and six typed current-structure analysis rows. Schema
-`nene-pixel-p2-representation-limits-host-candidates-v3` contains 350 test-only candidate metric
-summaries and 3,500 raw candidate samples. Every current-path sample retained its exact snapshot,
-revision, patch/inverse, full-canvas affected region, unaffected pixels, history availability, and
-typed no-op assertions.
-Every candidate sample matched the independent row-major semantic pixels and exact inverse
-digest; candidate correctness failures and cross-candidate digest mismatches were both zero.
+`nene-pixel-p2-representation-limits-host-candidates-v4` contains 380 test-only candidate metric
+summaries and 3,800 raw candidate samples. Thirty metric summaries and 300 samples are the
+pre-fixed candidate-native patch/inverse matrix. Every current-path sample retained its exact
+snapshot, revision, patch/inverse, full-canvas affected region, unaffected pixels, history
+availability, and typed no-op assertions. Every candidate sample matched the independent
+row-major semantic pixels and exact inverse digest; candidate correctness failures,
+cross-candidate digest mismatches, and raw-sample percentile recomputation mismatches were zero.
 
 Candidate buffers, copy-on-write workspaces, measurement, contract tests, and CSV generation are
 self-contained under `:core:pixel-engine` test source, which preserves the ARC-005 mutation
@@ -141,28 +142,28 @@ physical-profile p99 evidence.
 
 | Raw path | Bytes | SHA-256 |
 | --- | ---: | --- |
-| `build/reports/p2/representation-limits/host-current.csv` | 48,962 | `FDCAD9F035492F9ED4F18B7717EB366B17A3EC8786327B25DFB99A1CDC298698` |
-| `build/reports/p2/representation-limits/host-candidates.csv` | 1,663,359 | `6E2E5549BFD6FEADB5362411F9D3C4FA5DDEF25D71078456AE6D635619CE87AB` |
+| `build/reports/p2/representation-limits/host-current.csv` | 48,963 | `780E1B2295B80A790C2C34056B8B76F0B92F0B931FB41BAC9A1DD1B641A21C36` |
+| `build/reports/p2/representation-limits/host-candidates.csv` | 3,688,628 | `F0C5DE2FEF339A0DE84265F563376683FBA93A271F90812BF1A909653468E3DB` |
 
 Selected observations show why this run cannot authorize current limits:
 
 | Workload | Canvas / changes | Host p95 ns | Host p99 ns | p95 allocated bytes |
 | --- | --- | ---: | ---: | ---: |
-| sparse pencil-equivalent | 1024 x 1024 / 1,024 | 26,080,600 | 26,080,600 | 8,591,792 |
-| dense pencil-equivalent | 256 x 256 / 65,536 | 31,640,400 | 31,640,400 | 13,196,248 |
-| dense reference-clear fixture | 256 x 256 / 65,536 | 20,763,800 | 20,763,800 | 13,196,248 |
-| dense same-color no-op | 256 x 256 / 0 changes | 4,300,300 | 4,300,300 | 4,670,280 |
-| dense forward patch apply | 256 x 256 / 65,536 | 2,386,700 | 2,386,700 | 524,480 |
+| sparse pencil-equivalent | 1024 x 1024 / 1,024 | 23,060,000 | 23,060,000 | 8,591,792 |
+| dense pencil-equivalent | 256 x 256 / 65,536 | 27,975,800 | 27,975,800 | 13,196,272 |
+| dense reference-clear fixture | 256 x 256 / 65,536 | 17,130,200 | 17,130,200 | 13,196,248 |
+| dense same-color no-op | 256 x 256 / 0 changes | 4,207,500 | 4,207,500 | 4,670,280 |
+| dense forward patch apply | 256 x 256 / 65,536 | 22,804,400 | 22,804,400 | 524,480 |
 
 The v4 canonical gap rows distinguish raw path, patch, and history units. Black is only a
 reference-clear fixture and is not an accepted blank or eraser semantic:
 
 | Current canonical boundary | Raw positions | Effective changes | History entries | Host p95 ns | p95 allocated bytes |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| duplicated full-canvas raw stroke | 131,072 | 65,536 | 1 | 16,922,000 | 13,196,272 |
-| black-on-black reference-clear no-op | 65,536 | 0 | 0 | 4,186,100 | 4,670,280 |
-| reverse-row-major standalone patch create | 0 | 65,536 | 0 | 3,108,500 | 3,735,224 |
-| final-record standalone patch late conflict | 0 | 65,536 | 0 | 2,470,900 | 262,272 |
+| duplicated full-canvas raw stroke | 131,072 | 65,536 | 1 | 23,337,500 | 13,196,272 |
+| black-on-black reference-clear no-op | 65,536 | 0 | 0 | 3,206,100 | 4,670,280 |
+| reverse-row-major standalone patch create | 0 | 65,536 | 0 | 2,480,100 | 3,735,224 |
+| final-record standalone patch late conflict | 0 | 65,536 | 0 | 2,566,500 | 262,272 |
 
 The duplicate route asserts raw `P=2N` collapses to canonical `C=N`, the no-op retains the full
 document state and empty history, shuffled create equals the canonical patch and round-trips, and
@@ -179,20 +180,20 @@ the copy boundary without selecting a candidate:
 
 | Test-only candidate | Host p95 ns | p95 allocated bytes | Logical snapshot payload | Copied payload |
 | --- | ---: | ---: | ---: | ---: |
-| current object-list fixture | 67,900 | 524,520 | 65,536 references | 65,536 references |
-| flat packed RGBA8888 | 40,500 | 262,296 | 262,144 bytes | 262,144 bytes |
-| tiled/COW RGBA8888, tile 16 | 9,600 | 2,400 | 262,144 bytes | 1,024 bytes |
-| tiled/COW RGBA8888, tile 32 | 5,400 | 4,688 | 262,144 bytes | 4,096 bytes |
-| tiled/COW RGBA8888, tile 64 | 4,800 | 16,784 | 262,144 bytes | 16,384 bytes |
+| current object-list fixture | 102,500 | 524,520 | 65,536 references | 65,536 references |
+| flat packed RGBA8888 | 74,900 | 262,312 | 262,144 bytes | 262,144 bytes |
+| tiled/COW RGBA8888, tile 16 | 6,800 | 2,416 | 262,144 bytes | 1,024 bytes |
+| tiled/COW RGBA8888, tile 32 | 4,000 | 4,704 | 262,144 bytes | 4,096 bytes |
+| tiled/COW RGBA8888, tile 64 | 13,700 | 16,800 | 262,144 bytes | 16,384 bytes |
 
 The ten host samples are diagnostic and do not rank the candidates. The object-list row is a
 test-only structural fixture; canonical production behavior remains in `host-current.csv`. The
-common packed test-driver patch is not a measured candidate patch/inverse layout. Palette U8
-pack/index correctness, unsigned index 255, and typed rejection of a 257th semantic color are
-covered by contract tests, but palette performance remains blocked on semantic ownership. The
-current CSV retains the logical reference/change analysis and explicit exclusions. Candidate
-duplicate/no-op/reference-clear inputs, candidate-specific patch/inverse storage, analytical
-history retention, retained heap, ART, PSS, and frames remain required.
+candidate-native dense patch/inverse slice below closes the previous common-driver gap for the five
+fixed configurations. Palette U8 pack/index correctness, unsigned index 255, and typed rejection
+of a 257th semantic color are covered by contract tests, but palette performance remains blocked
+on semantic ownership. The current CSV retains the logical reference/change analysis and explicit
+exclusions. Candidate duplicate/no-op/reference-clear inputs, analytical history retention,
+retained heap, ART, PSS, and frames remain required.
 
 ### Pre-fixed candidate patch and inverse slice
 
@@ -247,6 +248,37 @@ three owned primitive arrays. Wrapper, list, and array headers, spare list capac
 use those same units; reference slots are not converted to estimated bytes, and none of these
 counts are retained-heap evidence. The HotSpot rows are diagnostic only and cannot select a
 candidate or a hard limit.
+
+#### Recorded schema v4 result
+
+The recorded artifact contains all 30 unique operation/configuration metric pairs and 300 raw
+standalone samples. Recomputing median, p95, and p99 latency and allocation from all 3,800 candidate
+samples produced zero mismatches across the complete 380-metric report. Every standalone row has
+the fixed 256x256 canvas, 65,536 changes, reverse-row-major input, full `0:0:256:256` region,
+zero unaffected pixels, and lifecycle revision `0 -> 1 -> 0`. All correctness fields passed.
+
+Each cell below is `p95 latency ns / p95 allocated bytes`. With ten diagnostic samples, p95 and
+p99 are both the observed maximum and do not rank the candidates.
+
+| Configuration | Create | Inverse create | Forward apply | Inverse apply | Round trip | Late conflict |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| object analytical/materialized | 6,509,100 / 7,993,136 | 512,100 / 1,835,208 | 1,179,000 / 524,520 | 2,187,100 / 524,520 | 5,088,000 / 2,884,224 | 1,258,700 / 56 |
+| flat packed/shared | 5,029,400 / 7,401,256 | 17,400 / 160 | 511,600 / 262,312 | 412,500 / 262,312 | 906,700 / 524,760 | 437,500 / 56 |
+| tiled/COW T16 packed/shared | 4,904,400 / 7,401,256 | 7,000 / 160 | 4,803,600 / 2,180,576 | 6,149,100 / 2,180,576 | 8,748,900 / 4,361,288 | 1,978,700 / 56 |
+| tiled/COW T32 packed/shared | 5,615,800 / 7,401,256 | 4,700 / 160 | 3,291,200 / 1,644,768 | 3,537,900 / 1,644,768 | 9,990,900 / 3,289,672 | 1,305,300 / 56 |
+| tiled/COW T64 packed/shared | 5,285,500 / 7,401,256 | 10,000 / 160 | 6,959,300 / 1,641,888 | 3,760,700 / 1,641,888 | 8,186,000 / 3,283,912 | 2,049,100 / 56 |
+
+The separate-unit logical patch counts agree with the pre-fixed layout:
+
+| Patch layout | Forward | Inverse additional | Shared | Retained union |
+| --- | --- | --- | --- | --- |
+| object/materialized | 262,144 primitive bytes; 196,608 reference slots; 65,536 records | same as forward | zero | 524,288 primitive bytes; 393,216 reference slots; 131,072 records |
+| packed/shared | 786,432 primitive bytes; three arrays | zero | same as forward | same as forward |
+
+All five late-conflict rows returned `BeforeValueMismatch` at position 65,535 with input/output
+revision `0/0`, identical input/output SHA-256 pixel digests, and no materialized output snapshot.
+Canonical-order, forward-patch, inverse-patch, lifecycle, operation-state, and unaffected-pixel
+SHA-256 fields matched across all five configurations for each operation.
 
 This slice does not implement production history, candidate duplicate/no-op/reference-clear raw
 paths, retained-history budgets, physical ART/PSS/frame comparisons, semantic color decisions, or
