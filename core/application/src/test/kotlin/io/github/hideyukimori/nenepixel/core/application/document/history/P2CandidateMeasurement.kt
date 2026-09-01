@@ -5,15 +5,30 @@ import kotlin.math.ceil
 
 internal enum class P2CandidateOperationKind(
     val csvName: String,
+    val pathKind: P2CandidatePathKind,
+    val contentKind: P2CandidateContentKind,
 ) {
-    SnapshotBuild("snapshot_build"),
-    ApplyOne("apply_one"),
-    ApplyDense("apply_dense"),
+    SnapshotBuildOneColor("snapshot_build", P2CandidatePathKind.None, P2CandidateContentKind.OneColor),
+    SnapshotBuild256Colors("snapshot_build", P2CandidatePathKind.None, P2CandidateContentKind.Colors256),
+    SnapshotBuildHighEntropy("snapshot_build", P2CandidatePathKind.None, P2CandidateContentKind.HighEntropyRgba),
+    ApplyOne("apply_one", P2CandidatePathKind.OnePixel, P2CandidateContentKind.HighEntropyRgba),
+    ApplyDiagonal("apply_diagonal", P2CandidatePathKind.Diagonal, P2CandidateContentKind.HighEntropyRgba),
+    ApplyRow("apply_row", P2CandidatePathKind.FullRow, P2CandidateContentKind.HighEntropyRgba),
+    ApplyColumn("apply_column", P2CandidatePathKind.FullColumn, P2CandidateContentKind.HighEntropyRgba),
+    ApplyQuarter("apply_25_percent", P2CandidatePathKind.QuarterSerpentine, P2CandidateContentKind.HighEntropyRgba),
+    ApplyHalf("apply_50_percent", P2CandidatePathKind.HalfSerpentine, P2CandidateContentKind.HighEntropyRgba),
+    ApplyDense("apply_dense", P2CandidatePathKind.FullCanvasSerpentine, P2CandidateContentKind.HighEntropyRgba),
+    ;
+
+    val isSnapshotBuild: Boolean
+        get() = pathKind == P2CandidatePathKind.None
 }
 
 internal enum class P2CandidateContentKind(
     val csvName: String,
 ) {
+    OneColor("one_semantic_color"),
+    Colors256("exactly_256_semantic_colors"),
     HighEntropyRgba("deterministic_high_entropy_rgba"),
 }
 
@@ -22,7 +37,12 @@ internal enum class P2CandidatePathKind(
 ) {
     None("none"),
     OnePixel("one_pixel"),
-    FullCanvasRowMajor("full_canvas_row_major"),
+    Diagonal("diagonal"),
+    FullRow("full_row"),
+    FullColumn("full_column"),
+    QuarterSerpentine("quarter_serpentine"),
+    HalfSerpentine("half_serpentine"),
+    FullCanvasSerpentine("full_canvas_serpentine"),
 }
 
 internal data class P2CandidateMeasurementDescriptor(
@@ -32,20 +52,22 @@ internal data class P2CandidateMeasurementDescriptor(
     val boundary: String,
 ) {
     val pathKind: P2CandidatePathKind
-        get() =
-            when (operation) {
-                P2CandidateOperationKind.SnapshotBuild -> P2CandidatePathKind.None
-                P2CandidateOperationKind.ApplyOne -> P2CandidatePathKind.OnePixel
-                P2CandidateOperationKind.ApplyDense -> P2CandidatePathKind.FullCanvasRowMajor
-            }
+        get() = operation.pathKind
 
     val changeCount: Int
+        get() = operation.changeCount(canvas)
+
+    val colorCardinality: Long
         get() =
-            when (operation) {
-                P2CandidateOperationKind.SnapshotBuild -> 0
-                P2CandidateOperationKind.ApplyOne -> 1
-                P2CandidateOperationKind.ApplyDense -> canvas.pixelCount.toInt()
+            when (operation.contentKind) {
+                P2CandidateContentKind.OneColor -> 1L
+                P2CandidateContentKind.Colors256 -> minOf(COLOR_SET_SIZE, canvas.pixelCount)
+                P2CandidateContentKind.HighEntropyRgba -> canvas.pixelCount
             }
+
+    private companion object {
+        const val COLOR_SET_SIZE: Long = 256L
+    }
 }
 
 internal data class P2CandidateUnitCounts(
@@ -161,7 +183,11 @@ internal object P2CandidateMeasurement {
     private val CANDIDATE_CANVASES: List<P2CanvasShape> =
         listOf(
             P2CanvasShape(64, 64),
+            P2CanvasShape(16, 256),
+            P2CanvasShape(256, 16),
             P2CanvasShape(128, 128),
+            P2CanvasShape(64, 256),
+            P2CanvasShape(256, 64),
             P2CanvasShape(256, 256),
         )
 }
@@ -173,18 +199,12 @@ private class P2CandidateMeasurementFixture private constructor(
     private val changes: P2CandidateChanges?,
 ) {
     fun execute(): P2CandidateExecution =
-        when (descriptor.operation) {
-            P2CandidateOperationKind.SnapshotBuild -> {
-                P2CandidateExecution.Built(buildSnapshot())
-            }
-
-            P2CandidateOperationKind.ApplyOne,
-            P2CandidateOperationKind.ApplyDense,
-            -> {
-                P2CandidateExecution.Applied(
-                    requireNotNull(initial).apply(requireNotNull(changes)),
-                )
-            }
+        if (descriptor.operation.isSnapshotBuild) {
+            P2CandidateExecution.Built(buildSnapshot())
+        } else {
+            P2CandidateExecution.Applied(
+                requireNotNull(initial).apply(requireNotNull(changes)),
+            )
         }
 
     fun verify(execution: P2CandidateExecution): P2CandidateMeasurementOutcome =
@@ -253,9 +273,9 @@ private class P2CandidateMeasurementFixture private constructor(
 
     companion object {
         fun create(descriptor: P2CandidateMeasurementDescriptor): P2CandidateMeasurementFixture {
-            val packed = highEntropyPixels(descriptor.canvas)
+            val packed = semanticPixels(descriptor.canvas, descriptor.operation.contentKind)
             val input = P2CandidateSemanticInput(packed.map(P2PackedRgba8888::unpack), packed)
-            if (descriptor.operation == P2CandidateOperationKind.SnapshotBuild) {
+            if (descriptor.operation.isSnapshotBuild) {
                 return P2CandidateMeasurementFixture(descriptor, input, null, null)
             }
             val initial = descriptor.representation.createSnapshot(descriptor.canvas, input.colors)
@@ -265,8 +285,23 @@ private class P2CandidateMeasurementFixture private constructor(
             return P2CandidateMeasurementFixture(descriptor, input, initial, changes)
         }
 
-        private fun highEntropyPixels(canvas: P2CanvasShape): IntArray =
-            IntArray(canvas.pixelCount.toInt(), ::highEntropyPacked)
+        private fun semanticPixels(
+            canvas: P2CanvasShape,
+            content: P2CandidateContentKind,
+        ): IntArray =
+            when (content) {
+                P2CandidateContentKind.OneColor -> {
+                    IntArray(canvas.pixelCount.toInt()) { ONE_COLOR_PACKED }
+                }
+
+                P2CandidateContentKind.Colors256 -> {
+                    IntArray(canvas.pixelCount.toInt()) { index -> highEntropyPacked(index % COLOR_SET_SIZE) }
+                }
+
+                P2CandidateContentKind.HighEntropyRgba -> {
+                    IntArray(canvas.pixelCount.toInt(), ::highEntropyPacked)
+                }
+            }
 
         private fun highEntropyPacked(index: Int): Int =
             ((index and CHANNEL_MASK) shl RED_SHIFT) or
@@ -282,6 +317,8 @@ private class P2CandidateMeasurementFixture private constructor(
         private const val BLUE_MULTIPLIER: Int = 29
         private const val ALPHA_MULTIPLIER: Int = 43
         private const val ALPHA_XOR_MASK: Int = 0x000000ff
+        private const val COLOR_SET_SIZE: Int = 256
+        private const val ONE_COLOR_PACKED: Int = 0x336699cc
     }
 }
 
@@ -341,11 +378,46 @@ private fun P2CandidateRepresentation.tileEdge(): Int =
     }
 
 private fun P2CandidateMeasurementDescriptor.changePositions(): IntArray =
-    when (operation) {
-        P2CandidateOperationKind.SnapshotBuild -> error("Snapshot build has no change positions.")
-        P2CandidateOperationKind.ApplyOne -> intArrayOf(canvas.pixelCount.toInt() / 2)
-        P2CandidateOperationKind.ApplyDense -> IntArray(canvas.pixelCount.toInt()) { index -> index }
+    when (pathKind) {
+        P2CandidatePathKind.None -> error("Snapshot build has no change positions.")
+        P2CandidatePathKind.OnePixel -> intArrayOf(canvas.pixelCount.toInt() / 2)
+        P2CandidatePathKind.Diagonal -> canvas.diagonalPositions()
+        P2CandidatePathKind.FullRow -> IntArray(canvas.width) { x -> (canvas.height / 2) * canvas.width + x }
+        P2CandidatePathKind.FullColumn -> IntArray(canvas.height) { y -> y * canvas.width + canvas.width / 2 }
+        P2CandidatePathKind.QuarterSerpentine -> canvas.serpentinePositions(canvas.pixelCount.toInt() / 4)
+        P2CandidatePathKind.HalfSerpentine -> canvas.serpentinePositions(canvas.pixelCount.toInt() / 2)
+        P2CandidatePathKind.FullCanvasSerpentine -> canvas.serpentinePositions(canvas.pixelCount.toInt())
     }
+
+private fun P2CandidateOperationKind.changeCount(canvas: P2CanvasShape): Int =
+    when (pathKind) {
+        P2CandidatePathKind.None -> 0
+        P2CandidatePathKind.OnePixel -> 1
+        P2CandidatePathKind.Diagonal -> minOf(canvas.width, canvas.height)
+        P2CandidatePathKind.FullRow -> canvas.width
+        P2CandidatePathKind.FullColumn -> canvas.height
+        P2CandidatePathKind.QuarterSerpentine -> canvas.pixelCount.toInt() / 4
+        P2CandidatePathKind.HalfSerpentine -> canvas.pixelCount.toInt() / 2
+        P2CandidatePathKind.FullCanvasSerpentine -> canvas.pixelCount.toInt()
+    }
+
+private fun P2CanvasShape.diagonalPositions(): IntArray =
+    IntArray(minOf(width, height)) { index -> index * width + index }
+
+private fun P2CanvasShape.serpentinePositions(limit: Int): IntArray {
+    val positions = IntArray(limit)
+    var outputIndex = 0
+    for (y in 0 until height) {
+        val xRange = if (y % 2 == 0) 0 until width else width - 1 downTo 0
+        for (x in xRange) {
+            if (outputIndex == limit) return positions
+            positions[outputIndex] = y * width + x
+            outputIndex += 1
+        }
+    }
+    check(outputIndex == limit) { "Serpentine candidate path was incomplete." }
+    return positions
+}
 
 private fun assertSemanticPixels(
     snapshot: P2CandidateSnapshot,

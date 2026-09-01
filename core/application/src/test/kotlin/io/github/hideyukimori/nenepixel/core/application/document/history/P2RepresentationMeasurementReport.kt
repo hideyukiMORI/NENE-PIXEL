@@ -45,8 +45,9 @@ internal object P2RepresentationMeasurementReport {
                 ),
                 metadataRow(
                     "candidate_matrix",
-                    "64|128|256 square; high-entropy RGBA; snapshot build|one-pixel apply|dense apply; " +
-                        "5 warmups and 10 diagnostic samples",
+                    "64x64|16x256|256x16|128x128|64x256|256x64|256x256; " +
+                        "one|256|high-entropy RGBA snapshot build; high-entropy one|diagonal|row|column|" +
+                        "25%|50%|100% apply; 5 warmups and 10 diagnostic samples",
                 ),
                 metadataRow(
                     "semantic_oracle",
@@ -59,8 +60,8 @@ internal object P2RepresentationMeasurementReport {
                 ),
                 metadataRow(
                     "candidate_gaps",
-                    "rectangles, full path/content/history matrix, candidate patch layout, retained heap, ART, PSS, " +
-                        "frames, and semantic selection remain pending",
+                    "duplicate/no-op/eraser-equivalent paths, candidate patch layout, retained history, " +
+                        "heap, ART, PSS, frames, and semantic selection remain pending",
                 ),
                 metadataRow(
                     "palette_status",
@@ -209,9 +210,9 @@ internal object P2RepresentationMeasurementReport {
             *sampleValues.toTypedArray(),
             "candidate_id" to descriptor.representation.candidateId,
             "operation_kind" to descriptor.operation.csvName,
-            "content_kind" to P2CandidateContentKind.HighEntropyRgba.csvName,
+            "content_kind" to descriptor.operation.contentKind.csvName,
             "path_kind" to descriptor.pathKind.csvName,
-            "color_cardinality" to descriptor.canvas.pixelCount,
+            "color_cardinality" to descriptor.colorCardinality,
             "tile_edge" to outcome.units.tileEdge,
             "touched_units" to outcome.units.touched,
             "copied_units" to outcome.units.copied,
