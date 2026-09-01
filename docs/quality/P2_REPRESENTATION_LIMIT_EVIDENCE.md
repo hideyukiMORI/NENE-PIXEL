@@ -247,7 +247,22 @@ checkpoints.
 Commit `25915073c76c6648706e10df3ed9ad9f7e3270b6` adds the separately named
 `P2AndroidFrameMeasurementTest` and schema `nene-pixel-p2-android-frame-measurement-v1`.
 The route compiles, passes app/presentation lint, detekt, and ktlint, and assembles the debug app
-and test APKs. It has not yet run on the physical profile, so it supplies no frame result.
+and test APKs.
+
+The first physical invocation started at 2026-09-01 21:01:41 JST with thermal status 1, USB
+power, an awake display, power saving disabled, and active 1200 x 1920 at 90 Hz. It stopped during
+warmup generation 1 before any measured sample or environment checkpoint row because the test
+thread entered its private condition wait before the Compose test clock had driven the published
+state through recomposition and draw. The exact generation therefore timed out after 10 seconds.
+No frame CSV was written and this attempt is invalid rather than performance evidence.
+
+Commit `00355ef283624417416a4c2999cc554d1a323f18` fixes the orchestration without weakening frame
+identity: it drives Compose to idle after publishing each measured generation, retains the Android
+contractual `View.getDrawingTime()` to `FrameMetrics.VSYNC_TIMESTAMP` match, searches all exact
+markers for the generation after the per-arm buffer baseline, and requires monotonically
+increasing generations. Timeout diagnostics now retain marker/frame counts, nearest VSYNC delta,
+both VSYNC timestamp forms, and dropped-report count. The corrected route is compiled and quality
+checked but not yet physically executed.
 
 The route uses a debug-only presentation bridge that delegates to the canonical `EditorScreen`
 and `PixelCanvas`; it is absent from release compilation and adds no release API or dependency.
@@ -269,7 +284,9 @@ adb -s <PHYSICAL_DEVICE_SERIAL> shell am instrument -w -r `
   -e nene.p2.physicalProfileId NENE-P2-ALLDOCUBE-IPL80MP-A16-API36 `
   -e nene.p2.candidateId current-flat-dense-256-square `
   -e nene.p2.runIndex 1 `
-  -e nene.p2.sourceCommit 25915073c76c6648706e10df3ed9ad9f7e3270b6 `
+  -e nene.p2.sourceCommit 00355ef283624417416a4c2999cc554d1a323f18 `
+  -e nene.p2.frameWarmupIterations 5 `
+  -e nene.p2.frameSampleCount 200 `
   io.github.hideyukimori.nenepixel.test/androidx.test.runner.AndroidJUnitRunner
 ```
 
@@ -419,8 +436,9 @@ the Android configuration and separate supported-device verification.
 
 Host, emulator-smoke, and preliminary physical command evidence are currently available. The
 physical screening does not include the complete workload matrix, renderer/retained-history
-memory, five independent PSS checkpoints, or frame/compositor results. The frame harness is
-compiled but not physically executed, and its timeline IDs still require Perfetto correlation.
+memory, five independent PSS checkpoints, or frame/compositor results. The first physical frame
+attempt was invalid before sampling; the corrected harness is compiled but not physically
+executed, and its timeline IDs still require Perfetto correlation.
 The command screening's twenty samples per workload are also insufficient final p99 tail
 evidence. The emulator remains useful only for functional interaction checks and cannot fill any
 of those physical gaps.
