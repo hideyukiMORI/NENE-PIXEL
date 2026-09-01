@@ -47,3 +47,9 @@ tasks.named("check") {
     dependsOn(":core:pixel-engine:check")
     dependsOn(":quality:architecture-rules:check")
 }
+
+tasks.register("measureM1VerticalSlice") {
+    group = "verification"
+    description = "Measures the M1 canonical draw, undo, redo, and interaction paths."
+    dependsOn(":presentation:compose:measureM1VerticalSlice")
+}

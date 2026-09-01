@@ -59,6 +59,10 @@ Prove the architecture end to end with the smallest meaningful editing operation
 - UI has no direct document or pixel-buffer mutation
 - all `QLT-007` and relevant `QLT-008` tests pass
 
+### Exit evidence
+
+M1 implementation, reproducible baseline, and exit-criterion evidence are recorded in [M1 Vertical-slice Baseline and Exit Proof](quality/M1_EXIT_PROOF.md). The M1 milestone is closed only after the final required CI and GitHub Issue state are read back in the order defined by that proof.
+
 ## M2 — Core Drawing
 
 ### Purpose
