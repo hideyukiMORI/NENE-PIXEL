@@ -3,72 +3,26 @@ package io.github.hideyukimori.nenepixel.core.application.document.history
 import java.nio.file.Files
 import java.nio.file.Path
 
-private data class P2CandidateReportSample(
-    val recordType: String,
-    val index: Int?,
-    val latencyNanos: Long?,
-    val allocatedBytes: Long?,
-)
-
 internal object P2RepresentationMeasurementReport {
     fun write(
         metrics: List<P2MeasurementMetric>,
         analyses: List<P2AnalysisRow>,
-        candidates: List<P2CandidateMeasurementMetric>,
     ) {
         val outputDirectory = System.getProperty(OUTPUT_DIRECTORY_PROPERTY)?.let(Path::of) ?: return
         Files.createDirectories(outputDirectory)
         writeRows(
             outputDirectory.resolve("host-current.csv"),
-            currentMetadataRows() + metrics.flatMap(::metricRows),
-        )
-        writeRows(
-            outputDirectory.resolve("host-candidates.csv"),
-            candidateMetadataRows() + candidates.flatMap(::candidateMetricRows) + analyses.map(::analysisRow),
+            currentMetadataRows() + metrics.flatMap(::metricRows) + analyses.map(::analysisRow),
         )
     }
 
     private fun currentMetadataRows(): List<String> =
-        metadataRows("nene-pixel-p2-representation-limits-host-current-v3") +
+        metadataRows("nene-pixel-p2-representation-limits-host-current-v4") +
             metadataRow(
                 "current_boundary",
                 "executed current representation including duplicate/no-op reference-clear fixtures, " +
-                    "shuffled patch create, and late conflict; retained heap, ART, PSS, and rendering are not measured",
-            )
-
-    private fun candidateMetadataRows(): List<String> =
-        metadataRows("nene-pixel-p2-representation-limits-host-candidates-v2") +
-            listOf(
-                metadataRow(
-                    "analysis_boundary",
-                    "executed test-only snapshot/surface candidates plus logical current-representation analysis; " +
-                        "neither is retained-byte or physical evidence",
-                ),
-                metadataRow(
-                    "candidate_matrix",
-                    "64x64|16x256|256x16|128x128|64x256|256x64|256x256; " +
-                        "one|256|high-entropy RGBA snapshot build; high-entropy one|diagonal|row|column|" +
-                        "25%|50%|100% apply; 5 warmups and 10 diagnostic samples",
-                ),
-                metadataRow(
-                    "semantic_oracle",
-                    "independent row-major PixelColor values; all candidate semantic and inverse digests must match",
-                ),
-                metadataRow(
-                    "driver_patch_boundary",
-                    "common packed test-driver positions/before/after payload; " +
-                        "candidate patch/inverse layout not measured",
-                ),
-                metadataRow(
-                    "candidate_gaps",
-                    "duplicate/no-op/eraser-equivalent paths, candidate patch layout, retained history, " +
-                        "heap, ART, PSS, frames, and semantic selection remain pending",
-                ),
-                metadataRow(
-                    "palette_status",
-                    "U8 value-palette pack/index correctness and 257-color typed rejection tested; " +
-                        "performance comparison blocked on palette semantic ownership",
-                ),
+                    "shuffled patch create, late conflict, and logical retained analysis; " +
+                    "retained heap, ART, PSS, and rendering are not measured",
             )
 
     private fun metadataRows(schema: String): List<String> =
@@ -162,104 +116,6 @@ internal object P2RepresentationMeasurementReport {
                 boundary,
             )
         }
-
-    private fun candidateMetricRows(metric: P2CandidateMeasurementMetric): List<String> =
-        listOf(candidateSummaryRow(metric)) +
-            metric.samples.latenciesNanos
-                .indices
-                .map { index -> candidateSampleRow(metric, index) }
-
-    private fun candidateSummaryRow(metric: P2CandidateMeasurementMetric): String =
-        candidateRow(
-            metric = metric,
-            sample = P2CandidateReportSample("metric", null, null, null),
-        )
-
-    private fun candidateSampleRow(
-        metric: P2CandidateMeasurementMetric,
-        index: Int,
-    ): String =
-        candidateRow(
-            metric = metric,
-            sample =
-                P2CandidateReportSample(
-                    "sample",
-                    index,
-                    metric.samples.latenciesNanos[index],
-                    metric.samples.allocatedBytes[index],
-                ),
-        )
-
-    private fun candidateRow(
-        metric: P2CandidateMeasurementMetric,
-        sample: P2CandidateReportSample,
-    ): String {
-        val descriptor = metric.descriptor
-        val outcome = metric.outcome
-        val sampleValues =
-            if (sample.index == null) {
-                candidateSummaryValues(metric)
-            } else {
-                listOf(
-                    "sample_index" to sample.index,
-                    "latency_ns" to requireNotNull(sample.latencyNanos),
-                    "allocated_bytes" to requireNotNull(sample.allocatedBytes),
-                )
-            }
-        return rowByColumn(
-            *candidateBaseValues(metric, sample.recordType).toTypedArray(),
-            *sampleValues.toTypedArray(),
-            "candidate_id" to descriptor.representation.candidateId,
-            "operation_kind" to descriptor.operation.csvName,
-            "content_kind" to descriptor.operation.contentKind.csvName,
-            "path_kind" to descriptor.pathKind.csvName,
-            "color_cardinality" to descriptor.colorCardinality,
-            "tile_edge" to outcome.units.tileEdge,
-            "touched_units" to outcome.units.touched,
-            "copied_units" to outcome.units.copied,
-            "shared_units" to outcome.units.shared,
-            "primitive_payload_bytes" to outcome.storage.primitivePayloadBytes,
-            "reference_slots" to outcome.storage.referenceSlots,
-            "copied_primitive_bytes" to outcome.storage.copiedPrimitiveBytes,
-            "copied_reference_slots" to outcome.storage.copiedReferenceSlots,
-            "driver_patch_payload_bytes" to outcome.patchPayloadBytes,
-            "semantic_digest" to outcome.correctness.semanticDigest,
-            "inverse_digest" to outcome.correctness.inverseDigest,
-            "correctness_status" to outcome.correctness.status,
-        )
-    }
-
-    private fun candidateBaseValues(
-        metric: P2CandidateMeasurementMetric,
-        recordType: String,
-    ): List<Pair<String, Any>> {
-        val descriptor = metric.descriptor
-        return listOf(
-            "record_type" to recordType,
-            "name" to "p2_candidate_${descriptor.operation.csvName}",
-            "status" to "measured_test_only",
-            "canvas_width" to descriptor.canvas.width,
-            "canvas_height" to descriptor.canvas.height,
-            "pixel_count" to descriptor.canvas.pixelCount,
-            "path_positions" to descriptor.changeCount,
-            "change_count" to descriptor.changeCount,
-            "history_entries" to if (descriptor.changeCount == 0) 0 else 1,
-            "total_retained_changes" to descriptor.changeCount,
-            "warmup" to CANDIDATE_WARMUPS,
-            "samples" to CANDIDATE_SAMPLES,
-            "boundary" to descriptor.boundary,
-        )
-    }
-
-    private fun candidateSummaryValues(metric: P2CandidateMeasurementMetric): List<Pair<String, Any>> =
-        listOf(
-            "latency_median_ns" to metric.percentiles.latency.median,
-            "latency_p95_ns" to metric.percentiles.latency.p95,
-            "latency_p99_ns" to metric.percentiles.latency.p99,
-            "allocated_median_bytes" to metric.percentiles.allocation.median,
-            "allocated_p95_bytes" to metric.percentiles.allocation.p95,
-            "allocated_p99_bytes" to metric.percentiles.allocation.p99,
-        )
 
     private fun analysisRow(row: P2AnalysisRow): String =
         when (row) {
@@ -378,16 +234,8 @@ internal object P2RepresentationMeasurementReport {
         return csvRow(*values, *Array(REPORT_COLUMNS.size - values.size) { "" })
     }
 
-    private fun rowByColumn(vararg values: Pair<String, Any>): String {
-        val valuesByColumn = values.toMap()
-        check(valuesByColumn.keys.all(REPORT_COLUMNS::contains)) { "Unknown representation report column." }
-        return csvRow(*REPORT_COLUMNS.map { column -> valuesByColumn[column] ?: "" }.toTypedArray())
-    }
-
     private const val OUTPUT_DIRECTORY_PROPERTY: String = "nene.p2.representation.measurement.outputDirectory"
     private const val HOST_PROFILE: String = "NENE-P2-REPRESENTATION-WINDOWS-I9-10850K-JBR21"
-    private const val CANDIDATE_WARMUPS: Int = 5
-    private const val CANDIDATE_SAMPLES: Int = 10
     private val REPORT_COLUMNS: List<String> =
         listOf(
             "record_type",
@@ -413,22 +261,5 @@ internal object P2RepresentationMeasurementReport {
             "allocated_p95_bytes",
             "allocated_p99_bytes",
             "boundary",
-            "candidate_id",
-            "operation_kind",
-            "content_kind",
-            "path_kind",
-            "color_cardinality",
-            "tile_edge",
-            "touched_units",
-            "copied_units",
-            "shared_units",
-            "primitive_payload_bytes",
-            "reference_slots",
-            "copied_primitive_bytes",
-            "copied_reference_slots",
-            "driver_patch_payload_bytes",
-            "semantic_digest",
-            "inverse_digest",
-            "correctness_status",
         )
 }

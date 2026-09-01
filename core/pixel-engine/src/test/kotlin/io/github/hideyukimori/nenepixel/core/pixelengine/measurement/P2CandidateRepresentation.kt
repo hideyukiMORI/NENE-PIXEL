@@ -1,4 +1,4 @@
-package io.github.hideyukimori.nenepixel.core.application.document.history
+package io.github.hideyukimori.nenepixel.core.pixelengine.measurement
 
 import io.github.hideyukimori.nenepixel.core.domain.color.ColorChannel
 import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
@@ -13,6 +13,14 @@ internal enum class P2CandidateRepresentation(
     TiledCowRgba8888T32("tiled-cow-rgba8888-t32-v1"),
     TiledCowRgba8888T64("tiled-cow-rgba8888-t64-v1"),
     PaletteValueU8("palette-value-u8-v1"),
+}
+
+internal data class P2CanvasShape(
+    val width: Int,
+    val height: Int,
+) {
+    val pixelCount: Long
+        get() = width.toLong() * height.toLong()
 }
 
 internal data class P2CandidateRevisionTransition(

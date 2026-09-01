@@ -1,4 +1,4 @@
-package io.github.hideyukimori.nenepixel.core.application.document.history
+package io.github.hideyukimori.nenepixel.core.pixelengine.measurement
 
 import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import org.junit.jupiter.api.Assertions.assertEquals

@@ -41,7 +41,7 @@ internal class P2RepresentationLimitMeasurementTest {
     private val measurementRunner: P2HostMeasurementRunner = P2HostMeasurementRunner(allocationCounter)
 
     @Test
-    fun `measure current representation workloads and emit excluded candidate analysis`() {
+    fun `measure current representation workloads and emit logical limit analysis`() {
         val metrics =
             snapshotMetrics() +
                 commandMetrics() +
@@ -52,7 +52,6 @@ internal class P2RepresentationLimitMeasurementTest {
         P2RepresentationMeasurementReport.write(
             metrics = metrics,
             analyses = analysisRows(),
-            candidates = P2CandidateMeasurement.measure(allocationCounter),
         )
     }
 

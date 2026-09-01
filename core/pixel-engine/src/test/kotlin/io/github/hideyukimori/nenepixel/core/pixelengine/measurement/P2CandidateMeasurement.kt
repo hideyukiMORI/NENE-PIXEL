@@ -1,6 +1,8 @@
-package io.github.hideyukimori.nenepixel.core.application.document.history
+package io.github.hideyukimori.nenepixel.core.pixelengine.measurement
 
+import com.sun.management.ThreadMXBean
 import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
+import java.lang.management.ManagementFactory
 import kotlin.math.ceil
 
 internal enum class P2CandidateOperationKind(
@@ -95,6 +97,17 @@ internal data class P2CandidateMeasurementMetric(
     val samples: P2RawSamples,
     val percentiles: P2CandidatePercentiles,
     val outcome: P2CandidateMeasurementOutcome,
+)
+
+internal data class P2RawSamples(
+    val latenciesNanos: LongArray,
+    val allocatedBytes: LongArray,
+)
+
+internal data class P2Percentiles(
+    val median: Long,
+    val p95: Long,
+    val p99: Long,
 )
 
 internal data class P2CandidatePercentiles(
@@ -426,5 +439,22 @@ private fun assertSemanticPixels(
     check(snapshot.shape.pixelCount == expected.size.toLong()) { "Candidate semantic size mismatch." }
     expected.indices.forEach { index ->
         check(snapshot.packedAt(index) == expected[index]) { "Candidate semantic mismatch at index $index." }
+    }
+}
+
+internal class P2ThreadAllocationCounter private constructor(
+    private val bean: ThreadMXBean,
+) {
+    fun currentThreadBytes(): Long = bean.getThreadAllocatedBytes(Thread.currentThread().threadId())
+
+    companion object {
+        fun create(): P2ThreadAllocationCounter {
+            val bean = ManagementFactory.getThreadMXBean()
+            require(bean is ThreadMXBean && bean.isThreadAllocatedMemorySupported) {
+                "The named P2 representation profile requires HotSpot thread-allocation measurement support."
+            }
+            if (!bean.isThreadAllocatedMemoryEnabled) bean.isThreadAllocatedMemoryEnabled = true
+            return P2ThreadAllocationCounter(bean)
+        }
     }
 }

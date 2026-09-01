@@ -57,5 +57,8 @@ tasks.register("measureP2ViewportInteraction") {
 tasks.register("measureP2RepresentationLimits") {
     group = "verification"
     description = "Runs the P2 pixel representation and limit measurement harness."
-    dependsOn(":core:application:measureP2RepresentationLimits")
+    dependsOn(
+        ":core:application:measureP2RepresentationLimits",
+        ":core:pixel-engine:measureP2RepresentationCandidates",
+    )
 }
