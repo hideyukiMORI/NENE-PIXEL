@@ -38,7 +38,7 @@ internal fun createFixedSliceEditorController(): FixedSliceEditorController {
     return FixedSliceEditorController.create(
         commandGateway = CommandGateway.create(document),
         workspaceReducer = WorkspaceReducer.create(),
-        initialWorkspaceState = WorkspaceState.create(activeColor),
+        initialWorkspaceState = WorkspaceState.create(activeColor, canvas),
     )
 }
 

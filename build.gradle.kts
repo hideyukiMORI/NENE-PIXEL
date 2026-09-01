@@ -48,8 +48,8 @@ tasks.named("check") {
     dependsOn(":quality:architecture-rules:check")
 }
 
-tasks.register("measureM1VerticalSlice") {
+tasks.register("measureP2ViewportInteraction") {
     group = "verification"
-    description = "Measures the M1 canonical draw, undo, redo, and interaction paths."
-    dependsOn(":presentation:compose:measureM1VerticalSlice")
+    description = "Measures the P2 canonical viewport-to-controller interaction path."
+    dependsOn(":presentation:compose:measureP2ViewportInteraction")
 }

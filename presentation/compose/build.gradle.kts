@@ -25,30 +25,25 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 }
 
-val m1InteractionMeasurementClass =
-    "io.github.hideyukimori.nenepixel.presentation.compose.editor.M1InteractionMeasurementTest"
-val m1CoreMeasurementClass =
-    "io.github.hideyukimori.nenepixel.core.application.document.command.M1CoreMeasurementTest"
+val p2ViewportInteractionMeasurementClass =
+    "io.github.hideyukimori.nenepixel.presentation.compose.editor.P2ViewportInteractionMeasurementTest"
 
 afterEvaluate {
     val debugUnitTest = tasks.named<Test>("testDebugUnitTest")
-    val coreUnitTest = project(":core:application").tasks.named<Test>("test")
-    tasks.register<Test>("measureM1VerticalSlice") {
+    tasks.register<Test>("measureP2ViewportInteraction") {
         group = "verification"
-        description = "Measures the M1 canonical core and translated controller paths."
+        description = "Measures the P2 canonical viewport controller transform path."
         dependsOn(tasks.named("compileDebugUnitTestKotlin"))
-        dependsOn(":core:application:testClasses")
-        testClassesDirs = debugUnitTest.get().testClassesDirs + coreUnitTest.get().testClassesDirs
-        classpath = debugUnitTest.get().classpath + coreUnitTest.get().classpath
-        filter.includeTestsMatching(m1InteractionMeasurementClass)
-        filter.includeTestsMatching(m1CoreMeasurementClass)
+        testClassesDirs = debugUnitTest.get().testClassesDirs
+        classpath = debugUnitTest.get().classpath
+        filter.includeTestsMatching(p2ViewportInteractionMeasurementClass)
         useJUnitPlatform()
         maxParallelForks = 1
         jvmArgs("-Xms512m", "-Xmx512m")
         systemProperty(
-            "nene.m1.measurement.outputDirectory",
+            "nene.p2.viewport.measurement.outputDirectory",
             rootProject.layout.buildDirectory
-                .dir("reports/m1")
+                .dir("reports/p2/viewport")
                 .get()
                 .asFile.absolutePath,
         )
