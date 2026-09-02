@@ -1884,6 +1884,54 @@ These results establish only the fixed current-canonical retained owner and proj
 candidate projection remain explicitly unevaluated and cannot be inferred from these passing
 steady-memory conditions.
 
+### Pre-fixed current-canonical peak-headroom cross-artifact contract
+
+The next source-free audit evaluates only the current-canonical peak-headroom condition by joining
+the already accepted final-command and retained-memory evidence. It does not rewrite either input,
+change `peak_headroom_status=not_evaluated` in the memory aggregate schema, measure a candidate, or
+select a representation or product limit. Its inputs are fixed before calculation:
+
+| Input artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `build/reports/p2/representation-limits/device-core.csv` | 661,245 | `E2FD1D427DE191F14A8194FE4CF5CE5A929A388B7A13E439E731F0AF8180FCAD` |
+| `build/reports/p2/representation-limits/device-memory-run-01.csv` | 58,759 | `A1E28745ACF21B5ADFBD4E8BB95B8F0D57F9C5579D91BBCA9D14630B50705B81` |
+| `build/reports/p2/representation-limits/device-memory-run-02.csv` | 58,759 | `7160414DF70B380F1D803A7CC7F33D7E4A202DF555E3676117F48100042B87D0` |
+| `build/reports/p2/representation-limits/device-memory-run-03.csv` | 58,759 | `8F210444D87ACCB2599AEF623A6E7B907FE01336E79192A392FDF09518AC70FF` |
+| `build/reports/p2/representation-limits/device-memory-run-04.csv` | 58,759 | `D1C5DF8A783E46CC57013C25D4937EA1A0DF873062380DA50AE02A977405AA79` |
+| `build/reports/p2/representation-limits/device-memory-run-05.csv` | 58,759 | `F8CAFA68257B5C211D79C9A608249AE7536A71E95A92E0AE24758B1555B6807D` |
+| `build/reports/p2/representation-limits/device-memory.csv` | 16,655 | `5536A65C32FB56F80BEE3F23AE51A60E3F8B9534F80C7CEB628F6B21E5BFBBA9` |
+
+The command input must retain schema `nene-pixel-p2-android-final-command-measurement-v1`, valid
+identity, five fixed workload names in their recorded order, exactly 200 samples per workload,
+local indices 1 through 200, and global indices 1 through 1,000. For each workload, the audit sorts
+all 200 positive `art_allocated_bytes_delta` values and selects nearest-rank p95 at one-based rank
+`ceil(0.95 * 200) = 190`; there is no interpolation, clamp, exclusion, or outlier removal. The
+operation allocation is the maximum of those five workload p95 values.
+
+The memory inputs must remain exactly five independently checksummed raw invocations plus their
+accepted aggregate. For each raw invocation, the audit selects the one `retained_post_gc` checkpoint
+and requires its Java heap used and committed bytes and total PSS to be positive. The steady-live
+heap operand is the maximum retained Java heap used value across all five runs, not the median. Raw
+file names, byte lengths, and SHA-256 values must agree with all corresponding aggregate run rows.
+
+The command source is `16fa62101e6a76d64bab6cfe809b3e49f5ba7afa`; the memory source is
+`a252bd5d733a408c0d3577a3580d42a8f57ea832`. Because these differ, the audit requires an empty
+production-source diff between them over `core/domain/src/main`, `core/pixel-engine/src/main`,
+`core/application/src/main`, `presentation/compose/src/main`, and `app/android/src/main`. It also
+requires identical physical profile, build fingerprint, security patch, `Runtime.maxMemory`, and
+memory class across every input. A mismatch invalidates the audit rather than being normalized.
+
+The pass condition is evaluated with overflow-safe integer arithmetic as
+`10 * (maximum retained heap + maximum workload p95 allocation) <= 7 * Runtime.maxMemory`. The new
+immutable output is
+`build/reports/p2/representation-limits/device-current-peak-headroom.csv`, schema
+`nene-pixel-p2-android-current-peak-headroom-v1`. It retains every input identity and checksum, all
+five workload p95 values, all five retained-heap values, the two selected maxima, both integer sides,
+and the pass/fail result. An independent `Import-Csv` recomputation must reproduce every derived
+field with zero mismatch before the result is recorded. A valid pass applies only to the named
+current-canonical 256-square command/history combination; candidate peak headroom, larger canvases,
+the complete workload matrix, post-cap churn, and compositor evidence remain separate.
+
 ### Required workload matrix
 
 - square and rectangular canvases, with axis and total-pixel candidates varied separately;
@@ -1920,6 +1968,7 @@ boundary. Planned ignored paths are fixed as follows before collection:
 | `build/reports/p2/representation-limits/device-core.csv` | physical ART latency, allocation, GC, live-heap, and correctness observations |
 | `build/reports/p2/representation-limits/device-memory-run-01.csv` through `device-memory-run-05.csv` | one immutable PSS/retained/post-GC checkpoint invocation each; individual checksums required |
 | `build/reports/p2/representation-limits/device-memory.csv` | deterministic aggregate over the five run-indexed memory artifacts |
+| `build/reports/p2/representation-limits/device-current-peak-headroom.csv` | immutable cross-artifact current-canonical peak-headroom audit |
 | `build/reports/p2/representation-limits/device-frames.csv` | frame deadline, overrun, and command-to-first-correct-frame observations |
 | `build/reports/p2/representation-limits/device-frames-perfetto.csv` | unchanged frame schema from the paired Perfetto collection under a distinct immutable name |
 | `build/reports/p2/representation-limits/device-frame-timeline.perfetto-trace` | raw `android.surfaceflinger.frametimeline` trace for physical-present correlation |
