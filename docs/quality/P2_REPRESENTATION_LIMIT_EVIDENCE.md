@@ -1985,6 +1985,124 @@ separate cross-artifact claim fixed above.
 This pass does not cover a candidate, a larger canvas, the complete workload matrix, post-cap churn,
 or compositor presentation.
 
+### Pre-fixed refreshed-build current-canonical 64-square final-command tail contract
+
+The next command-only physical slice refreshes the 64 x 64 current-canonical measured point on the
+current source and build. The 64-square size is selected for this tail rerun because it is the
+largest already-fixed preliminary screening size at which all five command workloads passed the
+latency targets. It is one named current-path measurement only: it does not select a representation,
+establish a product cap, or interpolate a result beyond 64 x 64.
+
+Implementation must parameterize the one existing final-command harness path. It must not copy the
+runner, workload execution, report, checkpoint, or correctness route into a second implementation.
+Because column meanings and serialization remain unchanged, the schema remains
+`nene-pixel-p2-android-final-command-measurement-v1`. The fixed identity is
+`output_identity=device-core-current-64-square`, candidate
+`current-canonical-command-64-square`, and run index 1. The caller supplies one exact full
+40-character source commit, and that commit must be the source of both the installed app APK and
+test APK. The tool artifact fixed below records each APK path, byte length, and SHA-256 before
+installation.
+
+The run is valid only on the already-fixed refreshed build fingerprint
+`ALLDOCUBE/iPlay80miniPro/T830:16/BP2A.250605.031.A3/94110:user/release-keys`, security patch
+2026-06-05, display mode 1 at 1200 x 1920 and 90 Hz, `Runtime.maxMemory()` 268,435,456 bytes, and
+`ActivityManager.memoryClass` 256 MiB. Those exact values must appear in the raw metadata or
+checkpoints as applicable; the stable profile ID alone cannot substitute for any of them.
+
+The fixed build inputs and invocation are app APK
+`app/android/build/outputs/apk/debug/android-debug.apk`, test APK
+`app/android/build/outputs/apk/androidTest/debug/android-debug-androidTest.apk`, application
+package `io.github.hideyukimori.nenepixel`, instrumentation package
+`io.github.hideyukimori.nenepixel.test`, runner `androidx.test.runner.AndroidJUnitRunner`, and test
+class `io.github.hideyukimori.nenepixel.measurement.P2AndroidFinalCommandMeasurementTest`. The
+runner arguments are exactly `nene.p2.physicalProfileId=NENE-P2-ALLDOCUBE-IPL80MP-A16-API36`,
+`nene.p2.warmupIterations=5`, `nene.p2.sampleCount=200`,
+`nene.p2.candidateId=current-canonical-command-64-square`, `nene.p2.runIndex=1`, and
+`nene.p2.sourceCommit=<the fixed full source commit>`; no auxiliary-emulator argument is present.
+
+The production `src/main` diff between the accepted prior 256-square command source
+`16fa62101e6a76d64bab6cfe809b3e49f5ba7afa` and the new source commit must be empty across
+`core/domain/src/main`, `core/pixel-engine/src/main`, `core/application/src/main`,
+`presentation/compose/src/main`, and `app/android/src/main`. A non-empty production diff invalidates
+the batch rather than changing the meaning of the current-canonical comparison.
+
+The workload and sample contract is fixed as follows:
+
+- workload order is `sparse_apply_stroke`, `dense_apply_stroke`,
+  `dense_same_color_no_op`, `dense_undo`, and `dense_redo`, all at exactly 64 x 64;
+- each workload receives five untimed warmups and 200 measured samples; every warmup and sample
+  creates a fresh `PreparedCommandWorkload` and invokes exactly one `CommandGateway.execute`;
+- one post-GC process baseline is captured before measured samples; the existing ART runtime-stat,
+  Java-heap, total/dalvik/native/other PSS, private/shared dirty, retained gateway/document/one-level-
+  history, and correctness boundaries remain unchanged from the 256-square v1 route;
+- workload preparation, post-GC heap/PSS capture, and correctness verification remain outside the
+  direct `CommandGateway.execute` latency interval; no different timing boundary is introduced;
+- local sample indices are one-based 1 through 200 for every workload, and global sample indices
+  are unique and one-based 1 through 1,000 in the fixed workload order; and
+- every workload uses all 200 rows for nearest-rank p95 at rank 190 and p99 at rank 198, with no
+  interpolation, clamp, exclusion, outlier removal, or row discard.
+
+The physical checkpoint plan also remains the single existing final-command plan: one checkpoint
+before samples, one after each 25th global sample, and a final `after_samples` checkpoint after all
+rows. The artifact therefore contains exactly 42 ordered checkpoint rows, including distinct
+`after_1000` and `after_samples` observations. The batch is invalid if the active display mode or
+physical dimensions change, refresh differs from the fixed 90 Hz profile, device-wide thermal
+status exceeds 1, power saving is enabled, the display is not interactive, USB power is lost, or
+battery data is unavailable at any checkpoint.
+
+Every sample must retain the v1 route's exact resulting `DocumentState`, complete pixel content,
+revision, history availability, result kind, applied `ChangeSet` revisions and render invalidation,
+or no-effective-change rejection and unchanged state identity, as applicable. Any mismatch fails
+the batch. The direct core-latency condition passes only if every workload has p95 <= 8.0 ms and
+p99 <= 16.67 ms. The blocking-GC condition passes only if at least 950 of all 1,000 raw operations
+have zero ART blocking-GC-count increment. GC increments remain per-sample ART observations; the
+supporting logcat is not assigned a separate GC-event-zero rule.
+
+The sparse row has `position_count=64`; every dense row has `position_count=4096`. Sparse apply and
+dense apply are `applied` at revision 1 with `undo_available`, public `ChangeSet` revisions 0 to 1,
+and invalidation `(0,0,64,64)`. Dense undo is `applied` at revision 0 with `redo_available`, public
+revisions 1 to 0, and the same full invalidation. Dense redo is `applied` at revision 1 with
+`undo_available`, public revisions 0 to 1, and the same full invalidation. Dense same-color no-op
+is `rejected_no_effective_change` at revision 0 with history `none`, no public `ChangeSet` or
+invalidation, and unchanged state identity. These values are contract data, not values inherited
+from the former hard-coded 256-square route.
+
+The immutable on-device target is
+`files/p2-measurements/p2-android-final-command-64-square.csv`; an existing target is a failure and
+is never overwritten. A successful file is copied byte-for-byte to the distinct immutable host
+target `build/reports/p2/representation-limits/device-core-current-64-square.csv`. The previously
+accepted `device-core.csv` remains unchanged at 661,245 bytes with SHA-256
+`E2FD1D427DE191F14A8194FE4CF5CE5A929A388B7A13E439E731F0AF8180FCAD`.
+
+Two distinct supporting host artifacts belong to the same immutable batch:
+
+| Artifact | Fixed content |
+| --- | --- |
+| `build/reports/p2/representation-limits/device-core-current-64-square-tool.txt` | source commit; app/test APK paths, bytes, and SHA-256; package, runner, class, and exact arguments; physical profile/build identity; collection start/end; original and restored stay-awake value |
+| `build/reports/p2/representation-limits/device-core-current-64-square-logcat.txt` | time-scoped diagnostics covering the complete instrumentation interval |
+
+Collection first writes tool and logcat data under one unique batch staging name and leaves all
+three final host targets absent. The fixed on-device CSV target must also be absent before the run.
+After instrumentation, the on-device file is pulled into that staging batch. Only after the CSV,
+source/build/APK identity, production diff, percentiles, checkpoints, correctness, ART conditions,
+and log audit all validate are the three staged files published to their final names. All final
+destinations are checked absent before the first publish, and every per-file move must preserve the
+staged bytes and hash. A partial publish is rejected and its exact files are renamed with the same
+`.invalid-<batch-id>` suffix; they are never treated as canonical targets. A rejected attempt also
+removes only its exact on-device output after diagnostics are retained, so it cannot block a retry.
+
+If any final host target already exists, collection fails without overwrite. The result ledger
+records byte length and SHA-256 for the CSV, tool artifact, and logcat. A deterministic audit of the
+scoped logcat must find zero fatal exceptions, fatal signals, ANRs, and untyped instrumentation
+failures. Thermal-event-pattern matches are recorded as diagnostics only; thermal validity is
+decided by the fixed checkpoint status <= 1 rule. The audit does not invent a logcat GC rule or
+replace the raw per-sample ART blocking-GC calculation.
+
+This docs-first phase does not authorize a second harness, production change, or evidence claim.
+The active PR remains Draft, ADR 0005 remains `proposed`, and the existing representation,
+product-limit, candidate-physical, full-matrix, compositor, P2-02, and representation-dependent
+P2-04 holds remain in force.
+
 ### Required workload matrix
 
 - square and rectangular canvases, with axis and total-pixel candidates varied separately;
@@ -2019,6 +2137,9 @@ boundary. Planned ignored paths are fixed as follows before collection:
 | `build/reports/p2/representation-limits/host-candidates.csv` | analytical candidate metrics with candidate identity |
 | `build/reports/p2/representation-limits/host-projection.csv` | current Compose host projection metrics, full row-major/color correctness, and raw samples |
 | `build/reports/p2/representation-limits/device-core.csv` | physical ART latency, allocation, GC, live-heap, and correctness observations |
+| `build/reports/p2/representation-limits/device-core-current-64-square.csv` | immutable refreshed-build 64-square final-command tail observations |
+| `build/reports/p2/representation-limits/device-core-current-64-square-tool.txt` | source/APK/package/runner/argument/device/time/stay-awake identity for the 64-square batch |
+| `build/reports/p2/representation-limits/device-core-current-64-square-logcat.txt` | time-scoped fatal, ANR, thermal, and instrumentation diagnostics for the 64-square batch |
 | `build/reports/p2/representation-limits/device-memory-run-01.csv` through `device-memory-run-05.csv` | one immutable PSS/retained/post-GC checkpoint invocation each; individual checksums required |
 | `build/reports/p2/representation-limits/device-memory.csv` | deterministic aggregate over the five run-indexed memory artifacts |
 | `build/reports/p2/representation-limits/device-current-peak-headroom.csv` | immutable cross-artifact current-canonical peak-headroom audit |
