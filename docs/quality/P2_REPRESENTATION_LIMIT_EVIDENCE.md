@@ -931,6 +931,36 @@ The current product fixture uses opaque white blank and opaque red drawing in An
 composition. That is fixture evidence only; it is not an accepted alpha, blank, eraser, or
 composition contract.
 
+### Pre-fixed current extreme-integer characterization slice
+
+Before selecting any numerical product limit, this question-free slice distinguishes reachable
+current integer behavior from the still-unbounded allocation policy. It records no maximum and
+must allocate no area-sized extreme fixture.
+
+For a validated canvas axis `A`, every contained coordinate is in `0..A-1`. Therefore the
+current affected-region expression `maximum - minimum + 1` is mathematically in `1..A` for any
+non-empty valid patch and cannot exceed `Int.MAX_VALUE`. The test must construct a sparse patch on
+an `Int.MAX_VALUE` square using only the two opposite valid corners. Patch creation must succeed,
+canonicalize unordered input, produce origin `(0, 0)` and exact `Int.MAX_VALUE` width and height,
+and preserve that region through inversion without allocating a canvas-sized buffer.
+
+A separate input combines a valid origin with `(Int.MAX_VALUE, Int.MAX_VALUE)`, which is outside
+that maximum canvas and would overflow both affected-axis expressions if region construction ran.
+It must return typed `PositionOutsideCanvas` without an untyped exception, proving that outside
+validation precedes the region calculation.
+
+The current snapshot factory check uses a rectangular `Int.MAX_VALUE x 2` canvas and a one-element
+sentinel list whose element accessor fails if called. It must return
+`PixelSnapshotSizeMismatch(expected=4,294,967,294, actual=1)` without reading or copying an
+element. This proves only the existing size-mismatch-before-copy order. It is not the required
+future product-area rejection: a matching accepted list still has an `Int` size, and very large
+but `Int`-indexable ownership, surface, or render allocations may still fail with OOM.
+
+The implementation may change only existing or new unit-test sources in `:core:domain` and
+`:core:pixel-engine`. It must add no production behavior, limit value, public API, dependency,
+Gradle wiring, schema row, or accepted ADR answer. Focused tests, ktlint, and detekt must pass
+before recording the result.
+
 ### Pre-fixed semantic compatibility characterization slice
 
 Before adding or selecting a semantic color policy, this question-free slice characterizes only
