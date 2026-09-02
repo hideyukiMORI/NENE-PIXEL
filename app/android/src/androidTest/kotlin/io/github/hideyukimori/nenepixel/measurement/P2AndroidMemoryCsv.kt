@@ -1,6 +1,5 @@
 package io.github.hideyukimori.nenepixel.measurement
 
-import android.system.Os
 import java.io.File
 import java.io.FileOutputStream
 import java.io.OutputStreamWriter
@@ -36,13 +35,19 @@ internal object P2AndroidMemoryCsv {
         }
         check(!output.exists()) { "Immutable retained-memory output already exists: ${output.name}" }
         val temporary = File(directory, "${output.name}.tmp")
-        check(!temporary.exists()) { "Retained-memory temporary output already exists: ${temporary.name}" }
+        val publicationLock = File(directory, "${output.name}.publish-lock")
+        check(publicationLock.mkdir()) {
+            "Retained-memory immutable publication is already locked: ${output.name}"
+        }
         try {
+            check(!output.exists()) { "Immutable retained-memory output already exists: ${output.name}" }
+            check(!temporary.exists()) { "Retained-memory temporary output already exists: ${temporary.name}" }
             writeAndSync(temporary, rows)
-            Os.link(temporary.absolutePath, output.absolutePath)
-            check(temporary.delete()) { "Failed to unlink published retained-memory temporary output." }
+            check(!output.exists()) { "Immutable retained-memory output appeared during publication: ${output.name}" }
+            check(temporary.renameTo(output)) { "Failed to atomically publish retained-memory output." }
         } finally {
             if (temporary.exists()) temporary.delete()
+            if (publicationLock.exists()) publicationLock.delete()
         }
         return output
     }
