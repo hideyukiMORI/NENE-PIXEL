@@ -15,10 +15,10 @@ Current evidence state:
 | Evidence | State | Decision use |
 | --- | --- | --- |
 | Immutable M1 sparse host reproduction | complete for the rerun recorded below | starting evidence only |
-| Current-main P2 representation route | current canonical host route, isolated current host render projection, preliminary physical command screening, and one final-protocol affected-frame batch complete | incomplete; candidate projection, full physical matrix, retained heap/ART/PSS, and compositor correlation required |
-| Analytical storage candidates | flat packed and tiled/COW square/rectangular snapshot/apply, dense and sparse/rectangular native patch/inverse, raw duplicate/no-op/reference-clear, and retained analytical-history screening recorded; palette U8 contract tested | incomplete; retained and sparse/rectangular analytical matrices complete, while semantic selection and physical retained-memory evidence remain required |
+| Current-main P2 representation route | current canonical host route, isolated current host render projection, preliminary and final-tail physical command/frame screening, and five-invocation current retained-memory evidence complete | incomplete; candidate projection/memory, full physical matrix, peak/churn, and compositor correlation required |
+| Analytical storage candidates | flat packed and tiled/COW square/rectangular snapshot/apply, dense and sparse/rectangular native patch/inverse, raw duplicate/no-op/reference-clear, and retained analytical-history screening recorded; palette U8 contract tested | incomplete; retained and sparse/rectangular analytical matrices are complete, while semantic selection and candidate-specific physical evidence remain required |
 | Named emulator | ART command harness complete in explicit auxiliary mode | cannot satisfy physical evidence |
-| Named physical minimum Android device | profile fixed, preliminary command screening and one final-protocol affected-frame batch recorded | valid physical evidence; complete physical matrix still blocking |
+| Named physical minimum Android device | profile fixed; preliminary/final-tail command and frame screening plus current-canonical retained-memory evidence recorded | valid physical evidence; complete physical matrix still blocking |
 | Accepted representation or hard limits | none | ADR remains proposed |
 
 Active waivers: none.
@@ -1738,6 +1738,56 @@ remain unevaluated. Every raw fixes
 `post_gc_churn_status=not_evaluated_cap_policy_unselected`; inventing a test-only cap before the
 limit policy is selected would not satisfy the production condition.
 
+### Current retained-memory physical result
+
+The fixed current-canonical workload was collected on 2026-09-02 from source commit
+`a252bd5d733a408c0d3577a3580d42a8f57ea832` with batch UUID
+`6fb5de52-0a84-47f1-97fb-260389c76d44`. The source-identical build completed 95 tasks in 34
+seconds. Its debug APK is 11,664,182 bytes with SHA-256
+`71B732DE85D2984360CD6676184D66250D87EDA34444DB04EDA82E278BB5C796`; the AndroidTest APK is
+1,289,357 bytes with SHA-256
+`B8E82A2B8375391F0B9B4513281975466008A03E62D6BAAEF797C6EDA8F1CB81`.
+
+All five run invocations and the aggregate-only invocation completed successfully in six distinct
+PID/process-start pairs. Every raw contains exactly 27 metadata, two physical-checkpoint, two
+memory-checkpoint, 64 retained-entry, and one retained-summary row. All 64 entry observations,
+revisions, 256 x 32 invalidations, final all-white snapshot/projection, zero projection mismatches,
+and the fixed pixel/projection and entry-descriptor digests passed. All ten physical checkpoints
+had mode 1 at 1200 x 1920 and 90 Hz, overall thermal status 1, low-power mode false, interactive
+USB power, and 100% battery.
+
+| Run | Baseline post-GC PSS (KiB) | Retained post-GC PSS (KiB) | Paired delta (KiB) | Retained Java heap used (bytes) |
+| ---: | ---: | ---: | ---: | ---: |
+| 1 | 88,768 | 125,891 | 37,123 | 43,185,968 |
+| 2 | 88,790 | 125,955 | 37,165 | 43,185,968 |
+| 3 | 88,594 | 125,964 | 37,370 | 43,190,064 |
+| 4 | 88,886 | 125,333 | 36,447 | 43,185,968 |
+| 5 | 88,610 | 125,815 | 37,205 | 43,185,968 |
+
+The sorted paired-PSS median is 37,165 KiB and the maximum is 37,370 KiB. The median condition
+passes because `2 * 37,165 = 74,330 <= 262,144 KiB`; every individual condition passes, with the
+largest left side `5 * 37,370 = 186,850 <= 786,432 KiB`. The retained Java-heap median is
+43,185,968 bytes and the maximum is 43,190,064 bytes. The steady ART condition passes for every
+run; the largest left side is `2 * 43,190,064 = 86,380,128 <= 268,435,456 bytes`.
+
+The aggregate-only Android audit and an independent host audit both passed exact row/order,
+identity, checkpoint, workload, digest, correctness, raw-byte-length, raw-SHA-256, paired-delta,
+median, maximum, and condition recomputation. The immutable host artifacts are:
+
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `build/reports/p2/representation-limits/device-memory-run-01.csv` | 58,759 | `A1E28745ACF21B5ADFBD4E8BB95B8F0D57F9C5579D91BBCA9D14630B50705B81` |
+| `build/reports/p2/representation-limits/device-memory-run-02.csv` | 58,759 | `7160414DF70B380F1D803A7CC7F33D7E4A202DF555E3676117F48100042B87D0` |
+| `build/reports/p2/representation-limits/device-memory-run-03.csv` | 58,759 | `8F210444D87ACCB2599AEF623A6E7B907FE01336E79192A392FDF09518AC70FF` |
+| `build/reports/p2/representation-limits/device-memory-run-04.csv` | 58,759 | `D1C5DF8A783E46CC57013C25D4937EA1A0DF873062380DA50AE02A977405AA79` |
+| `build/reports/p2/representation-limits/device-memory-run-05.csv` | 58,759 | `F8CAFA68257B5C211D79C9A608249AE7536A71E95A92E0AE24758B1555B6807D` |
+| `build/reports/p2/representation-limits/device-memory.csv` | 16,655 | `5536A65C32FB56F80BEE3F23AE51A60E3F8B9534F80C7CEB628F6B21E5BFBBA9` |
+
+These results establish only the fixed current-canonical retained owner and projection at
+`N=65,536`, `H=64`, and `T=8N`. Peak headroom, post-cap churn, candidate retained memory, and
+candidate projection remain explicitly unevaluated and cannot be inferred from these passing
+steady-memory conditions.
+
 ### Required workload matrix
 
 - square and rectangular canvases, with axis and total-pixel candidates varied separately;
@@ -1826,12 +1876,13 @@ analytical results and the current HotSpot projection result are not retained-me
 projection, or physical-render evidence. The valid final current command tail fails the pre-fixed
 core-latency condition while passing correctness and isolated blocking-GC conditions.
 
-Physical screening still does not include the complete physical workload matrix, retained-history
-ART/live-heap evidence, five independent PSS checkpoints, or compositor correlation. The paired
-refreshed-build affected-frame batch is valid and fails the pre-fixed timing conditions for the
-current dense 256-square route; its timeline IDs still require Perfetto correlation before any
-visible-frame claim. The emulator remains useful only for functional interaction checks and cannot
-fill any of those physical gaps.
+Physical screening still does not include the complete physical workload matrix, candidate-
+specific retained memory/projection, peak headroom, post-cap churn, or compositor correlation. The
+current-canonical five-invocation steady ART/live-heap and paired-PSS slice is valid and passes its
+three applicable conditions. The paired refreshed-build affected-frame batch is also valid but
+fails the pre-fixed timing conditions for the current dense 256-square route; its timeline IDs
+still require Perfetto correlation before any visible-frame claim. The emulator remains useful
+only for functional interaction checks and cannot fill any of those physical gaps.
 
 Therefore:
 
