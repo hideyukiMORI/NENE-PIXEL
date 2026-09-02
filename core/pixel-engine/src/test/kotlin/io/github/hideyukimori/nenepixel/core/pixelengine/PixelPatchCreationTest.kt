@@ -101,6 +101,31 @@ internal class PixelPatchCreationTest {
     }
 
     @Test
+    fun `outside first input is fully materialized before typed validation`() {
+        val canvas = canvas(3, 2)
+        val outsidePosition = position(3, 0)
+        val changes =
+            AccessRecordingList(
+                listOf(
+                    PixelChange.create(outsidePosition, black, red),
+                    PixelChange.create(position(2, 1), black, green),
+                    PixelChange.create(position(0, 0), black, red),
+                ),
+            )
+
+        val rejection = creationRejected(PixelPatch.create(canvas, revision(0L), changes))
+        val outside =
+            assertInstanceOf(
+                PixelPatchCreationRejection.PositionOutsideCanvas::class.java,
+                rejection,
+            )
+
+        assertEquals(setOf(0, 1, 2), changes.accessedIndices.toSet())
+        assertEquals(canvas, outside.canvas)
+        assertEquals(outsidePosition, outside.position)
+    }
+
+    @Test
     fun `maximum square rejects an outside corner before overflowing affected region arithmetic`() {
         val maximumCanvas = canvas(Int.MAX_VALUE, Int.MAX_VALUE)
         val originChange = PixelChange.create(position(0, 0), black, green)
@@ -126,12 +151,31 @@ internal class PixelPatchCreationTest {
     }
 
     @Test
-    fun `revision overflow is rejected`() {
-        val change = PixelChange.create(position(0, 0), black, red)
+    fun `revision overflow is rejected before reading source changes`() {
+        val unreadableChanges =
+            object : AbstractList<PixelChange>() {
+                override val size: Int = 1
+
+                override fun get(index: Int): PixelChange = error("Revision overflow read source change $index.")
+            }
 
         assertEquals(
             PixelPatchCreationRejection.RevisionOverflow,
-            creationRejected(PixelPatch.create(canvas(1, 1), revision(Long.MAX_VALUE), listOf(change))),
+            creationRejected(PixelPatch.create(canvas(1, 1), revision(Long.MAX_VALUE), unreadableChanges)),
         )
+    }
+
+    private class AccessRecordingList<T>(
+        private val values: List<T>,
+    ) : AbstractList<T>() {
+        val accessedIndices: MutableList<Int> = mutableListOf()
+
+        override val size: Int
+            get() = values.size
+
+        override fun get(index: Int): T {
+            accessedIndices.add(index)
+            return values[index]
+        }
     }
 }
