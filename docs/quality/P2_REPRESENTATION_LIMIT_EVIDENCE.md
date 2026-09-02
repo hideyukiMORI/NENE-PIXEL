@@ -1572,8 +1572,11 @@ The unique config and trace staging paths are
 `/data/misc/perfetto-configs/nene-p2-frame-<batch>.txtpb` and
 `/data/misc/perfetto-traces/nene-p2-frame-<batch>.perfetto-trace`; either pre-existing path is a
 failure. The retained tool manifest records the exact `perfetto --background-wait --txt -c ... -o
-...` start command, returned tracing PID, batch-derived trigger name, and later `perfetto --trigger
-<name>` command. The trigger is the only normal stop path; the tracing process is not killed.
+...` start command, returned tracing PID, batch-derived trigger name, and later
+`/system/bin/trigger_perfetto <name>` command. This build's separate trigger client is 241,744
+bytes with SHA-256 `DF6D2C72CD1E837CD67A23364405C4ADB504A5D05D4D359068792E78C772E29B`;
+the `perfetto` recorder CLI does not implement a `--trigger` option. The trigger client is the only
+normal stop path; the tracing process is not killed.
 
 The original host `device-frames.csv`, `device-profile.txt`, `device-logcat.txt`, command, and
 memory artifacts are immutable and must retain their recorded byte lengths and SHA-256 values.
