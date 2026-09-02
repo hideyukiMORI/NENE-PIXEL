@@ -1635,11 +1635,27 @@ trace all 200 positive unique CSV tokens selected exactly one app actual row, ap
 SurfaceFlinger display actual row, and display expected row. Per-buffer overwrite, discard, packet
 loss, and write-wrap values were zero, and final flush succeeded. Pinned Trace Processor v49.0
 nevertheless reported `frame_timeline_event_parser_errors=4` in both traces. The rejected events
-cannot be attributed away from the selected frames, so the pre-fixed no-parse-error rule invalidates
-both batches despite their complete 200-row joins. Their host files remain only under explicit
-`.invalid-9ef9fb49` and `.invalid-51c8e1a1` diagnostic names and are not canonical evidence. Exact
-device staging was removed and `stay_on_while_plugged_in` was restored to its original value `0`.
-No paired physical-present percentile or visible-frame condition is reported from these attempts.
+were subsequently attributed exactly, but the pre-fixed no-parse-error rule has no attribution
+exception and therefore still invalidates both batches despite their complete 200-row joins. Each
+trace contains four non-buffer actual-surface events emitted by PID 1370 `system_server` around
+instrumentation Task transitions, outside the measured app-surface rows. All eight events across
+the two traces have raw `present_type=0` (`PRESENT_UNSPECIFIED`), raw `prediction_type=2`,
+`Is Buffer?=No`, and duration 2,000,000 ns. Pinned v49 accepts present-type values 1 through 5 and
+increments the parser-error stat once for each raw zero, accounting for all four errors in each
+trace; the other checked loss, pairing, and flush stats do not account for them. The start-side
+events precede the first measured command by about 11.3 seconds and the end-side events finish
+about 0.48 seconds after the last measured frame completes.
+
+The system-wide FrameTimeline source exposes no package, layer, or buffer-only setup filter, so a
+simple retry under the same whole-instrumentation trace boundary is expected to reproduce the same
+error class. Excluding those rows, changing the pinned processor, or accepting parser errors would
+violate the fixed contract. Moving trace collection inside the Activity lifetime, after setup and
+before teardown, is a possible future docs-first boundary change but is held for an explicit
+decision rather than applied after observing these traces. Their host files remain only under
+explicit `.invalid-9ef9fb49` and `.invalid-51c8e1a1` diagnostic names and are not canonical evidence.
+Exact device staging was removed and `stay_on_while_plugged_in` was restored to its original value
+`0`. No paired physical-present percentile or visible-frame condition is reported from these
+attempts.
 
 ### Refreshed-build current-command tail contract
 
