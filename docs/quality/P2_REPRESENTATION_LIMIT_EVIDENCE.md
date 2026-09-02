@@ -1064,6 +1064,27 @@ The implementation may change `StrokeTest.kt` only. It must add no production be
 API, dependency, Gradle wiring, measurement schema, raw artifact, limit value, or accepted ADR
 answer. Focused domain tests, ktlint, and detekt must pass before recording the result.
 
+#### Recorded current Stroke outside-short-circuit characterization result
+
+The one-file test-only characterization was recorded at source commit
+`1dc566e18aafec1f3c5f8d69d3c10c51b3986a7a`. A source reporting `Int.MAX_VALUE` elements returned
+an outside position at index zero and would fail on every later access. `Stroke.create` read exactly
+index zero and returned the exact `PixelPositionOutsideCanvas` canvas and position. It therefore
+did not scan the remaining declared path or enter defensive copying on this current rejection path.
+
+The independent focused gate was:
+
+```text
+.\gradlew.bat :core:domain:test :core:domain:ktlintCheck :core:domain:detekt --rerun-tasks --no-build-cache --no-configuration-cache
+BUILD SUCCESSFUL in 7s
+19 actionable tasks: 19 executed
+```
+
+This slice changed one existing domain unit-test file only. It added no production behavior, API,
+dependency, Gradle wiring, measurement schema, raw artifact, or limit. Valid contained strokes
+remain uncapped and fully scanned/copied before rasterization; the accepted raw count, typed cap
+rejection, owner, and validation priority remain unresolved.
+
 ### Pre-fixed semantic compatibility characterization slice
 
 Before adding or selecting a semantic color policy, this question-free slice characterizes only
