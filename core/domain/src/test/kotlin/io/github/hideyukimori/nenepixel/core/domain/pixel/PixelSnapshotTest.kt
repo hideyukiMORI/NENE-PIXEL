@@ -5,6 +5,7 @@ import io.github.hideyukimori.nenepixel.core.domain.DomainValueAssertions.reject
 import io.github.hideyukimori.nenepixel.core.domain.DomainValueTestValues.canvasSize
 import io.github.hideyukimori.nenepixel.core.domain.DomainValueTestValues.color
 import io.github.hideyukimori.nenepixel.core.domain.DomainValueTestValues.pixelPosition
+import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.document.Revision
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueRejection
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -39,6 +40,24 @@ internal class PixelSnapshotTest {
     }
 
     @Test
+    fun `extreme rectangular mismatch is rejected before reading or copying an element`() {
+        val canvas = canvasSize(Int.MAX_VALUE, 2)
+        val sentinel =
+            object : AbstractList<PixelColor>() {
+                override val size: Int = 1
+
+                override fun get(index: Int): PixelColor = error("Snapshot mismatch read element $index.")
+            }
+
+        val rejection = rejected(PixelSnapshot.create(canvas, Revision.initial(), sentinel))
+        val mismatch = assertInstanceOf(DomainValueRejection.PixelSnapshotSizeMismatch::class.java, rejection)
+
+        assertEquals(EXTREME_RECTANGULAR_PIXEL_COUNT, canvas.pixelCount)
+        assertEquals(EXTREME_RECTANGULAR_PIXEL_COUNT, mismatch.expectedPixelCount)
+        assertEquals(1, mismatch.actualPixelCount)
+    }
+
+    @Test
     fun `snapshot rejects an outside typed position`() {
         val snapshot = created(PixelSnapshot.create(canvasSize(1, 1), Revision.initial(), listOf(BLACK)))
 
@@ -59,6 +78,7 @@ internal class PixelSnapshotTest {
     }
 
     private companion object {
+        const val EXTREME_RECTANGULAR_PIXEL_COUNT: Long = 4_294_967_294L
         val BLACK = color(0, 0, 0, 255)
         val RED = color(255, 0, 0, 255)
         val GREEN = color(0, 255, 0, 255)

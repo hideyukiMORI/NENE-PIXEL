@@ -52,6 +52,23 @@ internal class PixelPatchCreationTest {
     }
 
     @Test
+    fun `maximum square valid corners create an exact non overflowing affected region`() {
+        val maximumCanvas = canvas(Int.MAX_VALUE, Int.MAX_VALUE)
+        val origin = position(0, 0)
+        val oppositeCorner = position(Int.MAX_VALUE - 1, Int.MAX_VALUE - 1)
+        val first = PixelChange.create(origin, black, green)
+        val last = PixelChange.create(oppositeCorner, black, red)
+        val fromUnordered = created(PixelPatch.create(maximumCanvas, revision(0L), listOf(last, first)))
+        val fromCanonical = created(PixelPatch.create(maximumCanvas, revision(0L), listOf(first, last)))
+        val expectedRegion = region(maximumCanvas, origin, maximumCanvas)
+
+        assertEquals(fromCanonical, fromUnordered)
+        assertEquals(2, fromUnordered.changeCount)
+        assertEquals(expectedRegion, fromUnordered.affectedRegion)
+        assertEquals(expectedRegion, fromUnordered.inverse().affectedRegion)
+    }
+
+    @Test
     fun `empty and unchanged patches are rejected`() {
         val canvas = canvas(1, 1)
         val unchanged = PixelChange.create(position(0, 0), black, black)
@@ -81,6 +98,31 @@ internal class PixelPatchCreationTest {
             PixelPatchCreationRejection.DuplicatePosition::class.java,
             creationRejected(PixelPatch.create(canvas, revision(0L), listOf(first, second))),
         )
+    }
+
+    @Test
+    fun `maximum square rejects an outside corner before overflowing affected region arithmetic`() {
+        val maximumCanvas = canvas(Int.MAX_VALUE, Int.MAX_VALUE)
+        val originChange = PixelChange.create(position(0, 0), black, green)
+        val outsidePosition = position(Int.MAX_VALUE, Int.MAX_VALUE)
+        val outsideChange = PixelChange.create(outsidePosition, black, red)
+
+        val rejection =
+            creationRejected(
+                PixelPatch.create(
+                    maximumCanvas,
+                    revision(0L),
+                    listOf(outsideChange, originChange),
+                ),
+            )
+        val outside =
+            assertInstanceOf(
+                PixelPatchCreationRejection.PositionOutsideCanvas::class.java,
+                rejection,
+            )
+
+        assertEquals(maximumCanvas, outside.canvas)
+        assertEquals(outsidePosition, outside.position)
     }
 
     @Test
