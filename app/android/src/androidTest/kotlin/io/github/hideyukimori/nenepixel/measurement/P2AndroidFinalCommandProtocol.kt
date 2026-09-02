@@ -173,5 +173,47 @@ internal object P2AndroidFinalCommandProtocol {
                         publicationPolicy = P2AndroidFinalCommandPlan.PublicationPolicy.FailIfExists,
                     ),
             ),
+            P2AndroidFinalCommandPlan(
+                identity =
+                    P2AndroidFinalCommandPlan.Identity(
+                        candidateId = "current-canonical-command-64x256-rectangle",
+                        runIndex = RUN_INDEX,
+                    ),
+                workload =
+                    P2AndroidFinalCommandPlan.Workload(
+                        canvasWidth = 64,
+                        canvasHeight = 256,
+                        warmupIterations = WARMUP_ITERATIONS,
+                        samplesPerWorkload = SAMPLES_PER_WORKLOAD,
+                        schema = SCHEMA,
+                    ),
+                output =
+                    P2AndroidFinalCommandPlan.Output(
+                        outputIdentity = "device-core-current-64x256-rectangle",
+                        relativePath = "p2-measurements/p2-android-final-command-64x256-rectangle.csv",
+                        publicationPolicy = P2AndroidFinalCommandPlan.PublicationPolicy.FailIfExists,
+                    ),
+            ),
+            P2AndroidFinalCommandPlan(
+                identity =
+                    P2AndroidFinalCommandPlan.Identity(
+                        candidateId = "current-canonical-command-256x64-rectangle",
+                        runIndex = RUN_INDEX,
+                    ),
+                workload =
+                    P2AndroidFinalCommandPlan.Workload(
+                        canvasWidth = 256,
+                        canvasHeight = 64,
+                        warmupIterations = WARMUP_ITERATIONS,
+                        samplesPerWorkload = SAMPLES_PER_WORKLOAD,
+                        schema = SCHEMA,
+                    ),
+                output =
+                    P2AndroidFinalCommandPlan.Output(
+                        outputIdentity = "device-core-current-256x64-rectangle",
+                        relativePath = "p2-measurements/p2-android-final-command-256x64-rectangle.csv",
+                        publicationPolicy = P2AndroidFinalCommandPlan.PublicationPolicy.FailIfExists,
+                    ),
+            ),
         ).associateBy(P2AndroidFinalCommandPlan::candidateId)
 }

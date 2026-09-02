@@ -90,12 +90,41 @@ internal class P2AndroidFinalCommandContractValidationTest {
             outputIdentity = "device-core-current-256x16-rectangle",
             outputPath = "p2-measurements/p2-android-final-command-256x16-rectangle.csv",
         )
-        listOf(squarePlan, tallPlan, widePlan).forEachIndexed { index, plan ->
-            listOf(squarePlan, tallPlan, widePlan).drop(index + 1).forEach { other ->
-                assertNotEquals(other.outputIdentity, plan.outputIdentity)
-                assertNotEquals(other.outputRelativePath, plan.outputRelativePath)
-            }
-        }
+        assertPairwiseDistinctOutputs(listOf(squarePlan, tallPlan, widePlan))
+    }
+
+    @Test
+    fun resolvesExactSixteenKilopixelRectanglePlansWithOrderedGeometryAndDistinctOutputs() {
+        val tallPlan = resolve(CANDIDATE_64_X_256, runIndex = 1)
+        val widePlan = resolve(CANDIDATE_256_X_64, runIndex = 1)
+
+        assertRectanglePlan(
+            plan = tallPlan,
+            candidateId = CANDIDATE_64_X_256,
+            width = 64,
+            height = 256,
+            outputIdentity = "device-core-current-64x256-rectangle",
+            outputPath = "p2-measurements/p2-android-final-command-64x256-rectangle.csv",
+        )
+        assertRectanglePlan(
+            plan = widePlan,
+            candidateId = CANDIDATE_256_X_64,
+            width = 256,
+            height = 64,
+            outputIdentity = "device-core-current-256x64-rectangle",
+            outputPath = "p2-measurements/p2-android-final-command-256x64-rectangle.csv",
+        )
+        assertPairwiseDistinctOutputs(
+            listOf(
+                resolve(CANDIDATE_256, runIndex = 1),
+                resolve(CANDIDATE_64, runIndex = 1),
+                resolve(CANDIDATE_128, runIndex = 1),
+                resolve(CANDIDATE_16_X_256, runIndex = 1),
+                resolve(CANDIDATE_256_X_16, runIndex = 1),
+                tallPlan,
+                widePlan,
+            ),
+        )
     }
 
     @Test
@@ -105,6 +134,12 @@ internal class P2AndroidFinalCommandContractValidationTest {
         }
         assertThrows(IllegalStateException::class.java) {
             resolve(CANDIDATE_16_X_256, runIndex = 2)
+        }
+        assertThrows(IllegalStateException::class.java) {
+            resolve(CANDIDATE_64_X_256, runIndex = 2)
+        }
+        assertThrows(IllegalStateException::class.java) {
+            resolve(CANDIDATE_256_X_64, runIndex = 2)
         }
         assertThrows(IllegalArgumentException::class.java) {
             resolve("unknown-final-command-candidate", runIndex = 1)
@@ -143,17 +178,30 @@ internal class P2AndroidFinalCommandContractValidationTest {
 
     @Test
     fun rectangleWorkloadsUseMinAxisDiagonalAndShapeSpecificInvalidations() {
-        listOf(16 to 256, 256 to 16).forEach { (width, height) ->
+        listOf(16 to 256, 256 to 16, 64 to 256, 256 to 64).forEach { (width, height) ->
             P2CommandWorkloadCatalog.shapeSpecs(width, height).forEach { spec ->
                 val prepared = PreparedCommandWorkload.create(spec)
                 val outcome = prepared.verify(prepared.execute())
+                val sparsePositionCount = minOf(width, height)
                 val expectedPositionCount =
-                    if (spec.kind == P2CommandWorkloadKind.SparseApply) 16 else 4_096
+                    if (spec.kind == P2CommandWorkloadKind.SparseApply) {
+                        sparsePositionCount
+                    } else {
+                        width * height
+                    }
                 val expectedInvalidation =
                     when (spec.kind) {
-                        P2CommandWorkloadKind.SparseApply -> P2CommandRegionDescriptor(0, 0, 16, 16)
-                        P2CommandWorkloadKind.DenseNoOp -> null
-                        else -> P2CommandRegionDescriptor(0, 0, width, height)
+                        P2CommandWorkloadKind.SparseApply -> {
+                            P2CommandRegionDescriptor(0, 0, sparsePositionCount, sparsePositionCount)
+                        }
+
+                        P2CommandWorkloadKind.DenseNoOp -> {
+                            null
+                        }
+
+                        else -> {
+                            P2CommandRegionDescriptor(0, 0, width, height)
+                        }
                     }
 
                 assertEquals(width, spec.canvasWidth)
@@ -238,55 +286,57 @@ internal class P2AndroidFinalCommandContractValidationTest {
 
     @Test
     fun rectangleSampleValidatorAcceptsExactRegionsAndRejectsEdgeSwapOrWrongInvalidation() {
-        val plan = resolve(CANDIDATE_16_X_256, runIndex = 1)
-        plan.specs.forEachIndexed { workloadIndex, spec ->
-            val zeroBasedIndex = workloadIndex * plan.samplesPerWorkload
-            P2AndroidFinalCommandContractValidator.validateSample(
-                plan,
-                zeroBasedIndex,
-                validSample(
-                    plan = plan,
-                    spec = spec,
-                    localIndex = 1,
-                    globalIndex = zeroBasedIndex + 1,
-                    outcome = validOutcome(plan, spec),
-                ),
-            )
-        }
+        RECTANGLE_CANDIDATES.forEach { candidateId ->
+            val plan = resolve(candidateId, runIndex = 1)
+            plan.specs.forEachIndexed { workloadIndex, spec ->
+                val zeroBasedIndex = workloadIndex * plan.samplesPerWorkload
+                P2AndroidFinalCommandContractValidator.validateSample(
+                    plan,
+                    zeroBasedIndex,
+                    validSample(
+                        plan = plan,
+                        spec = spec,
+                        localIndex = 1,
+                        globalIndex = zeroBasedIndex + 1,
+                        outcome = validOutcome(plan, spec),
+                    ),
+                )
+            }
 
-        val sparse = plan.specs.first()
-        val edgeSwapped = sparse.copy(canvasWidth = 256, canvasHeight = 16)
-        assertThrows(IllegalStateException::class.java) {
-            P2AndroidFinalCommandContractValidator.validateSample(
-                plan,
-                zeroBasedIndex = 0,
-                validSample(plan, spec = edgeSwapped, outcome = validOutcome(plan, sparse)),
-            )
-        }
-        assertThrows(IllegalStateException::class.java) {
-            P2AndroidFinalCommandContractValidator.validateSample(
-                plan,
-                zeroBasedIndex = 0,
-                validSample(
+            val sparse = plan.specs.first()
+            val edgeSwapped = sparse.copy(canvasWidth = plan.canvasHeight, canvasHeight = plan.canvasWidth)
+            assertThrows(IllegalStateException::class.java) {
+                P2AndroidFinalCommandContractValidator.validateSample(
                     plan,
-                    spec = sparse,
-                    outcome = validAppliedOutcome(plan.fullCanvasRegion),
-                ),
-            )
-        }
-        val dense = plan.specs[1]
-        assertThrows(IllegalStateException::class.java) {
-            P2AndroidFinalCommandContractValidator.validateSample(
-                plan,
-                zeroBasedIndex = plan.samplesPerWorkload,
-                validSample(
+                    zeroBasedIndex = 0,
+                    validSample(plan, spec = edgeSwapped, outcome = validOutcome(plan, sparse)),
+                )
+            }
+            assertThrows(IllegalStateException::class.java) {
+                P2AndroidFinalCommandContractValidator.validateSample(
                     plan,
-                    spec = dense,
-                    localIndex = 1,
-                    globalIndex = plan.samplesPerWorkload + 1,
-                    outcome = validAppliedOutcome(plan.sparseRegion),
-                ),
-            )
+                    zeroBasedIndex = 0,
+                    validSample(
+                        plan,
+                        spec = sparse,
+                        outcome = validAppliedOutcome(plan.fullCanvasRegion),
+                    ),
+                )
+            }
+            val dense = plan.specs[1]
+            assertThrows(IllegalStateException::class.java) {
+                P2AndroidFinalCommandContractValidator.validateSample(
+                    plan,
+                    zeroBasedIndex = plan.samplesPerWorkload,
+                    validSample(
+                        plan,
+                        spec = dense,
+                        localIndex = 1,
+                        globalIndex = plan.samplesPerWorkload + 1,
+                        outcome = validAppliedOutcome(plan.sparseRegion),
+                    ),
+                )
+            }
         }
     }
 
@@ -436,26 +486,36 @@ internal class P2AndroidFinalCommandContractValidationTest {
             outputIdentity = "device-core-current-256x16-rectangle",
             canvas = "256x16",
         )
+        assertContractMetadataRows(
+            plan = resolve(CANDIDATE_64_X_256, runIndex = 1),
+            outputIdentity = "device-core-current-64x256-rectangle",
+            canvas = "64x256",
+        )
+        assertContractMetadataRows(
+            plan = resolve(CANDIDATE_256_X_64, runIndex = 1),
+            outputIdentity = "device-core-current-256x64-rectangle",
+            canvas = "256x64",
+        )
     }
 
     @Test
     fun serializesRectangleSampleWidthAndHeightInExistingFiftyThreeColumnSchema() {
-        val tallPlan = resolve(CANDIDATE_16_X_256, runIndex = 1)
-        val widePlan = resolve(CANDIDATE_256_X_16, runIndex = 1)
-
-        listOf(tallPlan, widePlan).forEach { plan ->
+        RECTANGLE_CANDIDATES.map { candidateId -> resolve(candidateId, runIndex = 1) }.forEach { plan ->
             val sample = validSample(plan)
             val fields =
                 P2AndroidFinalCommandMeasurementReport
-                    .contractSampleRow(reportInput(plan, sample), sample)
+                    .contractSampleRow(reportInput(plan, sample, sourceCommit = SOURCE_COMMIT), sample)
                     .removePrefix("\"")
                     .removeSuffix("\"")
                     .split("\",\"")
 
             assertEquals(FINAL_COMMAND_COLUMN_COUNT, fields.size)
+            assertEquals(plan.candidateId, fields[5])
+            assertEquals("1", fields[6])
+            assertEquals(SOURCE_COMMIT, fields[7])
             assertEquals(plan.canvasWidth.toString(), fields[8])
             assertEquals(plan.canvasHeight.toString(), fields[9])
-            assertEquals("16", fields[10])
+            assertEquals(minOf(plan.canvasWidth, plan.canvasHeight).toString(), fields[10])
         }
     }
 
@@ -516,7 +576,20 @@ internal class P2AndroidFinalCommandContractValidationTest {
         assertEquals(outputPath, plan.outputRelativePath)
         assertEquals(P2AndroidFinalCommandPlan.PublicationPolicy.FailIfExists, plan.publicationPolicy)
         assertEquals("nene-pixel-p2-android-final-command-measurement-v1", plan.schema)
-        assertCommonCountsAndOrder(plan, sparsePositionCount = 16, densePositionCount = 4_096)
+        assertCommonCountsAndOrder(
+            plan,
+            sparsePositionCount = minOf(width, height),
+            densePositionCount = width * height,
+        )
+    }
+
+    private fun assertPairwiseDistinctOutputs(plans: List<P2AndroidFinalCommandPlan>) {
+        plans.forEachIndexed { index, plan ->
+            plans.drop(index + 1).forEach { other ->
+                assertNotEquals(other.outputIdentity, plan.outputIdentity)
+                assertNotEquals(other.outputRelativePath, plan.outputRelativePath)
+            }
+        }
     }
 
     private fun resolve(
@@ -596,6 +669,7 @@ internal class P2AndroidFinalCommandContractValidationTest {
     private fun reportInput(
         plan: P2AndroidFinalCommandPlan,
         sample: P2AndroidFinalCommandSample,
+        sourceCommit: String = "0".repeat(40),
     ): P2AndroidFinalCommandReportInput {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val environment =
@@ -612,7 +686,11 @@ internal class P2AndroidFinalCommandContractValidationTest {
             )
         return P2AndroidFinalCommandReportInput(
             plan = plan,
-            run = P2AndroidFinalCommandReportInput.Run(environment, identity(plan.candidateId)),
+            run =
+                P2AndroidFinalCommandReportInput.Run(
+                    environment,
+                    identity(plan.candidateId).copy(sourceCommit = sourceCommit),
+                ),
             observations =
                 P2AndroidFinalCommandReportInput.Observations(
                     baseline = zeroMemorySnapshot(),
@@ -732,6 +810,16 @@ internal class P2AndroidFinalCommandContractValidationTest {
         const val CANDIDATE_128: String = "current-canonical-command-128-square"
         const val CANDIDATE_16_X_256: String = "current-canonical-command-16x256-rectangle"
         const val CANDIDATE_256_X_16: String = "current-canonical-command-256x16-rectangle"
+        const val CANDIDATE_64_X_256: String = "current-canonical-command-64x256-rectangle"
+        const val CANDIDATE_256_X_64: String = "current-canonical-command-256x64-rectangle"
+        const val SOURCE_COMMIT: String = "0123456789abcdef0123456789abcdef01234567"
         const val FINAL_COMMAND_COLUMN_COUNT: Int = 53
+        val RECTANGLE_CANDIDATES: List<String> =
+            listOf(
+                CANDIDATE_16_X_256,
+                CANDIDATE_256_X_16,
+                CANDIDATE_64_X_256,
+                CANDIDATE_256_X_64,
+            )
     }
 }
