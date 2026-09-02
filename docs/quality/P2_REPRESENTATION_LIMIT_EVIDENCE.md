@@ -558,6 +558,112 @@ analytical wrapper construction only. They are not retained heap, ART live heap,
 physical-memory measurement. The completed logical retained matrix therefore does not select a
 candidate, hard limit, or semantic policy and does not close the physical evidence blocker.
 
+### Pre-fixed sparse/rectangular candidate-native patch slice
+
+Before collecting candidate schema v7, the next host-only slice extends the standalone
+candidate-native patch lifecycle evidence to the area-equivalent square, wide, and tall shapes
+already exercised by the generic candidate matrix. It remains entirely inside test source and does
+not implement or change production `ChangeSet`, `CommandGateway`, `HistoryEntry`, public API, or
+command behavior.
+
+The existing generic candidate `apply_*` rows already use a candidate-native patch prepared before
+timing and measure only typed validation plus forward snapshot apply. For the six shapes and seven
+workloads below, those 210 rows are the canonical standalone forward-apply timing evidence and must
+not be measured again. The schema v4 standalone slice is different: it records all six lifecycle
+operations, but only at the dense 256x256 anchor. That historical anchor remains unchanged and is
+excluded from the new shape list rather than duplicated.
+
+The new shape matrix contains two area classes and three aspect-ratio variants per class:
+
+| Area class | Square | Tall | Wide | Pixels per shape |
+| --- | --- | --- | --- | ---: |
+| 4K | 64x64 | 16x256 | 256x16 | 4,096 |
+| 16K | 128x128 | 64x256 | 256x64 | 16,384 |
+
+Each shape uses all seven existing workload meanings. `C` is the exact canonical change count for
+that shape; no workload is inferred from another:
+
+| `native_patch_workload_kind` | Canonical position set | `C` |
+| --- | --- | ---: |
+| `one_pixel` | the existing single-position workload | 1 |
+| `diagonal` | main-diagonal positions | `min(width, height)` |
+| `full_row` | the existing complete middle row | `width` |
+| `full_column` | the existing complete middle column | `height` |
+| `quarter_serpentine` | the existing 25% serpentine set, canonicalized | `N / 4` |
+| `half_serpentine` | the existing 50% serpentine set, canonicalized | `N / 2` |
+| `full_canvas_serpentine` | the complete canvas set, canonicalized | `N` |
+
+For every new standalone fixture, deterministic high-entropy RGBA before/after values reuse the
+existing candidate semantic fixture. The canonical workload set is reversed before strict patch
+creation, and the resulting candidate-native forward patch must be row-major with the exact `C`.
+The existing generic forward-apply fixture may reach the same factory through its existing path
+order because all factory work is outside its timed interval; v7 must prove outside timing that its
+canonical patch is identical to the reverse-input standalone patch before reusing those rows.
+
+Together, the sparse/rectangular evidence has the same six operation meanings as the dense anchor,
+but only five operations add new timed rows:
+
+| Operation | Evidence source | Timed interval |
+| --- | --- | --- |
+| shuffled patch create | new schema v7 row | shared order canonicalization, candidate-native record/array materialization, and defensive ownership |
+| inverse create | new schema v7 row | materialized object-record inverse or packed directional inverse-view creation |
+| forward apply | existing generic `apply_*` row | prepared canonical patch validation and forward snapshot apply only |
+| inverse apply | new schema v7 row | prepared canonical inverse validation and inverse snapshot apply |
+| exact round trip | new schema v7 row | forward apply, inverse creation, and inverse apply |
+| final-record late conflict | new schema v7 row | typed validation through the final canonical changed-position mismatch and rejection return |
+
+The round-trip interval includes a forward apply, but it is one composite lifecycle operation. It
+neither replaces nor duplicates the existing standalone forward-apply boundary. The conflict
+fixture changes the final position of the canonical patch before timing; rejection must scan to
+that record, return `BeforeValueMismatch`, leave every source pixel and the source revision
+unchanged, and materialize no output snapshot.
+
+Semantic input, snapshots, position sets, expected values, and conflict fixtures are generated
+outside timing. For inverse-create timing the forward patch is prepared outside timing. For
+inverse-apply timing both the canonical forward patch and its inverse are prepared outside timing.
+For round-trip timing, inverse creation remains inside the composite interval. Full correctness and
+logical-storage verification occur after every warmup and sample, outside the recorded interval.
+
+The new matrix has six shapes, seven workloads, five new operations, and five configurations. Each
+combination has five warmups and ten diagnostic samples. In table order, the zero-based linear
+work index is `((shape_index * 7) + workload_index) * 5 + operation_index`, where
+`operation_index` follows the five new-operation order after omitting forward apply from the table
+above. Configuration execution starts at `work_index mod 5` in the existing configuration order
+and wraps once. One configuration's warmups and ten samples remain contiguous. The new slice
+therefore adds exactly 1,050 metric rows and 10,500 raw sample rows. The 210 reused forward-apply
+metrics and 2,100 samples remain part of the existing schema v6 base rather than being copied.
+Starting from the recorded 490 metrics and 4,900 samples, candidate schema v7 must contain exactly
+1,540 metric rows and 15,400 raw sample rows. `host-current.csv` receives no schema or row change.
+
+Schema v7 adds only `native_patch_workload_kind`. Existing dense standalone patch rows use
+`dense_full_canvas_anchor`; new standalone rows use one of the seven workload IDs in the workload
+table; generic candidate apply rows and every other row leave it empty. Existing operation, shape,
+path, storage, lifecycle, result, digest, timing, and correctness columns retain their v6 meanings.
+The report and contract tests must reject a missing or duplicate shape/workload/operation/
+configuration pair and must prove the exact new and total metric/sample counts.
+
+Every new sample must additionally prove the reverse create input. Every new sample, and every
+reused forward-apply sample under the shared correctness audit, must prove exact shape and `C`;
+canonical row-major patch order; minimal exact affected region; complete affected and unaffected
+pixels; `0 -> 1 -> 0` lifecycle revisions; forward/inverse position and before/after symmetry;
+operation-specific state change; atomic typed final-record conflict where applicable;
+deterministic logical storage; and canonical-order, patch, inverse, lifecycle, operation-state, and
+unaffected-pixel digests. Equivalent workload digests and result evidence must agree across all
+five configurations. Fixture data and prepared patches must remain unmodified and must obey the
+materialized-versus-shared inverse aliasing contract.
+
+Snapshot storage, forward patch, inverse-additional, shared patch, and retained patch union remain
+separate logical units. Object/materialized counts and packed/shared counts use their existing
+storage rules; overlapping packed forward/shared payload is counted once in the union. Primitive
+bytes, reference slots, object records, and primitive arrays are not added to one another or
+converted into heap estimates. Reported latency and allocation are HotSpot test-thread
+observations, not retained heap, ART, PSS, GC, render, frame, or physical-device evidence.
+
+All matrix points are explicit observations and interpolation is prohibited. This slice cannot
+select a representation, semantic policy, canvas limit, patch limit, or product hard limit. It
+does not change the recorded schema v4, v5, or v6 results and does not close any physical evidence
+requirement.
+
 ## Auxiliary Android harness proof
 
 The Android command harness compiled and ran on the `Pixel_8_Pro_API_35` AVD only after the
