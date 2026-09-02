@@ -1,44 +1,105 @@
 package io.github.hideyukimori.nenepixel.measurement
 
 internal object P2AndroidFinalCommandProtocol {
-    const val CANVAS_EDGE: Int = 256
     const val WARMUP_ITERATIONS: Int = 5
     const val SAMPLES_PER_WORKLOAD: Int = 200
     const val WORKLOAD_COUNT: Int = 5
-    const val TOTAL_SAMPLE_COUNT: Int = WORKLOAD_COUNT * SAMPLES_PER_WORKLOAD
-    const val CHECKPOINT_COUNT: Int = 42
     const val RUN_INDEX: Int = 1
-    const val CANDIDATE_ID: String = "current-canonical-command-256-square"
     const val PHYSICAL_PROFILE_ID: String = "NENE-P2-ALLDOCUBE-IPL80MP-A16-API36"
+    const val SCHEMA: String = "nene-pixel-p2-android-final-command-measurement-v1"
 
-    val specs: List<P2CommandWorkloadSpec>
-        get() = P2CommandWorkloadCatalog.finalCurrentSpecs
+    fun resolve(identity: P2AndroidRunIdentity): P2AndroidFinalCommandPlan {
+        val plan =
+            requireNotNull(PLANS_BY_CANDIDATE_ID[identity.candidateId]) {
+                "Unknown final command candidate ID '${identity.candidateId}'."
+            }
+        check(identity.runIndex == plan.runIndex) {
+            "Final command run index for '${plan.candidateId}' must be ${plan.runIndex}."
+        }
+        validatePlan(plan)
+        return plan
+    }
 
-    val workloadNames: List<String>
-        get() = specs.map { spec -> spec.kind.metricName }
+    fun resolve(
+        environment: P2AndroidMeasurementEnvironment,
+        identity: P2AndroidRunIdentity,
+    ): P2AndroidFinalCommandPlan = resolve(identity).also { plan -> validate(environment, identity, plan) }
 
     fun validate(
         environment: P2AndroidMeasurementEnvironment,
         identity: P2AndroidRunIdentity,
+        plan: P2AndroidFinalCommandPlan,
     ) {
+        check(resolve(identity) == plan) { "Final command plan does not match the run identity." }
         check(!environment.emulatorDetection.isEmulator) {
             "Final command evidence requires the physical profile."
         }
         check(environment.profileId == PHYSICAL_PROFILE_ID) {
             "Final command evidence requires physical profile '$PHYSICAL_PROFILE_ID'."
         }
-        check(environment.warmupIterations == WARMUP_ITERATIONS) {
-            "Final command evidence requires exactly $WARMUP_ITERATIONS warmups."
+        check(environment.warmupIterations == plan.warmupIterations) {
+            "Final command evidence requires exactly ${plan.warmupIterations} warmups."
         }
-        check(environment.sampleCount == SAMPLES_PER_WORKLOAD) {
-            "Final command evidence requires exactly $SAMPLES_PER_WORKLOAD samples per workload."
+        check(environment.sampleCount == plan.samplesPerWorkload) {
+            "Final command evidence requires exactly ${plan.samplesPerWorkload} samples per workload."
         }
-        check(identity.candidateId == CANDIDATE_ID) {
-            "Final command candidate ID must be '$CANDIDATE_ID'."
-        }
-        check(identity.runIndex == RUN_INDEX) { "Final command run index must be $RUN_INDEX." }
-        check(specs.size == WORKLOAD_COUNT)
-        check(specs.map(P2CommandWorkloadSpec::kind) == P2CommandWorkloadKind.entries)
-        check(specs.all { spec -> spec.canvasEdge == CANVAS_EDGE })
+        P2AndroidFinalCommandProfile.validateRuntime(environment.targetContext)
     }
+
+    private fun validatePlan(plan: P2AndroidFinalCommandPlan) {
+        check(plan.runIndex == RUN_INDEX)
+        check(plan.schema == SCHEMA)
+        check(plan.warmupIterations == WARMUP_ITERATIONS)
+        check(plan.samplesPerWorkload == SAMPLES_PER_WORKLOAD)
+        check(plan.specs.size == WORKLOAD_COUNT)
+        check(plan.specs.map(P2CommandWorkloadSpec::kind) == P2CommandWorkloadKind.entries)
+        check(plan.specs.all { spec -> spec.canvasEdge == plan.canvasEdge })
+        check(
+            plan.totalSampleCount % P2AndroidPhysicalCheckpointPolicy.CHECKPOINT_INTERVAL == 0,
+        ) { "Final command sample count must end on a physical checkpoint boundary." }
+    }
+
+    private val PLANS_BY_CANDIDATE_ID: Map<String, P2AndroidFinalCommandPlan> =
+        listOf(
+            P2AndroidFinalCommandPlan(
+                identity =
+                    P2AndroidFinalCommandPlan.Identity(
+                        candidateId = "current-canonical-command-256-square",
+                        runIndex = RUN_INDEX,
+                    ),
+                workload =
+                    P2AndroidFinalCommandPlan.Workload(
+                        canvasEdge = 256,
+                        warmupIterations = WARMUP_ITERATIONS,
+                        samplesPerWorkload = SAMPLES_PER_WORKLOAD,
+                        schema = SCHEMA,
+                    ),
+                output =
+                    P2AndroidFinalCommandPlan.Output(
+                        outputIdentity = "device-core",
+                        relativePath = "p2-measurements/p2-android-final-command-measurement.csv",
+                        publicationPolicy = P2AndroidFinalCommandPlan.PublicationPolicy.OverwriteExisting,
+                    ),
+            ),
+            P2AndroidFinalCommandPlan(
+                identity =
+                    P2AndroidFinalCommandPlan.Identity(
+                        candidateId = "current-canonical-command-64-square",
+                        runIndex = RUN_INDEX,
+                    ),
+                workload =
+                    P2AndroidFinalCommandPlan.Workload(
+                        canvasEdge = 64,
+                        warmupIterations = WARMUP_ITERATIONS,
+                        samplesPerWorkload = SAMPLES_PER_WORKLOAD,
+                        schema = SCHEMA,
+                    ),
+                output =
+                    P2AndroidFinalCommandPlan.Output(
+                        outputIdentity = "device-core-current-64-square",
+                        relativePath = "p2-measurements/p2-android-final-command-64-square.csv",
+                        publicationPolicy = P2AndroidFinalCommandPlan.PublicationPolicy.FailIfExists,
+                    ),
+            ),
+        ).associateBy(P2AndroidFinalCommandPlan::candidateId)
 }

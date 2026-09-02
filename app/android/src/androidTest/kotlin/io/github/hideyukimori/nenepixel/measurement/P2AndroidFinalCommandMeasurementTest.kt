@@ -12,24 +12,24 @@ internal class P2AndroidFinalCommandMeasurementTest {
     fun measureFinalCurrentCommandTailOnPhysicalProfile() {
         val environment = P2AndroidMeasurementEnvironment.fromRunnerArguments()
         val identity = P2AndroidRunIdentity.fromRunnerArguments()
-        P2AndroidFinalCommandProtocol.validate(environment, identity)
-        val specs = P2AndroidFinalCommandProtocol.specs
+        val plan = P2AndroidFinalCommandProtocol.resolve(environment, identity)
+        val specs = plan.specs
         val expectedOutcomes =
             specs.associateWith { spec ->
-                P2AndroidCommandMeasurementRunner.warmUp(spec, environment.warmupIterations)
+                P2AndroidCommandMeasurementRunner.warmUp(spec, plan.warmupIterations)
             }
         val baselineMemory = PostGcMemorySnapshot.capture(environment)
         val display = P2AndroidPhysicalCheckpointCapture.defaultDisplay(environment.targetContext)
         val baselineCheckpoint =
             P2AndroidPhysicalCheckpointCapture
                 .capture(environment.targetContext, display, "before_samples", sampleIndex = 0)
-                .also(P2AndroidPhysicalCheckpoint::assertInitialValidity)
+                .also(P2AndroidFinalCommandProfile::validateBaselineCheckpoint)
         val checkpoints = mutableListOf(baselineCheckpoint)
         val samples = mutableListOf<P2AndroidFinalCommandSample>()
 
         var globalSampleIndex = 0
         specs.forEach { spec ->
-            repeat(environment.sampleCount) { zeroBasedIndex ->
+            repeat(plan.samplesPerWorkload) { zeroBasedIndex ->
                 val localSampleIndex = zeroBasedIndex + 1
                 globalSampleIndex += 1
                 val execution = P2AndroidCommandMeasurementRunner.executeMeasured(spec)
@@ -37,12 +37,18 @@ internal class P2AndroidFinalCommandMeasurementTest {
                 samples +=
                     P2AndroidFinalCommandSample(
                         spec = spec,
-                        localSampleIndex = localSampleIndex,
-                        globalSampleIndex = globalSampleIndex,
-                        latencyNanos = execution.latencyNanos,
+                        indices =
+                            P2AndroidFinalCommandSample.Indices(
+                                local = localSampleIndex,
+                                global = globalSampleIndex,
+                            ),
+                        observation =
+                            P2AndroidFinalCommandSample.Observation(
+                                latencyNanos = execution.latencyNanos,
+                                runtimeDelta = execution.runtimeDelta,
+                                memory = PostGcMemorySnapshot.capture(execution.retainedWorkload),
+                            ),
                         outcome = execution.outcome,
-                        runtimeDelta = execution.runtimeDelta,
-                        memory = PostGcMemorySnapshot.capture(execution.retainedWorkload),
                     )
                 if (globalSampleIndex % P2AndroidPhysicalCheckpointPolicy.CHECKPOINT_INTERVAL == 0) {
                     captureCompatibleCheckpoint(
@@ -64,11 +70,14 @@ internal class P2AndroidFinalCommandMeasurementTest {
         val output =
             P2AndroidFinalCommandMeasurementReport.write(
                 P2AndroidFinalCommandReportInput(
-                    environment = environment,
-                    identity = identity,
-                    baseline = baselineMemory,
-                    checkpoints = checkpoints,
-                    samples = samples,
+                    plan = plan,
+                    run = P2AndroidFinalCommandReportInput.Run(environment, identity),
+                    observations =
+                        P2AndroidFinalCommandReportInput.Observations(
+                            baseline = baselineMemory,
+                            checkpoints = checkpoints,
+                            samples = samples,
+                        ),
                 ),
             )
         assertTrue(output.isFile)

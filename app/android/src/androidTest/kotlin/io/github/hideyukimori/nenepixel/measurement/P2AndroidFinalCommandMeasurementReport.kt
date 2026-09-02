@@ -4,32 +4,25 @@ import android.app.ActivityManager
 import android.os.Build
 import java.io.File
 
-internal data class P2AndroidFinalCommandSample(
-    val spec: P2CommandWorkloadSpec,
-    val localSampleIndex: Int,
-    val globalSampleIndex: Int,
-    val latencyNanos: Long,
-    val outcome: CommandOutcomeDescriptor,
-    val runtimeDelta: ArtRuntimeDelta,
-    val memory: PostGcMemorySnapshot,
-)
-
-internal data class P2AndroidFinalCommandReportInput(
-    val environment: P2AndroidMeasurementEnvironment,
-    val identity: P2AndroidRunIdentity,
-    val baseline: PostGcMemorySnapshot,
-    val checkpoints: List<P2AndroidPhysicalCheckpoint>,
-    val samples: List<P2AndroidFinalCommandSample>,
-)
-
 internal object P2AndroidFinalCommandMeasurementReport {
     fun write(input: P2AndroidFinalCommandReportInput): File {
         validate(input)
-        val output = input.environment.finalCommandOutputFile
+        val output = input.environment.finalCommandOutputFile(input.plan)
         val outputDirectory = requireNotNull(output.parentFile)
         check(outputDirectory.isDirectory || outputDirectory.mkdirs()) {
             "Failed to create final command measurement output directory."
         }
+        return P2AndroidFinalCommandOutputPublication.publish(
+            output = output,
+            policy = input.plan.publicationPolicy,
+            writeRows = { target -> writeRows(target, input) },
+        )
+    }
+
+    private fun writeRows(
+        output: File,
+        input: P2AndroidFinalCommandReportInput,
+    ) {
         output.bufferedWriter().use { writer ->
             writer.appendLine(csvRow(*COLUMNS.toTypedArray()))
             metadataRows(input).forEach(writer::appendLine)
@@ -40,19 +33,43 @@ internal object P2AndroidFinalCommandMeasurementReport {
             input.checkpoints.forEach { checkpoint -> writer.appendLine(checkpointRow(input, checkpoint)) }
             input.samples.forEach { sample -> writer.appendLine(sampleRow(input, sample)) }
         }
-        return output
+    }
+
+    internal fun contractMetadataRows(
+        plan: P2AndroidFinalCommandPlan,
+        identity: P2AndroidRunIdentity,
+    ): Map<String, String> {
+        val values =
+            linkedMapOf(
+                "schema" to plan.schema,
+                "output_identity" to plan.outputIdentity,
+                "candidate_id" to identity.candidateId,
+                "run_index" to identity.runIndex.toString(),
+                "canvas" to plan.canvasMetadata,
+                "workload_order" to plan.workloadNames.joinToString("|"),
+                "warmup_iterations_per_workload" to plan.warmupIterations.toString(),
+                "sample_count_per_workload" to plan.samplesPerWorkload.toString(),
+                "sample_count_total" to plan.totalSampleCount.toString(),
+                "sample_indices" to
+                    "local=1..${plan.samplesPerWorkload};global=1..${plan.totalSampleCount}",
+                "checkpoint_interval_global_samples" to
+                    P2AndroidPhysicalCheckpointPolicy.CHECKPOINT_INTERVAL.toString(),
+                "checkpoint_row_count" to plan.checkpointCount.toString(),
+            )
+        return values.mapValues { (name, value) -> metadataRow(name, value) }
     }
 
     private fun metadataRows(input: P2AndroidFinalCommandReportInput): List<String> {
         val environment = input.environment
         val identity = input.identity
         val activityManager = environment.targetContext.getSystemService(ActivityManager::class.java)
+        val contractRows = contractMetadataRows(input.plan, identity)
         return listOf(
-            metadataRow("schema", SCHEMA),
-            metadataRow("output_identity", "device-core"),
+            contractRows.getValue("schema"),
+            contractRows.getValue("output_identity"),
             metadataRow("run_status", "valid"),
-            metadataRow("candidate_id", identity.candidateId),
-            metadataRow("run_index", identity.runIndex.toString()),
+            contractRows.getValue("candidate_id"),
+            contractRows.getValue("run_index"),
             metadataRow("source_commit", identity.sourceCommit),
             metadataRow("app_variant", "debug"),
             metadataRow("test_variant", "debugAndroidTest"),
@@ -76,14 +93,14 @@ internal object P2AndroidFinalCommandMeasurementReport {
                     .ifEmpty { listOf("none") }
                     .joinToString("|"),
             ),
-            metadataRow("canvas", "256x256"),
-            metadataRow("workload_order", EXPECTED_WORKLOAD_NAMES.joinToString("|")),
-            metadataRow("warmup_iterations_per_workload", WARMUP_ITERATIONS.toString()),
-            metadataRow("sample_count_per_workload", SAMPLES_PER_WORKLOAD.toString()),
-            metadataRow("sample_count_total", TOTAL_SAMPLE_COUNT.toString()),
-            metadataRow("sample_indices", "local=1..200;global=1..1000"),
-            metadataRow("checkpoint_interval_global_samples", CHECKPOINT_INTERVAL.toString()),
-            metadataRow("checkpoint_row_count", CHECKPOINT_COUNT.toString()),
+            contractRows.getValue("canvas"),
+            contractRows.getValue("workload_order"),
+            contractRows.getValue("warmup_iterations_per_workload"),
+            contractRows.getValue("sample_count_per_workload"),
+            contractRows.getValue("sample_count_total"),
+            contractRows.getValue("sample_indices"),
+            contractRows.getValue("checkpoint_interval_global_samples"),
+            contractRows.getValue("checkpoint_row_count"),
             metadataRow(
                 "measurement_boundary",
                 "one prepared CommandGateway.execute call only; fixture, ART snapshots, post-GC heap/PSS, " +
@@ -150,8 +167,8 @@ internal object P2AndroidFinalCommandMeasurementReport {
             "canvas_width" to sample.spec.canvasEdge,
             "canvas_height" to sample.spec.canvasEdge,
             "position_count" to sample.spec.positionCount,
-            "warmup_iterations" to WARMUP_ITERATIONS,
-            "sample_count" to SAMPLES_PER_WORKLOAD,
+            "warmup_iterations" to input.plan.warmupIterations,
+            "sample_count" to input.plan.samplesPerWorkload,
             "local_sample_index" to sample.localSampleIndex,
             "global_sample_index" to sample.globalSampleIndex,
             "latency_nanos" to sample.latencyNanos,
@@ -206,88 +223,10 @@ internal object P2AndroidFinalCommandMeasurementReport {
         )
 
     private fun validate(input: P2AndroidFinalCommandReportInput) {
-        P2AndroidFinalCommandProtocol.validate(input.environment, input.identity)
-        check(input.samples.size == TOTAL_SAMPLE_COUNT) {
-            "Final command report requires exactly $TOTAL_SAMPLE_COUNT samples."
-        }
-        check(input.checkpoints.size == CHECKPOINT_COUNT) {
-            "Final command report requires exactly $CHECKPOINT_COUNT physical checkpoints."
-        }
-        validateMemory(input.baseline)
-        input.samples.forEachIndexed { zeroBasedIndex, sample -> validateSample(zeroBasedIndex, sample) }
-        val expectedCheckpoints =
-            listOf("before_samples" to 0) +
-                (CHECKPOINT_INTERVAL..TOTAL_SAMPLE_COUNT step CHECKPOINT_INTERVAL).map { index ->
-                    "after_$index" to index
-                } +
-                listOf("after_samples" to TOTAL_SAMPLE_COUNT)
-        check(
-            input.checkpoints.map { checkpoint ->
-                checkpoint.name to checkpoint.sampleIndex
-            } == expectedCheckpoints,
-        ) {
-            "Final command physical checkpoint order or identity changed."
-        }
-        val baseline = input.checkpoints.first()
-        baseline.assertInitialValidity()
-        input.checkpoints.drop(1).forEach { checkpoint -> checkpoint.assertCompatibleWith(baseline) }
-    }
-
-    private fun validateSample(
-        zeroBasedIndex: Int,
-        sample: P2AndroidFinalCommandSample,
-    ) {
-        val expectedWorkloadIndex = zeroBasedIndex / SAMPLES_PER_WORKLOAD
-        val expectedLocalIndex = zeroBasedIndex % SAMPLES_PER_WORKLOAD + 1
-        val expectedKind = P2CommandWorkloadKind.entries[expectedWorkloadIndex]
-        check(sample.spec.kind == expectedKind && sample.spec.canvasEdge == CANVAS_EDGE)
-        check(sample.localSampleIndex == expectedLocalIndex)
-        check(sample.globalSampleIndex == zeroBasedIndex + 1)
-        check(sample.latencyNanos >= 0L)
-        validateOutcome(sample)
-        validateDiagnostics(sample)
-    }
-
-    private fun validateOutcome(sample: P2AndroidFinalCommandSample) {
-        val outcome = sample.outcome
-        val noOp = sample.spec.kind == P2CommandWorkloadKind.DenseNoOp
-        val undo = sample.spec.kind == P2CommandWorkloadKind.DenseUndo
-        check(outcome.resultKind == if (noOp) "rejected_no_effective_change" else "applied")
-        check(outcome.revision == if (undo || noOp) 0L else 1L)
-        check(
-            outcome.history ==
-                when {
-                    undo -> "redo_available"
-                    noOp -> "none"
-                    else -> "undo_available"
-                },
-        )
-        check(outcome.unchangedStateIdentity == noOp)
-        if (noOp) {
-            check(outcome.changeSetBeforeRevision == null)
-            check(outcome.changeSetAfterRevision == null)
-            check(outcome.renderInvalidation == null)
-        } else {
-            check(outcome.changeSetBeforeRevision == if (undo) 1L else 0L)
-            check(outcome.changeSetAfterRevision == if (undo) 0L else 1L)
-            check(outcome.renderInvalidation == FULL_CANVAS_REGION)
-        }
-    }
-
-    private fun validateDiagnostics(sample: P2AndroidFinalCommandSample) {
-        val runtime = sample.runtimeDelta
-        check(runtime.allocatedBytesBefore >= 0L && runtime.allocatedBytesAfter >= 0L)
-        check(runtime.allocatedBytesDelta >= 0L)
-        check(runtime.gcCountDelta >= 0L && runtime.gcTimeMillisDelta >= 0L)
-        check(runtime.blockingGcCountDelta >= 0L && runtime.blockingGcTimeMillisDelta >= 0L)
-        validateMemory(sample.memory)
-    }
-
-    private fun validateMemory(memory: PostGcMemorySnapshot) {
-        check(memory.javaHeapUsedBytes >= 0L && memory.javaHeapCommittedBytes >= memory.javaHeapUsedBytes)
-        check(memory.totalPssKilobytes >= 0)
-        check(memory.dalvikPssKilobytes >= 0 && memory.nativePssKilobytes >= 0 && memory.otherPssKilobytes >= 0)
-        check(memory.totalPrivateDirtyKilobytes >= 0 && memory.totalSharedDirtyKilobytes >= 0)
+        P2AndroidFinalCommandProtocol.validate(input.environment, input.identity, input.plan)
+        P2AndroidFinalCommandContractValidator.validateMemory(input.baseline)
+        P2AndroidFinalCommandContractValidator.validateSamples(input.plan, input.samples)
+        P2AndroidFinalCommandContractValidator.validateCheckpoints(input.plan, input.checkpoints)
     }
 
     private fun metadataRow(
@@ -304,19 +243,9 @@ internal object P2AndroidFinalCommandMeasurementReport {
     private fun csvRow(vararg values: Any): String =
         values.joinToString(",") { value -> "\"${value.toString().replace("\"", "\"\"")}\"" }
 
-    private const val SCHEMA: String = "nene-pixel-p2-android-final-command-measurement-v1"
-    private const val WARMUP_ITERATIONS: Int = P2AndroidFinalCommandProtocol.WARMUP_ITERATIONS
-    private const val SAMPLES_PER_WORKLOAD: Int = P2AndroidFinalCommandProtocol.SAMPLES_PER_WORKLOAD
-    private const val CANVAS_EDGE: Int = P2AndroidFinalCommandProtocol.CANVAS_EDGE
-    private const val TOTAL_SAMPLE_COUNT: Int = P2AndroidFinalCommandProtocol.TOTAL_SAMPLE_COUNT
-    private const val CHECKPOINT_INTERVAL: Int = P2AndroidPhysicalCheckpointPolicy.CHECKPOINT_INTERVAL
-    private const val CHECKPOINT_COUNT: Int = P2AndroidFinalCommandProtocol.CHECKPOINT_COUNT
     private const val SAMPLE_ASSERTION_BOUNDARY: String =
         "exact state and complete pixels, revision, history, result, public ChangeSet revisions and invalidation, " +
             "or exact no-op and unchanged identity asserted outside latency"
-    private val FULL_CANVAS_REGION: P2CommandRegionDescriptor =
-        P2CommandRegionDescriptor(0, 0, CANVAS_EDGE, CANVAS_EDGE)
-    private val EXPECTED_WORKLOAD_NAMES: List<String> = P2AndroidFinalCommandProtocol.workloadNames
     private val COLUMNS: List<String> =
         listOf(
             "record_type",

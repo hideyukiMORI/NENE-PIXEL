@@ -48,14 +48,12 @@ internal object P2CommandWorkloadCatalog {
     private val CANVAS_EDGES: List<Int> = listOf(16, 64, 256)
 
     val specs: List<P2CommandWorkloadSpec> =
-        CANVAS_EDGES.flatMap { edge ->
-            P2CommandWorkloadKind.entries.map { kind -> P2CommandWorkloadSpec(kind, edge) }
-        }
+        CANVAS_EDGES.flatMap(::squareSpecs)
 
-    val finalCurrentSpecs: List<P2CommandWorkloadSpec> =
-        P2CommandWorkloadKind.entries.map { kind -> P2CommandWorkloadSpec(kind, FINAL_CANVAS_EDGE) }
-
-    private const val FINAL_CANVAS_EDGE: Int = 256
+    fun squareSpecs(edge: Int): List<P2CommandWorkloadSpec> {
+        require(edge > 0) { "A square workload edge must be positive." }
+        return P2CommandWorkloadKind.entries.map { kind -> P2CommandWorkloadSpec(kind, edge) }
+    }
 }
 
 internal data class CommandOutcomeDescriptor(

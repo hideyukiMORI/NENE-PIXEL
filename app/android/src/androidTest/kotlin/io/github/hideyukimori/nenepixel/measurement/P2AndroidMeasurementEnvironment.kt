@@ -23,8 +23,8 @@ internal data class P2AndroidMeasurementEnvironment(
     val frameOutputFile: File
         get() = File(targetContext.filesDir, FRAME_OUTPUT_RELATIVE_PATH)
 
-    val finalCommandOutputFile: File
-        get() = File(targetContext.filesDir, FINAL_COMMAND_OUTPUT_RELATIVE_PATH)
+    fun finalCommandOutputFile(plan: P2AndroidFinalCommandPlan): File =
+        File(targetContext.filesDir, plan.outputRelativePath)
 
     fun memoryRunOutputFile(runIndex: Int): File =
         File(
@@ -88,8 +88,6 @@ internal data class P2AndroidMeasurementEnvironment(
             "p2-measurements/p2-android-command-measurement.csv"
         private const val FRAME_OUTPUT_RELATIVE_PATH: String =
             "p2-measurements/p2-android-frame-measurement.csv"
-        private const val FINAL_COMMAND_OUTPUT_RELATIVE_PATH: String =
-            "p2-measurements/p2-android-final-command-measurement.csv"
         private const val MEMORY_AGGREGATE_OUTPUT_RELATIVE_PATH: String =
             "p2-measurements/p2-android-memory-aggregate.csv"
         private const val PHYSICAL_EVIDENCE: String = "physical_device"
