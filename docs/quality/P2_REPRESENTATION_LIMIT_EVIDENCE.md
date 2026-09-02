@@ -2487,6 +2487,97 @@ current-canonical 4K command run and does not decide the other rectangle. ADR 00
 candidate-physical, complete-physical-matrix, render, compositor, P2-02, and
 representation-dependent P2-04 holds remain in force regardless of either outcome.
 
+### Refreshed-build current-canonical 4K rectangular final-command tails result
+
+Both pre-fixed rectangular command-only batches completed on the named physical profile. The
+16 x 256 batch `83da6a03-e527-468a-85a4-f5078f323f5b` and the 256 x 16 batch
+`85065128-24bd-4b70-b15b-170225853de8` used contract commit
+`1f8584833ade00e4c67cbe6d0bc7866e54a3c873` and source commit
+`b8674a44c022630ab2925dcdda0780a598a7b4e8`. The required production `src/main` diff from
+accepted 128-square source `af6e954cc343593e507b238a0fd121451c5017e6` was empty across all
+five fixed paths. The app APK was 11,664,182 bytes with SHA-256
+`71B732DE85D2984360CD6676184D66250D87EDA34444DB04EDA82E278BB5C796`; the test APK was
+1,321,497 bytes with SHA-256
+`97F4737A7B3327EE662FFA2E867D6022754229D8F940DF8001D87B4A63260226`.
+
+The no-cache APK build passed in 1 minute 4 seconds with all 95 tasks executed. Both exact fixed
+instrumentation invocations contained no auxiliary-emulator argument and reported `OK (1 test)`.
+The per-shape collection identity was:
+
+| Shape | Instrumentation seconds | Collection start JST | Collection end JST |
+| --- | ---: | --- | --- |
+| 16 x 256 | 61.793 | 2026-09-02 23:20:11.4154547 | 2026-09-02 23:21:14.7647200 |
+| 256 x 16 | 61.169 | 2026-09-02 23:27:43.8065050 | 2026-09-02 23:28:46.5966794 |
+
+Independent `Import-Csv` recomputation and both independent publication audits found zero
+structural or semantic mismatches, with high/medium/low finding counts all zero for each batch.
+Each artifact has 53 columns and 1,088 data rows: 45 metadata, one process baseline, 42 ordered
+physical checkpoints, and 1,000 samples. The fixed workload order, 200 local indices per
+workload, global indices 1 through 1,000, shape-specific geometry, position counts, correctness
+hashes, outcomes, revisions, history, `ChangeSet` data, invalidations, and no-op identity all
+matched the contract. Every checkpoint in both batches retained mode 1, 1200 x 1920, 90 Hz,
+thermal status 1, power saving disabled, an interactive display, USB power, and 100% battery.
+
+Nearest-rank recomputation for the 16 x 256 batch produced:
+
+| Workload | Minimum ns | p95 latency ns | p99 latency ns | Maximum ns | p95 ART allocation bytes |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `sparse_apply_stroke` | 1,369,846 | 1,659,538 | 1,704,961 | 1,816,270 | 442,368 |
+| `dense_apply_stroke` | 5,876,116 | 6,220,308 | 6,386,616 | 6,433,346 | 1,224,704 |
+| `dense_same_color_no_op` | 1,522,462 | 1,694,153 | 1,730,654 | 1,754,653 | 311,296 |
+| `dense_undo` | 2,173,616 | 2,392,808 | 2,428,077 | 2,460,654 | 589,824 |
+| `dense_redo` | 2,114,077 | 2,363,385 | 2,385,846 | 2,451,500 | 540,672 |
+
+Nearest-rank recomputation for the 256 x 16 batch produced:
+
+| Workload | Minimum ns | p95 latency ns | p99 latency ns | Maximum ns | p95 ART allocation bytes |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `sparse_apply_stroke` | 1,381,500 | 1,853,077 | 6,431,423 | 6,743,462 | 442,368 |
+| `dense_apply_stroke` | 5,576,000 | 5,861,538 | 5,989,808 | 6,760,346 | 1,191,936 |
+| `dense_same_color_no_op` | 1,238,423 | 1,403,192 | 1,444,231 | 1,661,615 | 278,528 |
+| `dense_undo` | 2,204,385 | 2,390,769 | 2,447,731 | 2,469,731 | 589,824 |
+| `dense_redo` | 2,096,923 | 2,327,539 | 2,546,654 | 3,357,731 | 540,672 |
+
+Every workload in both batches passes p95 <= 8.0 ms and p99 <= 16.67 ms. Each batch also had
+1,000 / 1,000 operations with zero blocking-GC-count increment, so both blocking-GC conditions
+pass; all four observed GC count/time deltas were zero for every sample. Neither batch had a zero
+allocation observation, and every allocation delta matched its before/after counters.
+
+For 16 x 256, the baseline Java heap was 2,221,840 used and 10,512,144 committed bytes with
+85,727 KiB total PSS. Maximum sample observations were 2,803,504 used and 11,093,808 committed
+bytes with 86,184 KiB total PSS; minimum sample PSS was 84,717 KiB. For 256 x 16, the baseline
+values were 2,221,840 used, 10,512,144 committed, and 85,795 KiB total PSS. Maximum sample
+observations were 2,803,504 used, 11,093,808 committed, and 86,267 KiB total PSS; minimum sample
+PSS was 84,807 KiB. All of these heap/PSS observations are diagnostics only, not retained-memory
+or peak-headroom evidence.
+
+The 811-line 16 x 256 scoped log covers 23:20:11.663 through 23:21:14.572 JST; the 944-line
+256 x 16 scoped log covers 23:27:43.980 through 23:28:46.395 JST. Deterministic audit of each log
+found zero fatal exceptions, fatal signals, ANRs, untyped instrumentation failures, and
+thermal-pattern matches. Each exact on-device CSV was removed after hash-matched extraction, and
+no device log temp was created. `stay_on_while_plugged_in` was restored from temporary value 2 to
+original value 0 after each batch. Collection began with wakefulness `Awake` and restored
+`Awake`; pre-run and post-run overall thermal status were both 1 for both batches.
+
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `build/reports/p2/representation-limits/device-core-current-16x256-rectangle.csv` | 658,021 | `CDD9E0CAF3C739441E59AF7130A7DE4DE54578EEB29188A643B241AA98A4F11D` |
+| `build/reports/p2/representation-limits/device-core-current-16x256-rectangle-tool.txt` | 6,601 | `F189DF1A7D48D310E2DD9BBA1A538FABE2A3B87AA37188B3561A15CBCDE80864` |
+| `build/reports/p2/representation-limits/device-core-current-16x256-rectangle-logcat.txt` | 111,534 | `604490B02BF04355D8AA1FC8771D20C100B22F2E03959C4AA9D41F6E7337BE84` |
+| `build/reports/p2/representation-limits/device-core-current-256x16-rectangle.csv` | 658,391 | `193E04014CF0D780C2947D840B4860155EA6D1A95526E30CF5F562124DF31298` |
+| `build/reports/p2/representation-limits/device-core-current-256x16-rectangle-tool.txt` | 6,601 | `23179DDB12B35120C933E3F0DCFEA5F9BCEFA05A658910AA2FB840E899C5477C` |
+| `build/reports/p2/representation-limits/device-core-current-256x16-rectangle-logcat.txt` | 130,642 | `B3A3D16EF5F5B6D0F0979AAE73B3C8ACD8152CCEB4C56D120585E7AD968E5876` |
+
+The three explicitly measured same-area 4,096-pixel current-canonical shapes, 64 x 64, 16 x 256,
+and 256 x 16, all pass the command-only core-latency and blocking-GC gates. This is limited
+evidence that, at 4,096 total pixels, a maximum axis of 256 and either tested aspect orientation
+did not break those gates in these runs. Even together with the failing 128 x 128 and 256 x 256
+square results, it does not prove area, axis, or shape causality and does not establish or
+interpolate a threshold. It does not select a representation, candidate, or product maximum or
+cap; prove retained memory/PSS; cover the complete physical matrix, post-cap churn, render, or
+compositor timing; or release the P2-02 or representation-dependent P2-04 holds. ADR 0005 remains
+`proposed` and the PR remains Draft.
+
 ### Required workload matrix
 
 - square and rectangular canvases, with axis and total-pixel candidates varied separately;
@@ -2596,7 +2687,11 @@ core-latency condition at 256 x 256 while passing correctness and isolated block
 The separately fixed refreshed-build 64 x 64 command tail passes both core-latency and blocking-GC
 conditions. The fixed refreshed-build 128 x 128 command tail passes correctness and blocking-GC
 conditions but fails core latency, as does the prior 256 x 256 point. This makes 64 x 64 the largest
-passing point among those three explicit current-path measurements, not a supported maximum.
+passing square among those three explicit current-path square measurements, not a supported
+maximum. The separately fixed 16 x 256 and 256 x 16 tails also pass correctness, core latency, and
+blocking GC. Together with 64 x 64, all three explicitly measured same-area 4,096-pixel shapes
+pass, which is limited evidence for those exact runs rather than a causal axis, area, or shape
+threshold.
 
 Physical screening still does not include the complete physical workload matrix, candidate-
 specific retained memory/projection or peak headroom, post-cap churn, or compositor correlation.
