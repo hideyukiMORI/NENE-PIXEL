@@ -223,8 +223,9 @@ internal object P2AndroidMemoryInvocationReport {
         check(checkpoints.map(P2AndroidPhysicalCheckpoint::name) == listOf("before_baseline", "after_retained"))
         checkpoints.first().assertInitialValidity()
         checkpoints.last().assertCompatibleWith(checkpoints.first())
-        validateMemory(input.observations.memory.baseline)
-        validateMemory(input.observations.memory.retained)
+        val runtimeMaxMemoryBytes = Runtime.getRuntime().maxMemory()
+        validateCheckpointMemory(input.observations.memory.baseline, runtimeMaxMemoryBytes)
+        validateCheckpointMemory(input.observations.memory.retained, runtimeMaxMemoryBytes)
         val prepared = input.observations.prepared
         check(prepared.owner.changeSets.size == P2AndroidMemoryProtocol.HISTORY_ENTRIES)
         check(prepared.owner.finalDocumentState.revision.value == P2AndroidMemoryProtocol.FINAL_REVISION)
@@ -237,12 +238,11 @@ internal object P2AndroidMemoryInvocationReport {
         check(prepared.owner.projection.mismatchCount(P2AndroidMemoryProtocol.OPAQUE_WHITE_ARGB) == 0)
     }
 
-    private fun validateMemory(memory: PostGcMemorySnapshot) {
-        check(memory.javaHeapUsedBytes > 0L)
-        check(memory.javaHeapCommittedBytes >= memory.javaHeapUsedBytes)
-        check(memory.totalPssKilobytes > 0)
-        check(memory.dalvikPssKilobytes >= 0 && memory.nativePssKilobytes >= 0 && memory.otherPssKilobytes >= 0)
-        check(memory.totalPrivateDirtyKilobytes >= 0 && memory.totalSharedDirtyKilobytes >= 0)
+    internal fun validateCheckpointMemory(
+        memory: PostGcMemorySnapshot,
+        runtimeMaxMemoryBytes: Long,
+    ) {
+        P2AndroidMemoryContractValidation.validateMemory(memory, runtimeMaxMemoryBytes)
     }
 
     private fun argbHex(argb: Int): String =

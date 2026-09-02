@@ -57,7 +57,7 @@ internal object P2AndroidMemoryAggregateReport {
         val individualPssPass =
             PSS_INDIVIDUAL_MULTIPLIER * run.pairedPssDeltaKilobytes <=
                 PSS_LIMIT_MULTIPLIER * memoryClassKilobytes
-        val heapPass = HEAP_MULTIPLIER * runtime.retained.javaHeapUsedBytes <= runtime.runtimeMaxMemoryBytes
+        val heapPass = steadyArtLiveHeapPass(runtime.retained.javaHeapUsedBytes, runtime.runtimeMaxMemoryBytes)
         return P2AndroidMemoryCsv.row(
             "record_type" to "run",
             "name" to "run_${run.process.runIndex.toString().padStart(2, '0')}",
@@ -142,7 +142,7 @@ internal object P2AndroidMemoryAggregateReport {
                             PSS_INDIVIDUAL_MULTIPLIER * delta <= PSS_LIMIT_MULTIPLIER * memoryClassKilobytes
                         },
                     steadyArtLiveHeapPass =
-                        retainedHeap.all { used -> HEAP_MULTIPLIER * used <= runtime.runtimeMaxMemoryBytes },
+                        retainedHeap.all { used -> steadyArtLiveHeapPass(used, runtime.runtimeMaxMemoryBytes) },
                 ),
         )
     }
@@ -174,6 +174,7 @@ internal object P2AndroidMemoryAggregateReport {
         P2AndroidMemoryProtocol.validateEnvironment(input.environment)
         check(input.runs.size == P2AndroidMemoryProtocol.RUN_COUNT)
         check(input.runs.map { run -> run.process.runIndex } == P2AndroidMemoryProtocol.RUN_INDEX_RANGE.toList())
+        validateMemoryInputs(input.runs.map(P2AndroidMemoryAuditedRun::runtime))
         check(
             input.runs
                 .map { run -> run.artifact.fileName }
@@ -191,6 +192,18 @@ internal object P2AndroidMemoryAggregateReport {
         }
     }
 
+    internal fun validateMemoryInputs(runtimes: List<P2AndroidMemoryRawRuntime>) {
+        runtimes.forEach { runtime ->
+            P2AndroidMemoryContractValidation.validateMemory(runtime.baseline, runtime.runtimeMaxMemoryBytes)
+            P2AndroidMemoryContractValidation.validateMemory(runtime.retained, runtime.runtimeMaxMemoryBytes)
+        }
+    }
+
+    internal fun steadyArtLiveHeapPass(
+        usedBytes: Long,
+        runtimeMaxMemoryBytes: Long,
+    ): Boolean = usedBytes <= runtimeMaxMemoryBytes / 2L
+
     private fun Boolean.status(): String = if (this) PASS else FAIL
 
     private const val PASS: String = "pass"
@@ -201,7 +214,6 @@ internal object P2AndroidMemoryAggregateReport {
     private const val PSS_MEDIAN_MULTIPLIER: Long = 2L
     private const val PSS_INDIVIDUAL_MULTIPLIER: Long = 5L
     private const val PSS_LIMIT_MULTIPLIER: Long = 3L
-    private const val HEAP_MULTIPLIER: Long = 2L
     private const val RUN_BOUNDARY: String =
         "paired baseline and retained post-GC observations from one immutable instrumentation invocation"
     private const val AGGREGATE_BOUNDARY: String =

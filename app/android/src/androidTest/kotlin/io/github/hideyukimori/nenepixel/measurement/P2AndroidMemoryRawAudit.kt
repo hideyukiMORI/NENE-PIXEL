@@ -101,6 +101,14 @@ internal object P2AndroidMemoryRawAudit {
         val physical = validatePhysical(rows)
         validateEntries(rows)
         val memoryRows = rows.filterType("memory_checkpoint")
+        validateMemoryRowSequence(
+            memoryRows.map { row ->
+                P2AndroidMemoryCheckpointRowIdentity(
+                    name = row.required("name"),
+                    index = row.requiredInt("memory_checkpoint_index"),
+                )
+            },
+        )
         val baseline = memoryRows.single { row -> row.required("name") == "baseline_post_gc" }
         val retained = memoryRows.single { row -> row.required("name") == "retained_post_gc" }
         val runtime = runtime(baseline, retained, metadata)
@@ -209,18 +217,7 @@ internal object P2AndroidMemoryRawAudit {
             metadata.getValue("retained_workload") ==
                 P2AndroidMemoryProtocol.RETAINED_WORKLOAD_DESCRIPTOR,
         )
-        check(metadata.getValue("entry_sequence") == P2AndroidMemoryProtocol.ENTRY_SEQUENCE_DESCRIPTOR)
-        check(metadata.getValue("gc_protocol") == P2AndroidMemoryProtocol.GC_PROTOCOL_DESCRIPTOR)
-        check(metadata.getValue("capture_sequence") == P2AndroidMemoryProtocol.CAPTURE_SEQUENCE_DESCRIPTOR)
-        check(metadata.getValue("retained_boundary") == P2AndroidMemoryProtocol.RETAINED_OWNER_DESCRIPTOR)
-        check(
-            metadata.getValue("projection_boundary") ==
-                P2AndroidMemoryProtocol.PROJECTION_BOUNDARY_DESCRIPTOR,
-        )
-        check(
-            metadata.getValue("private_patch_boundary") ==
-                P2AndroidMemoryProtocol.PRIVATE_PATCH_BOUNDARY_DESCRIPTOR,
-        )
+        validateFixedMetadata(metadata)
         check(metadata.getValue("post_gc_churn_status") == P2AndroidMemoryProtocol.CHURN_STATUS)
         UNEVALUATED_METADATA_NAMES.forEach { name -> check(metadata.getValue(name) == UNEVALUATED) }
         return metadata
@@ -276,11 +273,13 @@ internal object P2AndroidMemoryRawAudit {
         val retained = retainedRow.memorySnapshot()
         val maxMemory = baselineRow.requiredLong("runtime_max_memory_bytes")
         val memoryClass = baselineRow.requiredInt("memory_class_mib")
-        check(maxMemory > 0L && memoryClass > 0)
+        check(memoryClass > 0)
         check(retainedRow.requiredLong("runtime_max_memory_bytes") == maxMemory)
         check(retainedRow.requiredInt("memory_class_mib") == memoryClass)
         check(metadata.getValue("runtime_max_memory_bytes") == maxMemory.toString())
         check(metadata.getValue("memory_class_mib") == memoryClass.toString())
+        validateCheckpointMemory(baseline, maxMemory)
+        validateCheckpointMemory(retained, maxMemory)
         check(baselineRow.required("correctness_status") == PASS)
         check(retainedRow.required("correctness_status") == PASS)
         check(baselineRow.required("boundary") == P2AndroidMemoryProtocol.BASELINE_BOUNDARY)
@@ -351,11 +350,22 @@ internal object P2AndroidMemoryRawAudit {
                 totalPrivateDirtyKilobytes = requiredInt("total_private_dirty_kb"),
                 totalSharedDirtyKilobytes = requiredInt("total_shared_dirty_kb"),
             )
-        check(memory.javaHeapUsedBytes > 0L && memory.javaHeapCommittedBytes >= memory.javaHeapUsedBytes)
-        check(memory.totalPssKilobytes > 0)
-        check(memory.dalvikPssKilobytes >= 0 && memory.nativePssKilobytes >= 0 && memory.otherPssKilobytes >= 0)
-        check(memory.totalPrivateDirtyKilobytes >= 0 && memory.totalSharedDirtyKilobytes >= 0)
         return memory
+    }
+
+    internal fun validateMemoryRowSequence(rows: List<P2AndroidMemoryCheckpointRowIdentity>) {
+        P2AndroidMemoryContractValidation.validateMemoryRowSequence(rows)
+    }
+
+    internal fun validateFixedMetadata(metadata: Map<String, String>) {
+        P2AndroidMemoryContractValidation.validateFixedMetadata(metadata)
+    }
+
+    internal fun validateCheckpointMemory(
+        memory: PostGcMemorySnapshot,
+        runtimeMaxMemoryBytes: Long,
+    ) {
+        P2AndroidMemoryContractValidation.validateMemory(memory, runtimeMaxMemoryBytes)
     }
 
     private fun P2AndroidPhysicalCheckpoint.aggregateSignature(): String =
