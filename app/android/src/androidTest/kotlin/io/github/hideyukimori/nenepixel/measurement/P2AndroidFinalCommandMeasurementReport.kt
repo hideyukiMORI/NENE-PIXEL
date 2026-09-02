@@ -59,6 +59,11 @@ internal object P2AndroidFinalCommandMeasurementReport {
         return values.mapValues { (name, value) -> metadataRow(name, value) }
     }
 
+    internal fun contractSampleRow(
+        input: P2AndroidFinalCommandReportInput,
+        sample: P2AndroidFinalCommandSample,
+    ): String = sampleRow(input, sample)
+
     private fun metadataRows(input: P2AndroidFinalCommandReportInput): List<String> {
         val environment = input.environment
         val identity = input.identity
@@ -164,8 +169,8 @@ internal object P2AndroidFinalCommandMeasurementReport {
             "record_type" to "sample",
             "name" to sample.spec.kind.metricName,
             *identityValues(input).toTypedArray(),
-            "canvas_width" to sample.spec.canvasEdge,
-            "canvas_height" to sample.spec.canvasEdge,
+            "canvas_width" to sample.spec.canvasWidth,
+            "canvas_height" to sample.spec.canvasHeight,
             "position_count" to sample.spec.positionCount,
             "warmup_iterations" to input.plan.warmupIterations,
             "sample_count" to input.plan.samplesPerWorkload,

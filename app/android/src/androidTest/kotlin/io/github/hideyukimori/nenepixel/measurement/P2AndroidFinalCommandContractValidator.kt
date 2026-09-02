@@ -84,7 +84,13 @@ internal object P2AndroidFinalCommandContractValidator {
         } else {
             check(outcome.changeSetBeforeRevision == if (undo) 1L else 0L)
             check(outcome.changeSetAfterRevision == if (undo) 0L else 1L)
-            check(outcome.renderInvalidation == plan.fullCanvasRegion)
+            val expectedRegion =
+                if (sample.spec.kind == P2CommandWorkloadKind.SparseApply) {
+                    plan.sparseRegion
+                } else {
+                    plan.fullCanvasRegion
+                }
+            check(outcome.renderInvalidation == expectedRegion)
         }
     }
 

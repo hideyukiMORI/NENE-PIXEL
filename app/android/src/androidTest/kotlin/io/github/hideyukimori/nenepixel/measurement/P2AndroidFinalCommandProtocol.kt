@@ -56,7 +56,11 @@ internal object P2AndroidFinalCommandProtocol {
         check(plan.samplesPerWorkload == SAMPLES_PER_WORKLOAD)
         check(plan.specs.size == WORKLOAD_COUNT)
         check(plan.specs.map(P2CommandWorkloadSpec::kind) == P2CommandWorkloadKind.entries)
-        check(plan.specs.all { spec -> spec.canvasEdge == plan.canvasEdge })
+        check(
+            plan.specs.all { spec ->
+                spec.canvasWidth == plan.canvasWidth && spec.canvasHeight == plan.canvasHeight
+            },
+        )
         check(
             plan.totalSampleCount % P2AndroidPhysicalCheckpointPolicy.CHECKPOINT_INTERVAL == 0,
         ) { "Final command sample count must end on a physical checkpoint boundary." }
@@ -72,7 +76,8 @@ internal object P2AndroidFinalCommandProtocol {
                     ),
                 workload =
                     P2AndroidFinalCommandPlan.Workload(
-                        canvasEdge = 256,
+                        canvasWidth = 256,
+                        canvasHeight = 256,
                         warmupIterations = WARMUP_ITERATIONS,
                         samplesPerWorkload = SAMPLES_PER_WORKLOAD,
                         schema = SCHEMA,
@@ -92,7 +97,8 @@ internal object P2AndroidFinalCommandProtocol {
                     ),
                 workload =
                     P2AndroidFinalCommandPlan.Workload(
-                        canvasEdge = 64,
+                        canvasWidth = 64,
+                        canvasHeight = 64,
                         warmupIterations = WARMUP_ITERATIONS,
                         samplesPerWorkload = SAMPLES_PER_WORKLOAD,
                         schema = SCHEMA,
@@ -112,7 +118,8 @@ internal object P2AndroidFinalCommandProtocol {
                     ),
                 workload =
                     P2AndroidFinalCommandPlan.Workload(
-                        canvasEdge = 128,
+                        canvasWidth = 128,
+                        canvasHeight = 128,
                         warmupIterations = WARMUP_ITERATIONS,
                         samplesPerWorkload = SAMPLES_PER_WORKLOAD,
                         schema = SCHEMA,
@@ -121,6 +128,48 @@ internal object P2AndroidFinalCommandProtocol {
                     P2AndroidFinalCommandPlan.Output(
                         outputIdentity = "device-core-current-128-square",
                         relativePath = "p2-measurements/p2-android-final-command-128-square.csv",
+                        publicationPolicy = P2AndroidFinalCommandPlan.PublicationPolicy.FailIfExists,
+                    ),
+            ),
+            P2AndroidFinalCommandPlan(
+                identity =
+                    P2AndroidFinalCommandPlan.Identity(
+                        candidateId = "current-canonical-command-16x256-rectangle",
+                        runIndex = RUN_INDEX,
+                    ),
+                workload =
+                    P2AndroidFinalCommandPlan.Workload(
+                        canvasWidth = 16,
+                        canvasHeight = 256,
+                        warmupIterations = WARMUP_ITERATIONS,
+                        samplesPerWorkload = SAMPLES_PER_WORKLOAD,
+                        schema = SCHEMA,
+                    ),
+                output =
+                    P2AndroidFinalCommandPlan.Output(
+                        outputIdentity = "device-core-current-16x256-rectangle",
+                        relativePath = "p2-measurements/p2-android-final-command-16x256-rectangle.csv",
+                        publicationPolicy = P2AndroidFinalCommandPlan.PublicationPolicy.FailIfExists,
+                    ),
+            ),
+            P2AndroidFinalCommandPlan(
+                identity =
+                    P2AndroidFinalCommandPlan.Identity(
+                        candidateId = "current-canonical-command-256x16-rectangle",
+                        runIndex = RUN_INDEX,
+                    ),
+                workload =
+                    P2AndroidFinalCommandPlan.Workload(
+                        canvasWidth = 256,
+                        canvasHeight = 16,
+                        warmupIterations = WARMUP_ITERATIONS,
+                        samplesPerWorkload = SAMPLES_PER_WORKLOAD,
+                        schema = SCHEMA,
+                    ),
+                output =
+                    P2AndroidFinalCommandPlan.Output(
+                        outputIdentity = "device-core-current-256x16-rectangle",
+                        relativePath = "p2-measurements/p2-android-final-command-256x16-rectangle.csv",
                         publicationPolicy = P2AndroidFinalCommandPlan.PublicationPolicy.FailIfExists,
                     ),
             ),

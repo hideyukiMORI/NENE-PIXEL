@@ -11,7 +11,8 @@ internal data class P2AndroidFinalCommandPlan(
     )
 
     data class Workload(
-        val canvasEdge: Int,
+        val canvasWidth: Int,
+        val canvasHeight: Int,
         val warmupIterations: Int,
         val samplesPerWorkload: Int,
         val schema: String,
@@ -34,8 +35,11 @@ internal data class P2AndroidFinalCommandPlan(
     val runIndex: Int
         get() = identity.runIndex
 
-    val canvasEdge: Int
-        get() = workload.canvasEdge
+    val canvasWidth: Int
+        get() = workload.canvasWidth
+
+    val canvasHeight: Int
+        get() = workload.canvasHeight
 
     val warmupIterations: Int
         get() = workload.warmupIterations
@@ -56,7 +60,7 @@ internal data class P2AndroidFinalCommandPlan(
         get() = workload.schema
 
     val specs: List<P2CommandWorkloadSpec>
-        get() = P2CommandWorkloadCatalog.squareSpecs(canvasEdge)
+        get() = P2CommandWorkloadCatalog.shapeSpecs(canvasWidth, canvasHeight)
 
     val workloadNames: List<String>
         get() = specs.map { spec -> spec.kind.metricName }
@@ -73,8 +77,14 @@ internal data class P2AndroidFinalCommandPlan(
                 totalSampleCount / P2AndroidPhysicalCheckpointPolicy.CHECKPOINT_INTERVAL
 
     val canvasMetadata: String
-        get() = "${canvasEdge}x$canvasEdge"
+        get() = "${canvasWidth}x$canvasHeight"
 
     val fullCanvasRegion: P2CommandRegionDescriptor
-        get() = P2CommandRegionDescriptor(0, 0, canvasEdge, canvasEdge)
+        get() = P2CommandRegionDescriptor(0, 0, canvasWidth, canvasHeight)
+
+    val sparseRegion: P2CommandRegionDescriptor
+        get() {
+            val edge = minOf(canvasWidth, canvasHeight)
+            return P2CommandRegionDescriptor(0, 0, edge, edge)
+        }
 }

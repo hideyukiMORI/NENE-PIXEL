@@ -38,10 +38,16 @@ internal enum class P2CommandWorkloadKind(
 
 internal data class P2CommandWorkloadSpec(
     val kind: P2CommandWorkloadKind,
-    val canvasEdge: Int,
+    val canvasWidth: Int,
+    val canvasHeight: Int,
 ) {
     val positionCount: Int
-        get() = if (kind == P2CommandWorkloadKind.SparseApply) canvasEdge else canvasEdge * canvasEdge
+        get() =
+            if (kind == P2CommandWorkloadKind.SparseApply) {
+                minOf(canvasWidth, canvasHeight)
+            } else {
+                canvasWidth * canvasHeight
+            }
 }
 
 internal object P2CommandWorkloadCatalog {
@@ -52,7 +58,15 @@ internal object P2CommandWorkloadCatalog {
 
     fun squareSpecs(edge: Int): List<P2CommandWorkloadSpec> {
         require(edge > 0) { "A square workload edge must be positive." }
-        return P2CommandWorkloadKind.entries.map { kind -> P2CommandWorkloadSpec(kind, edge) }
+        return shapeSpecs(edge, edge)
+    }
+
+    fun shapeSpecs(
+        width: Int,
+        height: Int,
+    ): List<P2CommandWorkloadSpec> {
+        require(width > 0 && height > 0) { "Workload width and height must be positive." }
+        return P2CommandWorkloadKind.entries.map { kind -> P2CommandWorkloadSpec(kind, width, height) }
     }
 }
 
@@ -167,7 +181,7 @@ private object WorkloadFactory {
         spec: P2CommandWorkloadSpec,
         sparse: Boolean,
     ): PreparedCommandWorkload {
-        val values = CoreMeasurementValues(spec.canvasEdge)
+        val values = CoreMeasurementValues(spec.canvasWidth, spec.canvasHeight)
         val initial = values.document(Revision.initial(), values.whitePixels())
         val path = if (sparse) values.diagonalPath() else values.densePath()
         val expectedPixels = if (sparse) values.diagonalRedPixels() else values.redPixels()
@@ -180,12 +194,12 @@ private object WorkloadFactory {
             beforeRevision = 0L,
             afterRevision = 1L,
             history = HistoryAvailability.UndoAvailable,
-            renderInvalidation = values.fullRegion(),
+            renderInvalidation = if (sparse) values.diagonalRegion() else values.fullRegion(),
         )
     }
 
     fun noOp(spec: P2CommandWorkloadSpec): PreparedCommandWorkload {
-        val values = CoreMeasurementValues(spec.canvasEdge)
+        val values = CoreMeasurementValues(spec.canvasWidth, spec.canvasHeight)
         val initial = values.document(Revision.initial(), values.redPixels())
         val gateway = CommandGateway.create(initial)
         return prepared(
@@ -202,7 +216,7 @@ private object WorkloadFactory {
     }
 
     fun undo(spec: P2CommandWorkloadSpec): PreparedCommandWorkload {
-        val values = CoreMeasurementValues(spec.canvasEdge)
+        val values = CoreMeasurementValues(spec.canvasWidth, spec.canvasHeight)
         val initial = values.document(Revision.initial(), values.whitePixels())
         val gateway = CommandGateway.create(initial)
         gateway
@@ -222,7 +236,7 @@ private object WorkloadFactory {
     }
 
     fun redo(spec: P2CommandWorkloadSpec): PreparedCommandWorkload {
-        val values = CoreMeasurementValues(spec.canvasEdge)
+        val values = CoreMeasurementValues(spec.canvasWidth, spec.canvasHeight)
         val initial = values.document(Revision.initial(), values.whitePixels())
         val gateway = CommandGateway.create(initial)
         gateway
@@ -270,12 +284,13 @@ private object WorkloadFactory {
 }
 
 private class CoreMeasurementValues(
-    canvasEdge: Int,
+    canvasWidth: Int,
+    canvasHeight: Int,
 ) {
     private val canvas: CanvasSize =
         CanvasSize.create(
-            CanvasWidth.create(canvasEdge).requiredValue(),
-            CanvasHeight.create(canvasEdge).requiredValue(),
+            CanvasWidth.create(canvasWidth).requiredValue(),
+            CanvasHeight.create(canvasHeight).requiredValue(),
         )
     private val documentId: DocumentId = DocumentId.create(DOCUMENT_ID).requiredValue()
     private val white: PixelColor = color(CHANNEL_MAX, CHANNEL_MAX, CHANNEL_MAX, CHANNEL_MAX)
@@ -291,7 +306,7 @@ private class CoreMeasurementValues(
         }
 
     fun diagonalPath(): List<PixelPosition> =
-        List(canvas.width.value) { coordinate -> position(coordinate, coordinate) }
+        List(minOf(canvas.width.value, canvas.height.value)) { coordinate -> position(coordinate, coordinate) }
 
     fun densePath(): List<PixelPosition> =
         List(canvas.pixelCount.toInt()) { index ->
@@ -320,6 +335,16 @@ private class CoreMeasurementValues(
     fun revision(value: Long): Revision = Revision.create(value).requiredValue()
 
     fun fullRegion(): PixelRegion = PixelRegion.create(canvas, position(0, 0), canvas).requiredValue()
+
+    fun diagonalRegion(): PixelRegion {
+        val edge = minOf(canvas.width.value, canvas.height.value)
+        val size =
+            CanvasSize.create(
+                CanvasWidth.create(edge).requiredValue(),
+                CanvasHeight.create(edge).requiredValue(),
+            )
+        return PixelRegion.create(canvas, position(0, 0), size).requiredValue()
+    }
 
     private fun position(
         x: Int,
