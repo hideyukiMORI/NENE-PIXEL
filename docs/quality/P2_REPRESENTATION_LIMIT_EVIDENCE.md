@@ -2346,6 +2346,147 @@ interpolate an unmeasured boundary or establish a representation choice, support
 or product cap. It also does not cover a candidate, retained memory/PSS, the complete physical
 matrix, render timing, or compositor presentation.
 
+### Pre-fixed refreshed-build current-canonical 4K rectangular final-command tails contract
+
+Before either rectangular observation, the next command-only slice is fixed as the two 4,096-pixel
+rectangles already present beside `64x64` in the canonical host shape matrix: `16x256` and
+`256x16`. The host `P2CandidatePathKind.Diagonal` definition produces exactly
+`min(width,height)` positions `(i,i)`, so both rectangular sparse workloads use the 16 positions
+`(0,0)` through `(15,15)`. This is an aspect-ratio comparison at one fixed area, not an
+interpolation from a square or a claim about another shape.
+
+Implementation must generalize the one existing final-command plan, workload, measurement,
+correctness, report, validation, and publication path from a square `canvasEdge` to an explicit
+`shape(width,height)`. It must not copy or fork any of those paths. Existing 64 x 64, 128 x 128,
+and 256 x 256 candidate routing, geometry, output identity, publication policy, and observable
+behavior remain unchanged. The schema remains
+`nene-pixel-p2-android-final-command-measurement-v1`; there is no production, API, dependency,
+Gradle, or schema change.
+
+Each rectangle is a separate immutable run-1 identity:
+
+| Shape | Candidate ID | Output identity | Immutable on-device CSV |
+| --- | --- | --- | --- |
+| 16 x 256 | `current-canonical-command-16x256-rectangle` | `device-core-current-16x256-rectangle` | `files/p2-measurements/p2-android-final-command-16x256-rectangle.csv` |
+| 256 x 16 | `current-canonical-command-256x16-rectangle` | `device-core-current-256x16-rectangle` | `files/p2-measurements/p2-android-final-command-256x16-rectangle.csv` |
+
+The two shapes must never share a batch, report, staged file, final artifact, percentile
+calculation, PASS/FAIL gate, or cleanup target. Completion or failure of one shape has no effect on
+the other shape's result. The Android-test publication policy for each is `FailIfExists`; every
+on-device output must be absent before its run and is never overwritten.
+
+For each shape, the caller supplies one exact full 40-character source commit that built both
+installed APKs. The fixed inputs are app APK
+`app/android/build/outputs/apk/debug/android-debug.apk`, test APK
+`app/android/build/outputs/apk/androidTest/debug/android-debug-androidTest.apk`, application
+package `io.github.hideyukimori.nenepixel`, instrumentation package
+`io.github.hideyukimori.nenepixel.test`, runner `androidx.test.runner.AndroidJUnitRunner`, and test
+class `io.github.hideyukimori.nenepixel.measurement.P2AndroidFinalCommandMeasurementTest`. Each
+shape uses exactly these runner arguments, substituting only its fixed candidate ID:
+
+- `nene.p2.physicalProfileId=NENE-P2-ALLDOCUBE-IPL80MP-A16-API36`;
+- `nene.p2.warmupIterations=5`;
+- `nene.p2.sampleCount=200`;
+- `nene.p2.candidateId=current-canonical-command-16x256-rectangle` or
+  `nene.p2.candidateId=current-canonical-command-256x16-rectangle`, matching that batch;
+- `nene.p2.runIndex=1`; and
+- `nene.p2.sourceCommit=<that batch's fixed full source commit>`.
+
+No auxiliary-emulator argument is present. The shape-specific tool artifact records the exact
+source commit and both APK paths, byte lengths, and SHA-256 values before installation. The
+production `src/main` diff from source commit
+`af6e954cc343593e507b238a0fd121451c5017e6` to each new source commit must be empty across
+`core/domain/src/main`, `core/pixel-engine/src/main`, `core/application/src/main`,
+`presentation/compose/src/main`, and `app/android/src/main`; otherwise that batch is invalid.
+
+Each run is valid only with build fingerprint
+`ALLDOCUBE/iPlay80miniPro/T830:16/BP2A.250605.031.A3/94110:user/release-keys`, security patch
+2026-06-05, display mode 1 at 1200 x 1920 and 90 Hz, `Runtime.maxMemory()` 268,435,456 bytes, and
+`ActivityManager.memoryClass` 256 MiB. These exact values must appear in metadata or checkpoints.
+The metadata `canvas` value must encode the exact ordered `widthxheight`, and every sample must
+carry that width and height independently in the existing `canvas_width` and `canvas_height`
+columns. An edge swap, square fallback, or disagreement with the candidate identity invalidates
+the batch.
+
+The workload order is `sparse_apply_stroke`, `dense_apply_stroke`,
+`dense_same_color_no_op`, `dense_undo`, and `dense_redo`. Each workload has five untimed warmups
+and 200 measured samples. Every iteration creates a fresh `PreparedCommandWorkload` and makes
+exactly one `CommandGateway.execute` call. The unchanged v1 boundary captures one post-GC process
+baseline before measured samples; workload preparation, heap/PSS and ART observations, and
+correctness checks remain outside direct execution latency. Local indices are 1 through 200 per
+workload and global indices are unique 1 through 1,000 in fixed order. Nearest-rank p95 uses rank
+190 and p99 rank 198 from all 200 rows with no interpolation, clamp, exclusion, outlier removal,
+or discard.
+
+Both sparse workloads have `position_count=16`, using only the canonical `(i,i)` positions for
+`i=0..15`. Their applied result is revision 1 with `undo_available`, public revisions 0 to 1, and
+affected invalidation `(0,0,16,16)` for both shapes. That sparse region is not full-canvas
+invalidation for either rectangle. Each dense, same-color no-op, undo, and redo workload has
+`position_count=4096`. Dense apply is `applied` at revision 1 with `undo_available` and public
+revisions 0 to 1. Undo is `applied` at revision 0 with `redo_available` and public revisions 1 to
+0; redo is `applied` at revision 1 with `undo_available` and public revisions 0 to 1. Dense apply,
+undo, and redo use full invalidation `(0,0,16,256)` for the 16 x 256 batch and
+`(0,0,256,16)` for the 256 x 16 batch. The same-color no-op is
+`rejected_no_effective_change` at revision 0 with history `none`, no public `ChangeSet`, no
+invalidation, and unchanged state identity.
+
+Every sample retains the v1 exact state, complete pixels, revision, history, result kind, public
+`ChangeSet`, invalidation, and no-effect identity checks. Sparse verification must also prove that
+only the 16 diagonal pixels changed; dense verification covers all 4,096 positions. Any position,
+pixel, ordering, count, revision, history, result, `ChangeSet`, invalidation, or identity mismatch
+invalidates only that shape's batch.
+
+The existing physical checkpoint plan applies separately to each report: `before_samples`, every
+25th global sample through `after_1000`, and a distinct `after_samples`, for exactly 42 ordered
+checkpoints. Each artifact contains exactly 45 metadata rows, one process baseline, 42
+checkpoints, and 1,000 samples. A display mode or physical-dimension change, refresh other than
+90 Hz, device-wide thermal status above 1, enabled power saving, non-interactive display, lost USB
+power, or unavailable battery data invalidates that batch. Core latency passes per shape only when
+every workload has p95 <= 8.0 ms and p99 <= 16.67 ms. Blocking GC passes per shape only when at
+least 950 of its 1,000 operations have zero ART blocking-GC-count increment; logcat neither
+replaces nor adds a separate GC condition.
+
+The distinct immutable host targets are:
+
+| Shape | CSV | Tool identity | Scoped logcat |
+| --- | --- | --- | --- |
+| 16 x 256 | `build/reports/p2/representation-limits/device-core-current-16x256-rectangle.csv` | `build/reports/p2/representation-limits/device-core-current-16x256-rectangle-tool.txt` | `build/reports/p2/representation-limits/device-core-current-16x256-rectangle-logcat.txt` |
+| 256 x 16 | `build/reports/p2/representation-limits/device-core-current-256x16-rectangle.csv` | `build/reports/p2/representation-limits/device-core-current-256x16-rectangle-tool.txt` | `build/reports/p2/representation-limits/device-core-current-256x16-rectangle-logcat.txt` |
+
+For each shape, one unique batch stages its three host files while all three corresponding final
+targets remain absent. Publication is allowed only after an independent deterministic audit of
+that one shape validates the CSV schema, identity, row counts, ordering, checkpoints, exact
+profile, source and APK identity, production diff, percentiles, ART conditions, correctness,
+shape-specific invalidation, log scope, and zero fatal exceptions, fatal signals, ANRs, or untyped
+instrumentation failures. Thermal log matches remain diagnostic; checkpoints are authoritative.
+Before the first move, all three shape-specific final targets are checked absent. Each
+no-overwrite move must preserve staged bytes and SHA-256. A partial publication is rejected and
+every moved member of that batch is renamed with one shared `.invalid-<batch-id>` suffix.
+
+A rejected attempt removes only its exact shape-specific on-device output after diagnostics are
+retained. After successful hash-matched extraction, only that batch's exact temporary device files
+are removed and the recorded original stay-awake value is restored and verified. Cleanup or
+quarantine must not address the other rectangle or any accepted artifact.
+
+All accepted 64-square, 128-square, and 256-square artifacts remain immutable. In particular, the
+64-square CSV/tool/logcat retain respectively 649,469 /
+`F9CDEDA09E7901BACCC58BC39094FEC5699FBC0ACBC11C91C40502EDFC3932C6`, 4,279 /
+`D0CAF501AB89987EB499D164CDF8A48CDAE5F413BD761C22331858F8A3B267D3`, and 220,962 /
+`D1515A3B10252D0B36B174407F025D700745B12890AD6C33097529E3DA70B79F` bytes/SHA-256. The
+128-square CSV/tool/logcat retain respectively 658,096 /
+`0A075A06E4F87AE3B4AF3D75DA70C17A0F86AD797D665B7F1B91EEF9A5357D11`, 6,008 /
+`4AA6E81B7A283C055E05259B744EDFF94EE6AB89AB9F07BEB96C04DA0509A958`, and 160,933 /
+`3E678B5AF6449EF33A5E2801E3DBFECD25BF2F455EAFCB5F5BB9F78EC368C12D` bytes/SHA-256. The
+256-square `device-core.csv` retains 661,245 bytes and SHA-256
+`E2FD1D427DE191F14A8194FE4CF5CE5A929A388B7A13E439E731F0AF8180FCAD`.
+
+These claims and holds are fixed before either observation. Until its own valid audited result is
+recorded, neither rectangle makes a PASS claim. A passing rectangle covers only one
+current-canonical 4K command run and does not decide the other rectangle. ADR 0005 remains
+`proposed`, the PR remains Draft, and representation, product-limit, retained-memory/PSS,
+candidate-physical, complete-physical-matrix, render, compositor, P2-02, and
+representation-dependent P2-04 holds remain in force regardless of either outcome.
+
 ### Required workload matrix
 
 - square and rectangular canvases, with axis and total-pixel candidates varied separately;
@@ -2386,6 +2527,12 @@ boundary. Planned ignored paths are fixed as follows before collection:
 | `build/reports/p2/representation-limits/device-core-current-128-square.csv` | immutable refreshed-build 128-square final-command tail observations |
 | `build/reports/p2/representation-limits/device-core-current-128-square-tool.txt` | source/APK/package/runner/argument/device/time/stay-awake identity for the 128-square batch |
 | `build/reports/p2/representation-limits/device-core-current-128-square-logcat.txt` | time-scoped fatal, ANR, thermal, and instrumentation diagnostics for the 128-square batch |
+| `build/reports/p2/representation-limits/device-core-current-16x256-rectangle.csv` | immutable refreshed-build 16 x 256 final-command tail observations |
+| `build/reports/p2/representation-limits/device-core-current-16x256-rectangle-tool.txt` | source/APK/package/runner/argument/device/time/stay-awake identity for the 16 x 256 batch |
+| `build/reports/p2/representation-limits/device-core-current-16x256-rectangle-logcat.txt` | time-scoped fatal, ANR, thermal, and instrumentation diagnostics for the 16 x 256 batch |
+| `build/reports/p2/representation-limits/device-core-current-256x16-rectangle.csv` | immutable refreshed-build 256 x 16 final-command tail observations |
+| `build/reports/p2/representation-limits/device-core-current-256x16-rectangle-tool.txt` | source/APK/package/runner/argument/device/time/stay-awake identity for the 256 x 16 batch |
+| `build/reports/p2/representation-limits/device-core-current-256x16-rectangle-logcat.txt` | time-scoped fatal, ANR, thermal, and instrumentation diagnostics for the 256 x 16 batch |
 | `build/reports/p2/representation-limits/device-memory-run-01.csv` through `device-memory-run-05.csv` | one immutable PSS/retained/post-GC checkpoint invocation each; individual checksums required |
 | `build/reports/p2/representation-limits/device-memory.csv` | deterministic aggregate over the five run-indexed memory artifacts |
 | `build/reports/p2/representation-limits/device-current-peak-headroom.csv` | immutable cross-artifact current-canonical peak-headroom audit |
