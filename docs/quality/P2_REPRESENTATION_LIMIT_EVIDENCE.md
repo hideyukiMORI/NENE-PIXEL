@@ -16,7 +16,7 @@ Current evidence state:
 | --- | --- | --- |
 | Immutable M1 sparse host reproduction | complete for the rerun recorded below | starting evidence only |
 | Current-main P2 representation route | current canonical host route, preliminary physical command screening, and one final-protocol affected-frame batch complete | incomplete; full physical matrix, retained heap/ART/PSS, and compositor correlation required |
-| Analytical storage candidates | flat packed and tiled/COW square/rectangular snapshot/apply, dense native patch/inverse, raw duplicate/no-op/reference-clear, and retained analytical-history screening recorded; palette U8 contract tested | incomplete; retained analytical matrix complete, while sparse/rectangular native patches, semantics, and physical retained-memory evidence remain required |
+| Analytical storage candidates | flat packed and tiled/COW square/rectangular snapshot/apply, dense and sparse/rectangular native patch/inverse, raw duplicate/no-op/reference-clear, and retained analytical-history screening recorded; palette U8 contract tested | incomplete; retained and sparse/rectangular analytical matrices complete, while semantic selection and physical retained-memory evidence remain required |
 | Named emulator | ART command harness complete in explicit auxiliary mode | cannot satisfy physical evidence |
 | Named physical minimum Android device | profile fixed, preliminary command screening and one final-protocol affected-frame batch recorded | valid physical evidence; complete physical matrix still blocking |
 | Accepted representation or hard limits | none | ADR remains proposed |
@@ -664,6 +664,81 @@ select a representation, semantic policy, canvas limit, patch limit, or product 
 does not change the recorded schema v4, v5, or v6 results and does not close any physical evidence
 requirement.
 
+### Recorded schema v7 sparse/rectangular candidate-native patch result
+
+The pre-fixed clean host command was run from source commit
+`97f0e959d60bb6f3c21dcfb2344c69b55ab3c327`:
+
+```powershell
+.\gradlew.bat measureP2RepresentationLimits --rerun-tasks --no-build-cache --no-configuration-cache
+```
+
+It completed with `BUILD SUCCESSFUL` in 2 minutes 58 seconds and 14 executed tasks. The exact
+generated artifacts were:
+
+| Artifact | Schema | Bytes | SHA-256 | Metrics / samples |
+| --- | --- | ---: | --- | ---: |
+| `host-current.csv` | `nene-pixel-p2-representation-limits-host-current-v4` | 48,945 | `872872F52B3EDDD87C846024AF5CE6A08BD33B6813ECF95DD09482DF3A7B0F48` | 21 / 174 |
+| `host-candidates.csv` | `nene-pixel-p2-representation-limits-host-candidates-v7` | 26,168,308 | `22443C091625A7589AE4D664F92D489A854A40D2A999869927D69177D4C6525C` | 1,540 / 15,400 |
+
+An independent read-only CSV audit found zero candidate metric-block, ten-sample index, or
+nearest-rank median/p95/p99 mismatches for latency and allocation across all 1,540 metrics. The
+current-v4 artifact also had zero percentile mismatches across its 21 metrics and 174 samples.
+Candidate `correctness_status` failures were zero.
+
+The native patch subset contained exactly 1,080 unique
+shape/workload/operation/configuration metrics: 30 historical dense-anchor metrics plus 1,050 new
+sparse/rectangular metrics. Removing configuration produced the expected 216 complete groups.
+Exact semantic, canonical order, minimal region, affected/unaffected pixel, revision, inverse,
+typed conflict, logical-storage, execution-rotation, digest, and cross-configuration audits all
+reported zero mismatches. Missing and duplicate matrix pairs were zero.
+
+Only the five historical dense-anchor `patch_apply_forward` metrics remain standalone forward
+rows. The six sparse/rectangular shapes reuse exactly 210 generic forward-apply metrics in 42
+shape/workload groups across five configurations; their shared correctness audit had zero
+mismatches. No sparse/rectangular standalone forward row was added, so the generic forward timing
+boundary remains canonical and is not duplicated. Non-native `native_patch_workload_kind`
+violations were zero.
+
+The following diagnostic timing/allocation rows are direct observations from candidate-v7. Each
+p99 is the maximum of ten host samples; these values are not ranking or limit evidence:
+
+| Boundary | Configuration | Shape / workload / `C` | Latency median / p95 / p99 (ns) | Allocation median / p95 / p99 (bytes) |
+| --- | --- | --- | ---: | ---: |
+| generic forward apply | flat packed/shared | 64x64 / one pixel / 1 | 10,600 / 27,100 / 27,100 | 16,552 / 16,552 / 16,552 |
+| shuffled create | object/materialized | 64x64 / one pixel / 1 | 1,300 / 2,200 / 2,200 | 584 / 584 / 584 |
+| final-record late conflict | tiled T32 packed/shared | 64x256 / full column / 256 | 4,300 / 5,000 / 5,000 | 56 / 56 / 56 |
+| generic forward apply | flat packed/shared | 256x64 / full canvas / 16,384 | 87,300 / 140,600 / 140,600 | 65,704 / 65,704 / 65,704 |
+| exact round trip | object/materialized | 256x64 / full canvas / 16,384 | 403,500 / 474,500 / 474,500 | 721,536 / 721,536 / 721,536 |
+| exact round trip | flat packed/shared | 256x64 / full canvas / 16,384 | 189,400 / 273,600 / 273,600 | 131,544 / 131,544 / 131,544 |
+
+Representative logical-storage rows below use `B/R/O/A` for primitive payload bytes, reference
+slots, object records, and primitive backing arrays. Snapshot `B/R` is a separate unit and is
+never added to a patch aggregate:
+
+| Patch/inverse policy and `C` | Snapshot `B/R` | Forward `B/R/O/A` | Inverse-additional `B/R/O/A` | Shared `B/R/O/A` | Retained union `B/R/O/A` |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| object/materialized, 1 | 0 / 4,096 | 4 / 3 / 1 / 0 | 4 / 3 / 1 / 0 | 0 / 0 / 0 / 0 | 8 / 6 / 2 / 0 |
+| flat packed/shared, 1 | 16,384 / 0 | 12 / 0 / 0 / 3 | 0 / 0 / 0 / 0 | 12 / 0 / 0 / 3 | 12 / 0 / 0 / 3 |
+| object/materialized, 16,384 | 0 / 16,384 | 65,536 / 49,152 / 16,384 / 0 | 65,536 / 49,152 / 16,384 / 0 | 0 / 0 / 0 / 0 | 131,072 / 98,304 / 32,768 / 0 |
+| flat packed/shared, 16,384 | 65,536 / 0 | 196,608 / 0 / 0 / 3 | 0 / 0 / 0 / 0 | 196,608 / 0 / 0 / 3 | 196,608 / 0 / 0 / 3 |
+
+These counts preserve the object/materialized and packed/shared inverse policies: the object
+inverse is additional storage, while the packed directional inverse shares the forward backing
+and the retained union counts it once. They are logical accounting units, not HotSpot heap, ART
+live heap, PSS, GC, render, frame, or physical-device measurements.
+
+The focused source gate was also run from the recorded source:
+
+```powershell
+.\gradlew.bat :core:pixel-engine:test :core:pixel-engine:ktlintCheck :core:pixel-engine:detekt --rerun-tasks --no-build-cache --no-configuration-cache
+```
+
+It completed with `BUILD SUCCESSFUL` in 2 minutes 55 seconds and 21 executed tasks. The source
+commit changed test source only; it did not change production behavior, public API, dependencies,
+or Gradle configuration. This recorded host result selects no representation, semantic policy,
+canvas or patch hard limit, and does not close the physical evidence blocker.
+
 ## Auxiliary Android harness proof
 
 The Android command harness compiled and ran on the `Pixel_8_Pro_API_35` AVD only after the
@@ -978,8 +1053,9 @@ the Android configuration and separate supported-device verification.
 ## Current blocker
 
 Host, emulator-smoke, preliminary physical command evidence, and the complete host logical
-retained-history matrix are currently available. The schema v6 logical result is not retained-memory
-evidence. Physical screening still does not include the complete physical workload matrix,
+retained-history and sparse/rectangular native-patch matrices are currently available. The schema
+v6 and v7 analytical results are not retained-memory evidence. Physical screening still does not
+include the complete physical workload matrix,
 retained-history ART/live-heap evidence, five independent PSS checkpoints, or compositor
 correlation. The corrected affected-frame batch is valid and fails the pre-fixed timing conditions
 for the current dense 256-square route; its timeline IDs still require Perfetto correlation before
