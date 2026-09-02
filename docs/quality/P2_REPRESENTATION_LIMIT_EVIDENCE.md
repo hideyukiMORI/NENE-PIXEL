@@ -866,6 +866,67 @@ public API, dependency, Gradle wiring, or report column. Adjacent duplicate runs
 distribution, and these HotSpot observations select no candidate or product limit. Retained heap,
 ART, PSS, candidate projection, compositor, and complete physical-device evidence remain pending.
 
+### Pre-fixed current canonical raw-acceptance amplification schema v5 slice
+
+Before collecting current schema v5, the current host report contains one `256x256`, factor-two
+duplicate raw-path row only at the larger `CommandGateway.execute` boundary. That row includes
+patch application, snapshot creation, materialized inverse construction, and history commit. It
+cannot isolate how valid raw input grows before the canonical patch exists. Candidate schema v8
+isolates a similar stage for test-only representations, but it cannot substitute for the current
+production `Stroke` and `rasterizeStroke` path.
+
+This host-only slice therefore measures one new canonical boundary beginning with
+`Stroke.create(canvas, rawPath, opaqueRed)` and continuing through exactly one
+`rasterizeStroke(sourceSnapshot, stroke)` call. It includes valid-position containment scanning,
+`Stroke` defensive path ownership, first-occurrence duplicate collapse, source-color filtering,
+canonical row-major change collection, and `PixelPatch.create` sorting and ownership. Raw fixture,
+source snapshot, expected patch, and digest construction are outside timing. Patch apply, inverse
+creation and replay, full-pixel verification, report writing, `CommandGateway`, `PixelSurface`,
+`ChangeSet`, and history are also outside timing.
+
+The matrix reuses the seven already-fixed logical shapes as an application-test fixture:
+
+| Pixel count | Shapes |
+| ---: | --- |
+| 4,096 | `64x64`, `16x256`, `256x16` |
+| 16,384 | `128x128`, `64x256`, `256x64` |
+| 65,536 | `256x256` |
+
+For each shape with `N` pixels, factors `F = 1, 2, 4, 8` produce exactly `P = F*N` raw positions,
+`U = N` unique positions, `D = P-N` duplicates, zero unchanged unique positions, and `C = N`
+effective opaque-black-to-opaque-red changes. Raw entry `i` is row-major position `i/F`, so each
+logical position appears in one adjacent run. Input-order identities remain `row_major`,
+`paired_row_major`, `quadrupled_row_major`, and `octupled_row_major`. Workloads are emitted in the
+table's shape order and ascending factor order. Exact multiplication must succeed before creating
+the raw list; the largest fixed input is 524,288 positions.
+
+The 28 workloads each use five warmups and ten raw samples, adding 28 metrics and 280 samples to
+the existing 21 metrics and 174 samples. `host-current.csv` must therefore advance from schema
+`nene-pixel-p2-representation-limits-host-current-v4` to `-v5` with exactly 49 metric rows and 454
+sample rows. The metric name is `p2_current_raw_acceptance_duplicate_changed`. No report column is
+added: factor, `U`, and `D` are recovered from the fixed protocol plus existing canvas,
+`pixel_count`, `path_positions`, and `change_count` columns. Metadata must record the isolated
+boundary, matrix, raw subtotal, exact report total, exclusions, and fixed ordering. Existing metric
+identities, sample plans, analysis rows, and candidate/projection schemas remain unchanged.
+
+Every warmup and sample must return the exact typed `Rasterized` result; leave source revision and
+pixels unchanged; produce the expected `0 -> 1` patch with `C = N` and full-canvas affected region;
+apply to exact opaque red; and inverse-replay to the original revision-zero opaque-black snapshot.
+The source, raw fixture, expected patch, applied snapshot, and restored snapshot must agree before
+and after sampling. Within one shape, all factors must have distinct raw-input digests while the
+canonical patch, inverse, region, applied state, and restored state agree exactly. Missing or
+duplicate shape/factor pairs, an untyped exception, a no-op/rejection, or any semantic mismatch
+must fail measurement instead of producing a fast row.
+
+This is a valid-input acceptance measurement, not a rejection or supported-limit test. It does not
+replace the existing full-command duplicate row or the outside-first `Stroke.create`
+characterization. Adjacent duplicate runs are one fixed distribution, and the largest passing
+fixture does not establish a raw-path cap. This slice may change application test source and
+current-report metadata only. It adds no production behavior, API, dependency, Gradle wiring,
+report column, candidate conversion, product limit, or accepted ADR answer. HotSpot timing and
+current-thread allocation do not satisfy ART, retained heap, PSS, render, frame, compositor, or
+physical-device evidence.
+
 ## Auxiliary Android harness proof
 
 The Android command harness compiled and ran on the `Pixel_8_Pro_API_35` AVD only after the
