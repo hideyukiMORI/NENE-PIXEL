@@ -800,6 +800,72 @@ production behavior, API, dependency, Gradle wiring, report column, worker-heap 
 limit, or accepted ADR answer. HotSpot timing/allocation and logical storage do not select a
 candidate or satisfy retained heap, ART, PSS, render, frame, or physical-device evidence.
 
+#### Recorded duplicate raw-path amplification schema v8 result
+
+The test-only matrix and report implementation were recorded at source commit
+`48db02f4170c7aa0bd7e94ec4db096161d91a6be`. From that committed source, the complete host
+aggregation was rerun without build or configuration cache:
+
+```powershell
+.\gradlew.bat measureP2RepresentationLimits --rerun-tasks --no-build-cache --no-configuration-cache
+```
+
+It completed with `BUILD SUCCESSFUL` in 3 minutes 29 seconds and 29 executed tasks. The exact
+generated host artifacts were:
+
+| Artifact | Schema | Bytes | SHA-256 | Metadata / metrics / samples |
+| --- | --- | ---: | --- | ---: |
+| `host-current.csv` | `nene-pixel-p2-representation-limits-host-current-v4` | 48,946 | `AFE0F95DA771786CB2687C59912152CAAD77DCDA8EDADA4597C3887687CE4E06` | 8 / 21 / 174 |
+| `host-candidates.csv` | `nene-pixel-p2-representation-limits-host-candidates-v8` | 29,226,423 | `C09A5BB3DF4FFECE500FD985733AD1E417756DDC05D0F1C21435A18306339C31` | 25 / 1,675 / 16,750 |
+| `host-projection.csv` | `nene-pixel-p2-representation-limits-host-projection-v1` | 165,648 | `9A88481D715EFCCE18B0822D18F5AE912EB1DF44B5649291F64D24ECE81D9A51` | 19 / 28 / 280 |
+
+An independent read-only candidate CSV audit found zero metric-identity, ten-sample index, or
+nearest-rank median/p95/p99 mismatches for latency and allocation across all 1,675 metrics. It also
+found zero correctness failures, missing sample groups, or duplicate metric identities. The raw
+subset contained exactly 155 metrics and 1,550 samples: 140 unique duplicate
+shape/factor/configuration keys and the unchanged 15 legacy metrics. The report added no factor
+column.
+
+All 28 duplicate shape/factor groups contained the five expected configurations in the pre-fixed
+rotation. Exact `P/U/D/C`, input-order identity, legacy-operation counts, and the seven-shape shared
+matrix all matched the schema. Within every shape/factor group, semantic, raw, canonical, patch,
+lifecycle, result, and final-pixel digests agreed across configurations. Within every
+shape/configuration group, all four raw digests were distinct while canonical, patch, lifecycle,
+region, logical-storage, result, and final-pixel values were factor-invariant. All of those audits
+reported zero mismatches.
+
+The following 256-square changed-color rows are direct diagnostic observations. Each p99 is the
+maximum of ten host samples and is not physical tail or limit evidence:
+
+| Configuration | Factor / `P` / `D` | Latency median / p95 / p99 (ns) | Allocation median / p95 / p99 (bytes) |
+| --- | ---: | ---: | ---: |
+| object/materialized | 1 / 65,536 / 0 | 3,668,800 / 5,192,900 / 5,192,900 | 8,845,192 / 8,845,192 / 8,845,192 |
+| object/materialized | 2 / 131,072 / 65,536 | 3,681,700 / 6,930,401 / 6,930,401 | 9,107,336 / 9,107,336 / 9,107,336 |
+| object/materialized | 4 / 262,144 / 196,608 | 4,191,900 / 4,585,699 / 4,585,699 | 9,631,624 / 9,631,624 / 9,631,624 |
+| object/materialized | 8 / 524,288 / 458,752 | 5,070,100 / 5,430,599 / 5,430,599 | 10,680,200 / 10,680,200 / 10,680,200 |
+| flat packed/shared | 1 / 65,536 / 0 | 3,121,200 / 3,294,501 / 3,294,501 | 8,253,312 / 8,253,312 / 8,253,312 |
+| flat packed/shared | 2 / 131,072 / 65,536 | 3,325,699 / 3,637,001 / 3,637,001 | 8,515,456 / 8,515,456 / 8,515,456 |
+| flat packed/shared | 4 / 262,144 / 196,608 | 3,914,200 / 6,223,400 / 6,223,400 | 9,039,744 / 9,039,744 / 9,039,744 |
+| flat packed/shared | 8 / 524,288 / 458,752 | 4,670,100 / 6,196,200 / 6,196,200 | 10,088,320 / 10,088,320 / 10,088,320 |
+
+Logical storage stayed constant across all four factors at `C = 65,536`. In `B/R/O/A` units,
+object/materialized recorded snapshot `0/65,536`, forward and inverse-additional each
+`262,144/196,608/65,536/0`, no shared storage, and retained union
+`524,288/393,216/131,072/0`. Flat packed/shared recorded snapshot `262,144/0`, forward and shared
+each `786,432/0/0/3`, no inverse-additional storage, and retained union `786,432/0/0/3`.
+
+The focused source gate was also run from the recorded source:
+
+```powershell
+.\gradlew.bat :core:pixel-engine:test :core:pixel-engine:ktlintCheck :core:pixel-engine:detekt --rerun-tasks --no-build-cache --no-configuration-cache
+```
+
+It completed with `BUILD SUCCESSFUL` in 3 minutes 21 seconds and 21 executed tasks. This source
+commit changed test code and candidate report metadata only; it added no production behavior,
+public API, dependency, Gradle wiring, or report column. Adjacent duplicate runs are one fixed
+distribution, and these HotSpot observations select no candidate or product limit. Retained heap,
+ART, PSS, candidate projection, compositor, and complete physical-device evidence remain pending.
+
 ## Auxiliary Android harness proof
 
 The Android command harness compiled and ran on the `Pixel_8_Pro_API_35` AVD only after the
