@@ -35,6 +35,29 @@ internal class StrokeTest {
     }
 
     @Test
+    fun `outside first extreme path short circuits before defensive copy`() {
+        val canvas = canvasSize(1, 1)
+        val outsidePosition = pixelPosition(1, 0)
+        val accessedIndices = mutableListOf<Int>()
+        val path =
+            object : AbstractList<PixelPosition>() {
+                override val size: Int = Int.MAX_VALUE
+
+                override fun get(index: Int): PixelPosition {
+                    accessedIndices.add(index)
+                    return if (index == 0) outsidePosition else error("Extreme path read index $index.")
+                }
+            }
+
+        val rejection = rejected(Stroke.create(canvas, path, BLACK))
+        val outside = assertInstanceOf(DomainValueRejection.PixelPositionOutsideCanvas::class.java, rejection)
+
+        assertEquals(listOf(0), accessedIndices)
+        assertEquals(canvas, outside.canvas)
+        assertEquals(outsidePosition, outside.position)
+    }
+
+    @Test
     fun `stroke defensively owns one ordered path and has value equality`() {
         val canvas = canvasSize(2, 2)
         val input = mutableListOf(pixelPosition(1, 1), pixelPosition(0, 0), pixelPosition(1, 1))
