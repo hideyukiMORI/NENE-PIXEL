@@ -1059,6 +1059,59 @@ color space and alpha meaning, alpha-zero policy, blank, eraser, pencil composit
 ownership, PNG/project-format conversion, and the accepted storage representation all remain
 unresolved.
 
+### Pre-fixed current host render-projection slice
+
+Before collecting this slice, the current P2 host artifacts contain no isolated execution of
+`PixelSnapshot.toRenderedPixels()`. The viewport-controller metric times state transformation only,
+and the physical frame route is a composite UI/frame boundary. This host-only diagnostic therefore
+measures the current area-sized `RenderedPixel` list and Compose color conversion separately. It
+does not measure draw iteration, viewport clipping, Compose scheduling, Android ART, retained
+heap, PSS, GPU/compositor work, or a physically visible frame.
+
+The matrix reuses the seven canvas shapes already fixed for candidate snapshot and sparse-patch
+analysis:
+
+| Pixel count | Shapes |
+| ---: | --- |
+| 4,096 | `64x64`, `16x256`, `256x16` |
+| 16,384 | `128x128`, `64x256`, `256x64` |
+| 65,536 | `256x256` |
+
+Every shape uses four independently generated semantic inputs:
+
+- uniform opaque-white current reference blank;
+- uniform opaque red as one non-blank semantic color;
+- exactly 256 deterministic RGBA colors repeated row-major; and
+- deterministic high-entropy RGBA.
+
+The timed interval contains one call to prepared `PixelSnapshot.toRenderedPixels()` only. Snapshot
+and expected-oracle construction, digest generation, and full verification are outside timing.
+Each of the `7 shapes x 4 contents = 28` metrics uses five warmups and ten raw samples, producing
+exactly 28 summary rows and 280 sample rows. Latency and current-thread HotSpot allocated bytes use
+nearest-rank median, p95, and p99; p99 is the maximum of these ten diagnostic samples and is not
+physical tail evidence.
+
+Every warmup and sample must verify all `N` outputs against an oracle prepared independently of the
+projection implementation: exact list count, row-major `(x, y)`, expected `AARRGGBB`, Compose sRGB,
+first and last position, full projection SHA-256, unchanged source revision and pixel SHA-256, and
+cross-sample deterministic digest. Any mismatch fails the measurement rather than becoming a fast
+row.
+
+The separately named task is `:presentation:compose:measureP2RenderProjection`, included by the
+root `measureP2RepresentationLimits` task in its own single 512 MiB worker. It writes
+`build/reports/p2/representation-limits/host-projection.csv` with schema
+`nene-pixel-p2-representation-limits-host-projection-v1`. The report must identify the profile,
+JVM/OS, heap, exact boundary, exclusions, sampling, shape/content, raw samples, nearest-rank
+summaries, correctness status, and source/projection digests. Shared host measurement primitives
+already present in the presentation test source must be reused or extracted rather than copied.
+
+This slice may change presentation test source and the existing measurement-task wiring only. It
+adds no production behavior, public API, dependency, plugin, module, APK payload, or accepted
+limit. Candidate snapshots remain isolated in pixel-engine test source and cannot traverse the
+production `PixelSnapshot.toRenderedPixels()` boundary. They must not be copied, exposed, or
+converted to the current snapshot for this slice; candidate render projection remains pending a
+single canonical representation/read boundary.
+
 ## Pre-fixed measurement contract
 
 The following pass conditions are fixed before choosing a representation or hard product limit.
@@ -1139,6 +1192,7 @@ boundary. Planned ignored paths are fixed as follows before collection:
 | --- | --- |
 | `build/reports/p2/representation-limits/host-current.csv` | current canonical host metrics and correctness columns |
 | `build/reports/p2/representation-limits/host-candidates.csv` | analytical candidate metrics with candidate identity |
+| `build/reports/p2/representation-limits/host-projection.csv` | current Compose host projection metrics, full row-major/color correctness, and raw samples |
 | `build/reports/p2/representation-limits/device-core.csv` | physical ART latency, allocation, GC, live-heap, and correctness observations |
 | `build/reports/p2/representation-limits/device-memory-run-01.csv` through `device-memory-run-05.csv` | one immutable PSS/retained/post-GC checkpoint invocation each; individual checksums required |
 | `build/reports/p2/representation-limits/device-memory.csv` | deterministic aggregate over the five run-indexed memory artifacts |
