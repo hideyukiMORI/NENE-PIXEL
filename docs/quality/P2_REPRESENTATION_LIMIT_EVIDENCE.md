@@ -374,6 +374,121 @@ compare equivalent production and candidate raw-only latency boundaries, impleme
 history, or provide candidate retained-heap, ART, PSS, frame, sparse/rectangular native-patch,
 semantic-color, maximum-boundary, or production-migration evidence.
 
+### Pre-fixed retained analytical history slice
+
+Before collecting candidate schema v6, the next host slice fixes test-only analytical retention
+for the same five candidate configurations used by the native patch and raw-path slices. It does
+not implement or change production `ChangeSet`, `CommandGateway`, `HistoryEntry`, history state,
+public API, or command behavior. One analytical retained entry owns one already-prepared
+candidate-native forward/inverse pair; the analytical history owner retains those entries and one
+current candidate snapshot. It is evidence about entry-count and retained-change-count interaction,
+not a second production multi-step history path.
+
+The canvas is exactly 256x256 (`N=65,536`). An entry contains one canonical patch, whose unique
+positions cannot exceed `N`; this follows both the current `PixelPatch` duplicate-position contract
+and the candidate-native patch contract. Therefore a full Cartesian product of every positive
+entry count and retained-change count would be invalid: one entry cannot retain `2N`, `4N`, or
+`8N` changes without inventing multiple patches inside one entry. The executable matrix contains
+every pair for which `T <= H * N`, where `H` is retained entries and `T` is total retained changes:
+
+| Retained entries `H` | Total retained changes `T` | Changes per entry `C = T / H` | Workload points |
+| ---: | --- | --- | ---: |
+| 0 | 0 | 0 | 1 |
+| 1 | `N` | 65,536 | 1 |
+| 8 | `N`, `2N`, `4N`, `8N` | 8,192; 16,384; 32,768; 65,536 | 4 |
+| 16 | `N`, `2N`, `4N`, `8N` | 4,096; 8,192; 16,384; 32,768 | 4 |
+| 32 | `N`, `2N`, `4N`, `8N` | 2,048; 4,096; 8,192; 16,384 | 4 |
+| 64 | `N`, `2N`, `4N`, `8N` | 1,024; 2,048; 4,096; 8,192 | 4 |
+
+The `H=0, T=0` row is the only canonical empty case. Positive entries with zero changes,
+zero entries with positive changes, and `H=1` with `T > N` are contract rejections rather than
+measured rows. All 17 positive rows divide exactly, so every entry in one workload has the same
+non-zero `C` and the sum is exactly `T`; there is no fractional, rounded, or extrapolated entry.
+This matrix evaluates every Issue #38 entry candidate (`0/1/8/16/32/64`) and every positive
+retained-change candidate (`N/2N/4N/8N`) without violating the one-entry/one-patch meaning.
+
+Opaque black, red, and green are analytical fixture values only and do not select blank, eraser,
+palette ownership, alpha, or composition semantics. A positive fixture starts with uniform opaque
+black. Entry index `i` changes the first `C` row-major positions to opaque red when `i` is even and
+opaque green when `i` is odd, so every entry has exactly `C` effective changes. Revisions form the
+exact chain `0 -> 1 -> ... -> H`; the retained current snapshot is the state at revision `H`.
+The empty fixture retains the unchanged revision-0 snapshot and no patch pair.
+
+Logical storage is aggregated over all `H` entries, but remains separated into these non-additive
+boundaries:
+
+| Storage boundary | Meaning |
+| --- | --- |
+| retained snapshot | payload and reference slots of the one current candidate snapshot; never part of the patch union |
+| retained forward patch | sum of storage owned by all forward patches |
+| retained inverse additional | storage owned only by materialized inverses; zero for a shared directional inverse |
+| retained shared patch | forward payload also referenced by directional inverses; zero for a materialized inverse |
+| retained patch union | unique patch payload strongly reachable from all entries; forward plus inverse-additional for object/materialized, forward counted once for packed/shared |
+
+For object/materialized entries, forward and inverse-additional primitive bytes, reference slots,
+object records, and backing-array counts are reported separately; shared counts are zero. For
+packed/shared entries, inverse-additional counts are zero, shared counts describe the same three
+primitive arrays per entry as the forward view, and the retained union counts that payload once.
+Forward and shared counts overlap for packed/shared storage and must not be added. Snapshot payload,
+patch payload, reference slots, object records, and primitive backing arrays also remain separate
+units. Wrapper/list/array headers, spare capacity, shared `PixelColor` referents, and analytical
+owner/entry wrappers are excluded from these logical fields, consistently with schema v4/v5.
+
+Each workload/configuration pair has five warmups and ten diagnostic samples. Workload order is
+the table order above, with positive `T` ascending inside each `H`. For zero-based workload index
+`n`, configuration execution starts at index `n mod 5` in the existing configuration order and
+wraps once; one configuration's warmups and samples remain contiguous. Eighteen workloads across
+five configurations produce exactly 90 metric rows and 900 raw sample rows. Added to the recorded
+schema v5 matrix, schema v6 must therefore contain exactly 490 candidate metric rows and 4,900
+raw candidate sample rows; `host-current.csv` receives no row or schema change from this slice.
+
+The timed interval contains only defensive ownership of the prepared entry-reference sequence and
+construction of the test-only analytical entry wrappers/history owner that strongly reach the one
+prepared current snapshot and all prepared patch pairs. Snapshot, semantic input, patch, inverse,
+and revision-chain fixture generation occurs outside timing. Full replay, inverse replay, digest,
+aliasing, logical-count, and correctness verification also occurs outside timing. Reported
+`allocated_bytes` is current HotSpot test-thread allocation for that wrapper/owner interval only;
+it is not the logical retained payload and is not retained heap, ART allocation, Java live heap,
+PSS, or physical-device memory evidence.
+
+Candidate schema v6 keeps existing `history_entries`, `change_count`, and
+`total_retained_changes`; retained rows use them for `H`, uniform per-entry `C`, and `T`, while
+`path_positions` remains zero. Existing v5 snapshot-operation and single-patch storage columns are
+left empty for retained rows rather than overloaded. Schema v6 adds:
+
+- `retained_snapshot_primitive_bytes` and `retained_snapshot_reference_slots`;
+- `retained_forward_patch_primitive_bytes`, `retained_forward_patch_reference_slots`,
+  `retained_forward_patch_object_records`, and
+  `retained_forward_patch_primitive_backing_arrays`;
+- the same four suffixes under `retained_inverse_additional`, `retained_shared_patch`, and
+  `retained_patch_union` prefixes;
+- `retained_entry_change_counts_digest_sha256`; and
+- `retained_history_semantic_digest_sha256`.
+
+The entry-count digest covers the ordered per-entry `C` values, including a tagged empty sequence.
+The semantic digest covers canvas, configuration-independent ordered before/after revisions,
+positions, colors, affected regions, and final snapshot pixels; its value must match across all
+five configurations for one workload. Configuration, snapshot, patch, inverse-policy, result,
+timing/allocation, and `correctness_status` fields retain their v5 meanings; retained rows use
+`operation_kind=retained_analytical_history` and `result_kind=Retained`.
+
+Every measured sample must prove the exact `H`, `C`, and `T`; canonical row-major ordering and
+affected region for every entry; the complete revision chain; exact chronological forward replay
+to the retained current snapshot; exact reverse inverse replay to revision 0; unchanged pixels
+outside the first `C` positions; unmodified prepared inputs; and deterministic cross-configuration
+semantic evidence. It must also prove materialized inverses do not share their forward backing,
+directional inverses do share it, and every separate logical storage aggregate equals the sum or
+set union defined above. The empty row must have no entry, patch, inverse, or affected region and
+zero in every patch-storage field while retaining the revision-0 snapshot payload. Correctness,
+matrix-pair, row-count, percentile-recomputation, logical-count, and cross-configuration failures
+must all be zero.
+
+All 18 workload points are explicit observations: interpolation between entry or retained-change
+candidates is prohibited. Host timing, HotSpot allocation, and logical counts cannot select a
+candidate or product limit. Retained heap, ART, PSS, GC, render projection, and frames remain
+separate required physical evidence, and a largest passing physical candidate still extends the
+matrix before it can be called a maximum.
+
 ## Auxiliary Android harness proof
 
 The Android command harness compiled and ran on the `Pixel_8_Pro_API_35` AVD only after the
@@ -625,8 +740,9 @@ frame acceptance condition by itself.
 - duplicate raw path, changed eraser-equivalent, blank/no-op eraser-equivalent, and same-color
   no-op;
 - patch create, apply, invert, late conflict, and exact forward/inverse round trip;
-- analytical retained entries at 0, 1, 8, 16, 32, and 64, with retained changes at N, 2N, 4N,
-  and 8N without introducing production multi-step history;
+- analytical retained entries and total retained changes at every valid `T <= H * N` pair fixed
+  by the retained analytical history slice above, without introducing production multi-step
+  history;
 - render projection and a representative correct-frame observation; and
 - max-minus-one, max, max-plus-one, rectangular product overflow, pre-allocation rejection,
   shuffled ordering, and maximum patch/history interaction.
