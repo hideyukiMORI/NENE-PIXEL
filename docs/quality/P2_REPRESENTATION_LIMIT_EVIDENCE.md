@@ -1046,6 +1046,24 @@ This slice changed one existing unit-test file only. It added no production beha
 dependency, Gradle wiring, measurement schema, raw artifact, or limit. Pre-sort size rejection,
 the accepted patch maximum, its typed rejection, owner, and validation priority remain unresolved.
 
+### Pre-fixed current Stroke outside-short-circuit characterization slice
+
+Before selecting a raw-stroke sample maximum, this question-free slice records one current safe
+rejection path without allocating or iterating a valid extreme path. A test-only
+`List<PixelPosition>` reports `Int.MAX_VALUE` elements, returns an outside-canvas position at index
+zero, and fails if any later element is read. `Stroke.create` must read only index zero, return the
+exact typed `PixelPositionOutsideCanvas` canvas and position, and never enter its defensive-copy
+path.
+
+This observation does not make accepted strokes bounded. A fully contained input is still scanned
+and defensively copied with no product sample cap, and later rasterization still deduplicates raw
+positions only after that ownership boundary. The slice chooses no raw count, rejection type, cap
+owner, or multiple-violation priority.
+
+The implementation may change `StrokeTest.kt` only. It must add no production behavior, public
+API, dependency, Gradle wiring, measurement schema, raw artifact, limit value, or accepted ADR
+answer. Focused domain tests, ktlint, and detekt must pass before recording the result.
+
 ### Pre-fixed semantic compatibility characterization slice
 
 Before adding or selecting a semantic color policy, this question-free slice characterizes only
