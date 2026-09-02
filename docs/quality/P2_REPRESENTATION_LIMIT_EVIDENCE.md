@@ -1880,9 +1880,10 @@ median, maximum, and condition recomputation. The immutable host artifacts are:
 | `build/reports/p2/representation-limits/device-memory.csv` | 16,655 | `5536A65C32FB56F80BEE3F23AE51A60E3F8B9534F80C7CEB628F6B21E5BFBBA9` |
 
 These results establish only the fixed current-canonical retained owner and projection at
-`N=65,536`, `H=64`, and `T=8N`. Peak headroom, post-cap churn, candidate retained memory, and
-candidate projection remain explicitly unevaluated and cannot be inferred from these passing
-steady-memory conditions.
+`N=65,536`, `H=64`, and `T=8N`. Within the memory aggregate alone, peak headroom, post-cap churn,
+candidate retained memory, and candidate projection remain explicitly unevaluated and cannot be
+inferred from these passing steady-memory conditions. The separate current-canonical cross-artifact
+peak audit is fixed and reported below.
 
 ### Pre-fixed current-canonical peak-headroom cross-artifact contract
 
@@ -1932,6 +1933,57 @@ and the pass/fail result. An independent `Import-Csv` recomputation must reprodu
 field with zero mismatch before the result is recorded. A valid pass applies only to the named
 current-canonical 256-square command/history combination; candidate peak headroom, larger canvases,
 the complete workload matrix, post-cap churn, and compositor evidence remain separate.
+
+### Current-canonical peak-headroom cross-artifact result
+
+The contract was fixed in commit `4151a93bebc3a83e03336699b09767bdc7805fbb`. Before any output
+was written, source validation showed that the accepted command schema intentionally permits a zero
+ART allocation delta. Commit `50480ba9da38ac8dffb5cb419b2ccfe8d988d359` therefore corrected the
+input domain from positive to non-negative without changing the percentile, selected maxima, 70%
+threshold, or any measured value. The audit then completed over the seven immutable inputs.
+
+All input bytes and hashes matched the fixed table. Command rows retained the exact five-workload
+order, 200 local indices per workload, and global indices 1 through 1,000. Forty-seven allocation
+deltas were zero and none were negative. Nearest-rank p95 at rank 190 produced:
+
+| Workload | p95 ART allocation bytes |
+| --- | ---: |
+| `sparse_apply_stroke` | 6,914,048 |
+| `dense_apply_stroke` | 21,106,688 |
+| `dense_same_color_no_op` | 5,390,336 |
+| `dense_undo` | 8,781,824 |
+| `dense_redo` | 23,859,200 |
+
+Every memory raw contained exactly one positive `retained_post_gc` observation, and every raw
+identity matched its aggregate run row:
+
+| Run | Retained heap used bytes | Committed bytes | Total PSS KiB |
+| ---: | ---: | ---: | ---: |
+| 1 | 43,185,968 | 76,642,096 | 125,891 |
+| 2 | 43,185,968 | 76,642,096 | 125,955 |
+| 3 | 43,190,064 | 76,646,192 | 125,964 |
+| 4 | 43,185,968 | 76,642,096 | 125,333 |
+| 5 | 43,185,968 | 76,642,096 | 125,815 |
+
+The named profile, build fingerprint, security patch, 268,435,456-byte runtime maximum, and 256 MiB
+memory class matched across all inputs. The required production `src/main` diff between the two
+source commits was empty. The conservative selected operands were 43,190,064 bytes of retained heap
+and 23,859,200 bytes of operation p95 allocation, giving 67,049,264 bytes. Overflow-safe integer
+evaluation was:
+
+`10 * 67,049,264 = 670,492,640 <= 1,879,048,192 = 7 * 268,435,456`
+
+The current-canonical 256-square peak-headroom condition therefore passes. Independent
+`Import-Csv` recomputation found zero mismatches across the 29-row derived artifact. The memory
+aggregate remains unchanged with its own `peak_headroom_status=not_evaluated`; this result is the
+separate cross-artifact claim fixed above.
+
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `build/reports/p2/representation-limits/device-current-peak-headroom.csv` | 16,018 | `5CFC4BE4D01D23185AE7EB85A26B81D84AA884E2104ED0DA1BEFFF8FB987E905` |
+
+This pass does not cover a candidate, a larger canvas, the complete workload matrix, post-cap churn,
+or compositor presentation.
 
 ### Required workload matrix
 
@@ -2029,9 +2081,10 @@ projection, or physical-render evidence. The valid final current command tail fa
 core-latency condition while passing correctness and isolated blocking-GC conditions.
 
 Physical screening still does not include the complete physical workload matrix, candidate-
-specific retained memory/projection, peak headroom, post-cap churn, or compositor correlation. The
-current-canonical five-invocation steady ART/live-heap and paired-PSS slice is valid and passes its
-three applicable conditions. The paired refreshed-build affected-frame batch is also valid but
+specific retained memory/projection or peak headroom, post-cap churn, or compositor correlation.
+The current-canonical five-invocation steady ART/live-heap and paired-PSS slice is valid and passes
+its three applicable conditions. The separate current-canonical 256-square peak-headroom audit is
+also valid and passes. The paired refreshed-build affected-frame batch is valid but
 fails the pre-fixed timing conditions for the current dense 256-square route; its timeline IDs
 still require the now pre-fixed paired Perfetto/FrameTimeline collection before any visible-frame
 claim. Its config, correlation, validation, artifact, and cleanup contract is fixed above, but no
