@@ -60,5 +60,6 @@ tasks.register("measureP2RepresentationLimits") {
     dependsOn(
         ":core:application:measureP2RepresentationLimits",
         ":core:pixel-engine:measureP2RepresentationCandidates",
+        ":presentation:compose:measureP2RenderProjection",
     )
 }
