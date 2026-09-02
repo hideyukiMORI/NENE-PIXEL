@@ -927,6 +927,67 @@ report column, candidate conversion, product limit, or accepted ADR answer. HotS
 current-thread allocation do not satisfy ART, retained heap, PSS, render, frame, compositor, or
 physical-device evidence.
 
+#### Recorded current canonical raw-acceptance schema v5 result
+
+The test-only current-path matrix and report implementation were recorded at source commit
+`fde94f76e27aa4a87a3b64086da700e8be344579`. From that committed source, the complete host
+aggregation was rerun without build or configuration cache:
+
+```powershell
+.\gradlew.bat measureP2RepresentationLimits --rerun-tasks --no-build-cache --no-configuration-cache
+```
+
+It completed with `BUILD SUCCESSFUL` in 3 minutes 38 seconds and 29 executed tasks. The exact
+generated host artifacts were:
+
+| Artifact | Schema | Bytes | SHA-256 | Metadata / metrics / samples |
+| --- | --- | ---: | --- | ---: |
+| `host-current.csv` | `nene-pixel-p2-representation-limits-host-current-v5` | 159,281 | `3C8690E061AA9E56C6452789431CB1260516353E08D38700EBE5489E44A1E0D5` | 13 / 49 / 454, plus 6 analysis rows |
+| `host-candidates.csv` | `nene-pixel-p2-representation-limits-host-candidates-v8` | 29,226,396 | `4DF70289D142C5982FFE75F9037A6D4EF84DD355E4708306C763DA1E8768792E` | 25 / 1,675 / 16,750 |
+| `host-projection.csv` | `nene-pixel-p2-representation-limits-host-projection-v1` | 165,646 | `C45EA3D8E917F0A62E8B675DFFF7F1D145539E906DF3AC49FE8DD35247F97B33` | 19 / 28 / 280 |
+
+An independent read-only current CSV audit reconstructed all 49 metric identities and joined each
+to its declared seven- or ten-sample block. It found zero missing groups, duplicate identities,
+sample-count or index mismatches, or nearest-rank median/p95/p99 mismatches for latency and
+allocation. The existing subset remained 21 metrics and 174 samples before the appended new
+subset. Candidate v8 and projection v1 retained their exact schema and row counts.
+
+The new subset contained exactly 28 metrics and 280 samples with 28 unique shape/factor keys in the
+fixed shape-major, ascending-factor order. Existing columns recovered `F = P/N`; every row had
+exact canvas area `N`, `P = F*N`, `C = N`, zero history entries and retained changes, five warmups,
+ten samples, and the exact isolated boundary. Metadata recorded the matrix, order, subtotal, report
+total, boundary, and exclusions. No report column was added.
+
+The fixture contract and every measured operation required a typed `Rasterized` result equal to the
+prebuilt canonical patch, inverse, full region, applied red snapshot, and restored revision-zero
+black snapshot. Source and raw fixture digests remained unchanged. All four raw digests were
+distinct within each shape while patch, inverse, region, applied state, and restored state agreed
+across factors. Missing or duplicate descriptors were rejected by contract tests. These semantic
+and factor-invariance checks completed without failure.
+
+The following 256-square rows are direct diagnostic observations. Each p99 is the maximum of ten
+host samples and is not physical tail or limit evidence:
+
+| Factor / `P` / `D` | Latency median / p95 / p99 (ns) | Allocation median / p95 / p99 (bytes) |
+| ---: | ---: | ---: |
+| 1 / 65,536 / 0 | 5,709,600 / 20,339,500 / 20,339,500 | 11,098,760 / 11,098,760 / 11,098,760 |
+| 2 / 131,072 / 65,536 | 7,038,700 / 22,980,000 / 22,980,000 | 11,360,904 / 11,360,904 / 11,360,904 |
+| 4 / 262,144 / 196,608 | 10,556,900 / 18,979,500 / 18,979,500 | 11,885,192 / 11,885,192 / 11,885,192 |
+| 8 / 524,288 / 458,752 | 16,999,700 / 34,657,800 / 34,657,800 | 12,933,768 / 12,933,768 / 12,933,768 |
+
+The focused source gate was:
+
+```powershell
+.\gradlew.bat :core:application:test :core:application:ktlintCheck :core:application:detekt --rerun-tasks --no-build-cache --no-configuration-cache
+```
+
+It completed with `BUILD SUCCESSFUL` in 34 seconds and 23 executed tasks. This source commit changed
+application test code and current-report metadata only; it changed no production behavior, public
+API, dependency, plugin, module, Gradle wiring, report column, candidate schema, or projection
+schema. Adjacent duplicate runs remain one fixed host distribution. The result selects no raw cap,
+candidate, or product limit and does not close ART, retained heap, PSS, render, frame, compositor,
+or physical-device evidence.
+
 ## Auxiliary Android harness proof
 
 The Android command harness compiled and ran on the `Pixel_8_Pro_API_35` AVD only after the
