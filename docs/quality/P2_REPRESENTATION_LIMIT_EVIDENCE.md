@@ -1590,6 +1590,72 @@ build, the existing frame route is rerun with candidate ID
 `device-frames.csv`. This paired collection neither supplies Perfetto correlation nor selects a
 representation or hard product limit.
 
+### Refreshed-build paired physical result
+
+The contract above was implemented as Android-test-only source and collected from source commit
+`16fa62101e6a76d64bab6cfe809b3e49f5ba7afa` on 2026-09-02. Both APKs were rebuilt from that commit
+with `:app:android:assembleDebug` and `:app:android:assembleDebugAndroidTest`, installed together,
+and invoked through `AndroidJUnitRunner`. The command invocation completed one test in 204.627
+seconds; the frame invocation completed one test in 139.302 seconds.
+
+The command artifact contains 45 metadata rows, one post-GC baseline, 42 ordered checkpoints, and
+1,000 raw samples. Each of the five fixed workloads has exactly 200 one-based local indices and
+the combined rows have unique global indices 1 through 1,000. All checkpoints retained mode 1 at
+1200 x 1920 and 90 Hz, device-wide thermal status 1, power saving disabled, an interactive display,
+USB power, and valid battery data. All command rows passed their exact state, complete-pixel,
+revision, history, result-kind, public `ChangeSet`, invalidation, and no-op identity assertions.
+
+Nearest-rank latency and ART diagnostics from the raw rows are:
+
+| Current 256 x 256 command workload | Samples | p95 | p99 | Maximum | p95 ART allocated bytes | Zero blocking-GC increment |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| sparse apply stroke | 200 | 21.263 ms | 22.041 ms | 23.917 ms | 6,914,048 | 200 / 200 |
+| dense apply stroke | 200 | 110.269 ms | 113.969 ms | 156.838 ms | 21,106,688 | 199 / 200 |
+| dense same-color no-op | 200 | 36.974 ms | 39.003 ms | 39.449 ms | 5,390,336 | 199 / 200 |
+| dense undo | 200 | 38.673 ms | 41.525 ms | 43.347 ms | 8,781,824 | 200 / 200 |
+| dense redo | 200 | 33.095 ms | 39.607 ms | 41.870 ms | 23,859,200 | 200 / 200 |
+
+The direct core-latency condition fails: the maximum-workload dense apply is above both the
+pre-fixed 8.0 ms p95 and 16.67 ms p99 targets. The blocking-GC condition passes for this isolated
+tail route because 998 of 1,000 operations had zero blocking-GC increment. The post-GC process
+baseline was 2,213,648 Java-heap bytes and 83,846 kB PSS; per-sample maxima were 7,444,288 bytes and
+89,193 kB. Those PSS values remain diagnostics and do not replace the five independent memory
+invocations or retained-history live-heap evidence.
+
+The paired frame artifact contains 30 metadata rows, 10 ordered checkpoints, and 200 raw frame
+samples. Every sample had exact render state, matching revision and snapshot hash, zero mismatch
+across all 65,536 checked logical pixels, one positive unique API 36 timeline-vsync ID, and zero
+FrameMetrics report drops. All frame checkpoints retained the same valid display, thermal, power,
+interactive, USB, and battery conditions as the command batch.
+
+| Current dense 256-square frame observation | p95 | p99 | Maximum |
+| --- | ---: | ---: | ---: |
+| command start to first exact app-issued frame | 302.908 ms | 310.238 ms | 315.595 ms |
+| FrameMetrics total duration | 201.633 ms | 207.068 ms | 210.231 ms |
+| FrameMetrics deadline overrun | 191.633 ms | 197.068 ms | 200.231 ms |
+
+The platform deadline was 10.0 ms for every row and all 200 rows missed it. The affected-frame
+condition therefore fails, as does the 33.33 ms app-issued command-to-correct-frame threshold.
+Because no Perfetto/FrameTimeline artifact was collected in this slice, the latter remains an
+app-issued observation and is not promoted to a physical SurfaceFlinger visibility claim.
+
+The retained raw artifacts are:
+
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `build/reports/p2/representation-limits/device-core.csv` | 661,245 | `E2FD1D427DE191F14A8194FE4CF5CE5A929A388B7A13E439E731F0AF8180FCAD` |
+| `build/reports/p2/representation-limits/device-frames.csv` | 126,738 | `5D5369215A3F65843B5E351E82BCCDBB1E24DFBA0EA61622CE9569C3FE9B8957` |
+| `build/reports/p2/representation-limits/device-profile.txt` | 2,714 | `341676CB479298A209A511EF876469CDB55144829F108FBD097C07AC21CFE02A` |
+| `build/reports/p2/representation-limits/device-logcat.txt` | 1,273,338 | `607260C1915B09EBF6EED110547F4FFA1916793B25FE97AA2AD74485B2FFE6C1` |
+
+The time-scoped logcat covers 2026-09-02 16:42:30 JST through post-collection and contains 9,289
+lines. A deterministic audit found zero fatal-exception, fatal-signal, ANR, GC-event-pattern, or
+thermal-event-pattern matches. The only package-name matches were two install-time `vold` probes
+for absent OBB directories; neither occurred in an instrumentation process or changed a result.
+The device's original `stay_on_while_plugged_in=0` was recorded, temporarily set to USB-only value
+2 for the paired collection, restored to 0 afterward, and verified. No process kill, network
+mutation, or device reset was introduced.
+
 ### Required workload matrix
 
 - square and rectangular canvases, with axis and total-pixel candidates varied separately;
@@ -1672,17 +1738,18 @@ inferred from the preliminary build `94010` rows.
 ## Current blocker
 
 Host, isolated current host render projection, emulator-smoke, preliminary physical command
-evidence, and the complete host logical retained-history and sparse/rectangular native-patch
-matrices are currently available. The schema v6 and v7 analytical results and the current HotSpot
-projection result are not retained-memory, candidate-projection, or physical-render evidence.
-Physical screening still does not include the complete physical workload matrix,
-retained-history ART/live-heap evidence, five independent PSS checkpoints, or compositor
-correlation. The corrected affected-frame batch is valid and fails the pre-fixed timing conditions
-for the current dense 256-square route; its timeline IDs still require Perfetto correlation before
-any visible-frame claim.
-The command screening's twenty samples per workload are also insufficient final p99 tail
-evidence. The emulator remains useful only for functional interaction checks and cannot fill any
-of those physical gaps.
+evidence, final current 256-square command tail evidence, and the complete host logical retained-
+history and sparse/rectangular native-patch matrices are currently available. The schema v6 and v7
+analytical results and the current HotSpot projection result are not retained-memory, candidate-
+projection, or physical-render evidence. The valid final current command tail fails the pre-fixed
+core-latency condition while passing correctness and isolated blocking-GC conditions.
+
+Physical screening still does not include the complete physical workload matrix, retained-history
+ART/live-heap evidence, five independent PSS checkpoints, or compositor correlation. The paired
+refreshed-build affected-frame batch is valid and fails the pre-fixed timing conditions for the
+current dense 256-square route; its timeline IDs still require Perfetto correlation before any
+visible-frame claim. The emulator remains useful only for functional interaction checks and cannot
+fill any of those physical gaps.
 
 Therefore:
 
