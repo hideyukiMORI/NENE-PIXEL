@@ -18,6 +18,7 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasHeight
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasWidth
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
+import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelRegion
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelX
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelY
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
@@ -50,13 +51,37 @@ internal object P2CommandWorkloadCatalog {
         CANVAS_EDGES.flatMap { edge ->
             P2CommandWorkloadKind.entries.map { kind -> P2CommandWorkloadSpec(kind, edge) }
         }
+
+    val finalCurrentSpecs: List<P2CommandWorkloadSpec> =
+        P2CommandWorkloadKind.entries.map { kind -> P2CommandWorkloadSpec(kind, FINAL_CANVAS_EDGE) }
+
+    private const val FINAL_CANVAS_EDGE: Int = 256
 }
 
 internal data class CommandOutcomeDescriptor(
     val resultKind: String,
     val documentHash: Int,
+    val snapshotHash: Int,
     val revision: Long,
     val history: String,
+    val changeSetBeforeRevision: Long?,
+    val changeSetAfterRevision: Long?,
+    val renderInvalidation: P2CommandRegionDescriptor?,
+    val unchangedStateIdentity: Boolean,
+)
+
+internal data class P2CommandRegionDescriptor(
+    val originX: Int,
+    val originY: Int,
+    val width: Int,
+    val height: Int,
+)
+
+internal data class P2CommandResultDescriptor(
+    val resultKind: String,
+    val changeSetBeforeRevision: Long?,
+    val changeSetAfterRevision: Long?,
+    val renderInvalidation: P2CommandRegionDescriptor?,
 )
 
 internal class PreparedCommandWorkload internal constructor(
@@ -67,6 +92,7 @@ internal class PreparedCommandWorkload internal constructor(
     private val expectedBeforeRevision: Long,
     private val expectedAfterRevision: Long,
     private val expectedHistory: HistoryAvailability,
+    private val expectedRenderInvalidation: PixelRegion?,
     private val expectSameStateInstance: Boolean,
 ) {
     fun execute(): CommandResult {
@@ -82,13 +108,26 @@ internal class PreparedCommandWorkload internal constructor(
         if (expectSameStateInstance) assertSame(expectedDocument, runtimeState.documentState)
         assertEquals(expectedAfterRevision, runtimeState.documentState.revision.value)
         assertEquals(expectedHistory, runtimeState.historyAvailability)
-        val resultKind = expectedResult.verify(result, expectedBeforeRevision, expectedAfterRevision)
+        val resultDescriptor =
+            expectedResult.verify(
+                result,
+                P2ExpectedCommandTransition(
+                    beforeRevision = expectedBeforeRevision,
+                    afterRevision = expectedAfterRevision,
+                    renderInvalidation = expectedRenderInvalidation,
+                ),
+            )
         expectedState = null
         return CommandOutcomeDescriptor(
-            resultKind = resultKind,
+            resultKind = resultDescriptor.resultKind,
             documentHash = runtimeState.documentState.hashCode(),
+            snapshotHash = runtimeState.documentState.snapshot.hashCode(),
             revision = runtimeState.documentState.revision.value,
             history = runtimeState.historyAvailability.csvName(),
+            changeSetBeforeRevision = resultDescriptor.changeSetBeforeRevision,
+            changeSetAfterRevision = resultDescriptor.changeSetAfterRevision,
+            renderInvalidation = resultDescriptor.renderInvalidation,
+            unchangedStateIdentity = runtimeState.documentState === expectedDocument,
         )
     }
 
@@ -111,14 +150,19 @@ internal enum class ExpectedCommandResult {
 
     fun verify(
         result: CommandResult,
-        expectedBeforeRevision: Long,
-        expectedAfterRevision: Long,
-    ): String =
+        expected: P2ExpectedCommandTransition,
+    ): P2CommandResultDescriptor =
         when (this) {
-            Applied -> result.requireApplied(expectedBeforeRevision, expectedAfterRevision)
+            Applied -> result.requireApplied(expected)
             NoEffectiveChange -> result.requireNoEffectiveChange()
         }
 }
+
+internal data class P2ExpectedCommandTransition(
+    val beforeRevision: Long,
+    val afterRevision: Long,
+    val renderInvalidation: PixelRegion?,
+)
 
 private object WorkloadFactory {
     fun apply(
@@ -138,6 +182,7 @@ private object WorkloadFactory {
             beforeRevision = 0L,
             afterRevision = 1L,
             history = HistoryAvailability.UndoAvailable,
+            renderInvalidation = values.fullRegion(),
         )
     }
 
@@ -153,6 +198,7 @@ private object WorkloadFactory {
             beforeRevision = 0L,
             afterRevision = 0L,
             history = HistoryAvailability.None,
+            renderInvalidation = null,
             expectSameStateInstance = true,
         )
     }
@@ -161,7 +207,9 @@ private object WorkloadFactory {
         val values = CoreMeasurementValues(spec.canvasEdge)
         val initial = values.document(Revision.initial(), values.whitePixels())
         val gateway = CommandGateway.create(initial)
-        gateway.execute(values.applyCommand(initial, values.densePath())).requireApplied(0L, 1L)
+        gateway
+            .execute(values.applyCommand(initial, values.densePath()))
+            .requireApplied(P2ExpectedCommandTransition(0L, 1L, values.fullRegion()))
         val applied = gateway.runtimeState.documentState
         return prepared(
             gateway = gateway,
@@ -171,6 +219,7 @@ private object WorkloadFactory {
             beforeRevision = 1L,
             afterRevision = 0L,
             history = HistoryAvailability.RedoAvailable,
+            renderInvalidation = values.fullRegion(),
         )
     }
 
@@ -178,9 +227,13 @@ private object WorkloadFactory {
         val values = CoreMeasurementValues(spec.canvasEdge)
         val initial = values.document(Revision.initial(), values.whitePixels())
         val gateway = CommandGateway.create(initial)
-        gateway.execute(values.applyCommand(initial, values.densePath())).requireApplied(0L, 1L)
+        gateway
+            .execute(values.applyCommand(initial, values.densePath()))
+            .requireApplied(P2ExpectedCommandTransition(0L, 1L, values.fullRegion()))
         val applied = gateway.runtimeState.documentState
-        gateway.execute(UndoCommand.create(applied.id, applied.revision)).requireApplied(1L, 0L)
+        gateway
+            .execute(UndoCommand.create(applied.id, applied.revision))
+            .requireApplied(P2ExpectedCommandTransition(1L, 0L, values.fullRegion()))
         val undone = gateway.runtimeState.documentState
         return prepared(
             gateway = gateway,
@@ -190,6 +243,7 @@ private object WorkloadFactory {
             beforeRevision = 0L,
             afterRevision = 1L,
             history = HistoryAvailability.UndoAvailable,
+            renderInvalidation = values.fullRegion(),
         )
     }
 
@@ -201,6 +255,7 @@ private object WorkloadFactory {
         beforeRevision: Long,
         afterRevision: Long,
         history: HistoryAvailability,
+        renderInvalidation: PixelRegion?,
         expectSameStateInstance: Boolean = false,
     ): PreparedCommandWorkload =
         PreparedCommandWorkload(
@@ -211,6 +266,7 @@ private object WorkloadFactory {
             beforeRevision,
             afterRevision,
             history,
+            renderInvalidation,
             expectSameStateInstance,
         )
 }
@@ -265,6 +321,8 @@ private class CoreMeasurementValues(
 
     fun revision(value: Long): Revision = Revision.create(value).requiredValue()
 
+    fun fullRegion(): PixelRegion = PixelRegion.create(canvas, position(0, 0), canvas).requiredValue()
+
     private fun position(
         x: Int,
         y: Int,
@@ -294,15 +352,18 @@ private class CoreMeasurementValues(
     }
 }
 
-private fun CommandResult.requireApplied(
-    beforeRevision: Long,
-    afterRevision: Long,
-): String =
+private fun CommandResult.requireApplied(expected: P2ExpectedCommandTransition): P2CommandResultDescriptor =
     when (this) {
         is CommandResult.Applied -> {
-            assertEquals(beforeRevision, changeSet.beforeRevision.value)
-            assertEquals(afterRevision, changeSet.afterRevision.value)
-            "applied"
+            assertEquals(expected.beforeRevision, changeSet.beforeRevision.value)
+            assertEquals(expected.afterRevision, changeSet.afterRevision.value)
+            assertEquals(requireNotNull(expected.renderInvalidation), changeSet.renderInvalidation)
+            P2CommandResultDescriptor(
+                resultKind = "applied",
+                changeSetBeforeRevision = changeSet.beforeRevision.value,
+                changeSetAfterRevision = changeSet.afterRevision.value,
+                renderInvalidation = changeSet.renderInvalidation.descriptor(),
+            )
         }
 
         is CommandResult.Rejected -> {
@@ -314,11 +375,16 @@ private fun CommandResult.requireApplied(
         }
     }
 
-private fun CommandResult.requireNoEffectiveChange(): String =
+private fun CommandResult.requireNoEffectiveChange(): P2CommandResultDescriptor =
     when (this) {
         is CommandResult.Rejected -> {
             assertEquals(RejectionReason.NoEffectiveChange, reason)
-            "rejected_no_effective_change"
+            P2CommandResultDescriptor(
+                resultKind = "rejected_no_effective_change",
+                changeSetBeforeRevision = null,
+                changeSetAfterRevision = null,
+                renderInvalidation = null,
+            )
         }
 
         is CommandResult.Applied -> {
@@ -329,6 +395,14 @@ private fun CommandResult.requireNoEffectiveChange(): String =
             measurementFailure("Expected no-op rejection but command failed: $failure")
         }
     }
+
+private fun PixelRegion.descriptor(): P2CommandRegionDescriptor =
+    P2CommandRegionDescriptor(
+        originX = origin.x.value,
+        originY = origin.y.value,
+        width = size.width.value,
+        height = size.height.value,
+    )
 
 private fun HistoryAvailability.csvName(): String =
     when (this) {

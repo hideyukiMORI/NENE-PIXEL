@@ -1,10 +1,6 @@
 package io.github.hideyukimori.nenepixel.measurement
 
-import android.content.Intent
-import android.content.IntentFilter
-import android.os.BatteryManager
 import android.os.Build
-import android.os.PowerManager
 import androidx.activity.compose.setContent
 import androidx.annotation.RequiresApi
 import androidx.compose.runtime.MutableState
@@ -23,8 +19,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
-import java.util.Locale
-import kotlin.math.abs
 
 internal class P2AndroidFrameMeasurementTest {
     @get:Rule
@@ -33,7 +27,7 @@ internal class P2AndroidFrameMeasurementTest {
     @Test
     fun measureP2AffectedFramesOnPhysicalProfile() {
         val environment = P2AndroidMeasurementEnvironment.fromRunnerArguments()
-        val identity = P2FrameRunIdentity.fromRunnerArguments()
+        val identity = P2AndroidRunIdentity.fromRunnerArguments()
         check(!environment.emulatorDetection.isEmulator) {
             "Frame evidence requires the physical profile; emulator auxiliary mode is not accepted."
         }
@@ -49,7 +43,7 @@ internal class P2AndroidFrameMeasurementTest {
     @RequiresApi(FRAME_TIMELINE_API)
     private fun measureApi36(
         environment: P2AndroidMeasurementEnvironment,
-        identity: P2FrameRunIdentity,
+        identity: P2AndroidRunIdentity,
     ) {
         val workload = P2AndroidFrameWorkload.create()
         val displayed = mutableStateOf(P2DisplayedFrame(INITIAL_GENERATION, workload.controller.renderState))
@@ -73,7 +67,7 @@ internal class P2AndroidFrameMeasurementTest {
         composeRule.waitForIdle()
 
         val samples = mutableListOf<P2AndroidFrameMeasurementSample>()
-        val checkpoints = mutableListOf<P2FrameDeviceCheckpoint>()
+        val checkpoints = mutableListOf<P2AndroidPhysicalCheckpoint>()
         var generation = INITIAL_GENERATION
         try {
             repeat(environment.frameWarmupIterations) {
@@ -89,7 +83,7 @@ internal class P2AndroidFrameMeasurementTest {
                 val execution = executeAndReset(workload, displayed, collector, generation, sampleIndex)
                 generation = execution.generation
                 samples += requireNotNull(execution.sample)
-                if (sampleIndex % P2AndroidFrameMeasurementReport.CHECKPOINT_INTERVAL == 0) {
+                if (sampleIndex % P2AndroidPhysicalCheckpointPolicy.CHECKPOINT_INTERVAL == 0) {
                     captureCheckpoint("sample_$sampleIndex", sampleIndex)
                         .also { checkpoint -> checkpoint.assertCompatibleWith(baselineCheckpoint) }
                         .also(checkpoints::add)
@@ -254,57 +248,13 @@ internal class P2AndroidFrameMeasurementTest {
     private fun captureCheckpoint(
         name: String,
         sampleIndex: Int,
-    ): P2FrameDeviceCheckpoint {
-        val mode = composeRule.activity.window.decorView.display.mode
-        val powerManager = composeRule.activity.getSystemService(PowerManager::class.java)
-        val battery =
-            requireNotNull(
-                composeRule.activity.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED)),
-            ) { "Battery status is unavailable for the physical frame checkpoint." }
-        val plugged = battery.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0)
-        return P2FrameDeviceCheckpoint(
+    ): P2AndroidPhysicalCheckpoint =
+        P2AndroidPhysicalCheckpointCapture.capture(
+            context = composeRule.activity,
+            display = composeRule.activity.window.decorView.display,
             name = name,
             sampleIndex = sampleIndex,
-            displayModeId = mode.modeId,
-            physicalWidthPixels = mode.physicalWidth,
-            physicalHeightPixels = mode.physicalHeight,
-            refreshRateHertz = mode.refreshRate,
-            thermalStatus = powerManager.currentThermalStatus,
-            powerSaveMode = powerManager.isPowerSaveMode,
-            interactive = powerManager.isInteractive,
-            usbPowered = plugged == BatteryManager.BATTERY_PLUGGED_USB,
-            batteryLevelPercent = battery.getIntExtra(BatteryManager.EXTRA_LEVEL, -1),
         )
-    }
-
-    private fun P2FrameDeviceCheckpoint.assertInitialValidity() {
-        check(thermalStatus <= P2AndroidFrameMeasurementReport.MAXIMUM_VALID_THERMAL_STATUS) {
-            "Thermal status $thermalStatus exceeds the physical evidence limit."
-        }
-        check(!powerSaveMode) { "Power-save mode must remain disabled for physical frame evidence." }
-        check(interactive) { "The display must remain interactive for physical frame evidence." }
-        check(usbPowered) { "The device must remain USB powered for physical frame evidence." }
-        check(batteryLevelPercent in 0..100) { "Battery level is unavailable for physical frame evidence." }
-        check(abs(refreshRateHertz - REQUIRED_REFRESH_RATE_HERTZ) <= REFRESH_RATE_TOLERANCE_HERTZ) {
-            "Active display refresh rate ${refreshRateHertz.formatHertz()} Hz is not the required 90 Hz profile."
-        }
-    }
-
-    private fun P2FrameDeviceCheckpoint.assertCompatibleWith(baseline: P2FrameDeviceCheckpoint) {
-        assertInitialValidity()
-        check(displayModeId == baseline.displayModeId) { "Active display mode changed during measurement." }
-        check(
-            physicalWidthPixels == baseline.physicalWidthPixels,
-        ) { "Active display width changed during measurement." }
-        check(
-            physicalHeightPixels == baseline.physicalHeightPixels,
-        ) { "Active display height changed during measurement." }
-        check(abs(refreshRateHertz - baseline.refreshRateHertz) <= REFRESH_RATE_TOLERANCE_HERTZ) {
-            "Active display refresh rate changed during measurement."
-        }
-    }
-
-    private fun Float.formatHertz(): String = String.format(Locale.ROOT, "%.3f", this)
 
     private data class P2DisplayedFrame(
         val generation: Long,
@@ -322,7 +272,5 @@ internal class P2AndroidFrameMeasurementTest {
         const val MINIMUM_FRAME_SAMPLE_COUNT: Int = 100
         const val HASH_MULTIPLIER: Int = 31
         const val PIXEL_CENTER: Double = 0.5
-        const val REQUIRED_REFRESH_RATE_HERTZ: Float = 90.0f
-        const val REFRESH_RATE_TOLERANCE_HERTZ: Float = 0.5f
     }
 }

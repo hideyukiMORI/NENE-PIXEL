@@ -2,6 +2,16 @@ package io.github.hideyukimori.nenepixel.measurement
 
 import android.os.Debug
 
+internal fun sortedArtRuntimeStats(): List<Pair<String, String>> {
+    val runtimeStats: Map<*, *> = Debug.getRuntimeStats()
+    return runtimeStats.entries
+        .mapNotNull { entry ->
+            val name = entry.key as? String ?: return@mapNotNull null
+            val value = entry.value as? String ?: return@mapNotNull null
+            name to value
+        }.sortedBy { (name, _) -> name }
+}
+
 internal data class ArtRuntimeDelta(
     val allocatedBytesBefore: Long,
     val allocatedBytesAfter: Long,

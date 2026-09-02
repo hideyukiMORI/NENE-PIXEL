@@ -23,6 +23,9 @@ internal data class P2AndroidMeasurementEnvironment(
     val frameOutputFile: File
         get() = File(targetContext.filesDir, FRAME_OUTPUT_RELATIVE_PATH)
 
+    val finalCommandOutputFile: File
+        get() = File(targetContext.filesDir, FINAL_COMMAND_OUTPUT_RELATIVE_PATH)
+
     companion object {
         fun fromRunnerArguments(): P2AndroidMeasurementEnvironment {
             val arguments = InstrumentationRegistry.getArguments()
@@ -76,6 +79,8 @@ internal data class P2AndroidMeasurementEnvironment(
             "p2-measurements/p2-android-command-measurement.csv"
         private const val FRAME_OUTPUT_RELATIVE_PATH: String =
             "p2-measurements/p2-android-frame-measurement.csv"
+        private const val FINAL_COMMAND_OUTPUT_RELATIVE_PATH: String =
+            "p2-measurements/p2-android-final-command-measurement.csv"
         private const val PHYSICAL_EVIDENCE: String = "physical_device"
         private const val AUXILIARY_EVIDENCE: String = "auxiliary_emulator"
         private const val DEFAULT_WARMUP_ITERATIONS: Int = 5

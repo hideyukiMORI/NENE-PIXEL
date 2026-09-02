@@ -1,7 +1,6 @@
 package io.github.hideyukimori.nenepixel.measurement
 
 import android.os.Build
-import androidx.test.platform.app.InstrumentationRegistry
 import java.io.File
 
 internal data class P2AndroidFrameMeasurementSample(
@@ -26,61 +25,11 @@ internal data class P2FrameImageCorrectness(
     val sampledArgbHash: Int,
 )
 
-internal data class P2FrameDeviceCheckpoint(
-    val name: String,
-    val sampleIndex: Int,
-    val displayModeId: Int,
-    val physicalWidthPixels: Int,
-    val physicalHeightPixels: Int,
-    val refreshRateHertz: Float,
-    val thermalStatus: Int,
-    val powerSaveMode: Boolean,
-    val interactive: Boolean,
-    val usbPowered: Boolean,
-    val batteryLevelPercent: Int,
-)
-
-internal data class P2FrameRunIdentity(
-    val candidateId: String,
-    val runIndex: Int,
-    val sourceCommit: String,
-) {
-    internal companion object {
-        fun fromRunnerArguments(): P2FrameRunIdentity {
-            val arguments = InstrumentationRegistry.getArguments()
-            val candidateId =
-                requireNotNull(arguments.getString(CANDIDATE_ID_ARGUMENT)?.trim()?.takeIf(String::isNotEmpty)) {
-                    "Runner argument '$CANDIDATE_ID_ARGUMENT' is required for frame measurements."
-                }
-            val runIndex =
-                requireNotNull(arguments.getString(RUN_INDEX_ARGUMENT)?.toIntOrNull()?.takeIf { it > 0 }) {
-                    "Runner argument '$RUN_INDEX_ARGUMENT' must be a positive integer."
-                }
-            val sourceCommit =
-                requireNotNull(
-                    arguments
-                        .getString(SOURCE_COMMIT_ARGUMENT)
-                        ?.trim()
-                        ?.lowercase()
-                        ?.takeIf(SOURCE_COMMIT_PATTERN::matches),
-                ) {
-                    "Runner argument '$SOURCE_COMMIT_ARGUMENT' must be a full 40-character Git commit."
-                }
-            return P2FrameRunIdentity(candidateId, runIndex, sourceCommit)
-        }
-
-        const val CANDIDATE_ID_ARGUMENT: String = "nene.p2.candidateId"
-        const val RUN_INDEX_ARGUMENT: String = "nene.p2.runIndex"
-        const val SOURCE_COMMIT_ARGUMENT: String = "nene.p2.sourceCommit"
-        private val SOURCE_COMMIT_PATTERN: Regex = Regex("[0-9a-f]{40}")
-    }
-}
-
 internal object P2AndroidFrameMeasurementReport {
     fun write(
         environment: P2AndroidMeasurementEnvironment,
-        identity: P2FrameRunIdentity,
-        checkpoints: List<P2FrameDeviceCheckpoint>,
+        identity: P2AndroidRunIdentity,
+        checkpoints: List<P2AndroidPhysicalCheckpoint>,
         samples: List<P2AndroidFrameMeasurementSample>,
     ): File {
         val output = environment.frameOutputFile
@@ -99,7 +48,7 @@ internal object P2AndroidFrameMeasurementReport {
 
     private fun metadataRows(
         environment: P2AndroidMeasurementEnvironment,
-        identity: P2FrameRunIdentity,
+        identity: P2AndroidRunIdentity,
     ): List<String> =
         listOf(
             metadataRow("schema", SCHEMA),
@@ -118,6 +67,7 @@ internal object P2AndroidFrameMeasurementReport {
             metadataRow("hardware", Build.HARDWARE),
             metadataRow("api_level", Build.VERSION.SDK_INT.toString()),
             metadataRow("build_fingerprint", Build.FINGERPRINT),
+            metadataRow("security_patch", Build.VERSION.SECURITY_PATCH),
             metadataRow("supported_abis", Build.SUPPORTED_ABIS.joinToString("|")),
             metadataRow("ro.kernel.qemu", environment.emulatorDetection.kernelQemu),
             metadataRow("ro.boot.qemu", environment.emulatorDetection.bootQemu),
@@ -129,8 +79,14 @@ internal object P2AndroidFrameMeasurementReport {
             ),
             metadataRow("frame_warmup_iterations", environment.frameWarmupIterations.toString()),
             metadataRow("frame_sample_count", environment.frameSampleCount.toString()),
-            metadataRow("checkpoint_interval_samples", CHECKPOINT_INTERVAL.toString()),
-            metadataRow("maximum_valid_thermal_status", MAXIMUM_VALID_THERMAL_STATUS.toString()),
+            metadataRow(
+                "checkpoint_interval_samples",
+                P2AndroidPhysicalCheckpointPolicy.CHECKPOINT_INTERVAL.toString(),
+            ),
+            metadataRow(
+                "maximum_valid_thermal_status",
+                P2AndroidPhysicalCheckpointPolicy.MAXIMUM_VALID_THERMAL_STATUS.toString(),
+            ),
             metadataRow("deadline_source", "FrameMetrics.DEADLINE"),
             metadataRow("timeline_identity_source", "FrameMetrics.FRAME_TIMELINE_VSYNC_ID"),
             metadataRow(
@@ -152,8 +108,8 @@ internal object P2AndroidFrameMeasurementReport {
 
     private fun checkpointRow(
         environment: P2AndroidMeasurementEnvironment,
-        identity: P2FrameRunIdentity,
-        checkpoint: P2FrameDeviceCheckpoint,
+        identity: P2AndroidRunIdentity,
+        checkpoint: P2AndroidPhysicalCheckpoint,
     ): String =
         rowByColumn(
             "record_type" to "checkpoint",
@@ -163,20 +119,12 @@ internal object P2AndroidFrameMeasurementReport {
             "candidate_id" to identity.candidateId,
             "run_index" to identity.runIndex,
             "sample_index" to checkpoint.sampleIndex,
-            "display_mode_id" to checkpoint.displayModeId,
-            "display_width_pixels" to checkpoint.physicalWidthPixels,
-            "display_height_pixels" to checkpoint.physicalHeightPixels,
-            "refresh_rate_hertz" to checkpoint.refreshRateHertz,
-            "thermal_status" to checkpoint.thermalStatus,
-            "power_save_mode" to checkpoint.powerSaveMode,
-            "interactive" to checkpoint.interactive,
-            "usb_powered" to checkpoint.usbPowered,
-            "battery_level_percent" to checkpoint.batteryLevelPercent,
+            *checkpoint.reportValues().toTypedArray(),
         )
 
     private fun sampleRow(
         environment: P2AndroidMeasurementEnvironment,
-        identity: P2FrameRunIdentity,
+        identity: P2AndroidRunIdentity,
         sample: P2AndroidFrameMeasurementSample,
     ): String {
         val marker = sample.correlatedFrame.marker
@@ -246,8 +194,6 @@ internal object P2AndroidFrameMeasurementReport {
     private fun csvRow(vararg values: Any): String =
         values.joinToString(",") { value -> "\"${value.toString().replace("\"", "\"\"")}\"" }
 
-    internal const val CHECKPOINT_INTERVAL: Int = 25
-    internal const val MAXIMUM_VALID_THERMAL_STATUS: Int = 1
     private const val SCHEMA: String = "nene-pixel-p2-android-frame-measurement-v1"
     private const val CANVAS_EDGE: Int = 256
     private const val POSITION_COUNT: Int = CANVAS_EDGE * CANVAS_EDGE

@@ -2,7 +2,6 @@ package io.github.hideyukimori.nenepixel.measurement
 
 import android.app.ActivityManager
 import android.os.Build
-import android.os.Debug
 import java.io.File
 
 internal data class P2AndroidMeasurementSample(
@@ -75,16 +74,9 @@ internal object P2AndroidMeasurementReport {
         )
     }
 
-    private fun runtimeStatRows(): List<String> {
-        val runtimeStats: Map<*, *> = Debug.getRuntimeStats()
-        return runtimeStats.entries
-            .mapNotNull { entry ->
-                val name = entry.key as? String ?: return@mapNotNull null
-                val value = entry.value as? String ?: return@mapNotNull null
-                name to value
-            }.sortedBy { (name, _) -> name }
+    private fun runtimeStatRows(): List<String> =
+        sortedArtRuntimeStats()
             .map { (name, value) -> metadataRow("runtime_stat_end:$name", value) }
-    }
 
     private fun sampleRow(
         environment: P2AndroidMeasurementEnvironment,
