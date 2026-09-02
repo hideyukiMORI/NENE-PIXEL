@@ -2119,6 +2119,67 @@ The active PR remains Draft, ADR 0005 remains `proposed`, and the existing repre
 product-limit, candidate-physical, full-matrix, compositor, P2-02, and representation-dependent
 P2-04 holds remain in force.
 
+### Refreshed-build current-canonical 64-square final-command tail result
+
+The fixed 64-square command-only batch completed on the named physical profile. Batch
+`81f5d0fb-64ec-4372-8679-5e07080bb0a6` used contract commit
+`4239515ab7d8482526a78e3420f870e00e9865eb` and source commit
+`3be887daa2c644c0e32fe194ec77bfbed1bd0058`. The required production `src/main` diff from prior
+256-square source `16fa62101e6a76d64bab6cfe809b3e49f5ba7afa` was empty across all five fixed paths.
+The app APK was 11,664,182 bytes with SHA-256
+`71B732DE85D2984360CD6676184D66250D87EDA34444DB04EDA82E278BB5C796`; the test APK was
+1,315,233 bytes with SHA-256
+`1DE1108A01484D176858033D5305F9D0D8936CEE91E0A20DED0C25FB88B99605`.
+
+The no-cache APK build passed in 46 seconds with all 95 tasks executed. The exact fixed
+instrumentation invocation reported `OK (1 test)` in 60.807 seconds. Collection ran from
+2026-09-02 20:58:18.277 JST through 21:00:20.931 JST on build `94110`, security patch 2026-06-05,
+mode 1 at 1200 x 1920 and 90 Hz, runtime maximum 268,435,456 bytes, and memory class 256 MiB.
+
+Independent `Import-Csv` recomputation found zero mismatches. The file has 53 columns and 1,088
+data rows: 45 metadata, one process baseline, 42 ordered physical checkpoints, and 1,000 samples.
+The workload order, 200 local indices per workload, global indices 1 through 1,000, exact 64 x 64
+geometry, correctness state, full pixel content, revisions, history, results, `ChangeSet` data,
+invalidations, and no-op identity all matched the fixed contract. Every checkpoint retained mode 1,
+1200 x 1920, 90 Hz, thermal status 1, power saving disabled, an interactive display, USB power, and
+100% battery.
+
+Nearest-rank latency and allocation recomputation produced:
+
+| Workload | p95 latency ns | p99 latency ns | p95 ART allocation bytes | Zero blocking-GC samples |
+| --- | ---: | ---: | ---: | ---: |
+| `sparse_apply_stroke` | 1,746,500 | 1,793,307 | 442,368 | 200 / 200 |
+| `dense_apply_stroke` | 5,818,000 | 5,920,539 | 1,126,400 | 200 / 200 |
+| `dense_same_color_no_op` | 1,418,923 | 1,443,192 | 278,528 | 200 / 200 |
+| `dense_undo` | 2,437,039 | 2,494,116 | 589,824 | 200 / 200 |
+| `dense_redo` | 2,316,423 | 2,380,153 | 540,672 | 200 / 200 |
+
+All five workloads pass p95 <= 8.0 ms and p99 <= 16.67 ms. All 1,000 operations had zero
+blocking-GC-count increment, exceeding the required 950, and every observed GC count and time delta
+was zero. All allocation deltas were positive and matched their before/after counters. The baseline
+Java heap was 2,217,744 used and 10,508,048 committed bytes with 85,528 KiB total PSS. The maximum
+sample observations were 2,803,504 used and 11,093,808 committed bytes with 85,987 KiB total PSS;
+these heap/PSS values are diagnostics only and are not a retained-memory or peak-headroom result.
+
+The scoped 1,592-line log covers 20:58:18.030 through 21:00:20.731 JST. Deterministic audit found
+zero fatal exceptions, fatal signals, ANRs, untyped instrumentation failures, and thermal-pattern
+matches. The exact on-device CSV and collection-only device log were removed after verified
+extraction. `stay_on_while_plugged_in` was restored from the temporary value 2 to its original value
+0, and pre-run and post-run overall thermal status were both 1. The previously accepted
+`device-core.csv` remained unchanged at 661,245 bytes with SHA-256
+`E2FD1D427DE191F14A8194FE4CF5CE5A929A388B7A13E439E731F0AF8180FCAD`.
+
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `build/reports/p2/representation-limits/device-core-current-64-square.csv` | 649,469 | `F9CDEDA09E7901BACCC58BC39094FEC5699FBC0ACBC11C91C40502EDFC3932C6` |
+| `build/reports/p2/representation-limits/device-core-current-64-square-tool.txt` | 4,279 | `D0CAF501AB89987EB499D164CDF8A48CDAE5F413BD761C22331858F8A3B267D3` |
+| `build/reports/p2/representation-limits/device-core-current-64-square-logcat.txt` | 220,962 | `D1515A3B10252D0B36B174407F025D700745B12890AD6C33097529E3DA70B79F` |
+
+This is one passing measured point for the current canonical command path at exactly 64 x 64 and
+one run. It does not select a representation, establish or interpolate a product maximum, cover a
+candidate, prove retained memory or PSS, cover the complete physical matrix, or claim render or
+compositor timing.
+
 ### Required workload matrix
 
 - square and rectangular canvases, with axis and total-pixel candidates varied separately;
@@ -2215,7 +2276,9 @@ evidence, final current 256-square command tail evidence, and the complete host 
 history and sparse/rectangular native-patch matrices are currently available. The schema v6 and v7
 analytical results and the current HotSpot projection result are not retained-memory, candidate-
 projection, or physical-render evidence. The valid final current command tail fails the pre-fixed
-core-latency condition while passing correctness and isolated blocking-GC conditions.
+core-latency condition at 256 x 256 while passing correctness and isolated blocking-GC conditions.
+The separately fixed refreshed-build 64 x 64 command tail passes both core-latency and blocking-GC
+conditions, but remains one explicit current-path point rather than a supported maximum.
 
 Physical screening still does not include the complete physical workload matrix, candidate-
 specific retained memory/projection or peak headroom, post-cap churn, or compositor correlation.
