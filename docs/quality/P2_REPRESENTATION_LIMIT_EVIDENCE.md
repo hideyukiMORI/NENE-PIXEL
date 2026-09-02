@@ -1904,9 +1904,10 @@ select a representation or product limit. Its inputs are fixed before calculatio
 The command input must retain schema `nene-pixel-p2-android-final-command-measurement-v1`, valid
 identity, five fixed workload names in their recorded order, exactly 200 samples per workload,
 local indices 1 through 200, and global indices 1 through 1,000. For each workload, the audit sorts
-all 200 positive `art_allocated_bytes_delta` values and selects nearest-rank p95 at one-based rank
-`ceil(0.95 * 200) = 190`; there is no interpolation, clamp, exclusion, or outlier removal. The
-operation allocation is the maximum of those five workload p95 values.
+all 200 non-negative `art_allocated_bytes_delta` values and selects nearest-rank p95 at one-based
+rank `ceil(0.95 * 200) = 190`; zero is a valid unchanged ART counter while any negative value
+invalidates the audit. There is no interpolation, clamp, exclusion, or outlier removal. The operation
+allocation is the maximum of those five workload p95 values.
 
 The memory inputs must remain exactly five independently checksummed raw invocations plus their
 accepted aggregate. For each raw invocation, the audit selects the one `retained_post_gc` checkpoint
