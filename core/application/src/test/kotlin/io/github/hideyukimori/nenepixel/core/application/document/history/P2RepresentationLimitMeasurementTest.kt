@@ -47,7 +47,8 @@ internal class P2RepresentationLimitMeasurementTest {
                 commandMetrics() +
                 patchMetrics() +
                 historyMetrics() +
-                P2CanonicalGapMeasurement.measure(measurementRunner)
+                P2CanonicalGapMeasurement.measure(measurementRunner) +
+                P2CurrentRawAcceptanceMeasurement.measure(measurementRunner)
 
         P2RepresentationMeasurementReport.write(
             metrics = metrics,

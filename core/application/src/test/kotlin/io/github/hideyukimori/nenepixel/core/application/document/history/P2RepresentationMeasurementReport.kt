@@ -8,6 +8,7 @@ internal object P2RepresentationMeasurementReport {
         metrics: List<P2MeasurementMetric>,
         analyses: List<P2AnalysisRow>,
     ) {
+        validateCurrentMetrics(metrics)
         val outputDirectory = System.getProperty(OUTPUT_DIRECTORY_PROPERTY)?.let(Path::of) ?: return
         Files.createDirectories(outputDirectory)
         writeRows(
@@ -16,13 +17,63 @@ internal object P2RepresentationMeasurementReport {
         )
     }
 
+    internal fun validateCurrentMetrics(metrics: List<P2MeasurementMetric>) {
+        require(metrics.size == P2CurrentRawAcceptanceMatrix.CURRENT_METRIC_COUNT) {
+            "Expected ${P2CurrentRawAcceptanceMatrix.CURRENT_METRIC_COUNT} current metrics, found ${metrics.size}."
+        }
+        require(
+            metrics.sumOf { metric -> metric.samples.latenciesNanos.size } ==
+                P2CurrentRawAcceptanceMatrix.CURRENT_RAW_SAMPLE_COUNT,
+        ) {
+            "Current report raw-sample count does not match schema v5."
+        }
+        require(
+            metrics.all { metric ->
+                metric.samples.latenciesNanos.size == metric.samples.allocatedBytes.size &&
+                    metric.samples.latenciesNanos.size == metric.descriptor.sampling.sampleCount
+            },
+        ) {
+            "Current report contains a metric with incomplete or mismatched raw samples."
+        }
+        P2CurrentRawAcceptanceMatrix.validateMetrics(
+            metrics.filter { metric -> metric.descriptor.name == P2CurrentRawAcceptanceMatrix.METRIC_NAME },
+        )
+    }
+
     private fun currentMetadataRows(): List<String> =
-        metadataRows("nene-pixel-p2-representation-limits-host-current-v4") +
+        metadataRows("nene-pixel-p2-representation-limits-host-current-v5") +
             metadataRow(
                 "current_boundary",
                 "executed current representation including duplicate/no-op reference-clear fixtures, " +
                     "shuffled patch create, late conflict, and logical retained analysis; " +
                     "retained heap, ART, PSS, and rendering are not measured",
+            ) +
+            metadataRow(
+                "current_raw_acceptance_boundary",
+                "Stroke.create through exactly one rasterizeStroke call; valid containment scan, defensive copy, " +
+                    "duplicate collapse, source filter, canonical changes, and PixelPatch.create included; " +
+                    "fixture, apply, inverse, replay, verification, report, gateway, PixelSurface, ChangeSet, " +
+                    "and history excluded",
+            ) +
+            metadataRow(
+                "current_raw_acceptance_matrix",
+                "shapes=64x64|16x256|256x16|128x128|64x256|256x64|256x256; " +
+                    "factors=1|2|4|8; P=F*N; U=C=N; D=P-N; unchanged=0; adjacent duplicate runs",
+            ) +
+            metadataRow(
+                "current_raw_acceptance_order",
+                "shape table order then ascending factor; " +
+                    "input_order=row_major|paired_row_major|quadrupled_row_major|octupled_row_major",
+            ) +
+            metadataRow(
+                "current_raw_acceptance_rows",
+                "28 metrics and 280 samples; host-current-v5 total=49 metrics and 454 samples",
+            ) +
+            metadataRow(
+                "current_raw_acceptance_exclusions",
+                "valid-input acceptance only; no cap, rejection, supported limit, ART, retained heap, PSS, " +
+                    "render, frame, " +
+                    "compositor, candidate conversion, or product decision evidence",
             )
 
     private fun metadataRows(schema: String): List<String> =
