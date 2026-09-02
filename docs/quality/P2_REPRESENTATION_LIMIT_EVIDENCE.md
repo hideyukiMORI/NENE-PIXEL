@@ -1656,6 +1656,88 @@ The device's original `stay_on_while_plugged_in=0` was recorded, temporarily set
 2 for the paired collection, restored to 0 afterward, and verified. No process kill, network
 mutation, or device reset was introduced.
 
+### Pre-fixed five-invocation current retained-memory contract
+
+The next physical slice measures the current canonical object/materialized representation only.
+It does not introduce production multi-step history, copy the pixel-engine candidate test models,
+or claim physical evidence for flat-packed or tiled candidates. Its invocation schema is
+`nene-pixel-p2-android-memory-invocation-v1`; its aggregate schema is
+`nene-pixel-p2-android-memory-aggregate-v1`. The fixed candidate and workload identities are
+`current-canonical-object-materialized-v1` and
+`retained_projection_256_square_h64_t8n`.
+
+Five separate `am instrument` invocations use run indices 1 through 5, the same full 40-character
+source commit, the same physical profile/build, and one caller-supplied canonical UUID batch ID.
+Each invocation is a new instrumentation process and records its PID and process-start elapsed
+time. It writes exactly one immutable run-indexed on-device file
+`files/p2-measurements/p2-android-memory-run-0N.csv`; an existing final file is a failure, and a
+successful run is never overwritten. The five host copies retain the corresponding
+`device-memory-run-01.csv` through `device-memory-run-05.csv` names fixed below.
+
+The retained fixture is fixed at 256 x 256, `N=65,536`, `H=64`, `C=8,192` effective positions per
+entry, and `T=524,288=8N` total retained changes. One production `CommandGateway` executes 64 real
+commands while the Android test owner retains each public `CommandResult.Applied.changeSet`:
+
+- the canvas is divided into eight 256 x 32 row blocks;
+- entry `i` changes block `i mod 8` to opaque red when `i / 8` is even and opaque white otherwise;
+- every entry is effective, each pixel changes exactly eight times, and revisions advance exactly
+  from 0 through 64; and
+- each public render invalidation has origin `(0, (i mod 8) * 32)` and size 256 x 32, while the
+  final revision-64 snapshot is entirely opaque white.
+
+After full pixel, revision, history, result, and public-invalidation verification, the production
+gateway, commands, strokes, input position lists, and intermediate snapshots are not retained.
+The test-only owner strongly retains only the final `DocumentState`, the 64 opaque public
+`ChangeSet` objects, and the current canonical materialized render projection. Private patch
+counts, canonical ordering, inverse records/replay, and logical storage counts remain owned by the
+existing isolated host schema-v6 evidence.
+
+The projection is created by a release-absent debug-only opaque bridge that delegates directly to
+the canonical `PixelSnapshot.toRenderedPixels()` function. It does not expose the list,
+`RenderedPixel`, or mutable pixel storage. It reports only pixel count, first/last row-major
+position and ARGB, full projection SHA-256, and mismatch count. The retained 256-square opaque-
+white projection must match the existing host digest
+`F1100EF5EA1ACC83FB6A15F08ECBDE5277293C83707B2C13B5F8FC963E7A0F74`.
+
+Each invocation uses this exact sequence:
+
+1. validate profile, candidate, run index, batch UUID, source commit, and physical-only evidence;
+2. capture physical checkpoint `before_baseline`;
+3. preload the same command/projection classes with one discarded 16-square one-pixel applied
+   command and its canonical projection;
+4. capture a two-pass post-GC Java-heap/PSS baseline;
+5. construct and fully verify the fixed `H=64, T=8N` owner and projection;
+6. capture a two-pass post-GC retained Java-heap/PSS checkpoint while that owner remains strongly
+   reachable;
+7. capture compatible physical checkpoint `after_retained`; and
+8. validate all rows and atomically publish the immutable run file.
+
+Both memory rows include Java heap used/committed, total/dalvik/native/other PSS, private/shared
+dirty, `Runtime.maxMemory`, and `memoryClass`. Each raw also contains exact profile/build/source/
+batch/process identity, `N/H/C/T`, block/color order, two physical checkpoints, 64 public entry
+observations, final pixel and entry-descriptor digests, projection observables, GC and retained
+boundaries, and correctness status. Fixture creation, verification, projection creation, and report
+writing occur outside both memory checkpoints.
+
+After the five immutable raws exist, a separate aggregate-only instrumentation invocation reads
+them without taking a sixth memory observation. It rejects a missing or duplicate run index; any
+batch, source, candidate, workload, profile, fingerprint, security-patch, schema, row-count, entry-
+sequence, display, thermal, power, battery, correctness, digest, memory-field, process-identity, or
+raw-checksum mismatch; and an existing aggregate output. It writes
+`files/p2-measurements/p2-android-memory-aggregate.csv`, copied unchanged to `device-memory.csv`,
+with each raw's byte length/SHA-256, five run rows, and one aggregate row.
+
+For run `i`, paired PSS delta is `d_i = retained_total_pss_kib_i - baseline_total_pss_kib_i`.
+Negative values remain raw and are not clamped. The nearest-rank median for five values is the
+third sorted value; there is no interpolation or outlier removal. The median condition is
+`2 * median(d_i) <= memoryClassKiB`, and the individual condition is
+`5 * d_i <= 3 * memoryClassKiB` for every run. Steady ART live heap requires
+`2 * retained_java_heap_used_bytes <= Runtime.maxMemory` for every run; median and maximum are also
+reported. Peak headroom, cap-rejection churn, candidate retained memory, and candidate projection
+remain unevaluated. Every raw fixes
+`post_gc_churn_status=not_evaluated_cap_policy_unselected`; inventing a test-only cap before the
+limit policy is selected would not satisfy the production condition.
+
 ### Required workload matrix
 
 - square and rectangular canvases, with axis and total-pixel candidates varied separately;
