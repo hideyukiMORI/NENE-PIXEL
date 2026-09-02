@@ -961,6 +961,41 @@ The implementation may change only existing or new unit-test sources in `:core:d
 Gradle wiring, schema row, or accepted ADR answer. Focused tests, ktlint, and detekt must pass
 before recording the result.
 
+#### Recorded current extreme-integer characterization result
+
+The test-only implementation was recorded at commit
+`4fe05a5fef9f7cc6207373b2091b2c3e7ba152a9`. The `Int.MAX_VALUE x 2` snapshot case reported
+`PixelSnapshotSizeMismatch(expected=4,294,967,294, actual=1)` without invoking the sentinel
+element accessor. The current factory therefore checks the `Long` pixel count against the list's
+`Int` size before its defensive copy on this mismatch path.
+
+Two changes at `(0, 0)` and `(Int.MAX_VALUE - 1, Int.MAX_VALUE - 1)` on an `Int.MAX_VALUE`
+square produced one canonical patch with change count two and the exact full-canvas affected
+region. The inverse preserved that region. Replacing the far valid corner with
+`(Int.MAX_VALUE, Int.MAX_VALUE)` returned the exact typed `PositionOutsideCanvas` rejection
+instead of evaluating an overflowing affected-region expression.
+
+Together with the existing typed-coordinate invariants, these observations show that current
+affected-region subtraction and addition do not overflow for a valid patch: its span cannot
+exceed its validated canvas axis. A created current `PixelSnapshot` must also have
+`pixelCount == pixels.size.toLong()`, so its downstream `pixelCount.toInt()` calls cannot
+numerically wrap. This does not make the current allocation policy safe. A very large but
+`Int`-indexable snapshot, mutable surface, or render projection may still exhaust memory, and
+patch candidates are still materialized and sorted without an accepted product cap.
+
+The independent focused gate was:
+
+```text
+.\gradlew.bat :core:domain:test :core:pixel-engine:test :core:domain:ktlintCheck :core:pixel-engine:ktlintCheck :core:domain:detekt :core:pixel-engine:detekt --rerun-tasks --no-build-cache --no-configuration-cache
+BUILD SUCCESSFUL in 2m 58s
+31 actionable tasks: 31 executed
+```
+
+This slice changed two unit-test files only. It added no production behavior, limit, dependency,
+Gradle wiring, measurement schema, or raw artifact. Exact axis, area, patch, and pre-allocation
+rejection policy remains unresolved pending the complete physical evidence and one accepted
+limit policy.
+
 ### Pre-fixed semantic compatibility characterization slice
 
 Before adding or selecting a semantic color policy, this question-free slice characterizes only
