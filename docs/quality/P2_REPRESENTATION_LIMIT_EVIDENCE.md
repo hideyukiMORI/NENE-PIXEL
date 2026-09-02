@@ -15,7 +15,7 @@ Current evidence state:
 | Evidence | State | Decision use |
 | --- | --- | --- |
 | Immutable M1 sparse host reproduction | complete for the rerun recorded below | starting evidence only |
-| Current-main P2 representation route | current canonical host route, preliminary physical command screening, and one final-protocol affected-frame batch complete | incomplete; full physical matrix, retained heap/ART/PSS, and compositor correlation required |
+| Current-main P2 representation route | current canonical host route, isolated current host render projection, preliminary physical command screening, and one final-protocol affected-frame batch complete | incomplete; candidate projection, full physical matrix, retained heap/ART/PSS, and compositor correlation required |
 | Analytical storage candidates | flat packed and tiled/COW square/rectangular snapshot/apply, dense and sparse/rectangular native patch/inverse, raw duplicate/no-op/reference-clear, and retained analytical-history screening recorded; palette U8 contract tested | incomplete; retained and sparse/rectangular analytical matrices complete, while semantic selection and physical retained-memory evidence remain required |
 | Named emulator | ART command harness complete in explicit auxiliary mode | cannot satisfy physical evidence |
 | Named physical minimum Android device | profile fixed, preliminary command screening and one final-protocol affected-frame batch recorded | valid physical evidence; complete physical matrix still blocking |
@@ -1112,6 +1112,50 @@ production `PixelSnapshot.toRenderedPixels()` boundary. They must not be copied,
 converted to the current snapshot for this slice; candidate render projection remains pending a
 single canonical representation/read boundary.
 
+#### Recorded current host render-projection result
+
+The test-only projection harness and existing measurement-task wiring were recorded at source
+commit `e17813087fa68eb3103d7d1dedaf630958f4dd63`. From that source, the complete host aggregation
+was rerun without build or configuration cache:
+
+```powershell
+.\gradlew.bat measureP2RepresentationLimits --rerun-tasks --no-build-cache --no-configuration-cache
+```
+
+It completed with `BUILD SUCCESSFUL` in 3 minutes 1 second and 29 executed tasks. The isolated
+projection report was:
+
+| Raw path | Bytes | SHA-256 | Schema / rows |
+| --- | ---: | --- | --- |
+| `build/reports/p2/representation-limits/host-projection.csv` | 165,644 | `346F4F48A120344F03FBA407C340D2A30B47F409B977B3E5402837048A7E1915` | `nene-pixel-p2-representation-limits-host-projection-v1`; 19 metadata, 28 metric, 280 sample rows |
+
+An independent CSV audit found zero structural, identity, sample-index, correctness-status, digest-
+format, or nearest-rank percentile mismatches across all 28 metrics. A separately compiled C#
+oracle regenerated all four inputs without using the Kotlin fixture, then recomputed both SHA-256
+encodings, exact color cardinality, pixel count, and first/last position and `AARRGGBB` for every
+shape/content pair. It also found zero mismatches.
+
+The largest shape produced these current host medians:
+
+| `256x256` content | Projection median | Current-thread allocated median |
+| --- | ---: | ---: |
+| opaque-white reference blank | 582,500 ns | 3,407,912 bytes |
+| opaque-red one-color | 578,600 ns | 3,407,912 bytes |
+| exact 256 deterministic RGBA | 590,800 ns | 3,407,912 bytes |
+| deterministic high-entropy RGBA | 610,100 ns | 3,407,912 bytes |
+
+The focused presentation test, ktlint, and detekt gate completed in 15 seconds with 40 executed
+tasks. The existing viewport measurement was separately rerun after extracting the shared host
+runner and completed in 11 seconds with 25 executed tasks; its schema v1, 12-column report shape,
+and single metric remained intact. The source commit adds no production behavior, public API,
+dependency, plugin, module, or APK payload.
+
+These timings and allocation values describe only one current HotSpot projection call. They do not
+measure retained heap, Android ART or PSS, draw iteration, Compose scheduling, GPU/compositor work,
+or a physical frame. Candidate render projection remains pending its canonical representation/read
+boundary, so this result selects no representation or hard limit and does not close the physical
+evidence blocker.
+
 ## Pre-fixed measurement contract
 
 The following pass conditions are fixed before choosing a representation or hard product limit.
@@ -1234,10 +1278,11 @@ the Android configuration and separate supported-device verification.
 
 ## Current blocker
 
-Host, emulator-smoke, preliminary physical command evidence, and the complete host logical
-retained-history and sparse/rectangular native-patch matrices are currently available. The schema
-v6 and v7 analytical results are not retained-memory evidence. Physical screening still does not
-include the complete physical workload matrix,
+Host, isolated current host render projection, emulator-smoke, preliminary physical command
+evidence, and the complete host logical retained-history and sparse/rectangular native-patch
+matrices are currently available. The schema v6 and v7 analytical results and the current HotSpot
+projection result are not retained-memory, candidate-projection, or physical-render evidence.
+Physical screening still does not include the complete physical workload matrix,
 retained-history ART/live-heap evidence, five independent PSS checkpoints, or compositor
 correlation. The corrected affected-frame batch is valid and fails the pre-fixed timing conditions
 for the current dense 256-square route; its timeline IDs still require Perfetto correlation before
