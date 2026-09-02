@@ -15,8 +15,8 @@ Current evidence state:
 | Evidence | State | Decision use |
 | --- | --- | --- |
 | Immutable M1 sparse host reproduction | complete for the rerun recorded below | starting evidence only |
-| Current-main P2 representation route | current canonical host route, preliminary physical command screening, and one final-protocol affected-frame batch complete | incomplete; full matrix, retained memory, and compositor correlation required |
-| Analytical storage candidates | flat packed and tiled/COW square/rectangular snapshot/apply, dense native patch/inverse, and raw duplicate/no-op/reference-clear screening recorded; palette U8 contract tested | incomplete; sparse/rectangular native patches, semantics, retained and physical evidence required |
+| Current-main P2 representation route | current canonical host route, preliminary physical command screening, and one final-protocol affected-frame batch complete | incomplete; full physical matrix, retained heap/ART/PSS, and compositor correlation required |
+| Analytical storage candidates | flat packed and tiled/COW square/rectangular snapshot/apply, dense native patch/inverse, raw duplicate/no-op/reference-clear, and retained analytical-history screening recorded; palette U8 contract tested | incomplete; retained analytical matrix complete, while sparse/rectangular native patches, semantics, and physical retained-memory evidence remain required |
 | Named emulator | ART command harness complete in explicit auxiliary mode | cannot satisfy physical evidence |
 | Named physical minimum Android device | profile fixed, preliminary command screening and one final-protocol affected-frame batch recorded | valid physical evidence; complete physical matrix still blocking |
 | Accepted representation or hard limits | none | ADR remains proposed |
@@ -490,6 +490,74 @@ candidate or product limit. Retained heap, ART, PSS, GC, render projection, and 
 separate required physical evidence, and a largest passing physical candidate still extends the
 matrix before it can be called a maximum.
 
+#### Recorded schema v6 retained analytical history result
+
+The pre-fixed clean host command was run from source commit
+`661b0f663937a4ff0a8967d6be5661088441dbf3`:
+
+```powershell
+.\gradlew.bat measureP2RepresentationLimits --rerun-tasks --no-build-cache --no-configuration-cache
+```
+
+It completed with `BUILD SUCCESSFUL` and 14 executed tasks. The read-only artifact audit recorded:
+
+| Artifact | Schema | Bytes | SHA-256 |
+| --- | --- | ---: | --- |
+| `host-current.csv` | `nene-pixel-p2-representation-limits-host-current-v4` | 48,942 | `8CBC96524FEFA681A6593F2086FA85211EA1D74EB57FB9670C4A3EE370668145` |
+| `host-candidates.csv` | `nene-pixel-p2-representation-limits-host-candidates-v6` | 5,723,100 | `71F1941C643B49667DF2B17C33C8EF51FCBBA0CB1A83C9589ED63F73C08F439B` |
+
+Candidate schema v6 contains exactly 490 metric rows and 4,900 raw sample rows. The retained slice
+accounts for 90 metrics and 900 samples: all 18 valid workloads occur once under each of the five
+configurations and every metric has exactly ten samples. Across all 490 candidate metrics, an
+independent nearest-rank median/p95/p99 recomputation for both latency and allocation found zero
+mismatches. Metric/sample adjacency, sample indices, sample counts, and matrix membership also
+found zero mismatches.
+
+For retained rows, the audit found zero detailed correctness, storage, or digest failures. This
+includes exact `H/C/T`, revision-chain, chronological forward and reverse-inverse replay,
+row-major ordering, affected-region and unaffected-pixel checks, prepared-input aliasing rules,
+separate logical storage aggregates, SHA-256 field format, and cross-configuration entry-count and
+semantic digest equality. The existing schema v5 single-patch storage columns were empty in every
+retained row, with zero violations. Empty-case, result/rejection, `correctness_status`, and negative
+raw-value checks also had zero failures.
+
+The following representative values are the retained history patch union at `H=64`. They exclude
+the separately retained current snapshot and preserve each logical storage unit without conversion:
+
+| Patch/inverse policy | `T` | Primitive payload bytes | Reference slots | Object records | Primitive backing arrays |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| object/materialized | `N` (65,536) | 524,288 | 393,216 | 131,072 | 0 |
+| packed/shared | `N` (65,536) | 786,432 | 0 | 0 | 192 |
+| object/materialized | `8N` (524,288) | 4,194,304 | 3,145,728 | 1,048,576 | 0 |
+| packed/shared | `8N` (524,288) | 6,291,456 | 0 | 0 | 192 |
+
+The flat-packed and three tiled packed configurations have identical retained patch aggregates at
+the same `H/T`: their directional inverse shares the forward patch's three primitive arrays per
+entry, so the union counts those arrays and payload once. Their snapshot units remain distinct:
+
+| Snapshot configuration | Snapshot primitive bytes | Snapshot reference slots |
+| --- | ---: | ---: |
+| object | 0 | 65,536 |
+| flat packed | 262,144 | 0 |
+| tiled packed, edge 16 | 262,144 | 256 |
+| tiled packed, edge 32 | 262,144 | 64 |
+| tiled packed, edge 64 | 262,144 | 16 |
+
+The canonical `H=0, T=0` row has zero forward, inverse-additional, shared, and union patch counts,
+while retaining the revision-0 snapshot with the corresponding counts above. Snapshot payload is
+never added to the patch union.
+
+Observed wrapper/owner-interval p95 allocation was independent of observed `T` at each `H`:
+
+| Retained entries `H` | 0 | 1 | 8 | 16 | 32 | 64 |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| p95 allocated bytes | 48 | 96 | 288 | 512 | 960 | 1,856 |
+
+These are current HotSpot test-thread allocation values for defensive entry-reference ownership and
+analytical wrapper construction only. They are not retained heap, ART live heap, PSS, or any other
+physical-memory measurement. The completed logical retained matrix therefore does not select a
+candidate, hard limit, or semantic policy and does not close the physical evidence blocker.
+
 ## Auxiliary Android harness proof
 
 The Android command harness compiled and ran on the `Pixel_8_Pro_API_35` AVD only after the
@@ -803,11 +871,13 @@ the Android configuration and separate supported-device verification.
 
 ## Current blocker
 
-Host, emulator-smoke, and preliminary physical command evidence are currently available. The
-physical screening does not include the complete workload matrix, retained-history memory, five
-independent PSS checkpoints, or compositor correlation. The corrected affected-frame batch is
-valid and fails the pre-fixed timing conditions for the current dense 256-square route; its
-timeline IDs still require Perfetto correlation before any visible-frame claim.
+Host, emulator-smoke, preliminary physical command evidence, and the complete host logical
+retained-history matrix are currently available. The schema v6 logical result is not retained-memory
+evidence. Physical screening still does not include the complete physical workload matrix,
+retained-history ART/live-heap evidence, five independent PSS checkpoints, or compositor
+correlation. The corrected affected-frame batch is valid and fails the pre-fixed timing conditions
+for the current dense 256-square route; its timeline IDs still require Perfetto correlation before
+any visible-frame claim.
 The command screening's twenty samples per workload are also insufficient final p99 tail
 evidence. The emulator remains useful only for functional interaction checks and cannot fill any
 of those physical gaps.
