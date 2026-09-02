@@ -1,6 +1,8 @@
 package io.github.hideyukimori.nenepixel.core.pixelengine.measurement
 
+import io.github.hideyukimori.nenepixel.core.domain.color.ColorChannel
 import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
+import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertNotEquals
@@ -9,15 +11,19 @@ import org.junit.jupiter.api.Test
 internal class P2CandidateRepresentationContractTest {
     @Test
     fun `RGBA8888 packing preserves every channel including hidden RGB at alpha zero`() {
-        CHANNEL_EDGES.forEachIndexed { index, red ->
-            val green = CHANNEL_EDGES[(index + 1) % CHANNEL_EDGES.size]
-            val blue = CHANNEL_EDGES[(index + 2) % CHANNEL_EDGES.size]
-            val alpha = if (index == 0) 0 else CHANNEL_EDGES[(index + 3) % CHANNEL_EDGES.size]
-            val expected = pixelColor(red, green, blue, alpha)
-            val packed = P2PackedRgba8888.pack(expected)
+        val colors = edgeColors()
 
-            assertEquals(expected, P2PackedRgba8888.unpack(packed))
-        }
+        assertEquals(EXPECTED_EDGE_COLOR_COUNT, colors.size)
+        colors.forEach(::assertPackedRoundTrip)
+
+        val transparentBlack = domainColor(RgbaChannels(0, 0, 0, 0))
+        val transparentRed = domainColor(RgbaChannels(255, 0, 0, 0))
+        assertNotEquals(transparentBlack, transparentRed)
+        assertNotEquals(P2PackedRgba8888.pack(transparentBlack), P2PackedRgba8888.pack(transparentRed))
+        assertNotEquals(
+            P2PackedRgba8888.unpack(P2PackedRgba8888.pack(transparentBlack)),
+            P2PackedRgba8888.unpack(P2PackedRgba8888.pack(transparentRed)),
+        )
     }
 
     @Test
@@ -168,6 +174,42 @@ internal class P2CandidateRepresentationContractTest {
     private fun deterministicPixels(shape: P2CanvasShape): IntArray =
         IntArray(shape.pixelCount.toInt()) { index -> distinctPackedColor(index) }
 
+    private fun assertPackedRoundTrip(channels: RgbaChannels) {
+        val expected = domainColor(channels)
+        val packed = P2PackedRgba8888.pack(expected)
+        val unpacked = P2PackedRgba8888.unpack(packed)
+
+        assertEquals(channels.packed, packed)
+        assertEquals(channels.red.toUByte(), unpacked.red.value)
+        assertEquals(channels.green.toUByte(), unpacked.green.value)
+        assertEquals(channels.blue.toUByte(), unpacked.blue.value)
+        assertEquals(channels.alpha.toUByte(), unpacked.alpha.value)
+        assertEquals(expected, unpacked)
+    }
+
+    private fun domainColor(channels: RgbaChannels): PixelColor =
+        PixelColor.create(
+            channel(channels.red),
+            channel(channels.green),
+            channel(channels.blue),
+            channel(channels.alpha),
+        )
+
+    private fun channel(value: Int): ColorChannel =
+        when (val result = ColorChannel.create(value)) {
+            is DomainValueResult.Created -> result.value
+            is DomainValueResult.Rejected -> error("Edge channel was rejected: ${result.rejection}")
+        }
+
+    private fun edgeColors(): List<RgbaChannels> =
+        CHANNEL_EDGES.flatMap { red ->
+            CHANNEL_EDGES.flatMap { green ->
+                CHANNEL_EDGES.flatMap { blue ->
+                    CHANNEL_EDGES.map { alpha -> RgbaChannels(red, green, blue, alpha) }
+                }
+            }
+        }
+
     private fun distinctPackedColor(index: Int): Int =
         ((index and CHANNEL_MASK) shl RED_SHIFT) or
             ((index ushr BYTE_BITS and CHANNEL_MASK) shl GREEN_SHIFT) or
@@ -184,7 +226,18 @@ internal class P2CandidateRepresentationContractTest {
             (red shl RED_SHIFT) or (green shl GREEN_SHIFT) or (blue shl BLUE_SHIFT) or alpha,
         )
 
+    private data class RgbaChannels(
+        val red: Int,
+        val green: Int,
+        val blue: Int,
+        val alpha: Int,
+    ) {
+        val packed: Int
+            get() = (red shl RED_SHIFT) or (green shl GREEN_SHIFT) or (blue shl BLUE_SHIFT) or alpha
+    }
+
     private companion object {
+        const val EXPECTED_EDGE_COLOR_COUNT: Int = 1_296
         const val RED_SHIFT: Int = 24
         const val GREEN_SHIFT: Int = 16
         const val BLUE_SHIFT: Int = 8
