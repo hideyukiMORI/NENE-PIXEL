@@ -1545,6 +1545,51 @@ frame-timeline vsync ID with a retained Perfetto/FrameTimeline artifact. Until t
 present, app-issued timing is useful physical renderer evidence but cannot satisfy the visible-
 frame acceptance condition by itself.
 
+### Refreshed-build current-command tail contract
+
+The reference tablet updated after the preliminary command and frame collections. Read-only
+queries on 2026-09-02 reported build fingerprint
+`ALLDOCUBE/iPlay80miniPro/T830:16/BP2A.250605.031.A3/94110:user/release-keys` and security patch
+2026-06-05. The stable hardware profile ID remains
+`NENE-P2-ALLDOCUBE-IPL80MP-A16-API36`, but no result from build `94010` may be aggregated with a
+build `94110` result. The exact fingerprint and patch level are emitted in each new raw artifact.
+
+Before implementation, the final current-command tail route is fixed as follows:
+
+- schema `nene-pixel-p2-android-final-command-measurement-v1`, candidate ID
+  `current-canonical-command-256-square`, run index 1, and a caller-supplied full 40-character
+  source commit that must match the installed APK and test APK source;
+- fixed workload order `sparse_apply_stroke`, `dense_apply_stroke`,
+  `dense_same_color_no_op`, `dense_undo`, and `dense_redo`, all at 256 x 256;
+- five untimed warmups followed by 200 measured samples for each workload, with a fresh
+  `PreparedCommandWorkload` and exactly one `CommandGateway.execute` call per iteration;
+- one post-GC baseline before measured samples, then ART runtime-stat, Java-heap, PSS, and
+  correctness observations outside the direct `CommandGateway.execute` latency boundary;
+- one-based per-workload sample indices and one-based global indices across the 1,000 raw sample
+  rows; nearest-rank percentiles are recomputed from raw rows and no row is discarded;
+- physical checkpoints before samples, after every 25 global samples, and after the final sample,
+  producing 42 deliberately named checkpoint rows including distinct `after_1000` and
+  `after_samples` observations; and
+- batch rejection if display mode, physical dimensions, or 90 Hz refresh differs from the
+  baseline, device-wide thermal status exceeds 1, power saving is enabled, the display is not
+  interactive, USB power is lost, or battery data is unavailable.
+
+Every tail sample verifies the exact resulting `DocumentState`, complete pixel content, revision,
+history availability, command result kind, applied `ChangeSet` revisions and render invalidation,
+or exact no-effective-change rejection and unchanged state identity as applicable. Lower-level
+canonical patch ordering, forward/inverse round trip, and unaffected-pixel requirements remain
+owned by the existing isolated canonical core tests; this tail route does not add a public or
+second access path to private patch storage. Per-sample post-GC PSS is diagnostic only and does not
+satisfy the separately required five independent PSS invocations.
+
+The new on-device command output is
+`files/p2-measurements/p2-android-final-command-measurement.csv` and is copied unchanged to
+`build/reports/p2/representation-limits/device-core.csv`. On the same source commit and refreshed
+build, the existing frame route is rerun with candidate ID
+`current-canonical-dense-256-square`, run index 2, five warmups, and 200 samples, then copied to
+`device-frames.csv`. This paired collection neither supplies Perfetto correlation nor selects a
+representation or hard product limit.
+
 ### Required workload matrix
 
 - square and rectangular canvases, with axis and total-pixel candidates varied separately;
@@ -1560,8 +1605,11 @@ frame acceptance condition by itself.
 - max-minus-one, max, max-plus-one, rectangular product overflow, pre-allocation rejection,
   shuffled ordering, and maximum patch/history interaction.
 
-Every reported sample asserts deterministic pixels, canonical ordering, bounds, revisions,
-inverse round trip, affected region, unaffected pixels, and atomic no-op or rejection behavior.
+Every decision row that reports a lower-level property asserts deterministic pixels, canonical
+ordering, bounds, revisions, inverse round trip, affected region, unaffected pixels, and atomic
+no-op or rejection behavior. Command-boundary tail rows assert the public observables fixed in the
+refreshed-build contract above and rely on the associated isolated core rows for private patch
+storage invariants.
 
 ## P2 raw artifact contract
 
@@ -1613,6 +1661,13 @@ the Android configuration and separate supported-device verification.
 | Background-process and network conditions | unconstrained user background/network state; no process kill, network mutation, or device reset; therefore preliminary screening only | reported non-invasive condition; final validity conditions are fixed in the protocol above |
 | Warmup, sample, restart, and GC protocol | preliminary screening: five warmups and twenty samples; final tail batches: five warmups and 200 samples; a fresh gateway per sample; two explicit Java GC/finalization passes only before post-GC memory capture | preliminary route fixed before its run; expanded final protocol fixed before candidate or frame collection |
 | Connected transport and measurement tools | one physical device over USB ADB; AndroidJUnitRunner; `Debug.getRuntimeStats`, `Debug.getMemoryInfo`, `Runtime`, `ActivityManager`, `dumpsys`, and host SHA-256 | device/tool reported and protocol-fixed |
+
+The final tail collection refreshes only the mutable software and run-condition fields of that
+stable hardware profile. Before installing a new measurement APK, read-only queries on 2026-09-02
+reported Android 16/API 36 build `94110`, security patch 2026-06-05, 1200 x 1920 mode 1 at 90 Hz,
+low-power mode 0, interactive USB power at 100% battery, and overall thermal status 1. The exact
+run-time values and source commit remain report metadata and checkpoint data rather than being
+inferred from the preliminary build `94010` rows.
 
 ## Current blocker
 
