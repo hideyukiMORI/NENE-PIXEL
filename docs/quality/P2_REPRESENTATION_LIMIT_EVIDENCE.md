@@ -961,6 +961,39 @@ The tests may strengthen existing test sources in `:core:domain`, `:core:pixel-e
 wiring, schema version, raw measurement row, or accepted ADR answer. Focused domain,
 pixel-engine, and Compose unit tests plus ktlint and detekt must pass before the result is recorded.
 
+#### Recorded semantic compatibility characterization result
+
+The test-only implementation was recorded at commit
+`20e9212d3a7da870788ffe4e4bfc387e8d949799`. The resolved Compose graphics dependency for this
+observation was `androidx.compose.ui:ui-graphics:1.12.0` under BOM `2026.08.00`.
+
+All `1,296` edge-set Cartesian RGBA values preserved their four exact named U8 channels in
+domain `PixelColor`. Independently constructed equal values were equal with equal hashes. Two
+alpha-zero values that differed only in hidden RGB remained unequal and occupied distinct set
+entries under the current domain value contract.
+
+The test-only packed RGBA8888 conversion produced exact `RRGGBBAA` bits and returned the original
+four channels for all `1,296` values. The current Compose adapter reported sRGB, preserved every
+channel within less than one-half U8 quantization step, and produced the exact expected
+`AARRGGBB` value for every case. In particular, transparent black produced `0x00000000` and
+transparent red produced `0x00ff0000`; the adapter therefore did not discard hidden RGB in this
+32-bit observation.
+
+The independent focused gate was:
+
+```text
+.\gradlew.bat :core:domain:test :core:pixel-engine:test :presentation:compose:testDebugUnitTest :core:domain:ktlintCheck :core:pixel-engine:ktlintCheck :presentation:compose:ktlintCheck :core:domain:detekt :core:pixel-engine:detekt :presentation:compose:detekt --rerun-tasks --no-build-cache --no-configuration-cache
+BUILD SUCCESSFUL in 3m
+60 actionable tasks: 60 executed
+```
+
+Source inspection found no PNG or project-format adapter in production source. This slice added
+only three test-source changes; it changed no production behavior, dependency, Gradle wiring,
+measurement schema, or raw artifact. It establishes current compatibility facts only. Document
+color space and alpha meaning, alpha-zero policy, blank, eraser, pencil composition, palette
+ownership, PNG/project-format conversion, and the accepted storage representation all remain
+unresolved.
+
 ## Pre-fixed measurement contract
 
 The following pass conditions are fixed before choosing a representation or hard product limit.
