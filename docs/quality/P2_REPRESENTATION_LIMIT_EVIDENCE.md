@@ -931,6 +931,36 @@ The current product fixture uses opaque white blank and opaque red drawing in An
 composition. That is fixture evidence only; it is not an accepted alpha, blank, eraser, or
 composition contract.
 
+### Pre-fixed semantic compatibility characterization slice
+
+Before adding or selecting a semantic color policy, this question-free slice characterizes only
+the exact behavior already present at three boundaries: domain `PixelColor` value identity, the
+test-only packed RGBA8888 candidate conversion, and the current Compose adapter. It does not
+choose a color space for document truth, straight versus premultiplied semantic alpha,
+alpha-zero canonicalization, blank, eraser, pencil composition, palette ownership, PNG mapping,
+or a project-format contract. Those decisions remain separate from storage layout and require one
+complete accepted policy after the physical evidence gate is satisfied.
+
+The fixed U8 edge set is `0, 1, 127, 128, 254, 255`. The domain and packed-candidate checks cover
+the complete Cartesian product of the four named RGBA channels, exactly `6^4 = 1,296` colors.
+For every color they must prove exact named-channel preservation through pack/unpack. Equal domain
+values must have equal hashes, while alpha-zero colors with different hidden RGB values must
+remain unequal under the current value contract. This is characterization, not acceptance of
+hidden-RGB preservation as the future policy.
+
+The current Compose adapter check uses the same 1,296 colors. It must prove that
+`PixelColor.toComposeColor()` supplies each U8 channel unchanged to a Compose `Color`, that the
+constructed color reports the Compose sRGB color space, and that conversion to the adapter's
+32-bit ARGB observation preserves the exact alpha and RGB bytes, including distinct RGB bytes at
+alpha zero. It does not assert raster blending, framebuffer storage, display color management, or
+PNG encoding. Source inspection must also continue to show that no PNG or project-format adapter
+exists yet; this slice must not add one.
+
+The tests may strengthen existing test sources in `:core:domain`, `:core:pixel-engine`, and
+`:presentation:compose`. They must add no production behavior, public API, dependency, Gradle
+wiring, schema version, raw measurement row, or accepted ADR answer. Focused domain,
+pixel-engine, and Compose unit tests plus ktlint and detekt must pass before the result is recorded.
+
 ## Pre-fixed measurement contract
 
 The following pass conditions are fixed before choosing a representation or hard product limit.
