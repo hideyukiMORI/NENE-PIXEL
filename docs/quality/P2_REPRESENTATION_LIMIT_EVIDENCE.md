@@ -739,6 +739,67 @@ commit changed test source only; it did not change production behavior, public A
 or Gradle configuration. This recorded host result selects no representation, semantic policy,
 canvas or patch hard limit, and does not close the physical evidence blocker.
 
+### Pre-fixed duplicate raw-path amplification schema v8 slice
+
+Before collecting candidate schema v8, this host-only slice isolates raw-position amplification
+from unique effective changes. It extends only the candidate-native changed-color duplicate path;
+the three existing reference-clear changed/no-op and same-color no-op rows remain fixed at
+`256x256` and are neither relabeled nor multiplied.
+
+The duplicate matrix uses the seven shared test-only shapes already fixed for snapshot, patch, and
+projection analysis:
+
+| Pixel count | Shapes |
+| ---: | --- |
+| 4,096 | `64x64`, `16x256`, `256x16` |
+| 16,384 | `128x128`, `64x256`, `256x64` |
+| 65,536 | `256x256` |
+
+For each shape with `N` pixels, factors `F = 1, 2, 4, 8` produce exactly `P = F*N` raw positions,
+`U = N` unique positions, `D = P-N` duplicate positions, zero unchanged unique positions, and
+`C = N` effective changes from opaque black to opaque red. Raw position `i` is row-major logical
+position `i/F`, so duplicates are adjacent runs. The fixed input-order identities are `row_major`,
+`paired_row_major`, `quadrupled_row_major`, and `octupled_row_major`. These observations must not be
+generalized to another duplicate distribution.
+
+All five candidate configurations run at every shape/factor point with five warmups and ten raw
+samples. This produces 140 duplicate metrics and 1,400 duplicate samples. The already-recorded
+`256x256`, factor-two descriptor remains one of those 140 metrics with the same identity and is not
+emitted a second time. The other three legacy raw operations contribute 15 unchanged metrics, so
+the raw-path portion contains 155 metrics and 1,550 samples. Added to schema v7, schema v8 must
+contain exactly 1,675 metric rows and 16,750 sample rows; `host-current.csv` receives no schema or
+row change.
+
+No report column is added. `path_positions`, `unique_path_positions`,
+`duplicate_path_positions`, and `change_count` already identify `P`, `U`, `D`, and `C`. The
+candidate schema identifier and exact total-count metadata advance to v8. Matrix keys include
+operation, shape, all four counts, and configuration. Configuration rotation uses
+`shapeIndex*4 + factorIndex` modulo five for duplicate workloads; this preserves the existing
+`256x256` factor-two start. The three legacy operations preserve their existing offsets.
+
+Every sample retains the current timed boundary: valid-input scan, first-occurrence collapse,
+source-color filter, canonical change collection, candidate-native patch materialization,
+defensive ownership, and typed result. Fixture and digest construction, apply/inverse replay, full
+pixel verification, and report writing remain outside timing. `P` multiplication must be exact
+for the fixed matrix before creating the raw `IntArray`; the largest fixture is 524,288 positions.
+
+Within one shape/configuration, factors may differ only in raw-input identity and measured
+latency/allocation. Canonical change/order, forward/inverse patch, lifecycle, full-canvas region,
+storage, and final pixels must agree across factors. Within one shape/factor, raw and semantic
+digests, state, result, and correctness must agree across configurations while layout-specific
+storage may differ. Every rasterized result must preserve source revision/pixels, apply `0 -> 1`,
+inverse to `0`, change all `N` positions, leave zero unaffected positions, and round-trip exactly.
+
+Factor one cannot reuse `raw_reference_clear_changed`: that legacy workload is opaque red to the
+black reference fixture, while this factor matrix is opaque black to red and therefore has distinct
+raw, canonical, forward, and inverse digests. A shared test-only shape matrix must be reused or
+extracted instead of introducing a third shape list.
+
+This slice may change pixel-engine test source and candidate report metadata only. It adds no
+production behavior, API, dependency, Gradle wiring, report column, worker-heap change, product
+limit, or accepted ADR answer. HotSpot timing/allocation and logical storage do not select a
+candidate or satisfy retained heap, ART, PSS, render, frame, or physical-device evidence.
+
 ## Auxiliary Android harness proof
 
 The Android command harness compiled and ran on the `Pixel_8_Pro_API_35` AVD only after the
