@@ -122,7 +122,7 @@ internal data class P2CandidatePercentiles(
 internal object P2CandidateMeasurement {
     fun measure(allocationCounter: P2ThreadAllocationCounter): List<P2CandidateMeasurementMetric> {
         val metrics =
-            CANDIDATE_CANVASES.flatMap { canvas ->
+            P2CandidateCanvasMatrix.shapes.flatMap { canvas ->
                 P2CandidateConfiguration.entries.flatMap { configuration ->
                     P2CandidateOperationKind.entries.map { operation ->
                         measureCandidate(allocationCounter, descriptor(configuration, operation, canvas))
@@ -221,16 +221,6 @@ internal object P2CandidateMeasurement {
     private const val P99_PERCENTILE: Double = 0.99
     private const val REUSED_FORWARD_METRIC_COUNT: Int = 210
     private const val REUSED_FORWARD_SAMPLE_COUNT: Int = 2_100
-    private val CANDIDATE_CANVASES: List<P2CanvasShape> =
-        listOf(
-            P2CanvasShape(64, 64),
-            P2CanvasShape(16, 256),
-            P2CanvasShape(256, 16),
-            P2CanvasShape(128, 128),
-            P2CanvasShape(64, 256),
-            P2CanvasShape(256, 64),
-            P2CanvasShape(256, 256),
-        )
 }
 
 internal class P2CandidateMeasurementFixture private constructor(

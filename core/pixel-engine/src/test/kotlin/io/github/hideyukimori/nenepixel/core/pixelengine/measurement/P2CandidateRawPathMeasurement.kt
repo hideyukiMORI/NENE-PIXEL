@@ -22,6 +22,7 @@ internal data class P2CandidateRawPathMeasurementDescriptor(
     val configuration: P2CandidateConfiguration,
     val operation: P2CandidateRawPathOperationKind,
     val canvas: P2CanvasShape,
+    val repeatFactor: Int,
     val pathPositions: Int,
     val uniquePathPositions: Int,
     val duplicatePathPositions: Int,
@@ -64,16 +65,21 @@ internal data class P2CandidateRawPathMeasurementMetric(
 
 internal object P2CandidateRawPathMeasurement {
     fun measure(allocationCounter: P2ThreadAllocationCounter): List<P2CandidateRawPathMeasurementMetric> {
-        val metrics =
-            P2CandidateRawPathOperationKind.entries.flatMapIndexed { operationIndex, operation ->
-                rotatedConfigurations(operationIndex).mapIndexed { executionOrder, configuration ->
-                    measureMetric(allocationCounter, descriptor(configuration, operation, executionOrder))
-                }
-            }
+        val descriptors = descriptors()
+        P2CandidateRawPathMeasurementMatrix.validate(descriptors)
+        val metrics = descriptors.map { descriptor -> measureMetric(allocationCounter, descriptor) }
         assertMetricMatrix(metrics)
         assertCrossConfigurationCorrectness(metrics)
+        assertCrossFactorCorrectness(metrics)
         return metrics
     }
+
+    internal fun descriptors(): List<P2CandidateRawPathMeasurementDescriptor> =
+        P2CandidateRawPathMeasurementMatrix.works.flatMap { work ->
+            rotatedConfigurations(work.rotationIndex).mapIndexed { executionOrder, configuration ->
+                descriptor(work, configuration, executionOrder)
+            }
+        }
 
     private fun measureMetric(
         allocationCounter: P2ThreadAllocationCounter,
@@ -119,28 +125,27 @@ internal object P2CandidateRawPathMeasurement {
     }
 
     private fun descriptor(
+        work: P2CandidateRawPathMeasurementWork,
         configuration: P2CandidateConfiguration,
-        operation: P2CandidateRawPathOperationKind,
         executionOrder: Int,
     ): P2CandidateRawPathMeasurementDescriptor {
-        val pixelCount = RAW_CANVAS.pixelCount.toInt()
-        val duplicateCount = if (operation == P2CandidateRawPathOperationKind.DuplicateChanged) pixelCount else 0
-        val noOp = operation.isNoOp()
+        val noOp = work.operation.isNoOp()
         return P2CandidateRawPathMeasurementDescriptor(
             configuration = configuration,
-            operation = operation,
-            canvas = RAW_CANVAS,
-            pathPositions = pixelCount + duplicateCount,
-            uniquePathPositions = pixelCount,
-            duplicatePathPositions = duplicateCount,
-            unchangedUniquePositions = if (noOp) pixelCount else 0,
-            changeCount = if (noOp) 0 else pixelCount,
-            contentKind = operation.contentKind(),
+            operation = work.operation,
+            canvas = work.canvas,
+            repeatFactor = work.repeatFactor,
+            pathPositions = work.pathPositions,
+            uniquePathPositions = work.pixelCount,
+            duplicatePathPositions = work.duplicatePathPositions,
+            unchangedUniquePositions = if (noOp) work.pixelCount else 0,
+            changeCount = work.changeCount,
+            contentKind = work.operation.contentKind(),
             protocol =
                 P2CandidateRawPathMeasurementProtocol(
                     boundary = RAW_BOUNDARY,
                     executionOrder = executionOrder,
-                    inputOrder = operation.inputOrder(),
+                    inputOrder = work.inputOrder(),
                 ),
         )
     }
@@ -151,14 +156,8 @@ internal object P2CandidateRawPathMeasurement {
     }
 
     private fun assertMetricMatrix(metrics: List<P2CandidateRawPathMeasurementMetric>) {
-        val expectedCount = P2CandidateRawPathOperationKind.entries.size * P2CandidateConfiguration.entries.size
+        val expectedCount = P2CandidateRawPathMeasurementMatrix.METRIC_COUNT
         check(metrics.size == expectedCount) { "Candidate raw-path matrix size changed." }
-        check(
-            metrics.map { metric -> metric.descriptor.operation to metric.descriptor.configuration }.toSet().size ==
-                expectedCount,
-        ) {
-            "Candidate raw-path matrix contained a missing or duplicate configuration."
-        }
         metrics.forEach { metric ->
             check(metric.outcome.result.resultKind == metric.descriptor.operation.expectedResultKind()) {
                 "Candidate raw-path result kind changed."
@@ -177,11 +176,11 @@ internal object P2CandidateRawPathMeasurement {
     }
 
     private fun assertCrossConfigurationCorrectness(metrics: List<P2CandidateRawPathMeasurementMetric>) {
-        metrics.groupBy { metric -> metric.descriptor.operation }.values.forEach { operationMetrics ->
-            val expectedState = operationMetrics.first().outcome.state
-            val expectedCorrectness = operationMetrics.first().outcome.correctness
-            val expectedResult = operationMetrics.first().outcome.result
-            operationMetrics.forEach { metric ->
+        metrics.groupBy { metric -> metric.descriptor.workloadIdentity() }.values.forEach { workloadMetrics ->
+            val expectedState = workloadMetrics.first().outcome.state
+            val expectedCorrectness = workloadMetrics.first().outcome.correctness
+            val expectedResult = workloadMetrics.first().outcome.result
+            workloadMetrics.forEach { metric ->
                 check(metric.outcome.state == expectedState) {
                     "Candidate raw-path state differed across configurations."
                 }
@@ -192,6 +191,31 @@ internal object P2CandidateRawPathMeasurement {
                     "Candidate raw-path result differed across configurations."
                 }
             }
+        }
+    }
+
+    private fun assertCrossFactorCorrectness(metrics: List<P2CandidateRawPathMeasurementMetric>) {
+        val duplicateMetrics = metrics.filter { metric -> metric.descriptor.operation.isDuplicateChanged() }
+        duplicateMetrics
+            .groupBy { metric -> metric.descriptor.canvas to metric.descriptor.configuration }
+            .values
+            .forEach(::assertFactorGroup)
+    }
+
+    private fun assertFactorGroup(metrics: List<P2CandidateRawPathMeasurementMetric>) {
+        check(metrics.size == P2CandidateRawPathMeasurementMatrix.duplicateFactors.size) {
+            "Candidate raw-path factor group was incomplete."
+        }
+        val ordered = metrics.sortedBy { metric -> metric.descriptor.repeatFactor }
+        val actualFactors = ordered.map { metric -> metric.descriptor.repeatFactor }
+        check(actualFactors == P2CandidateRawPathMeasurementMatrix.duplicateFactors) {
+            "Candidate raw-path factor group changed."
+        }
+        check(ordered.map { metric -> metric.outcome.correctness.rawInputDigest }.toSet().size == ordered.size) {
+            "Candidate raw-path factor inputs were not distinct."
+        }
+        check(ordered.map { metric -> metric.outcome.withoutRawIdentity() }.toSet().size == 1) {
+            "Candidate raw-path semantics or storage differed across factors."
         }
     }
 
@@ -224,7 +248,6 @@ internal object P2CandidateRawPathMeasurement {
         "raw position scan, first-occurrence duplicate collapse, source-color filter, canonical change collection, " +
             "candidate-native patch materialization, defensive ownership, and typed result return; " +
             "fixture generation, apply/inverse, history, and verification excluded"
-    private val RAW_CANVAS: P2CanvasShape = P2CanvasShape(256, 256)
 }
 
 private class P2CandidateRawPathMeasurementFixture(
@@ -397,7 +420,7 @@ private class P2CandidateRawPathMeasurementFixture(
                     SOURCE_REVISION,
                     sourcePixels,
                 )
-            val rawPositions = descriptor.operation.rawPositions(descriptor.canvas.pixelCount.toInt())
+            val rawPositions = descriptor.rawPositions()
             val target = P2PackedRgba8888.unpack(targetPacked)
             return P2CandidateRawPathMeasurementFixture(
                 descriptor = descriptor,
@@ -413,9 +436,12 @@ private class P2CandidateRawPathMeasurementFixture(
     }
 }
 
-private fun P2CandidateRawPathOperationKind.isNoOp(): Boolean =
+internal fun P2CandidateRawPathOperationKind.isNoOp(): Boolean =
     this == P2CandidateRawPathOperationKind.ReferenceClearNoOp ||
         this == P2CandidateRawPathOperationKind.SameColorNoOp
+
+private fun P2CandidateRawPathOperationKind.isDuplicateChanged(): Boolean =
+    this == P2CandidateRawPathOperationKind.DuplicateChanged
 
 private fun P2CandidateRawPathOperationKind.sourcePacked(): Int =
     when (this) {
@@ -439,15 +465,29 @@ private fun P2CandidateRawPathOperationKind.targetPacked(): Int =
         -> OPAQUE_BLACK
     }
 
-private fun P2CandidateRawPathOperationKind.rawPositions(pixelCount: Int): IntArray =
-    if (this == P2CandidateRawPathOperationKind.DuplicateChanged) {
-        IntArray(pixelCount * 2) { index -> index / 2 }
+private fun P2CandidateRawPathMeasurementDescriptor.rawPositions(): IntArray {
+    val pixelCount = canvas.pixelCount.toInt()
+    check(pathPositions == Math.multiplyExact(pixelCount, repeatFactor)) {
+        "Candidate raw-path exact position count changed."
+    }
+    return IntArray(pathPositions) { index -> index / repeatFactor }
+}
+
+private fun P2CandidateRawPathMeasurementWork.inputOrder(): String =
+    if (operation.isDuplicateChanged()) {
+        repeatFactor.inputOrder()
     } else {
-        IntArray(pixelCount) { index -> index }
+        "row_major"
     }
 
-private fun P2CandidateRawPathOperationKind.inputOrder(): String =
-    if (this == P2CandidateRawPathOperationKind.DuplicateChanged) "paired_row_major" else "row_major"
+private fun Int.inputOrder(): String =
+    when (this) {
+        1 -> "row_major"
+        2 -> "paired_row_major"
+        4 -> "quadrupled_row_major"
+        8 -> "octupled_row_major"
+        else -> error("Unsupported candidate raw-path repeat factor: $this")
+    }
 
 private fun P2CandidateRawPathOperationKind.contentKind(): String =
     when (this) {
@@ -458,6 +498,26 @@ private fun P2CandidateRawPathOperationKind.contentKind(): String =
     }
 
 private fun P2CandidateRawPathOperationKind.expectedResultKind(): String = if (isNoOp()) "NoChanges" else "Rasterized"
+
+private fun P2CandidateRawPathMeasurementDescriptor.workloadIdentity(): P2CandidateRawPathWorkloadIdentity =
+    P2CandidateRawPathWorkloadIdentity(
+        operation = operation,
+        canvas = canvas,
+        counts = listOf(pathPositions, uniquePathPositions, duplicatePathPositions, changeCount),
+        contentKind = contentKind,
+        inputOrder = protocol.inputOrder,
+    )
+
+private fun P2CandidateRawPathMeasurementOutcome.withoutRawIdentity(): P2CandidateRawPathMeasurementOutcome =
+    copy(correctness = correctness.copy(rawInputDigest = ""))
+
+private data class P2CandidateRawPathWorkloadIdentity(
+    val operation: P2CandidateRawPathOperationKind,
+    val canvas: P2CanvasShape,
+    val counts: List<Int>,
+    val contentKind: String,
+    val inputOrder: String,
+)
 
 private val EMPTY_PATCH_PAIR_STORAGE: P2CandidatePatchPairStorage =
     P2CandidatePatchPairStorage(

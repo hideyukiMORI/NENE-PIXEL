@@ -8,15 +8,7 @@ internal data class P2CandidatePatchMeasurementWork(
 )
 
 internal object P2CandidatePatchMeasurementMatrix {
-    val sparseCanvases: List<P2CanvasShape> =
-        listOf(
-            P2CanvasShape(64, 64),
-            P2CanvasShape(16, 256),
-            P2CanvasShape(256, 16),
-            P2CanvasShape(128, 128),
-            P2CanvasShape(64, 256),
-            P2CanvasShape(256, 64),
-        )
+    val sparseCanvases: List<P2CanvasShape> = P2CandidateCanvasMatrix.sparseShapes
 
     val sparseOperations: List<P2CandidatePatchOperationKind> =
         listOf(
@@ -43,7 +35,7 @@ internal object P2CandidatePatchMeasurementMatrix {
     private fun denseWorks(): List<P2CandidatePatchMeasurementWork> =
         P2CandidatePatchOperationKind.entries.mapIndexed { operationIndex, operation ->
             P2CandidatePatchMeasurementWork(
-                P2CanvasShape(256, 256),
+                P2CandidateCanvasMatrix.denseAnchor,
                 P2CandidateNativePatchWorkloadKind.DenseFullCanvasAnchor,
                 operation,
                 operationIndex,

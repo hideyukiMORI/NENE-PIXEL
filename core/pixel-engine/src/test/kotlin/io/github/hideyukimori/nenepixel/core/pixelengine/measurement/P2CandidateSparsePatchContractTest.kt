@@ -31,8 +31,18 @@ internal class P2CandidateSparsePatchContractTest {
             sparse.any { descriptor -> descriptor.operation == P2CandidatePatchOperationKind.ApplyForward },
         )
         assertEquals(P2CandidatePatchMeasurementMatrix.METRIC_COUNT, descriptors.size)
-        assertEquals(1_540, 490 + P2CandidatePatchMeasurementMatrix.SPARSE_METRIC_COUNT)
-        assertEquals(15_400, 4_900 + P2CandidatePatchMeasurementMatrix.SPARSE_RAW_SAMPLE_COUNT)
+        assertEquals(
+            1_675,
+            490 +
+                P2CandidatePatchMeasurementMatrix.SPARSE_METRIC_COUNT +
+                P2CandidateRawPathMeasurementMatrix.ADDED_METRIC_COUNT,
+        )
+        assertEquals(
+            16_750,
+            4_900 +
+                P2CandidatePatchMeasurementMatrix.SPARSE_RAW_SAMPLE_COUNT +
+                P2CandidateRawPathMeasurementMatrix.ADDED_RAW_SAMPLE_COUNT,
+        )
     }
 
     @Test

@@ -6,39 +6,73 @@ import org.junit.jupiter.api.Test
 
 internal class P2CandidateRawPathPatchContractTest {
     @Test
-    fun `candidate raw path collapses duplicates before strict canonical patch creation`() {
+    fun `candidate raw path preserves one canonical patch across duplicate factors`() {
         val shape = P2CanvasShape(4, 4)
-        val blackPixels = IntArray(shape.pixelCount.toInt()) { OPAQUE_BLACK }
-        val red = P2PackedRgba8888.unpack(OPAQUE_RED)
-        val rawPositions = IntArray(blackPixels.size * 2) { index -> index / 2 }
-
         P2CandidateConfiguration.entries.forEach { configuration ->
-            val source = configuration.createSnapshot(shape, 0L, blackPixels)
-            val sourceDigest = P2CandidateDigest.pixels(source)
-            val result = P2CandidateRawPathPatchFactory.create(configuration, source, rawPositions, red)
-            val patch = assertInstanceOf(P2CandidateRawPathResult.Rasterized::class.java, result).patch
-            val patchDigest = P2CandidateDigest.patch(patch)
-
-            assertEquals(blackPixels.size, patch.changeCount)
-            assertEquals((0 until blackPixels.size).toList(), List(patch.changeCount, patch::positionAt))
-            assertEquals(P2CandidateAffectedRegion(0, 0, shape.width, shape.height), patch.affectedRegion)
-            assertEquals(P2CandidateRevisionTransition(0L, 1L), patch.revisions)
-            repeat(patch.changeCount) { index ->
-                assertEquals(OPAQUE_BLACK, patch.beforeAt(index))
-                assertEquals(OPAQUE_RED, patch.afterAt(index))
-            }
-
-            val applied = source.apply(patch).requiredApplication().snapshot
-            val restored = applied.apply(patch.inverse()).requiredApplication().snapshot
-            assertCandidatePixels(applied, IntArray(blackPixels.size) { OPAQUE_RED })
-            assertEquals(source, restored)
-            assertEquals(sourceDigest, P2CandidateDigest.pixels(source))
-
-            rawPositions.fill(0)
-            assertEquals(patchDigest, P2CandidateDigest.patch(patch))
-            resetPairedRowMajor(rawPositions)
+            val evidence =
+                P2CandidateRawPathMeasurementMatrix.duplicateFactors.map { factor ->
+                    verifyDuplicateFactor(configuration, shape, factor)
+                }
+            assertEquals(evidence.size, evidence.map { item -> item.rawInputDigest }.toSet().size)
+            assertEquals(1, evidence.map { item -> item.patchDigest }.toSet().size)
+            assertEquals(1, evidence.map { item -> item.inverseDigest }.toSet().size)
+            assertEquals(1, evidence.map { item -> item.storage }.toSet().size)
         }
     }
+
+    private fun verifyDuplicateFactor(
+        configuration: P2CandidateConfiguration,
+        shape: P2CanvasShape,
+        factor: Int,
+    ): DuplicateFactorEvidence {
+        val blackPixels = IntArray(shape.pixelCount.toInt()) { OPAQUE_BLACK }
+        val red = P2PackedRgba8888.unpack(OPAQUE_RED)
+        val rawPositions = IntArray(Math.multiplyExact(blackPixels.size, factor)) { index -> index / factor }
+        val source = configuration.createSnapshot(shape, 0L, blackPixels)
+        val sourceDigest = P2CandidateDigest.pixels(source)
+        val rawInputDigest = P2CandidateDigest.rawInput(source, rawPositions, red)
+        val result = P2CandidateRawPathPatchFactory.create(configuration, source, rawPositions, red)
+        val patch = assertInstanceOf(P2CandidateRawPathResult.Rasterized::class.java, result).patch
+        verifyPatch(shape, patch, blackPixels.size)
+        val inverse = patch.inverse()
+        val applied = source.apply(patch).requiredApplication().snapshot
+        val restored = applied.apply(inverse).requiredApplication().snapshot
+        assertCandidatePixels(applied, IntArray(blackPixels.size) { OPAQUE_RED })
+        assertEquals(source, restored)
+        assertEquals(sourceDigest, P2CandidateDigest.pixels(source))
+        val evidence = duplicateFactorEvidence(rawInputDigest, patch, inverse)
+        rawPositions.fill(0)
+        assertEquals(evidence.patchDigest, P2CandidateDigest.patch(patch))
+        resetRepeatedRowMajor(rawPositions, factor)
+        return evidence
+    }
+
+    private fun verifyPatch(
+        shape: P2CanvasShape,
+        patch: P2CandidatePatch,
+        expectedCount: Int,
+    ) {
+        assertEquals(expectedCount, patch.changeCount)
+        assertEquals((0 until expectedCount).toList(), List(patch.changeCount, patch::positionAt))
+        assertEquals(P2CandidateAffectedRegion(0, 0, shape.width, shape.height), patch.affectedRegion)
+        assertEquals(P2CandidateRevisionTransition(0L, 1L), patch.revisions)
+        repeat(patch.changeCount) { index ->
+            assertEquals(OPAQUE_BLACK, patch.beforeAt(index))
+            assertEquals(OPAQUE_RED, patch.afterAt(index))
+        }
+    }
+
+    private fun duplicateFactorEvidence(
+        rawInputDigest: String,
+        patch: P2CandidatePatch,
+        inverse: P2CandidatePatch,
+    ): DuplicateFactorEvidence =
+        DuplicateFactorEvidence(
+            rawInputDigest = rawInputDigest,
+            patchDigest = P2CandidateDigest.patch(patch),
+            inverseDigest = P2CandidateDigest.patch(inverse),
+            storage = patch.pairStorage(inverse),
+        )
 
     @Test
     fun `candidate raw path rasterizes changed reference clear and returns typed no changes`() {
@@ -126,9 +160,19 @@ internal class P2CandidateRawPathPatchContractTest {
         return assertInstanceOf(T::class.java, rejected.rejection)
     }
 
-    private fun resetPairedRowMajor(rawPositions: IntArray) {
-        rawPositions.indices.forEach { index -> rawPositions[index] = index / 2 }
+    private fun resetRepeatedRowMajor(
+        rawPositions: IntArray,
+        factor: Int,
+    ) {
+        rawPositions.indices.forEach { index -> rawPositions[index] = index / factor }
     }
+
+    private data class DuplicateFactorEvidence(
+        val rawInputDigest: String,
+        val patchDigest: String,
+        val inverseDigest: String,
+        val storage: P2CandidatePatchPairStorage,
+    )
 
     private companion object {
         const val OPAQUE_BLACK: Int = 0x000000ff

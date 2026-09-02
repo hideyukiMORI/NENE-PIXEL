@@ -38,9 +38,10 @@ internal object P2CandidateMeasurementReport {
                 patchCandidates.sumOf { metric -> metric.samples.latenciesNanos.size } +
                 rawPathCandidates.sumOf { metric -> metric.samples.latenciesNanos.size } +
                 retainedHistoryCandidates.sumOf { metric -> metric.samples.latenciesNanos.size }
-        check(metricCount == EXPECTED_METRIC_COUNT) { "Candidate schema v7 metric count changed." }
-        check(sampleCount == EXPECTED_RAW_SAMPLE_COUNT) { "Candidate schema v7 sample count changed." }
+        check(metricCount == EXPECTED_METRIC_COUNT) { "Candidate schema v8 metric count changed." }
+        check(sampleCount == EXPECTED_RAW_SAMPLE_COUNT) { "Candidate schema v8 sample count changed." }
         P2CandidatePatchMeasurementMatrix.validate(patchCandidates.map { metric -> metric.descriptor })
+        P2CandidateRawPathMeasurementMatrix.validate(rawPathCandidates.map { metric -> metric.descriptor })
         check(patchCandidates.size == P2CandidatePatchMeasurementMatrix.METRIC_COUNT)
         check(
             patchCandidates.sumOf { metric -> metric.samples.latenciesNanos.size } ==
@@ -63,6 +64,11 @@ internal object P2CandidateMeasurementReport {
             retainedHistoryCandidates.sumOf { metric -> metric.samples.latenciesNanos.size } ==
                 P2CandidateRetainedHistoryMeasurement.RAW_SAMPLE_COUNT,
         )
+        check(rawPathCandidates.size == P2CandidateRawPathMeasurementMatrix.METRIC_COUNT)
+        check(
+            rawPathCandidates.sumOf { metric -> metric.samples.latenciesNanos.size } ==
+                P2CandidateRawPathMeasurementMatrix.RAW_SAMPLE_COUNT,
+        )
     }
 
     private fun metadataRows(): List<String> = baseMetadataRows() + contractMetadataRows()
@@ -70,7 +76,8 @@ internal object P2CandidateMeasurementReport {
     private fun baseMetadataRows(): List<String> =
         listOf(
             P2CandidateMeasurementReportSchema.headerRow(),
-            metadataRow("schema", "nene-pixel-p2-representation-limits-host-candidates-v7"),
+            metadataRow("schema", "nene-pixel-p2-representation-limits-host-candidates-v8"),
+            metadataRow("report_matrix", "1675 metrics and 16750 samples"),
             metadataRow("profile", HOST_PROFILE),
             metadataRow("os", systemDescription()),
             metadataRow("jvm", jvmDescription()),
@@ -100,7 +107,8 @@ internal object P2CandidateMeasurementReport {
                     "one|256|high-entropy RGBA snapshot build; high-entropy one|diagonal|row|column|" +
                     "25%|50%|100% apply; 256x256-only dense shuffled create|inverse create|forward apply|" +
                     "inverse apply|round trip|late conflict plus sparse/rectangular shuffled create|inverse create|" +
-                    "inverse apply|round trip|late conflict plus raw duplicate changed|reference-clear changed|" +
+                    "inverse apply|round trip|late conflict plus 7-shape factor-1|2|4|8 raw duplicate changed|" +
+                    "reference-clear changed|" +
                     "reference-clear no-op|same-color no-op plus 18 retained analytical-history workloads; " +
                     "5 warmups and 10 diagnostic samples",
             ),
@@ -167,9 +175,10 @@ internal object P2CandidateMeasurementReport {
             ),
             metadataRow(
                 "raw_candidate_matrix",
-                "256x256; opaque black/red analytical fixtures; paired-row-major duplicate changed, " +
-                    "row-major reference-clear changed/no-op and same-color no-op; 5 configurations; " +
-                    "20 metrics and 200 samples",
+                "64x64|16x256|256x16|128x128|64x256|256x64|256x256 duplicate changed with " +
+                    "factors 1|2|4|8 and adjacent row-major runs; 140 metrics and 1400 samples; " +
+                    "256x256 row-major reference-clear changed/no-op and same-color no-op; " +
+                    "15 metrics and 150 samples; 5 configurations; raw total 155 metrics and 1550 samples",
             ),
         )
 
@@ -588,8 +597,8 @@ internal object P2CandidateMeasurementReport {
     private const val HOST_PROFILE: String = "NENE-P2-REPRESENTATION-WINDOWS-I9-10850K-JBR21"
     private const val CANDIDATE_WARMUPS: Int = 5
     private const val CANDIDATE_SAMPLES: Int = 10
-    private const val EXPECTED_METRIC_COUNT: Int = 1_540
-    private const val EXPECTED_RAW_SAMPLE_COUNT: Int = 15_400
+    private const val EXPECTED_METRIC_COUNT: Int = 1_675
+    private const val EXPECTED_RAW_SAMPLE_COUNT: Int = 16_750
 }
 
 private data class P2CandidateReportSample(
