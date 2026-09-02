@@ -1020,6 +1020,32 @@ behavior, public API, dependency, Gradle wiring, measurement schema, raw artifac
 accepted ADR answer. Focused pixel-engine tests, ktlint, and detekt must pass before recording the
 result.
 
+#### Recorded current patch validation-order characterization result
+
+The one-file test-only characterization was recorded at source commit
+`a7c936cda6c362044367a984f4e28b3c6eb0f810`. With an outside change first in a three-element
+source, the access-recording list observed all source indices before `PixelPatch.create` returned
+the exact `PositionOutsideCanvas` canvas and position. The current implementation therefore
+materializes and canonicalizes the complete source before bounds validation on this path; it has no
+pre-sort product patch cap.
+
+At `Long.MAX_VALUE` revision, a one-element source whose accessor always fails instead returned the
+exact `RevisionOverflow` rejection without reading an element. This confirms the current revision
+overflow check precedes source materialization. It does not select a future cap or define the
+priority among other validation failures.
+
+The independent focused gate was:
+
+```text
+.\gradlew.bat :core:pixel-engine:test :core:pixel-engine:ktlintCheck :core:pixel-engine:detekt --rerun-tasks --no-build-cache --no-configuration-cache
+BUILD SUCCESSFUL in 2m 58s
+21 actionable tasks: 21 executed
+```
+
+This slice changed one existing unit-test file only. It added no production behavior, API,
+dependency, Gradle wiring, measurement schema, raw artifact, or limit. Pre-sort size rejection,
+the accepted patch maximum, its typed rejection, owner, and validation priority remain unresolved.
+
 ### Pre-fixed semantic compatibility characterization slice
 
 Before adding or selecting a semantic color policy, this question-free slice characterizes only
