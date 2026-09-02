@@ -1545,6 +1545,78 @@ frame-timeline vsync ID with a retained Perfetto/FrameTimeline artifact. Until t
 present, app-issued timing is useful physical renderer evidence but cannot satisfy the visible-
 frame acceptance condition by itself.
 
+### Pre-fixed paired Perfetto/FrameTimeline correlation contract
+
+The next compositor slice reruns the unchanged final frame harness while a system trace is active;
+an earlier app-issued timeline ID cannot be correlated to a trace captured later. The frame CSV
+schema remains `nene-pixel-p2-android-frame-measurement-v1`. Its fixed identity is candidate
+`current-canonical-dense-256-square`, run index 3, five warmups, 200 samples, the same physical
+profile/build, and the full source commit used to build both APKs. A caller-generated canonical
+UUID identifies the outer paired batch, the trace trigger, tool manifest, config, query, CSV, and
+correlation report. APK byte lengths and SHA-256 values are recorded before installation.
+
+The retained trace uses device Perfetto v49.0 and host Trace Processor
+`v49.0-33a4fd078` (`33a4fd07897a9a648664926ea27769278a19ff13`). The pinned Windows binary is
+10,479,616 bytes with SHA-256
+`A881F3E2D4C6131493E85BFD1F36D1EFE58E1478E2991825418D5D21614C1E48`. Its trace config has one
+64 MiB `RING_BUFFER`, requests `android.surfaceflinger.frametimeline`, uses a unique batch-derived
+`STOP_TRACING` trigger with a 300-second trigger timeout, and records clock snapshots required to
+map trace timestamps to `CLOCK_MONOTONIC`. The collector starts with `--background-wait`; the
+instrumentation begins only after all producers acknowledge startup. The stop trigger is sent only
+after the final physical checkpoint and complete frame CSV publication. A wall-time timeout, a
+manual process kill, producer-start failure, missing closed trace, trace buffer overwrite/discard,
+packet loss, parse error, or a trace interval that does not contain the complete instrumentation
+interval invalidates the batch.
+
+The unique config and trace staging paths are
+`/data/misc/perfetto-configs/nene-p2-frame-<batch>.txtpb` and
+`/data/misc/perfetto-traces/nene-p2-frame-<batch>.perfetto-trace`; either pre-existing path is a
+failure. The retained tool manifest records the exact `perfetto --background-wait --txt -c ... -o
+...` start command, returned tracing PID, batch-derived trigger name, and later `perfetto --trigger
+<name>` command. The trigger is the only normal stop path; the tracing process is not killed.
+
+The original host `device-frames.csv`, `device-profile.txt`, `device-logcat.txt`, command, and
+memory artifacts are immutable and must retain their recorded byte lengths and SHA-256 values.
+The traced run may replace only the app-internal fixed frame-report path used by the existing test;
+it is copied immediately to the distinct immutable host name below. No accepted host artifact is
+overwritten. The paired artifact set is fixed as:
+
+| Artifact | Fixed role |
+| --- | --- |
+| `build/reports/p2/representation-limits/device-frames-perfetto.csv` | unchanged frame schema from the traced 5/200 run |
+| `build/reports/p2/representation-limits/device-frame-timeline.perfetto-trace` | closed raw FrameTimeline trace |
+| `build/reports/p2/representation-limits/device-frame-correlation.csv` | schema `nene-pixel-p2-android-frame-perfetto-correlation-v1`; 200 joined rows plus metadata/summary |
+| `build/reports/p2/representation-limits/device-frame-perfetto-config.txtpb` | exact trace config with batch-derived trigger |
+| `build/reports/p2/representation-limits/device-frame-perfetto-query.sql` | exact retained PerfettoSQL extraction and validation query |
+| `build/reports/p2/representation-limits/device-frame-perfetto-tool.txt` | batch/source/APK/device/Trace Processor identity and collection commands |
+
+The retained SQL selects `actual_frame_timeline_slice` and `expected_frame_timeline_slice` rows for
+the exact app package and its buffer-surface layer, never by nearest timestamp alone. Each of the
+200 positive, unique CSV `frame_timeline_vsync_id` values must equal exactly one app surface-frame
+token in each table. The selected app actual row must have `is_buffer=1` and one positive display-
+frame token; that token must select exactly one SurfaceFlinger display actual row and exactly one
+display expected row. All selected app rows use one stable non-empty layer identity. Missing or
+duplicate rows/tokens, a different layer, null or non-positive tokens, negative durations, `Dropped Frame`,
+`Unknown Present`, or an unrecognized present type invalidates the whole batch; no sample is
+discarded or substituted.
+
+For every selected SurfaceFlinger actual row, Trace Processor clock synchronization converts the
+physical-present end `ts + dur` to `CLOCK_MONOTONIC`; the retained query records both trace time and
+`to_monotonic(ts + dur)`, rejects a null conversion, and retains the applicable clock-snapshot
+rows. The raw command-to-physical-present duration is
+`monotonic_present_end - command_start_nanos` from the matching frame CSV row. It must be positive.
+The correlation report retains all 200 raw joins, app/SF tokens and intervals, layer, jank/on-time/
+present fields, clock-converted end, and duration. Nearest-rank p95 and p99 use all 200 durations
+with no interpolation, outlier removal, or result substitution. The existing 33.33 ms visible-
+correctness threshold is evaluated from that p95; correlation does not turn a numerical failure
+into a pass.
+
+After host byte/hash verification, only exact temporary trace/config/export staging is removed and
+the recorded original stay-awake setting is restored and verified. Every paired artifact receives
+a byte length and SHA-256 in this ledger. This slice can establish SurfaceFlinger correlation for
+this single current dense 256-square run only; it does not provide candidate compositor evidence,
+complete physical workload coverage, representation selection, or a product limit.
+
 ### Refreshed-build current-command tail contract
 
 The reference tablet updated after the preliminary command and frame collections. Read-only
@@ -1788,6 +1860,78 @@ These results establish only the fixed current-canonical retained owner and proj
 candidate projection remain explicitly unevaluated and cannot be inferred from these passing
 steady-memory conditions.
 
+### Pre-fixed paired Perfetto/FrameTimeline correlation contract
+
+The next physical slice correlates the existing app-issued frame observation with Android
+FrameTimeline; it does not change `nene-pixel-p2-android-frame-measurement-v1`, its columns, or its
+measurement boundary. On one full 40-character source commit, the source-identical debug and
+debugAndroidTest APKs are rebuilt and their byte lengths and SHA-256 values are fixed before
+installation. The existing frame test then runs as candidate
+`current-canonical-dense-256-square`, run index 3, with five warmups and 200 samples on
+`NENE-P2-ALLDOCUBE-IPL80MP-A16-API36`, build fingerprint
+`ALLDOCUBE/iPlay80miniPro/T830:16/BP2A.250605.031.A3/94110:user/release-keys`, and security patch
+2026-06-05. The unchanged on-device CSV is copied to the new host name
+`device-frames-frametimeline.csv`; the existing `device-frames.csv` is not replaced or combined
+with it.
+
+The retained Perfetto text config has one 65,536 KiB `RING_BUFFER`, a 300,000 ms trigger timeout,
+trigger mode `STOP_TRACING`, trigger name `nene_pixel_p2_frametimeline_stop`, and the sole requested
+data source `android.surfaceflinger.frametimeline`. Perfetto starts with `--background-wait`; only
+after the instrumentation result and frame CSV are closed does the host issue that stop trigger.
+The timeout is a failed collection, not an alternate stop path. Before tracing, one
+device Perfetto is pinned to v49.0. The host `trace_processor_shell` is pinned to
+`v49.0-33a4fd078`, 10,479,616 bytes, SHA-256
+`A881F3E2D4C6131493E85BFD1F36D1EFE58E1478E2991825418D5D21614C1E48`; only that exact binary may
+execute the retained SQL. The exact config bytes, SQL bytes, source commit, profile/build identity,
+app/test variants, package/activity, and APK identities are recorded before the query runs.
+
+The query selects process name exactly `io.github.hideyukimori.nenepixel` and activity component
+exactly
+`io.github.hideyukimori.nenepixel/io.github.hideyukimori.nenepixel.MainActivity`. It permits only
+the platform-added terminal `#<decimal instance>` while resolving the layer and requires exactly
+one distinct non-empty app `layer_name`; the resolved literal is emitted and all subsequent joins
+use equality, never a package prefix, `LIKE`, or a fallback to another app, activity, layer, or
+system-UI surface. If the trace uses a different component form or resolves zero or multiple app
+layers, the collection is invalid rather than the selector being broadened after collection.
+
+All 200 CSV `frame_timeline_vsync_id` values must be positive and unique. Each must equal the
+surface-frame token of exactly one selected-app actual row and exactly one selected-app expected
+row. Those two rows must agree on one positive display-frame token, which in turn must select
+exactly one SurfaceFlinger display actual row and one SurfaceFlinger display expected row. Missing,
+duplicate, null, zero, or mismatched tokens or rows; a dropped or unknown present/jank result; a
+null or negative duration; or any trace-processor data-loss, packet-loss, or ring-buffer-overrun
+stat invalidates the whole batch. The CSV's existing exact state, revision, snapshot, image, drop,
+and physical-checkpoint requirements remain applicable to every correlated row.
+
+`command_start_nanos` is `System.nanoTime()`/`CLOCK_MONOTONIC`, not assumed to be in trace time.
+For each sample, the retained query uses the nearest preceding `clock_snapshot` containing both
+`MONOTONIC` and the trace primary clock, or the earliest following paired snapshot only when none
+precedes it, and applies that snapshot's signed primary-minus-MONOTONIC offset. Missing or
+ambiguous clock pairs, arithmetic overflow, a converted command start outside trace bounds, or a
+negative latency rejects the batch. Physical-present time is the exact matched SurfaceFlinger
+display-actual slice end, `ts + dur`; the raw value is
+`physical_present_trace_nanos - converted_command_start_trace_nanos`. The correlation CSV retains
+all source tokens, selected row IDs, clock-snapshot IDs and offsets, timestamps, durations, present
+and jank classifications, and the raw latency for all 200 samples. Nearest-rank p95 and p99 are
+recomputed from those 200 raw latencies with no exclusion, clamp, interpolation, or outlier rule.
+
+The new immutable host targets are
+`device-frames-frametimeline.csv`, `device-frametimeline.pftrace`,
+`device-frametimeline-config.pbtxt`, `device-frametimeline-query.sql`,
+`device-frametimeline-correlation.csv`, `device-frametimeline-source.txt`,
+`device-frametimeline-trace-processor.txt`, and `device-frametimeline-checksums.csv`. Collection
+stops before mutation if any target already exists. The checksum ledger records relative name,
+byte length, and SHA-256 for every other target; its own byte length and SHA-256 are added to this
+document after collection. Exact device staging paths are likewise required absent before the run.
+The original `stay_on_while_plugged_in` and every other touched setting are recorded first,
+restored exactly, and verified; only after every host artifact and checksum is durable are the
+exact staged config, trace, and frame CSV removed. No broad directory cleanup is permitted.
+
+A valid result may establish command-start-to-SurfaceFlinger-present evidence only for these 200
+test-clock-driven current-canonical frames on the named source/profile/build. It is not display
+scan-out or photon timing, natural user-input scheduling, candidate-specific evidence, the complete
+physical workload matrix, a largest passing canvas, or permission to accept ADR 0005 by itself.
+
 ### Required workload matrix
 
 - square and rectangular canvases, with axis and total-pixel candidates varied separately;
@@ -1825,6 +1969,14 @@ boundary. Planned ignored paths are fixed as follows before collection:
 | `build/reports/p2/representation-limits/device-memory-run-01.csv` through `device-memory-run-05.csv` | one immutable PSS/retained/post-GC checkpoint invocation each; individual checksums required |
 | `build/reports/p2/representation-limits/device-memory.csv` | deterministic aggregate over the five run-indexed memory artifacts |
 | `build/reports/p2/representation-limits/device-frames.csv` | frame deadline, overrun, and command-to-first-correct-frame observations |
+| `build/reports/p2/representation-limits/device-frames-frametimeline.csv` | unchanged frame schema from the paired Perfetto collection under a distinct immutable name |
+| `build/reports/p2/representation-limits/device-frametimeline.pftrace` | raw `android.surfaceflinger.frametimeline` trace for physical-present correlation |
+| `build/reports/p2/representation-limits/device-frametimeline-config.pbtxt` | exact retained Perfetto config bytes |
+| `build/reports/p2/representation-limits/device-frametimeline-query.sql` | exact retained correlation and validity query bytes |
+| `build/reports/p2/representation-limits/device-frametimeline-correlation.csv` | 200 raw token, clock, app-surface, display-frame, and physical-present correlations |
+| `build/reports/p2/representation-limits/device-frametimeline-source.txt` | source/profile/build/APK/package/layer identity |
+| `build/reports/p2/representation-limits/device-frametimeline-trace-processor.txt` | pinned Trace Processor version, byte length, and SHA-256 |
+| `build/reports/p2/representation-limits/device-frametimeline-checksums.csv` | immutable byte-length and SHA-256 ledger for the paired artifacts |
 | `build/reports/p2/representation-limits/device-profile.txt` | exact physical profile fields and their sources |
 | `build/reports/p2/representation-limits/device-logcat.txt` | scoped fatal, ANR, GC, thermal, and measurement logs |
 
@@ -1881,8 +2033,10 @@ specific retained memory/projection, peak headroom, post-cap churn, or composito
 current-canonical five-invocation steady ART/live-heap and paired-PSS slice is valid and passes its
 three applicable conditions. The paired refreshed-build affected-frame batch is also valid but
 fails the pre-fixed timing conditions for the current dense 256-square route; its timeline IDs
-still require Perfetto correlation before any visible-frame claim. The emulator remains useful
-only for functional interaction checks and cannot fill any of those physical gaps.
+still require the now pre-fixed paired Perfetto/FrameTimeline collection before any visible-frame
+claim. Its config, correlation, validation, artifact, and cleanup contract is fixed above, but no
+trace evidence has yet been collected. The emulator remains useful only for functional interaction
+checks and cannot fill any of those physical gaps.
 
 Therefore:
 
