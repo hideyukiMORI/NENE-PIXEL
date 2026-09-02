@@ -461,7 +461,8 @@ left empty for retained rows rather than overloaded. Schema v6 adds:
   `retained_forward_patch_object_records`, and
   `retained_forward_patch_primitive_backing_arrays`;
 - the same four suffixes under `retained_inverse_additional`, `retained_shared_patch`, and
-  `retained_patch_union` prefixes;
+  `retained_history_patch_union` prefixes; the last name deliberately avoids the existing v5
+  single-patch `retained_patch_union` columns;
 - `retained_entry_change_counts_digest_sha256`; and
 - `retained_history_semantic_digest_sha256`.
 
