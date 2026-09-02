@@ -12,6 +12,7 @@ internal data class P2AndroidMeasurementEnvironment(
     val profileId: String,
     val evidenceClass: String,
     val emulatorDetection: EmulatorDetection,
+    val auxiliaryEmulatorArgumentPresent: Boolean,
     val warmupIterations: Int,
     val sampleCount: Int,
     val frameWarmupIterations: Int,
@@ -39,6 +40,7 @@ internal data class P2AndroidMeasurementEnvironment(
         fun fromRunnerArguments(): P2AndroidMeasurementEnvironment {
             val arguments = InstrumentationRegistry.getArguments()
             val profileId = arguments.requiredString(PROFILE_ID_ARGUMENT)
+            val auxiliaryEmulatorArgumentPresent = arguments.containsKey(AUXILIARY_EMULATOR_ARGUMENT)
             val allowAuxiliaryEmulator = arguments.boolean(AUXILIARY_EMULATOR_ARGUMENT, false)
             val detection = EmulatorDetector.detect()
             check(!detection.isEmulator || allowAuxiliaryEmulator) {
@@ -50,6 +52,7 @@ internal data class P2AndroidMeasurementEnvironment(
                 profileId = profileId,
                 evidenceClass = if (detection.isEmulator) AUXILIARY_EVIDENCE else PHYSICAL_EVIDENCE,
                 emulatorDetection = detection,
+                auxiliaryEmulatorArgumentPresent = auxiliaryEmulatorArgumentPresent,
                 warmupIterations =
                     arguments.positiveInt(
                         WARMUP_ARGUMENT,

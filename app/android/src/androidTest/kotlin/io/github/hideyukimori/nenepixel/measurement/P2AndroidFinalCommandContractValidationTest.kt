@@ -46,9 +46,29 @@ internal class P2AndroidFinalCommandContractValidationTest {
     }
 
     @Test
+    fun resolvesExact128SquarePlanWithDistinctIdentityAndPath() {
+        val legacyPlan = resolve(CANDIDATE_256, runIndex = 1)
+        val smallerPlan = resolve(CANDIDATE_64, runIndex = 1)
+        val plan = resolve(CANDIDATE_128, runIndex = 1)
+
+        assertEquals("current-canonical-command-128-square", plan.candidateId)
+        assertEquals(1, plan.runIndex)
+        assertEquals(128, plan.canvasEdge)
+        assertEquals("device-core-current-128-square", plan.outputIdentity)
+        assertEquals("p2-measurements/p2-android-final-command-128-square.csv", plan.outputRelativePath)
+        assertEquals(P2AndroidFinalCommandPlan.PublicationPolicy.FailIfExists, plan.publicationPolicy)
+        assertEquals("nene-pixel-p2-android-final-command-measurement-v1", plan.schema)
+        assertNotEquals(legacyPlan.outputIdentity, plan.outputIdentity)
+        assertNotEquals(legacyPlan.outputRelativePath, plan.outputRelativePath)
+        assertNotEquals(smallerPlan.outputIdentity, plan.outputIdentity)
+        assertNotEquals(smallerPlan.outputRelativePath, plan.outputRelativePath)
+        assertCommonCountsAndOrder(plan, densePositionCount = 16_384)
+    }
+
+    @Test
     fun rejectsWrongRunAndUnknownCandidate() {
         assertThrows(IllegalStateException::class.java) {
-            resolve(CANDIDATE_64, runIndex = 2)
+            resolve(CANDIDATE_128, runIndex = 2)
         }
         assertThrows(IllegalArgumentException::class.java) {
             resolve("unknown-final-command-candidate", runIndex = 1)
@@ -57,7 +77,7 @@ internal class P2AndroidFinalCommandContractValidationTest {
 
     @Test
     fun squareWorkloadsPreservePositionCountsAndFullRegionSemantics() {
-        listOf(64, 256).forEach { edge ->
+        listOf(64, 128, 256).forEach { edge ->
             P2CommandWorkloadCatalog.squareSpecs(edge).forEach { spec ->
                 val prepared = PreparedCommandWorkload.create(spec)
                 val outcome = prepared.verify(prepared.execute())
@@ -100,8 +120,31 @@ internal class P2AndroidFinalCommandContractValidationTest {
     }
 
     @Test
+    fun rejectsAuxiliaryEmulatorArgumentForFinalPhysicalRun() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val environment =
+            P2AndroidMeasurementEnvironment(
+                targetContext = context,
+                profileId = P2AndroidFinalCommandProtocol.PHYSICAL_PROFILE_ID,
+                evidenceClass = "physical_device",
+                emulatorDetection = EmulatorDetection(false, emptyList(), "", ""),
+                auxiliaryEmulatorArgumentPresent = true,
+                warmupIterations = P2AndroidFinalCommandProtocol.WARMUP_ITERATIONS,
+                sampleCount = P2AndroidFinalCommandProtocol.SAMPLES_PER_WORKLOAD,
+                frameWarmupIterations = 5,
+                frameSampleCount = 200,
+            )
+        val identity = identity(CANDIDATE_128)
+        val plan = resolve(CANDIDATE_128, runIndex = 1)
+
+        assertThrows(IllegalStateException::class.java) {
+            P2AndroidFinalCommandProtocol.validate(environment, identity, plan)
+        }
+    }
+
+    @Test
     fun checkpointValidatorRejectsWrongOrder() {
-        val plan = resolve(CANDIDATE_64, runIndex = 1)
+        val plan = resolve(CANDIDATE_128, runIndex = 1)
         val checkpoints = validCheckpoints(plan).toMutableList()
         P2AndroidFinalCommandContractValidator.validateCheckpoints(plan, checkpoints)
         val second = checkpoints[1]
@@ -115,8 +158,8 @@ internal class P2AndroidFinalCommandContractValidationTest {
 
     @Test
     fun sampleValidatorRejectsWrongFullRegion() {
-        val plan = resolve(CANDIDATE_64, runIndex = 1)
-        val sample = validSample(plan, invalidation = P2CommandRegionDescriptor(0, 0, 63, 64))
+        val plan = resolve(CANDIDATE_128, runIndex = 1)
+        val sample = validSample(plan, invalidation = P2CommandRegionDescriptor(0, 0, 127, 128))
 
         assertThrows(IllegalStateException::class.java) {
             P2AndroidFinalCommandContractValidator.validateSample(plan, zeroBasedIndex = 0, sample)
@@ -125,7 +168,7 @@ internal class P2AndroidFinalCommandContractValidationTest {
 
     @Test
     fun sampleValidatorRejectsWrongTotalAndIndices() {
-        val plan = resolve(CANDIDATE_64, runIndex = 1)
+        val plan = resolve(CANDIDATE_128, runIndex = 1)
         assertThrows(IllegalStateException::class.java) {
             P2AndroidFinalCommandContractValidator.validateSamples(plan, emptyList())
         }
@@ -182,7 +225,7 @@ internal class P2AndroidFinalCommandContractValidationTest {
             assertThrows(IllegalStateException::class.java) {
                 P2AndroidFinalCommandOutputPublication.publish(
                     immutableOutput,
-                    resolve(CANDIDATE_64, runIndex = 1).publicationPolicy,
+                    resolve(CANDIDATE_128, runIndex = 1).publicationPolicy,
                     writeRows = { output -> output.writeText("must-not-write") },
                 )
             }
@@ -202,7 +245,7 @@ internal class P2AndroidFinalCommandContractValidationTest {
                 assertThrows(IllegalArgumentException::class.java) {
                     P2AndroidFinalCommandOutputPublication.publish(
                         output,
-                        P2AndroidFinalCommandPlan.PublicationPolicy.FailIfExists,
+                        resolve(CANDIDATE_128, runIndex = 1).publicationPolicy,
                         writeRows = { target ->
                             target.writeText("partial")
                             throw originalFailure
@@ -226,7 +269,7 @@ internal class P2AndroidFinalCommandContractValidationTest {
                 assertThrows(IllegalStateException::class.java) {
                     P2AndroidFinalCommandOutputPublication.publish(
                         output,
-                        P2AndroidFinalCommandPlan.PublicationPolicy.FailIfExists,
+                        resolve(CANDIDATE_128, runIndex = 1).publicationPolicy,
                         writeRows = { target ->
                             target.writeText("partial")
                             throw originalFailure
@@ -243,7 +286,7 @@ internal class P2AndroidFinalCommandContractValidationTest {
     }
 
     @Test
-    fun serializesFixedContractMetadataRowsForBothPlans() {
+    fun serializesFixedContractMetadataRowsForAllPlans() {
         assertContractMetadataRows(
             plan = resolve(CANDIDATE_256, runIndex = 1),
             outputIdentity = "device-core",
@@ -253,6 +296,11 @@ internal class P2AndroidFinalCommandContractValidationTest {
             plan = resolve(CANDIDATE_64, runIndex = 1),
             outputIdentity = "device-core-current-64-square",
             canvas = "64x64",
+        )
+        assertContractMetadataRows(
+            plan = resolve(CANDIDATE_128, runIndex = 1),
+            outputIdentity = "device-core-current-128-square",
+            canvas = "128x128",
         )
     }
 
@@ -424,6 +472,7 @@ internal class P2AndroidFinalCommandContractValidationTest {
     private companion object {
         const val CANDIDATE_256: String = "current-canonical-command-256-square"
         const val CANDIDATE_64: String = "current-canonical-command-64-square"
+        const val CANDIDATE_128: String = "current-canonical-command-128-square"
         const val FINAL_COMMAND_COLUMN_COUNT: Int = 53
     }
 }

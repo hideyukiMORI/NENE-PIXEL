@@ -34,6 +34,9 @@ internal object P2AndroidFinalCommandProtocol {
         check(!environment.emulatorDetection.isEmulator) {
             "Final command evidence requires the physical profile."
         }
+        check(!environment.auxiliaryEmulatorArgumentPresent) {
+            "Final command evidence does not accept the auxiliary-emulator runner argument."
+        }
         check(environment.profileId == PHYSICAL_PROFILE_ID) {
             "Final command evidence requires physical profile '$PHYSICAL_PROFILE_ID'."
         }
@@ -98,6 +101,26 @@ internal object P2AndroidFinalCommandProtocol {
                     P2AndroidFinalCommandPlan.Output(
                         outputIdentity = "device-core-current-64-square",
                         relativePath = "p2-measurements/p2-android-final-command-64-square.csv",
+                        publicationPolicy = P2AndroidFinalCommandPlan.PublicationPolicy.FailIfExists,
+                    ),
+            ),
+            P2AndroidFinalCommandPlan(
+                identity =
+                    P2AndroidFinalCommandPlan.Identity(
+                        candidateId = "current-canonical-command-128-square",
+                        runIndex = RUN_INDEX,
+                    ),
+                workload =
+                    P2AndroidFinalCommandPlan.Workload(
+                        canvasEdge = 128,
+                        warmupIterations = WARMUP_ITERATIONS,
+                        samplesPerWorkload = SAMPLES_PER_WORKLOAD,
+                        schema = SCHEMA,
+                    ),
+                output =
+                    P2AndroidFinalCommandPlan.Output(
+                        outputIdentity = "device-core-current-128-square",
+                        relativePath = "p2-measurements/p2-android-final-command-128-square.csv",
                         publicationPolicy = P2AndroidFinalCommandPlan.PublicationPolicy.FailIfExists,
                     ),
             ),
