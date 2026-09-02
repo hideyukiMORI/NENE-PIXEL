@@ -996,6 +996,30 @@ Gradle wiring, measurement schema, or raw artifact. Exact axis, area, patch, and
 rejection policy remains unresolved pending the complete physical evidence and one accepted
 limit policy.
 
+### Pre-fixed current patch validation-order characterization slice
+
+Before selecting a patch-change maximum or rejection policy, this question-free slice records the
+current order between revision validation, source materialization/sort, and typed content
+validation. It chooses no count, cap owner, rejection type, or multiple-violation priority.
+
+One small test-only access-recording `List<PixelChange>` supplies an outside-canvas change first,
+followed by valid unordered unique changes. `PixelPatch.create` must read every source element for
+canonical materialization/sort before returning the exact typed `PositionOutsideCanvas` rejection.
+The outside change is deliberately first in source order so the observation cannot be explained by
+an input-order bounds scan. No affected region may be created and no canvas-sized allocation is
+needed.
+
+A separate source list fails immediately if any element is read. At `Long.MAX_VALUE` revision,
+`PixelPatch.create` must return the exact typed `RevisionOverflow` rejection without reading the
+source. This records revision overflow as the only characterized pre-materialization short circuit;
+it does not establish the future priority among empty, outside, unchanged, duplicate, or cap
+violations.
+
+The implementation may change `PixelPatchCreationTest.kt` only. It must add no production
+behavior, public API, dependency, Gradle wiring, measurement schema, raw artifact, limit value, or
+accepted ADR answer. Focused pixel-engine tests, ktlint, and detekt must pass before recording the
+result.
+
 ### Pre-fixed semantic compatibility characterization slice
 
 Before adding or selecting a semantic color policy, this question-free slice characterizes only
