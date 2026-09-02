@@ -2277,6 +2277,75 @@ current-canonical 128-square command run: ADR 0005 remains `proposed`, the PR re
 representation, product-limit, retained-memory/PSS, candidate-physical, full-matrix, render,
 compositor, P2-02, and representation-dependent P2-04 holds remain in force.
 
+### Refreshed-build current-canonical 128-square final-command tail result
+
+The fixed 128-square command-only batch completed on the named physical profile. Batch
+`1514ad25-78f2-4680-95f3-c1f3931ef563` used contract commit
+`b53cb780da84fc41a8ab67df457d31625c345dac` and source commit
+`af6e954cc343593e507b238a0fd121451c5017e6`. The required production `src/main` diff from accepted
+64-square source `3be887daa2c644c0e32fe194ec77bfbed1bd0058` was empty across all five fixed paths. The app APK
+was 11,664,182 bytes with SHA-256
+`71B732DE85D2984360CD6676184D66250D87EDA34444DB04EDA82E278BB5C796`; the test APK was 1,316,261
+bytes with SHA-256 `4BF8D3E73E79117FF7A13EB984303521C1692FEFD1DAA9DD998743C5556F35C6`.
+
+The no-cache APK build passed in 46 seconds with all 95 tasks executed. The exact fixed
+instrumentation invocation contained no auxiliary-emulator argument and reported `OK (1 test)` in
+90.287 seconds. Collection ran from 2026-09-02 22:10:11.1727949 JST through 22:11:43.0330263 JST
+on build `94110`, security patch 2026-06-05, mode 1 at 1200 x 1920 and 90 Hz, runtime maximum
+268,435,456 bytes, and memory class 256 MiB.
+
+Independent `Import-Csv` recomputation found zero structural or semantic mismatches. The artifact
+has 53 columns and 1,088 data rows: 45 metadata, one process baseline, 42 ordered physical
+checkpoints, and 1,000 samples. The workload order, 200 local indices per workload, global indices
+1 through 1,000, exact 128 x 128 geometry, correctness hashes, outcomes, revisions, history,
+`ChangeSet` data, full invalidations, and no-op identity all matched the fixed contract. Every
+checkpoint retained mode 1, 1200 x 1920, 90 Hz, thermal status 1, power saving disabled, an
+interactive display, USB power, and 100% battery.
+
+Nearest-rank recomputation produced:
+
+| Workload | Minimum ns | p95 latency ns | p99 latency ns | Maximum ns | p95 ART allocation bytes |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `sparse_apply_stroke` | 5,245,961 | 5,708,807 | 5,762,308 | 5,937,462 | 1,769,472 |
+| `dense_apply_stroke` | 21,379,270 | 22,413,000 | 24,921,808 | 27,340,153 | 4,775,936 |
+| `dense_same_color_no_op` | 5,212,231 | 5,526,923 | 5,590,962 | 5,652,500 | 1,130,496 |
+| `dense_undo` | 8,627,923 | 9,182,346 | 9,290,808 | 9,721,731 | 2,260,992 |
+| `dense_redo` | 8,042,884 | 11,540,615 | 13,355,077 | 13,475,769 | 2,260,992 |
+
+The pre-fixed core-latency condition fails: `dense_apply_stroke` exceeds both limits, while
+`dense_undo` and `dense_redo` exceed the p95 <= 8.0 ms limit. The outcome was recorded without
+changing the p95 rank 190, p99 rank 198, or thresholds. All 1,000 operations had zero
+blocking-GC-count increment, so the blocking-GC condition passes; all four observed GC count/time
+deltas were zero for all 1,000 operations. Eleven `dense_redo` allocation deltas were zero and all
+other allocation observations were positive; every value remained nonnegative and matched its
+before/after counters as required.
+
+The baseline Java heap was 2,217,744 used and 10,508,048 committed bytes with 85,806 KiB total
+PSS. Maximum sample observations were 3,737,392 used and 12,027,696 committed bytes with 87,183
+KiB total PSS; the minimum sample PSS was 85,615 KiB. These heap/PSS values are diagnostics only,
+not a retained-memory or peak-headroom result.
+
+The scoped 1,161-line log covers 22:10:11.197 through 22:11:42.979 JST and exactly matches the
+declared-boundary extraction from the retained staging diagnostic. Deterministic audit found zero
+fatal exceptions, fatal signals, ANRs, untyped instrumentation failures, and thermal-pattern
+matches. The exact on-device CSV was removed after hash-matched extraction; no device log temp was
+created. `stay_on_while_plugged_in` was restored from temporary value 2 to original value 0, the
+device was returned from its temporary awake state to its original asleep state, and pre-run and
+post-run overall thermal status were both 1. The accepted 64-square artifacts and prior
+`device-core.csv` retained every pre-fixed byte length and SHA-256.
+
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `build/reports/p2/representation-limits/device-core-current-128-square.csv` | 658,096 | `0A075A06E4F87AE3B4AF3D75DA70C17A0F86AD797D665B7F1B91EEF9A5357D11` |
+| `build/reports/p2/representation-limits/device-core-current-128-square-tool.txt` | 6,008 | `4AA6E81B7A283C055E05259B744EDFF94EE6AB89AB9F07BEB96C04DA0509A958` |
+| `build/reports/p2/representation-limits/device-core-current-128-square-logcat.txt` | 160,933 | `3E678B5AF6449EF33A5E2801E3DBFECD25BF2F455EAFCB5F5BB9F78EC368C12D` |
+
+Among the three explicit current-canonical final-command points, 64 x 64 is the largest passing
+point and both 128 x 128 and 256 x 256 fail their pre-fixed core-latency condition. This does not
+interpolate an unmeasured boundary or establish a representation choice, supported canvas maximum,
+or product cap. It also does not cover a candidate, retained memory/PSS, the complete physical
+matrix, render timing, or compositor presentation.
+
 ### Required workload matrix
 
 - square and rectangular canvases, with axis and total-pixel candidates varied separately;
@@ -2378,7 +2447,9 @@ analytical results and the current HotSpot projection result are not retained-me
 projection, or physical-render evidence. The valid final current command tail fails the pre-fixed
 core-latency condition at 256 x 256 while passing correctness and isolated blocking-GC conditions.
 The separately fixed refreshed-build 64 x 64 command tail passes both core-latency and blocking-GC
-conditions, but remains one explicit current-path point rather than a supported maximum.
+conditions. The fixed refreshed-build 128 x 128 command tail passes correctness and blocking-GC
+conditions but fails core latency, as does the prior 256 x 256 point. This makes 64 x 64 the largest
+passing point among those three explicit current-path measurements, not a supported maximum.
 
 Physical screening still does not include the complete physical workload matrix, candidate-
 specific retained memory/projection or peak headroom, post-cap churn, or compositor correlation.
