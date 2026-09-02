@@ -23,8 +23,12 @@ internal data class P2CandidatePatchMeasurementDescriptor(
     val configuration: P2CandidateConfiguration,
     val operation: P2CandidatePatchOperationKind,
     val canvas: P2CanvasShape,
+    val workload: P2CandidateNativePatchWorkloadKind,
     val protocol: P2CandidatePatchMeasurementProtocol,
-)
+) {
+    val changeCount: Int
+        get() = workload.pathKind.changeCount(canvas)
+}
 
 internal data class P2CandidatePatchRevisionEvidence(
     val before: Long,
@@ -51,6 +55,7 @@ internal data class P2CandidatePatchOperationEvidence(
 )
 
 internal data class P2CandidatePatchUnaffectedEvidence(
+    val count: Int,
     val inputDigest: String,
     val outputDigest: String,
 )
@@ -67,6 +72,11 @@ internal data class P2CandidatePatchCorrectness(
     val forwardPatchDigest: String,
     val inversePatchDigest: String,
     val status: String,
+)
+
+internal data class P2CandidatePatchSharedAudit(
+    val state: P2CandidatePatchStateEvidence,
+    val correctness: P2CandidatePatchCorrectness,
 )
 
 internal data class P2CandidatePatchResultEvidence(
@@ -96,19 +106,20 @@ internal data class P2CandidatePatchMeasurementMetric(
 
 internal object P2CandidatePatchMeasurement {
     fun measure(allocationCounter: P2ThreadAllocationCounter): List<P2CandidatePatchMeasurementMetric> {
-        val metrics =
-            P2CandidatePatchOperationKind.entries.flatMapIndexed { operationIndex, operation ->
-                rotatedConfigurations(operationIndex).mapIndexed { executionOrder, configuration ->
-                    measureMetric(
-                        allocationCounter,
-                        descriptor(configuration, operation, executionOrder),
-                    )
-                }
-            }
-        assertMetricMatrix(metrics)
+        val descriptors = descriptors()
+        P2CandidatePatchMeasurementMatrix.validate(descriptors)
+        val metrics = descriptors.map { descriptor -> measureMetric(allocationCounter, descriptor) }
+        assertMetricOutcomes(metrics)
         assertCrossConfigurationCorrectness(metrics)
         return metrics
     }
+
+    internal fun descriptors(): List<P2CandidatePatchMeasurementDescriptor> =
+        P2CandidatePatchMeasurementMatrix.works.flatMap { work ->
+            rotatedConfigurations(work.rotationIndex).mapIndexed { executionOrder, configuration ->
+                descriptor(work, configuration, executionOrder)
+            }
+        }
 
     private fun measureMetric(
         allocationCounter: P2ThreadAllocationCounter,
@@ -150,17 +161,18 @@ internal object P2CandidatePatchMeasurement {
     }
 
     private fun descriptor(
+        work: P2CandidatePatchMeasurementWork,
         configuration: P2CandidateConfiguration,
-        operation: P2CandidatePatchOperationKind,
         executionOrder: Int,
     ): P2CandidatePatchMeasurementDescriptor =
         P2CandidatePatchMeasurementDescriptor(
             configuration = configuration,
-            operation = operation,
-            canvas = PATCH_CANVAS,
+            operation = work.operation,
+            canvas = work.canvas,
+            workload = work.workload,
             protocol =
                 P2CandidatePatchMeasurementProtocol(
-                    boundary = operation.boundary(),
+                    boundary = work.operation.boundary(),
                     executionOrder = executionOrder,
                     inputOrder = "reverse_row_major",
                 ),
@@ -172,12 +184,15 @@ internal object P2CandidatePatchMeasurement {
     }
 
     private fun assertCrossConfigurationCorrectness(metrics: List<P2CandidatePatchMeasurementMetric>) {
-        metrics.groupBy { metric -> metric.descriptor.operation }.values.forEach { operationMetrics ->
+        val grouped = metrics.groupBy { metric -> metric.descriptor.crossConfigurationKey() }
+        grouped.values.forEach { operationMetrics ->
             val expectedState = operationMetrics.first().outcome.state
             val expectedCorrectness = operationMetrics.first().outcome.correctness
             val expectedResult = operationMetrics.first().outcome.result
             operationMetrics.forEach { metric ->
-                check(metric.outcome.state == expectedState) { "Candidate patch state differed across configurations." }
+                check(metric.outcome.state == expectedState) {
+                    "Candidate patch state differed across configurations."
+                }
                 check(metric.outcome.correctness == expectedCorrectness) {
                     "Candidate patch semantics differed across configurations."
                 }
@@ -188,19 +203,22 @@ internal object P2CandidatePatchMeasurement {
         }
     }
 
-    private fun assertMetricMatrix(metrics: List<P2CandidatePatchMeasurementMetric>) {
-        val expectedCount = P2CandidatePatchOperationKind.entries.size * P2CandidateConfiguration.entries.size
-        check(metrics.size == expectedCount) { "Candidate patch matrix size changed." }
+    private fun assertMetricOutcomes(metrics: List<P2CandidatePatchMeasurementMetric>) {
+        check(metrics.size == P2CandidatePatchMeasurementMatrix.METRIC_COUNT) {
+            "Candidate patch metric count changed."
+        }
         check(
-            metrics.map { metric -> metric.descriptor.operation to metric.descriptor.configuration }.toSet().size ==
-                expectedCount,
+            metrics.sumOf { metric -> metric.samples.latenciesNanos.size } ==
+                P2CandidatePatchMeasurementMatrix.RAW_SAMPLE_COUNT,
         ) {
-            "Candidate patch matrix contained a missing or duplicate configuration."
+            "Candidate patch raw sample count changed."
         }
         metrics.forEach { metric ->
             val expected = metric.descriptor.operation.expectedResult()
             check(metric.outcome.result.resultKind == expected.first) { "Candidate patch result kind changed." }
-            check(metric.outcome.result.rejectionKind == expected.second) { "Candidate patch rejection kind changed." }
+            check(metric.outcome.result.rejectionKind == expected.second) {
+                "Candidate patch rejection kind changed."
+            }
             val operation = metric.outcome.state.operation
             val stateUnchanged =
                 operation.inputRevision == operation.outputRevision &&
@@ -210,6 +228,13 @@ internal object P2CandidatePatchMeasurement {
             }
         }
     }
+
+    private fun P2CandidatePatchMeasurementDescriptor.crossConfigurationKey(): Triple<
+        P2CanvasShape,
+        P2CandidateNativePatchWorkloadKind,
+        P2CandidatePatchOperationKind,
+    > =
+        Triple(canvas, workload, operation)
 
     private fun P2CandidatePatchOperationKind.expectedResult(): Pair<String, String> =
         when (this) {
@@ -281,5 +306,4 @@ internal object P2CandidatePatchMeasurement {
     private const val MEDIAN_PERCENTILE: Double = 0.50
     private const val P95_PERCENTILE: Double = 0.95
     private const val P99_PERCENTILE: Double = 0.99
-    private val PATCH_CANVAS: P2CanvasShape = P2CanvasShape(256, 256)
 }

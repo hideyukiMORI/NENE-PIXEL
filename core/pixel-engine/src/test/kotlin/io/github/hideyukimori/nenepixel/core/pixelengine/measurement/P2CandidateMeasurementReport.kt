@@ -38,8 +38,26 @@ internal object P2CandidateMeasurementReport {
                 patchCandidates.sumOf { metric -> metric.samples.latenciesNanos.size } +
                 rawPathCandidates.sumOf { metric -> metric.samples.latenciesNanos.size } +
                 retainedHistoryCandidates.sumOf { metric -> metric.samples.latenciesNanos.size }
-        check(metricCount == EXPECTED_METRIC_COUNT) { "Candidate schema v6 metric count changed." }
-        check(sampleCount == EXPECTED_RAW_SAMPLE_COUNT) { "Candidate schema v6 sample count changed." }
+        check(metricCount == EXPECTED_METRIC_COUNT) { "Candidate schema v7 metric count changed." }
+        check(sampleCount == EXPECTED_RAW_SAMPLE_COUNT) { "Candidate schema v7 sample count changed." }
+        P2CandidatePatchMeasurementMatrix.validate(patchCandidates.map { metric -> metric.descriptor })
+        check(patchCandidates.size == P2CandidatePatchMeasurementMatrix.METRIC_COUNT)
+        check(
+            patchCandidates.sumOf { metric -> metric.samples.latenciesNanos.size } ==
+                P2CandidatePatchMeasurementMatrix.RAW_SAMPLE_COUNT,
+        )
+        check(
+            patchCandidates.count { metric ->
+                metric.descriptor.workload != P2CandidateNativePatchWorkloadKind.DenseFullCanvasAnchor
+            } == P2CandidatePatchMeasurementMatrix.SPARSE_METRIC_COUNT,
+        )
+        check(
+            patchCandidates
+                .filter { metric ->
+                    metric.descriptor.workload != P2CandidateNativePatchWorkloadKind.DenseFullCanvasAnchor
+                }.sumOf { metric -> metric.samples.latenciesNanos.size } ==
+                P2CandidatePatchMeasurementMatrix.SPARSE_RAW_SAMPLE_COUNT,
+        )
         check(retainedHistoryCandidates.size == P2CandidateRetainedHistoryMeasurement.METRIC_COUNT)
         check(
             retainedHistoryCandidates.sumOf { metric -> metric.samples.latenciesNanos.size } ==
@@ -52,7 +70,7 @@ internal object P2CandidateMeasurementReport {
     private fun baseMetadataRows(): List<String> =
         listOf(
             P2CandidateMeasurementReportSchema.headerRow(),
-            metadataRow("schema", "nene-pixel-p2-representation-limits-host-candidates-v6"),
+            metadataRow("schema", "nene-pixel-p2-representation-limits-host-candidates-v7"),
             metadataRow("profile", HOST_PROFILE),
             metadataRow("os", systemDescription()),
             metadataRow("jvm", jvmDescription()),
@@ -81,6 +99,7 @@ internal object P2CandidateMeasurementReport {
                 "64x64|16x256|256x16|128x128|64x256|256x64|256x256; " +
                     "one|256|high-entropy RGBA snapshot build; high-entropy one|diagonal|row|column|" +
                     "25%|50%|100% apply; 256x256-only dense shuffled create|inverse create|forward apply|" +
+                    "inverse apply|round trip|late conflict plus sparse/rectangular shuffled create|inverse create|" +
                     "inverse apply|round trip|late conflict plus raw duplicate changed|reference-clear changed|" +
                     "reference-clear no-op|same-color no-op plus 18 retained analytical-history workloads; " +
                     "5 warmups and 10 diagnostic samples",
@@ -112,9 +131,7 @@ internal object P2CandidateMeasurementReport {
             ),
             metadataRow(
                 "candidate_gaps",
-                "production bounded history, retained heap, ART, PSS, frames, sparse/rectangular native patches, " +
-                    "and semantic " +
-                    "selection remain pending",
+                "production bounded history, retained heap, ART, PSS, frames, and semantic selection remain pending",
             ),
             metadataRow("cross_configuration_correctness", "all patch semantic and lifecycle digests matched"),
             metadataRow(
@@ -122,7 +139,23 @@ internal object P2CandidateMeasurementReport {
                 "U8 value-palette pack/index correctness and 257-color typed rejection tested; " +
                     "performance comparison blocked on palette semantic ownership",
             ),
-        ) + rawPathMetadataRows() + retainedHistoryMetadataRows()
+        ) + sparseNativePatchMetadataRows() + rawPathMetadataRows() + retainedHistoryMetadataRows()
+
+    private fun sparseNativePatchMetadataRows(): List<String> =
+        listOf(
+            metadataRow(
+                "sparse_rectangular_native_patch_boundary",
+                "6 shapes x 7 workloads; existing 210 generic forward-apply metrics remain canonical; " +
+                    "new rows measure shuffled create, inverse create, inverse apply, round trip, and final-record " +
+                    "late conflict only; fixture generation and full verification excluded from timing",
+            ),
+            metadataRow(
+                "sparse_rectangular_native_patch_matrix",
+                "64x64|16x256|256x16|128x128|64x256|256x64; " +
+                    "one_pixel|diagonal|full_row|full_column|quarter_serpentine|half_serpentine|" +
+                    "full_canvas_serpentine; 5 configurations; 1050 metrics and 10500 samples",
+            ),
+        )
 
     private fun rawPathMetadataRows(): List<String> =
         listOf(
@@ -163,7 +196,7 @@ internal object P2CandidateMeasurementReport {
             ),
         )
 
-    private fun candidateMetricRows(metric: P2CandidateMeasurementMetric): List<String> =
+    internal fun candidateMetricRows(metric: P2CandidateMeasurementMetric): List<String> =
         listOf(candidateRow(metric, P2CandidateReportSample("metric", null, null, null))) +
             metric.samples.latenciesNanos.indices.map { index ->
                 candidateRow(
@@ -177,7 +210,7 @@ internal object P2CandidateMeasurementReport {
                 )
             }
 
-    private fun patchMetricRows(metric: P2CandidatePatchMeasurementMetric): List<String> =
+    internal fun patchMetricRows(metric: P2CandidatePatchMeasurementMetric): List<String> =
         listOf(patchRow(metric, P2CandidateReportSample("metric", null, null, null))) +
             metric.samples.latenciesNanos.indices.map { index ->
                 patchRow(
@@ -219,6 +252,7 @@ internal object P2CandidateMeasurementReport {
             "operation_boundary" to descriptor.boundary,
             "content_kind" to descriptor.operation.contentKind.csvName,
             "path_kind" to descriptor.pathKind.csvName,
+            *candidatePatchAuditValues(outcome.nativePatchAudit).toTypedArray(),
             "color_cardinality" to descriptor.colorCardinality,
             "tile_edge" to outcome.units.tileEdge,
             "touched_units" to outcome.units.touched,
@@ -272,6 +306,7 @@ internal object P2CandidateMeasurementReport {
             "operation_boundary" to descriptor.protocol.boundary,
             "content_kind" to "deterministic_high_entropy_rgba",
             "path_kind" to "standalone_patch",
+            "native_patch_workload_kind" to descriptor.workload.csvName,
             "color_cardinality" to descriptor.canvas.pixelCount,
             "tile_edge" to descriptor.configuration.snapshotRepresentation.reportTileEdge(),
             "primitive_payload_bytes" to outcome.storage.snapshot.primitivePayloadBytes,
@@ -329,7 +364,7 @@ internal object P2CandidateMeasurementReport {
             lifecycleValues(state.lifecycle) +
             operationValues(state.operation) +
             listOf(
-                "unaffected_pixel_count" to 0,
+                "unaffected_pixel_count" to state.unaffected.count,
                 "unaffected_input_digest_sha256" to state.unaffected.inputDigest,
                 "unaffected_output_digest_sha256" to state.unaffected.outputDigest,
             )
@@ -382,6 +417,18 @@ internal object P2CandidateMeasurementReport {
             "correctness_status" to correctness.status,
         )
 
+    private fun candidatePatchAuditValues(audit: P2CandidatePatchSharedAudit?): List<Pair<String, Any>> =
+        if (audit == null) {
+            emptyList()
+        } else {
+            patchStateValues(audit.state) +
+                listOf(
+                    "canonical_order_digest_sha256" to audit.correctness.canonicalOrderDigest,
+                    "forward_patch_digest_sha256" to audit.correctness.forwardPatchDigest,
+                    "inverse_patch_digest_sha256" to audit.correctness.inversePatchDigest,
+                )
+        }
+
     private fun patchBaseValues(
         metric: P2CandidatePatchMeasurementMetric,
         recordType: String,
@@ -395,7 +442,7 @@ internal object P2CandidateMeasurementReport {
             "canvas_height" to descriptor.canvas.height,
             "pixel_count" to descriptor.canvas.pixelCount,
             "path_positions" to 0,
-            "change_count" to descriptor.canvas.pixelCount,
+            "change_count" to descriptor.changeCount,
             "history_entries" to 0,
             "total_retained_changes" to 0,
             "warmup" to CANDIDATE_WARMUPS,
@@ -541,8 +588,8 @@ internal object P2CandidateMeasurementReport {
     private const val HOST_PROFILE: String = "NENE-P2-REPRESENTATION-WINDOWS-I9-10850K-JBR21"
     private const val CANDIDATE_WARMUPS: Int = 5
     private const val CANDIDATE_SAMPLES: Int = 10
-    private const val EXPECTED_METRIC_COUNT: Int = 490
-    private const val EXPECTED_RAW_SAMPLE_COUNT: Int = 4_900
+    private const val EXPECTED_METRIC_COUNT: Int = 1_540
+    private const val EXPECTED_RAW_SAMPLE_COUNT: Int = 15_400
 }
 
 private data class P2CandidateReportSample(

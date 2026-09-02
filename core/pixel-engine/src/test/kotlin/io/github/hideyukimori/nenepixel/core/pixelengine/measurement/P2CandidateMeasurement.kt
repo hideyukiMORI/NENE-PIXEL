@@ -60,7 +60,7 @@ internal data class P2CandidateMeasurementDescriptor(
         get() = operation.pathKind
 
     val changeCount: Int
-        get() = operation.changeCount(canvas)
+        get() = pathKind.changeCount(canvas)
 
     val colorCardinality: Long
         get() =
@@ -93,6 +93,7 @@ internal data class P2CandidateMeasurementOutcome(
     val patchStorage: P2CandidatePatchPairStorage,
     val units: P2CandidateUnitCounts,
     val correctness: P2CandidateCorrectness,
+    val nativePatchAudit: P2CandidatePatchSharedAudit?,
 )
 
 internal data class P2CandidateMeasurementMetric(
@@ -119,15 +120,18 @@ internal data class P2CandidatePercentiles(
 )
 
 internal object P2CandidateMeasurement {
-    fun measure(allocationCounter: P2ThreadAllocationCounter): List<P2CandidateMeasurementMetric> =
-        CANDIDATE_CANVASES.flatMap { canvas ->
-            P2CandidateConfiguration.entries
-                .flatMap { configuration ->
+    fun measure(allocationCounter: P2ThreadAllocationCounter): List<P2CandidateMeasurementMetric> {
+        val metrics =
+            CANDIDATE_CANVASES.flatMap { canvas ->
+                P2CandidateConfiguration.entries.flatMap { configuration ->
                     P2CandidateOperationKind.entries.map { operation ->
                         measureCandidate(allocationCounter, descriptor(configuration, operation, canvas))
                     }
                 }
-        }
+            }
+        assertSparseForwardAudits(metrics)
+        return metrics
+    }
 
     private fun measureCandidate(
         allocationCounter: P2ThreadAllocationCounter,
@@ -190,11 +194,33 @@ internal object P2CandidateMeasurement {
         return actual
     }
 
+    private fun assertSparseForwardAudits(metrics: List<P2CandidateMeasurementMetric>) {
+        val reused =
+            metrics.filter { metric ->
+                metric.descriptor.canvas in P2CandidatePatchMeasurementMatrix.sparseCanvases &&
+                    !metric.descriptor.operation.isSnapshotBuild
+            }
+        check(reused.size == REUSED_FORWARD_METRIC_COUNT) { "Candidate reused forward matrix size changed." }
+        check(reused.sumOf { metric -> metric.samples.latenciesNanos.size } == REUSED_FORWARD_SAMPLE_COUNT) {
+            "Candidate reused forward sample count changed."
+        }
+        val grouped = reused.groupBy { metric -> metric.descriptor.canvas to metric.descriptor.pathKind }
+        grouped.values.forEach { group ->
+            check(group.size == P2CandidateConfiguration.entries.size) {
+                "Candidate reused forward pair was incomplete."
+            }
+            val audits = group.map { metric -> requireNotNull(metric.outcome.nativePatchAudit) }.toSet()
+            check(audits.size == 1) { "Candidate reused forward correctness differed across configurations." }
+        }
+    }
+
     private const val WARMUP_ITERATIONS: Int = 5
     private const val SAMPLE_COUNT: Int = 10
     private const val MEDIAN_PERCENTILE: Double = 0.50
     private const val P95_PERCENTILE: Double = 0.95
     private const val P99_PERCENTILE: Double = 0.99
+    private const val REUSED_FORWARD_METRIC_COUNT: Int = 210
+    private const val REUSED_FORWARD_SAMPLE_COUNT: Int = 2_100
     private val CANDIDATE_CANVASES: List<P2CanvasShape> =
         listOf(
             P2CanvasShape(64, 64),
@@ -207,11 +233,12 @@ internal object P2CandidateMeasurement {
         )
 }
 
-private class P2CandidateMeasurementFixture private constructor(
+internal class P2CandidateMeasurementFixture private constructor(
     private val descriptor: P2CandidateMeasurementDescriptor,
     private val input: P2CandidateSemanticInput,
     private val initial: P2CandidateSnapshot?,
     private val patch: P2CandidatePatch?,
+    private val workload: P2CandidateWorkloadFixture?,
 ) {
     fun execute(): P2CandidateExecution =
         if (descriptor.operation.isSnapshotBuild) {
@@ -237,6 +264,7 @@ private class P2CandidateMeasurementFixture private constructor(
             patchStorage = emptyPatchStorage(),
             units = P2CandidateUnitCounts(0, 0, 0, descriptor.representation.tileEdge()),
             correctness = P2CandidateCorrectness(snapshot.semanticDigest(), snapshot.semanticDigest(), "pass"),
+            nativePatchAudit = null,
         )
     }
 
@@ -254,6 +282,7 @@ private class P2CandidateMeasurementFixture private constructor(
                 .snapshot
         assertSemanticPixels(restored, input.packed)
         check(before == restored) { "Candidate inverse round trip failed." }
+        val audit = nativePatchAudit(before, changes, inverse, application.snapshot)
         return P2CandidateMeasurementOutcome(
             storage = copiedStorage(application),
             patchStorage = changes.pairStorage(inverse),
@@ -270,8 +299,22 @@ private class P2CandidateMeasurementFixture private constructor(
                     restored.semanticDigest(),
                     "pass",
                 ),
+            nativePatchAudit = audit,
         )
     }
+
+    private fun nativePatchAudit(
+        before: P2CandidateSnapshot,
+        forward: P2CandidatePatch,
+        inverse: P2CandidatePatch,
+        applied: P2CandidateSnapshot,
+    ): P2CandidatePatchSharedAudit =
+        P2CandidatePatchVerification.audit(
+            descriptor.configuration,
+            P2CandidatePatchLifecycleFixture(before, forward, inverse, applied),
+            requireNotNull(workload),
+            P2CandidatePatchOperationSnapshots(before, applied),
+        )
 
     private fun copiedStorage(application: P2CandidateApplication): P2CandidateStorageCounts {
         val retained = application.snapshot.storage
@@ -297,20 +340,30 @@ private class P2CandidateMeasurementFixture private constructor(
             val packed = semanticPixels(descriptor.canvas, descriptor.operation.contentKind)
             val input = P2CandidateSemanticInput(packed.map(P2PackedRgba8888::unpack), packed)
             if (descriptor.operation.isSnapshotBuild) {
-                return P2CandidateMeasurementFixture(descriptor, input, null, null)
+                return P2CandidateMeasurementFixture(descriptor, input, null, null, null)
             }
+            val workload = P2CandidateWorkloadFixture.create(descriptor.canvas, descriptor.pathKind)
+            check(workload.initialPixels.contentEquals(packed)) { "Candidate workload semantic input changed." }
             val initial = descriptor.configuration.createSnapshot(descriptor.canvas, input.colors)
-            val positions = descriptor.changePositions()
-            val after = positions.map { position -> P2PackedRgba8888.unpack(packed[position] xor ALPHA_XOR_MASK) }
+            val positions = workload.pathPositions
             val patch =
                 P2CandidatePatchFactory
                     .create(
                         descriptor.configuration,
                         initial,
                         positions,
-                        after,
+                        workload.afterColors(positions),
                     ).requiredPatch()
-            return P2CandidateMeasurementFixture(descriptor, input, initial, patch)
+            val reversePatch =
+                P2CandidatePatchFactory
+                    .create(
+                        descriptor.configuration,
+                        initial,
+                        workload.reverseCanonicalPositions,
+                        workload.afterColors(workload.reverseCanonicalPositions),
+                    ).requiredPatch()
+            P2CandidatePatchVerification.verifyEquivalent(patch, reversePatch)
+            return P2CandidateMeasurementFixture(descriptor, input, initial, patch, workload)
         }
 
         private fun semanticPixels(
@@ -323,34 +376,22 @@ private class P2CandidateMeasurementFixture private constructor(
                 }
 
                 P2CandidateContentKind.Colors256 -> {
-                    IntArray(canvas.pixelCount.toInt()) { index -> highEntropyPacked(index % COLOR_SET_SIZE) }
+                    IntArray(canvas.pixelCount.toInt()) { index ->
+                        P2CandidateWorkloadFixture.highEntropyPacked(index % COLOR_SET_SIZE)
+                    }
                 }
 
                 P2CandidateContentKind.HighEntropyRgba -> {
-                    IntArray(canvas.pixelCount.toInt(), ::highEntropyPacked)
+                    P2CandidateWorkloadFixture.highEntropyPixels(canvas)
                 }
             }
 
-        private fun highEntropyPacked(index: Int): Int =
-            ((index and CHANNEL_MASK) shl RED_SHIFT) or
-                ((index ushr BYTE_BITS and CHANNEL_MASK) shl GREEN_SHIFT) or
-                ((index * BLUE_MULTIPLIER and CHANNEL_MASK) shl BLUE_SHIFT) or
-                (index * ALPHA_MULTIPLIER and CHANNEL_MASK)
-
-        private const val RED_SHIFT: Int = 24
-        private const val GREEN_SHIFT: Int = 16
-        private const val BLUE_SHIFT: Int = 8
-        private const val BYTE_BITS: Int = 8
-        private const val CHANNEL_MASK: Int = 0xff
-        private const val BLUE_MULTIPLIER: Int = 29
-        private const val ALPHA_MULTIPLIER: Int = 43
-        private const val ALPHA_XOR_MASK: Int = 0x000000ff
         private const val COLOR_SET_SIZE: Int = 256
         private const val ONE_COLOR_PACKED: Int = 0x336699cc
     }
 }
 
-private sealed interface P2CandidateExecution {
+internal sealed interface P2CandidateExecution {
     data class Built(
         val snapshot: P2CandidateSnapshot,
     ) : P2CandidateExecution
@@ -423,48 +464,6 @@ private fun P2CandidateRepresentation.tileEdge(): Int =
         P2CandidateRepresentation.TiledCowRgba8888T64 -> 64
         else -> 0
     }
-
-private fun P2CandidateMeasurementDescriptor.changePositions(): IntArray =
-    when (pathKind) {
-        P2CandidatePathKind.None -> error("Snapshot build has no change positions.")
-        P2CandidatePathKind.OnePixel -> intArrayOf(canvas.pixelCount.toInt() / 2)
-        P2CandidatePathKind.Diagonal -> canvas.diagonalPositions()
-        P2CandidatePathKind.FullRow -> IntArray(canvas.width) { x -> (canvas.height / 2) * canvas.width + x }
-        P2CandidatePathKind.FullColumn -> IntArray(canvas.height) { y -> y * canvas.width + canvas.width / 2 }
-        P2CandidatePathKind.QuarterSerpentine -> canvas.serpentinePositions(canvas.pixelCount.toInt() / 4)
-        P2CandidatePathKind.HalfSerpentine -> canvas.serpentinePositions(canvas.pixelCount.toInt() / 2)
-        P2CandidatePathKind.FullCanvasSerpentine -> canvas.serpentinePositions(canvas.pixelCount.toInt())
-    }
-
-private fun P2CandidateOperationKind.changeCount(canvas: P2CanvasShape): Int =
-    when (pathKind) {
-        P2CandidatePathKind.None -> 0
-        P2CandidatePathKind.OnePixel -> 1
-        P2CandidatePathKind.Diagonal -> minOf(canvas.width, canvas.height)
-        P2CandidatePathKind.FullRow -> canvas.width
-        P2CandidatePathKind.FullColumn -> canvas.height
-        P2CandidatePathKind.QuarterSerpentine -> canvas.pixelCount.toInt() / 4
-        P2CandidatePathKind.HalfSerpentine -> canvas.pixelCount.toInt() / 2
-        P2CandidatePathKind.FullCanvasSerpentine -> canvas.pixelCount.toInt()
-    }
-
-private fun P2CanvasShape.diagonalPositions(): IntArray =
-    IntArray(minOf(width, height)) { index -> index * width + index }
-
-private fun P2CanvasShape.serpentinePositions(limit: Int): IntArray {
-    val positions = IntArray(limit)
-    var outputIndex = 0
-    for (y in 0 until height) {
-        val xRange = if (y % 2 == 0) 0 until width else width - 1 downTo 0
-        for (x in xRange) {
-            if (outputIndex == limit) return positions
-            positions[outputIndex] = y * width + x
-            outputIndex += 1
-        }
-    }
-    check(outputIndex == limit) { "Serpentine candidate path was incomplete." }
-    return positions
-}
 
 private fun assertSemanticPixels(
     snapshot: P2CandidateSnapshot,

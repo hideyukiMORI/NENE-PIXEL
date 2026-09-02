@@ -1,10 +1,8 @@
 package io.github.hideyukimori.nenepixel.core.pixelengine.measurement
 
-import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
-
 internal class P2CandidatePatchMeasurementFixture private constructor(
     private val descriptor: P2CandidatePatchMeasurementDescriptor,
-    private val semantic: P2CandidatePatchSemanticFixture,
+    private val semantic: P2CandidateWorkloadFixture,
     private val lifecycle: P2CandidatePatchLifecycleFixture,
     private val conflicted: P2CandidateSnapshot,
 ) {
@@ -52,8 +50,8 @@ internal class P2CandidatePatchMeasurementFixture private constructor(
             P2CandidatePatchFactory.create(
                 descriptor.configuration,
                 lifecycle.initial,
-                semantic.shuffledPositions,
-                semantic.shuffledAfter,
+                semantic.reverseCanonicalPositions,
+                semantic.reverseCanonicalAfter,
             ),
         )
 
@@ -71,7 +69,7 @@ internal class P2CandidatePatchMeasurementFixture private constructor(
     private fun verifyCreate(execution: P2CandidatePatchExecution): P2CandidatePatchMeasurementOutcome {
         val created = requireExecution<P2CandidatePatchExecution.Created>(execution)
         val patch = created.result.requiredPatch()
-        assertPatchContract(patch)
+        P2CandidatePatchVerification.verifyForwardPatch(descriptor.configuration, patch, semantic)
         val applied =
             lifecycle.initial
                 .apply(patch)
@@ -90,7 +88,7 @@ internal class P2CandidatePatchMeasurementFixture private constructor(
 
     private fun verifyInverse(execution: P2CandidatePatchExecution): P2CandidatePatchMeasurementOutcome {
         val inverse = requireExecution<P2CandidatePatchExecution.Inverted>(execution).patch
-        assertInverseContract(lifecycle.forward, inverse)
+        P2CandidatePatchVerification.verifyInverse(lifecycle.forward, inverse)
         return outcome(
             lifecycle.forward,
             inverse,
@@ -129,7 +127,7 @@ internal class P2CandidatePatchMeasurementFixture private constructor(
         val roundTrip = requireExecution<P2CandidatePatchExecution.RoundTripped>(execution)
         val applied = roundTrip.forwardResult.requiredApplication().snapshot
         val restored = roundTrip.inverseResult.requiredApplication().snapshot
-        assertInverseContract(lifecycle.forward, roundTrip.inverse)
+        P2CandidatePatchVerification.verifyInverse(lifecycle.forward, roundTrip.inverse)
         assertCandidatePixels(applied, semantic.appliedPixels)
         assertCandidatePixels(restored, semantic.initialPixels)
         check(restored == lifecycle.initial) { "Candidate patch round trip did not restore the source snapshot." }
@@ -170,184 +168,53 @@ internal class P2CandidatePatchMeasurementFixture private constructor(
         result: P2CandidatePatchResultEvidence,
         operation: P2CandidatePatchOperationSnapshots,
     ): P2CandidatePatchMeasurementOutcome {
-        assertPatchContract(forward)
-        assertInverseContract(forward, inverse)
+        val operationLifecycle =
+            P2CandidatePatchLifecycleFixture(
+                lifecycle.initial,
+                forward,
+                inverse,
+                lifecycle.applied,
+            )
+        val audit =
+            P2CandidatePatchVerification.audit(
+                descriptor.configuration,
+                operationLifecycle,
+                semantic,
+                operation,
+            )
         return P2CandidatePatchMeasurementOutcome(
             storage = P2CandidatePatchStorageEvidence(lifecycle.initial.storage, forward.pairStorage(inverse)),
-            state = stateEvidence(forward, operation),
-            correctness = correctnessEvidence(forward, inverse),
+            state = audit.state,
+            correctness = audit.correctness,
             result = result,
         )
     }
 
-    private fun stateEvidence(
-        patch: P2CandidatePatch,
-        operation: P2CandidatePatchOperationSnapshots,
-    ): P2CandidatePatchStateEvidence {
-        val inputUnaffected = P2CandidateDigest.unaffectedPixels(operation.input, patch)
-        val outputUnaffected = P2CandidateDigest.unaffectedPixels(operation.output, patch)
-        check(inputUnaffected == outputUnaffected) { "Candidate operation changed an unaffected pixel." }
-        return P2CandidatePatchStateEvidence(
-            lifecycle = lifecycleEvidence(),
-            operation =
-                P2CandidatePatchOperationEvidence(
-                    operation.input.revision,
-                    operation.output.revision,
-                    P2CandidateDigest.pixels(operation.input),
-                    P2CandidateDigest.pixels(operation.output),
-                ),
-            unaffected = P2CandidatePatchUnaffectedEvidence(inputUnaffected, outputUnaffected),
-            affectedRegion = patch.affectedRegion,
-        )
-    }
-
-    private fun lifecycleEvidence(): P2CandidatePatchLifecycleEvidence =
-        P2CandidatePatchLifecycleEvidence(
-            revisions =
-                P2CandidatePatchRevisionEvidence(
-                    lifecycle.initial.revision,
-                    lifecycle.applied.revision,
-                    lifecycle.initial.revision,
-                ),
-            digests =
-                P2CandidatePatchLifecycleDigests(
-                    P2CandidateDigest.pixels(lifecycle.initial),
-                    P2CandidateDigest.pixels(lifecycle.applied),
-                    P2CandidateDigest.pixels(lifecycle.initial),
-                ),
-        )
-
-    private fun correctnessEvidence(
-        forward: P2CandidatePatch,
-        inverse: P2CandidatePatch,
-    ): P2CandidatePatchCorrectness =
-        P2CandidatePatchCorrectness(
-            canonicalOrderDigest = P2CandidateDigest.canonicalOrder(forward),
-            forwardPatchDigest = P2CandidateDigest.patch(forward),
-            inversePatchDigest = P2CandidateDigest.patch(inverse),
-            status = "pass",
-        )
-
-    private fun assertPatchContract(patch: P2CandidatePatch) {
-        check(patch.configuration == descriptor.configuration) { "Candidate patch configuration changed." }
-        check(patch.shape == descriptor.canvas) { "Candidate patch shape changed." }
-        check(patch.direction == P2CandidatePatchDirection.Forward) { "Candidate patch direction changed." }
-        check(patch.revisions == P2CandidateRevisionTransition(0L, 1L)) { "Candidate patch revisions changed." }
-        check(patch.changeCount == descriptor.canvas.pixelCount.toInt()) { "Candidate patch count changed." }
-        repeat(patch.changeCount) { index ->
-            check(patch.positionAt(index) == index) { "Candidate patch ordering changed at $index." }
-            check(patch.beforeAt(index) == semantic.initialPixels[index]) { "Candidate patch before value changed." }
-            check(patch.afterAt(index) == semantic.appliedPixels[index]) { "Candidate patch after value changed." }
-        }
-        check(
-            patch.affectedRegion == P2CandidateAffectedRegion(0, 0, descriptor.canvas.width, descriptor.canvas.height),
-        ) {
-            "Candidate patch affected region changed."
-        }
-    }
-
-    private fun assertInverseContract(
-        forward: P2CandidatePatch,
-        inverse: P2CandidatePatch,
-    ) {
-        check(inverse.direction == P2CandidatePatchDirection.Inverse) { "Candidate inverse direction changed." }
-        check(inverse.revisions == forward.revisions.inverse()) { "Candidate inverse revisions changed." }
-        check(inverse.affectedRegion == forward.affectedRegion) { "Candidate inverse region changed." }
-        repeat(forward.changeCount) { index ->
-            check(inverse.positionAt(index) == forward.positionAt(index)) { "Candidate inverse ordering changed." }
-            check(inverse.beforeAt(index) == forward.afterAt(index)) { "Candidate inverse before value changed." }
-            check(inverse.afterAt(index) == forward.beforeAt(index)) { "Candidate inverse after value changed." }
-        }
-    }
-
     companion object {
         fun create(descriptor: P2CandidatePatchMeasurementDescriptor): P2CandidatePatchMeasurementFixture {
-            val semantic = semanticFixture(descriptor.canvas)
+            val semantic = P2CandidateWorkloadFixture.create(descriptor.canvas, descriptor.workload.pathKind)
             val initial = descriptor.configuration.createSnapshot(descriptor.canvas, 0L, semantic.initialPixels)
             val forward =
                 P2CandidatePatchFactory
                     .create(
                         descriptor.configuration,
                         initial,
-                        semantic.shuffledPositions,
-                        semantic.shuffledAfter,
+                        semantic.reverseCanonicalPositions,
+                        semantic.reverseCanonicalAfter,
                     ).requiredPatch()
             val inverse = forward.inverse()
             val applied = initial.apply(forward).requiredApplication().snapshot
             val lifecycle = P2CandidatePatchLifecycleFixture(initial, forward, inverse, applied)
-            val conflicted = descriptor.configuration.createSnapshot(descriptor.canvas, 0L, semantic.conflictedPixels)
+            val conflicted =
+                descriptor.configuration.createSnapshot(
+                    descriptor.canvas,
+                    0L,
+                    semantic.conflictedPixels,
+                )
             return P2CandidatePatchMeasurementFixture(descriptor, semantic, lifecycle, conflicted)
         }
-
-        private fun semanticFixture(canvas: P2CanvasShape): P2CandidatePatchSemanticFixture {
-            val initial = IntArray(canvas.pixelCount.toInt(), ::highEntropyPacked)
-            val positions = IntArray(initial.size) { index -> initial.lastIndex - index }
-            val after =
-                positions.map { position ->
-                    P2PackedRgba8888.unpack(initial[position] xor ALPHA_XOR_MASK)
-                }
-            val applied = initial.copyOf()
-            positions.indices.forEach { index -> applied[positions[index]] = P2PackedRgba8888.pack(after[index]) }
-            val conflictPosition = initial.lastIndex
-            val conflicted = initial.copyOf().also { pixels -> pixels[conflictPosition] = applied[conflictPosition] }
-            return P2CandidatePatchSemanticFixture(
-                initial,
-                applied,
-                conflicted,
-                P2CandidatePatchShuffledInput(positions, after, conflictPosition),
-            )
-        }
-
-        private fun highEntropyPacked(index: Int): Int =
-            ((index and CHANNEL_MASK) shl RED_SHIFT) or
-                ((index ushr BYTE_BITS and CHANNEL_MASK) shl GREEN_SHIFT) or
-                ((index * BLUE_MULTIPLIER and CHANNEL_MASK) shl BLUE_SHIFT) or
-                (index * ALPHA_MULTIPLIER and CHANNEL_MASK)
-
-        private const val RED_SHIFT: Int = 24
-        private const val GREEN_SHIFT: Int = 16
-        private const val BLUE_SHIFT: Int = 8
-        private const val BYTE_BITS: Int = 8
-        private const val CHANNEL_MASK: Int = 0xff
-        private const val BLUE_MULTIPLIER: Int = 29
-        private const val ALPHA_MULTIPLIER: Int = 43
-        private const val ALPHA_XOR_MASK: Int = 0x000000ff
     }
 }
-
-private data class P2CandidatePatchSemanticFixture(
-    val initialPixels: IntArray,
-    val appliedPixels: IntArray,
-    val conflictedPixels: IntArray,
-    val shuffled: P2CandidatePatchShuffledInput,
-) {
-    val shuffledPositions: IntArray
-        get() = shuffled.positions
-
-    val shuffledAfter: List<PixelColor>
-        get() = shuffled.after
-
-    val conflictPosition: Int
-        get() = shuffled.conflictPosition
-}
-
-private data class P2CandidatePatchShuffledInput(
-    val positions: IntArray,
-    val after: List<PixelColor>,
-    val conflictPosition: Int,
-)
-
-private data class P2CandidatePatchLifecycleFixture(
-    val initial: P2CandidateSnapshot,
-    val forward: P2CandidatePatch,
-    val inverse: P2CandidatePatch,
-    val applied: P2CandidateSnapshot,
-)
-
-private data class P2CandidatePatchOperationSnapshots(
-    val input: P2CandidateSnapshot,
-    val output: P2CandidateSnapshot,
-)
 
 internal sealed interface P2CandidatePatchExecution {
     data class Created(
@@ -378,4 +245,5 @@ private inline fun <reified T : P2CandidatePatchExecution> requireExecution(exec
         ?: error("Candidate patch execution was ${execution::class.simpleName}, expected ${T::class.simpleName}.")
 
 private fun requireRejected(result: P2CandidatePatchApplicationResult): P2CandidatePatchApplicationResult.Rejected =
-    result as? P2CandidatePatchApplicationResult.Rejected ?: error("Candidate patch conflict unexpectedly applied.")
+    result as? P2CandidatePatchApplicationResult.Rejected
+        ?: error("Candidate patch conflict unexpectedly applied.")

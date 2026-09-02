@@ -283,7 +283,7 @@ private class P2CandidateRawPathMeasurementFixture(
         return outcome(
             patchStorage = patch.pairStorage(inverse),
             lifecycle = lifecycle(applied.revision, appliedDigest, source.revision, sourceDigest),
-            unaffected = P2CandidatePatchUnaffectedEvidence(unaffectedDigest, unaffectedDigest),
+            unaffected = P2CandidatePatchUnaffectedEvidence(0, unaffectedDigest, unaffectedDigest),
             unaffectedPixelCount = 0,
             affectedRegion = patch.affectedRegion,
             correctness =
@@ -305,7 +305,12 @@ private class P2CandidateRawPathMeasurementFixture(
         return outcome(
             patchStorage = EMPTY_PATCH_PAIR_STORAGE,
             lifecycle = lifecycle(source.revision, sourceDigest, source.revision, sourceDigest),
-            unaffected = P2CandidatePatchUnaffectedEvidence(unaffectedDigest, unaffectedDigest),
+            unaffected =
+                P2CandidatePatchUnaffectedEvidence(
+                    descriptor.canvas.pixelCount.toInt(),
+                    unaffectedDigest,
+                    unaffectedDigest,
+                ),
             unaffectedPixelCount = descriptor.canvas.pixelCount.toInt(),
             affectedRegion = null,
             correctness =

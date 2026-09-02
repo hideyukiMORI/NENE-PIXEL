@@ -48,6 +48,7 @@ internal object P2CandidateMeasurementReportSchema {
             "operation_boundary",
             "content_kind",
             "path_kind",
+            "native_patch_workload_kind",
             "color_cardinality",
             "tile_edge",
             "touched_units",
