@@ -97,11 +97,54 @@ internal object P2CandidateDigest {
         return digest.digest().hex()
     }
 
+    fun retainedEntryChangeCounts(entries: List<P2CandidateRetainedEntryReference>): String {
+        val digest = sha256()
+        digest.updateInt(if (entries.isEmpty()) EMPTY_RETAINED_HISTORY_TAG else RETAINED_ENTRY_COUNTS_TAG)
+        digest.updateInt(entries.size)
+        entries.forEach { entry -> digest.updateInt(entry.forward.changeCount) }
+        return digest.digest().hex()
+    }
+
+    fun retainedHistory(
+        shape: P2CanvasShape,
+        entries: List<P2CandidateRetainedEntryReference>,
+        currentSnapshot: P2CandidateSnapshot,
+    ): String {
+        val digest = sha256()
+        digest.updateInt(if (entries.isEmpty()) EMPTY_RETAINED_HISTORY_TAG else RETAINED_HISTORY_TAG)
+        digest.updateInt(shape.width)
+        digest.updateInt(shape.height)
+        digest.updateInt(entries.size)
+        entries.forEach { entry -> digest.updateRetainedEntry(entry) }
+        digest.updateLong(currentSnapshot.revision)
+        repeat(shape.pixelCount.toInt()) { index -> digest.updateInt(currentSnapshot.packedAt(index)) }
+        return digest.digest().hex()
+    }
+
+    private fun MessageDigest.updateRetainedEntry(entry: P2CandidateRetainedEntryReference) {
+        val patch = entry.forward
+        updateLong(patch.revisions.before)
+        updateLong(patch.revisions.after)
+        updateInt(patch.affectedRegion.left)
+        updateInt(patch.affectedRegion.top)
+        updateInt(patch.affectedRegion.width)
+        updateInt(patch.affectedRegion.height)
+        updateInt(patch.changeCount)
+        repeat(patch.changeCount) { index ->
+            updateInt(patch.positionAt(index))
+            updateInt(patch.beforeAt(index))
+            updateInt(patch.afterAt(index))
+        }
+    }
+
     private fun sha256(): MessageDigest = MessageDigest.getInstance("SHA-256")
 
     private const val RAW_INPUT_TAG: Int = 0x52415731
     private const val CANONICAL_CHANGES_TAG: Int = 0x43484e31
     private const val EMPTY_CANONICAL_CHANGES_TAG: Int = 0x43484e30
+    private const val RETAINED_ENTRY_COUNTS_TAG: Int = 0x52454331
+    private const val RETAINED_HISTORY_TAG: Int = 0x52485431
+    private const val EMPTY_RETAINED_HISTORY_TAG: Int = 0x52485430
 }
 
 internal fun assertCandidatePixels(

@@ -8,17 +8,42 @@ internal object P2CandidateMeasurementReport {
         candidates: List<P2CandidateMeasurementMetric>,
         patchCandidates: List<P2CandidatePatchMeasurementMetric>,
         rawPathCandidates: List<P2CandidateRawPathMeasurementMetric>,
+        retainedHistoryCandidates: List<P2CandidateRetainedHistoryMeasurementMetric>,
     ) {
+        assertReportMatrix(candidates, patchCandidates, rawPathCandidates, retainedHistoryCandidates)
         val outputDirectory = System.getProperty(OUTPUT_DIRECTORY_PROPERTY)?.let(Path::of) ?: return
         Files.createDirectories(outputDirectory)
         val rows =
             metadataRows() +
                 candidates.flatMap(::candidateMetricRows) +
                 patchCandidates.flatMap(::patchMetricRows) +
-                rawPathCandidates.flatMap(::rawPathMetricRows)
+                rawPathCandidates.flatMap(::rawPathMetricRows) +
+                retainedHistoryCandidates.flatMap(P2CandidateRetainedHistoryMeasurementReport::metricRows)
         Files.writeString(
             outputDirectory.resolve("host-candidates.csv"),
             rows.joinToString(System.lineSeparator(), postfix = System.lineSeparator()),
+        )
+    }
+
+    private fun assertReportMatrix(
+        candidates: List<P2CandidateMeasurementMetric>,
+        patchCandidates: List<P2CandidatePatchMeasurementMetric>,
+        rawPathCandidates: List<P2CandidateRawPathMeasurementMetric>,
+        retainedHistoryCandidates: List<P2CandidateRetainedHistoryMeasurementMetric>,
+    ) {
+        val metricCount =
+            candidates.size + patchCandidates.size + rawPathCandidates.size + retainedHistoryCandidates.size
+        val sampleCount =
+            candidates.sumOf { metric -> metric.samples.latenciesNanos.size } +
+                patchCandidates.sumOf { metric -> metric.samples.latenciesNanos.size } +
+                rawPathCandidates.sumOf { metric -> metric.samples.latenciesNanos.size } +
+                retainedHistoryCandidates.sumOf { metric -> metric.samples.latenciesNanos.size }
+        check(metricCount == EXPECTED_METRIC_COUNT) { "Candidate schema v6 metric count changed." }
+        check(sampleCount == EXPECTED_RAW_SAMPLE_COUNT) { "Candidate schema v6 sample count changed." }
+        check(retainedHistoryCandidates.size == P2CandidateRetainedHistoryMeasurement.METRIC_COUNT)
+        check(
+            retainedHistoryCandidates.sumOf { metric -> metric.samples.latenciesNanos.size } ==
+                P2CandidateRetainedHistoryMeasurement.RAW_SAMPLE_COUNT,
         )
     }
 
@@ -26,8 +51,8 @@ internal object P2CandidateMeasurementReport {
 
     private fun baseMetadataRows(): List<String> =
         listOf(
-            csvRow(*REPORT_COLUMNS.toTypedArray()),
-            metadataRow("schema", "nene-pixel-p2-representation-limits-host-candidates-v5"),
+            P2CandidateMeasurementReportSchema.headerRow(),
+            metadataRow("schema", "nene-pixel-p2-representation-limits-host-candidates-v6"),
             metadataRow("profile", HOST_PROFILE),
             metadataRow("os", systemDescription()),
             metadataRow("jvm", jvmDescription()),
@@ -57,7 +82,8 @@ internal object P2CandidateMeasurementReport {
                     "one|256|high-entropy RGBA snapshot build; high-entropy one|diagonal|row|column|" +
                     "25%|50%|100% apply; 256x256-only dense shuffled create|inverse create|forward apply|" +
                     "inverse apply|round trip|late conflict plus raw duplicate changed|reference-clear changed|" +
-                    "reference-clear no-op|same-color no-op; 5 warmups and 10 diagnostic samples",
+                    "reference-clear no-op|same-color no-op plus 18 retained analytical-history workloads; " +
+                    "5 warmups and 10 diagnostic samples",
             ),
             metadataRow(
                 "semantic_oracle",
@@ -75,7 +101,8 @@ internal object P2CandidateMeasurementReport {
             metadataRow(
                 "unit_boundary",
                 "candidate snapshot/apply/standalone-patch rows use path_positions=0; raw-path rows use the " +
-                    "ordered raw count P and effective canonical change count C; all rows use history_entries=0",
+                    "ordered raw count P and effective canonical change count C; those rows use history_entries=0; " +
+                    "retained rows use path_positions=0, uniform per-entry C, entry count H, and total T",
             ),
             metadataRow(
                 "patch_logical_storage_boundary",
@@ -85,7 +112,8 @@ internal object P2CandidateMeasurementReport {
             ),
             metadataRow(
                 "candidate_gaps",
-                "retained history, heap, ART, PSS, frames, sparse/rectangular native patches, and semantic " +
+                "production bounded history, retained heap, ART, PSS, frames, sparse/rectangular native patches, " +
+                    "and semantic " +
                     "selection remain pending",
             ),
             metadataRow("cross_configuration_correctness", "all patch semantic and lifecycle digests matched"),
@@ -94,7 +122,7 @@ internal object P2CandidateMeasurementReport {
                 "U8 value-palette pack/index correctness and 257-color typed rejection tested; " +
                     "performance comparison blocked on palette semantic ownership",
             ),
-        ) + rawPathMetadataRows()
+        ) + rawPathMetadataRows() + retainedHistoryMetadataRows()
 
     private fun rawPathMetadataRows(): List<String> =
         listOf(
@@ -109,6 +137,29 @@ internal object P2CandidateMeasurementReport {
                 "256x256; opaque black/red analytical fixtures; paired-row-major duplicate changed, " +
                     "row-major reference-clear changed/no-op and same-color no-op; 5 configurations; " +
                     "20 metrics and 200 samples",
+            ),
+        )
+
+    private fun retainedHistoryMetadataRows(): List<String> =
+        listOf(
+            metadataRow(
+                "retained_history_boundary",
+                "test-only analytical entry/history wrapper construction and defensive entry-reference ownership; " +
+                    "prepared snapshot, patch, inverse, replay, digest, storage analysis, and verification excluded",
+            ),
+            metadataRow(
+                "retained_history_matrix",
+                "256x256 N=65536; H/T pairs 0/0,1/N,8|16|32|64 x N|2N|4N|8N; " +
+                    "5 configurations; 90 metrics and 900 samples",
+            ),
+            metadataRow(
+                "retained_history_storage_boundary",
+                "snapshot, forward, inverse-additional, shared, and retained-union logical units remain separate; " +
+                    "not retained heap, ART, Java live heap, PSS, or physical-device memory",
+            ),
+            metadataRow(
+                "retained_history_cross_configuration_correctness",
+                "entry-count and semantic digests matched across all five configurations per retained workload",
             ),
         )
 
@@ -474,11 +525,8 @@ internal object P2CandidateMeasurementReport {
         value: String,
     ): String = rowByColumn("record_type" to "metadata", "name" to name, "value" to value)
 
-    private fun rowByColumn(vararg values: Pair<String, Any>): String {
-        val valuesByColumn = values.toMap()
-        check(valuesByColumn.keys.all(REPORT_COLUMNS::contains)) { "Unknown candidate report column." }
-        return csvRow(*REPORT_COLUMNS.map { column -> valuesByColumn[column] ?: "" }.toTypedArray())
-    }
+    private fun rowByColumn(vararg values: Pair<String, Any>): String =
+        P2CandidateMeasurementReportSchema.rowByColumn(*values)
 
     private fun systemDescription(): String =
         listOf("os.name", "os.version", "os.arch").joinToString(" ", transform = ::requiredSystemProperty)
@@ -489,106 +537,12 @@ internal object P2CandidateMeasurementReport {
     private fun requiredSystemProperty(name: String): String =
         requireNotNull(System.getProperty(name)) { "Required JVM system property '$name' is unavailable." }
 
-    private fun csvRow(vararg values: Any): String =
-        values.joinToString(",") { value -> "\"${value.toString().replace("\"", "\"\"")}\"" }
-
     private const val OUTPUT_DIRECTORY_PROPERTY: String = "nene.p2.representation.measurement.outputDirectory"
     private const val HOST_PROFILE: String = "NENE-P2-REPRESENTATION-WINDOWS-I9-10850K-JBR21"
     private const val CANDIDATE_WARMUPS: Int = 5
     private const val CANDIDATE_SAMPLES: Int = 10
-    private val REPORT_COLUMNS: List<String> =
-        listOf(
-            "record_type",
-            "name",
-            "value",
-            "status",
-            "canvas_width",
-            "canvas_height",
-            "pixel_count",
-            "path_positions",
-            "unique_path_positions",
-            "duplicate_path_positions",
-            "unchanged_unique_positions",
-            "change_count",
-            "history_entries",
-            "total_retained_changes",
-            "warmup",
-            "samples",
-            "sample_index",
-            "latency_ns",
-            "allocated_bytes",
-            "latency_median_ns",
-            "latency_p95_ns",
-            "latency_p99_ns",
-            "allocated_median_bytes",
-            "allocated_p95_bytes",
-            "allocated_p99_bytes",
-            "boundary",
-            "configuration_id",
-            "snapshot_candidate_id",
-            "patch_candidate_id",
-            "inverse_policy",
-            "operation_kind",
-            "operation_boundary",
-            "content_kind",
-            "path_kind",
-            "color_cardinality",
-            "tile_edge",
-            "touched_units",
-            "copied_units",
-            "shared_units",
-            "primitive_payload_bytes",
-            "reference_slots",
-            "copied_primitive_bytes",
-            "copied_reference_slots",
-            "forward_patch_primitive_bytes",
-            "forward_patch_reference_slots",
-            "forward_patch_object_records",
-            "forward_patch_primitive_backing_arrays",
-            "inverse_additional_primitive_bytes",
-            "inverse_additional_reference_slots",
-            "inverse_additional_object_records",
-            "inverse_additional_primitive_backing_arrays",
-            "shared_patch_primitive_bytes",
-            "shared_patch_reference_slots",
-            "shared_patch_object_records",
-            "shared_patch_primitive_backing_arrays",
-            "retained_patch_union_primitive_bytes",
-            "retained_patch_union_reference_slots",
-            "retained_patch_union_object_records",
-            "retained_patch_union_primitive_backing_arrays",
-            "result_kind",
-            "rejection_kind",
-            "conflict_position",
-            "unaffected_pixel_count",
-            "affected_left",
-            "affected_top",
-            "affected_width",
-            "affected_height",
-            "expected_lifecycle_before_revision",
-            "expected_lifecycle_after_revision",
-            "expected_lifecycle_restored_revision",
-            "expected_lifecycle_before_pixel_digest_sha256",
-            "expected_lifecycle_after_pixel_digest_sha256",
-            "expected_lifecycle_restored_pixel_digest_sha256",
-            "operation_input_revision",
-            "operation_output_revision",
-            "operation_input_pixel_digest_sha256",
-            "operation_output_pixel_digest_sha256",
-            "operation_state_unchanged",
-            "unaffected_input_digest_sha256",
-            "unaffected_output_digest_sha256",
-            "canonical_order_digest_sha256",
-            "raw_input_digest_sha256",
-            "canonical_change_digest_sha256",
-            "forward_patch_digest_sha256",
-            "inverse_patch_digest_sha256",
-            "execution_order",
-            "input_order",
-            "semantic_digest",
-            "inverse_digest",
-            "correctness_status",
-        )
+    private const val EXPECTED_METRIC_COUNT: Int = 490
+    private const val EXPECTED_RAW_SAMPLE_COUNT: Int = 4_900
 }
 
 private data class P2CandidateReportSample(

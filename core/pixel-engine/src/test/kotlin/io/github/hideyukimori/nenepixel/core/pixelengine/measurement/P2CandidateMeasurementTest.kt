@@ -9,7 +9,13 @@ internal class P2CandidateMeasurementTest {
         val candidates = P2CandidateMeasurement.measure(allocationCounter)
         val patchCandidates = P2CandidatePatchMeasurement.measure(allocationCounter)
         val rawPathCandidates = P2CandidateRawPathMeasurement.measure(allocationCounter)
+        val retainedHistoryCandidates = P2CandidateRetainedHistoryMeasurement.measure(allocationCounter)
 
-        P2CandidateMeasurementReport.write(candidates, patchCandidates, rawPathCandidates)
+        P2CandidateMeasurementReport.write(
+            candidates,
+            patchCandidates,
+            rawPathCandidates,
+            retainedHistoryCandidates,
+        )
     }
 }
