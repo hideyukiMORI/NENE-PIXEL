@@ -115,6 +115,10 @@ owned storage.
 Semantic position iteration reconstructs typed positions, while the pixel engine reads primitive
 indices without retaining or receiving the owned array. This removes per-command coordinate-object
 traversal without changing gesture order, duplicate meaning, equality, or hash behavior.
+Stroke rasterization proves containment, uniqueness, effective change, canonical order, and
+affected bounds once. Its internal patch factory consumes those proven invariants and does not
+repeat full-volume validation scans; the public arbitrary-change factory retains complete typed
+validation.
 
 Test-only current and tiled candidate implementations are not production APIs or runtime options
 and are removed after their immutable evidence has been recorded.

@@ -72,6 +72,27 @@ internal object P2AndroidFinalCommandProtocol {
             P2AndroidFinalCommandPlan(
                 identity =
                     P2AndroidFinalCommandPlan.Identity(
+                        candidateId = "flat-packed-command-256-clean-latency-v6",
+                        runIndex = RUN_INDEX,
+                    ),
+                workload =
+                    P2AndroidFinalCommandPlan.Workload(
+                        canvasWidth = 256,
+                        canvasHeight = 256,
+                        warmupIterations = WARMUP_ITERATIONS,
+                        samplesPerWorkload = SAMPLES_PER_WORKLOAD,
+                        schema = CLEAN_LATENCY_SCHEMA,
+                    ),
+                output =
+                    P2AndroidFinalCommandPlan.Output(
+                        outputIdentity = "device-clean-flat-packed-command-256-run-06",
+                        relativePath = "p2-measurements/p2-android-clean-flat-packed-command-256-run-06.csv",
+                        publicationPolicy = P2AndroidFinalCommandPlan.PublicationPolicy.FailIfExists,
+                    ),
+            ),
+            P2AndroidFinalCommandPlan(
+                identity =
+                    P2AndroidFinalCommandPlan.Identity(
                         candidateId = "flat-packed-command-256-clean-latency-v5",
                         runIndex = RUN_INDEX,
                     ),

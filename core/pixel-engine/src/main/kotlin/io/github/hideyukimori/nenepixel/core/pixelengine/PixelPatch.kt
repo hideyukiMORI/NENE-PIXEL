@@ -147,7 +147,7 @@ public class PixelPatch private constructor(
             }
         }
 
-        internal fun createPackedRgba8888(
+        internal fun createFromValidatedPackedRgba8888(
             canvas: CanvasSize,
             beforeRevision: Revision,
             positions: IntArray,
@@ -172,9 +172,7 @@ public class PixelPatch private constructor(
 
                 else -> {
                     check(positions.isNotEmpty() && positions.size == before.size && positions.size == after.size)
-                    check(positions.indices.all { index -> positions[index] in 0 until canvas.pixelCount.toInt() })
-                    check(positions.isStrictlyAscending())
-                    check(positions.indices.all { index -> before[index] != after[index] })
+                    check(positions.first() >= 0 && positions.last() < canvas.pixelCount.toInt())
                     PixelPatchCreationResult.Created(
                         PixelPatch(
                             canvas = canvas,
@@ -345,13 +343,6 @@ private enum class PixelPatchDirection {
 private fun CanvasSize.positionAt(index: Int): PixelPosition = pixelPosition(index % width.value, index / width.value)
 
 private fun PixelPosition.rowMajorIndex(size: CanvasSize): Int = y.value * size.width.value + x.value
-
-private fun IntArray.isStrictlyAscending(): Boolean {
-    for (index in 1 until size) {
-        if (this[index - 1] >= this[index]) return false
-    }
-    return true
-}
 
 private fun pixelPosition(
     x: Int,

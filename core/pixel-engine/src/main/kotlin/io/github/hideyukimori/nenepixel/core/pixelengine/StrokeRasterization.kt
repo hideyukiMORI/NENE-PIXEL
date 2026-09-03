@@ -31,7 +31,7 @@ private fun rasterizeMatchingCanvas(
     } else {
         val before = IntArray(positions.size) { index -> sourcePixels[positions[index]] }
         PixelPatch
-            .createPackedRgba8888(
+            .createFromValidatedPackedRgba8888(
                 snapshot.size,
                 snapshot.revision,
                 positions,

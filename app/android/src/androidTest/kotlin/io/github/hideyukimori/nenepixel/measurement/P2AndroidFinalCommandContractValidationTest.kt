@@ -15,6 +15,21 @@ import java.io.File
 @RunWith(AndroidJUnit4::class)
 internal class P2AndroidFinalCommandContractValidationTest {
     @Test
+    fun resolvesSingleValidationProductionPlanWithSixthNoOverwritePath() {
+        val plan = resolve(CANDIDATE_FLAT_PACKED_256_CLEAN_V6, runIndex = 1)
+
+        assertEquals(CANDIDATE_FLAT_PACKED_256_CLEAN_V6, plan.candidateId)
+        assertEquals("nene-pixel-p2-android-clean-command-latency-v1", plan.schema)
+        assertEquals("device-clean-flat-packed-command-256-run-06", plan.outputIdentity)
+        assertEquals(
+            "p2-measurements/p2-android-clean-flat-packed-command-256-run-06.csv",
+            plan.outputRelativePath,
+        )
+        assertEquals(P2AndroidFinalCommandPlan.PublicationPolicy.FailIfExists, plan.publicationPolicy)
+        assertCommonCountsAndOrder(plan, sparsePositionCount = 256, densePositionCount = 65_536)
+    }
+
+    @Test
     fun resolvesFusedRegionProductionPlanWithFifthNoOverwritePath() {
         val plan = resolve(CANDIDATE_FLAT_PACKED_256_CLEAN_V5, runIndex = 1)
 
@@ -912,6 +927,7 @@ internal class P2AndroidFinalCommandContractValidationTest {
     }
 
     private companion object {
+        const val CANDIDATE_FLAT_PACKED_256_CLEAN_V6: String = "flat-packed-command-256-clean-latency-v6"
         const val CANDIDATE_FLAT_PACKED_256_CLEAN_V5: String = "flat-packed-command-256-clean-latency-v5"
         const val CANDIDATE_FLAT_PACKED_256_CLEAN_V4: String = "flat-packed-command-256-clean-latency-v4"
         const val CANDIDATE_FLAT_PACKED_256_CLEAN_V3: String = "flat-packed-command-256-clean-latency-v3"
