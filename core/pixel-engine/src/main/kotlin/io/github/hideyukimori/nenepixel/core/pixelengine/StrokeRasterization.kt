@@ -20,11 +20,12 @@ private fun rasterizeMatchingCanvas(
     val target = stroke.color.toPackedRgba8888()
     val canvasPixels = snapshot.size.pixelCount.toInt()
     val sourcePixels = snapshot.copyPackedRgba8888()
-    val positions =
+    val collection =
         EffectivePositionCollector(
             canvasPixels = canvasPixels,
             capacity = minOf(stroke.positionCount, canvasPixels),
         ).collect(stroke, sourcePixels, target)
+    val positions = collection.positions
     return if (positions.isEmpty()) {
         StrokeRasterizationResult.NoChanges
     } else {
@@ -36,6 +37,7 @@ private fun rasterizeMatchingCanvas(
                 positions,
                 before,
                 IntArray(positions.size) { target },
+                positionsAreContiguous = collection.positionsAreContiguous,
             ).toRasterizationResult()
     }
 }
@@ -49,18 +51,22 @@ private class EffectivePositionCollector(
     private var changeCount = 0
     private var lastEffectiveIndex = -1
     private var isCanonicalOrder = true
+    private var positionsAreContiguous = true
 
     fun collect(
         stroke: Stroke,
         sourcePixels: IntArray,
         target: Int,
-    ): IntArray {
+    ): EffectivePositionCollection {
         repeat(stroke.positionCount) { pathIndex ->
             accept(stroke.rowMajorIndexAt(pathIndex), sourcePixels, target)
         }
-        return effective.copyOf(changeCount).also { positions ->
-            if (!isCanonicalOrder) positions.sort()
-        }
+        val positions = effective.copyOf(changeCount)
+        if (!isCanonicalOrder) positions.sort()
+        return EffectivePositionCollection(
+            positions,
+            positionsAreContiguous = isCanonicalOrder && positionsAreContiguous,
+        )
     }
 
     private fun accept(
@@ -71,12 +77,18 @@ private class EffectivePositionCollector(
         if (seen[index]) return
         seen[index] = true
         if (sourcePixels[index] == target) return
+        if (changeCount > 0 && index != lastEffectiveIndex + 1) positionsAreContiguous = false
         if (index <= lastEffectiveIndex) isCanonicalOrder = false
         effective[changeCount] = index
         changeCount += 1
         lastEffectiveIndex = index
     }
 }
+
+private data class EffectivePositionCollection(
+    val positions: IntArray,
+    val positionsAreContiguous: Boolean,
+)
 
 private fun PixelPatchCreationResult.toRasterizationResult(): StrokeRasterizationResult =
     when (this) {

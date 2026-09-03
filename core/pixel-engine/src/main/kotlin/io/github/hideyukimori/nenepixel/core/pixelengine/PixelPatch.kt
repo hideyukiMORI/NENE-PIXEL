@@ -153,6 +153,7 @@ public class PixelPatch private constructor(
             positions: IntArray,
             before: IntArray,
             after: IntArray,
+            positionsAreContiguous: Boolean,
         ): PixelPatchCreationResult {
             val afterRevision = beforeRevision.nextOrNull()
             return when {
@@ -177,7 +178,7 @@ public class PixelPatch private constructor(
                     PixelPatchCreationResult.Created(
                         PixelPatch(
                             canvas = canvas,
-                            affectedRegion = affectedRegion(canvas, positions),
+                            affectedRegion = affectedRegion(canvas, positions, positionsAreContiguous),
                             storage =
                                 PixelPatchStorage(
                                     beforeRevision,
@@ -203,7 +204,7 @@ public class PixelPatch private constructor(
             return PixelPatchCreationResult.Created(
                 PixelPatch(
                     canvas = canvas,
-                    affectedRegion = affectedRegion(canvas, positions),
+                    affectedRegion = affectedRegion(canvas, positions, positionsAreContiguous = false),
                     storage =
                         PixelPatchStorage(
                             beforeRevision,
@@ -245,7 +246,21 @@ public class PixelPatch private constructor(
         private fun affectedRegion(
             canvas: CanvasSize,
             positions: IntArray,
+            positionsAreContiguous: Boolean,
         ): PixelRegion {
+            val bounds =
+                if (positionsAreContiguous) {
+                    contiguousPositionBounds(canvas, positions)
+                } else {
+                    positionBounds(canvas, positions)
+                }
+            return affectedRegion(canvas, bounds)
+        }
+
+        private fun positionBounds(
+            canvas: CanvasSize,
+            positions: IntArray,
+        ): PixelBounds {
             val width = canvas.width.value
             var minimumX = width
             var minimumY = canvas.height.value
@@ -259,11 +274,36 @@ public class PixelPatch private constructor(
                 maximumX = maxOf(maximumX, x)
                 maximumY = maxOf(maximumY, y)
             }
-            val origin = pixelPosition(minimumX, minimumY)
+            return PixelBounds(minimumX, minimumY, maximumX, maximumY)
+        }
+
+        private fun contiguousPositionBounds(
+            canvas: CanvasSize,
+            positions: IntArray,
+        ): PixelBounds {
+            val width = canvas.width.value
+            val first = positions.first()
+            val last = positions.last()
+            val minimumY = first / width
+            val maximumY = last / width
+            val withinOneRow = minimumY == maximumY
+            return PixelBounds(
+                minimumX = if (withinOneRow) first % width else 0,
+                minimumY = minimumY,
+                maximumX = if (withinOneRow) last % width else width - 1,
+                maximumY = maximumY,
+            )
+        }
+
+        private fun affectedRegion(
+            canvas: CanvasSize,
+            bounds: PixelBounds,
+        ): PixelRegion {
+            val origin = pixelPosition(bounds.minimumX, bounds.minimumY)
             val size =
                 CanvasSize.create(
-                    CanvasWidth.create(maximumX - minimumX + 1).requiredValue(),
-                    CanvasHeight.create(maximumY - minimumY + 1).requiredValue(),
+                    CanvasWidth.create(bounds.maximumX - bounds.minimumX + 1).requiredValue(),
+                    CanvasHeight.create(bounds.maximumY - bounds.minimumY + 1).requiredValue(),
                 )
             return PixelRegion.create(canvas, origin, size).requiredValue()
         }
@@ -278,6 +318,13 @@ public class PixelPatch private constructor(
             )
     }
 }
+
+private data class PixelBounds(
+    val minimumX: Int,
+    val minimumY: Int,
+    val maximumX: Int,
+    val maximumY: Int,
+)
 
 private class PixelPatchStorage(
     val beforeRevision: Revision,
