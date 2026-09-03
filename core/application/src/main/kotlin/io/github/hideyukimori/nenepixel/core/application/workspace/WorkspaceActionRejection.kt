@@ -12,4 +12,9 @@ public sealed interface WorkspaceActionRejection {
         public val canvas: CanvasSize,
         public val position: PixelPosition,
     ) : WorkspaceActionRejection
+
+    public data class PreviewPathAboveSupportedMaximum internal constructor(
+        public val attemptedCount: Long,
+        public val maximum: Int,
+    ) : WorkspaceActionRejection
 }

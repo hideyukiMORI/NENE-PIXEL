@@ -29,6 +29,7 @@ public class EditorController private constructor(
             viewportTransformed = ::viewportTransformed,
             undo = adapter::undo,
             redo = adapter::redo,
+            selectTool = { tool -> adapter.reduce(WorkspaceAction.SelectTool(tool)).renderState },
             createNewDocument = adapter::createNewDocument,
         )
 

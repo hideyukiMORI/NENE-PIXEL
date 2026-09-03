@@ -28,7 +28,7 @@ Examples:
 
 Examples:
 
-- `SetActiveToolAction`
+- `SelectTool`
 - `SetViewportAction`
 - `SetHoveredPixelAction`
 - `ShowStrokePreviewAction`
@@ -111,6 +111,18 @@ The accepted conservative MVP limits are one `PixelLimits` policy: at most 262,1
 stroke positions and at most 65,536 unique effective patch changes. Stroke construction rejects an
 oversized raw path before containment scan or ownership copy. Patch construction rejects an
 oversized change set before sorting or packed ownership.
+
+Pencil and Eraser are one closed `DrawingTool` selection vocabulary. `WorkspaceState` owns the
+active tool, and `WorkspaceAction.SelectTool` is its only mutation route. Beginning a `ToolGesture`
+captures either `StrokeEffect.Paint` with the current active color or `StrokeEffect.Erase`; later
+tool or color changes do not alter that gesture.
+
+Accepted document-pixel samples are connected by the one endpoint-inclusive, direction-symmetric,
+8-connected integer line rule in `ToolGesture`. The expanded count is checked against the raw-stroke
+limit before accepting each sample. One completed gesture produces exactly one
+`ApplyStrokeCommand`. Both effects enter the same handler, rasterizer, patch, and history path;
+Erase derives canonical `PixelBlank` as its target. Painting an equal value and erasing blank share
+`NoEffectiveChange` and change no revision, history, or dirty state.
 
 ### CMD-006 — Validation precedes transition
 

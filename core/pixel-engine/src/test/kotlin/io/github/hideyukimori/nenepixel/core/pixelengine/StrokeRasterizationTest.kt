@@ -1,8 +1,10 @@
 package io.github.hideyukimori.nenepixel.core.pixelengine
 
+import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.black
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.canvas
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.colorAt
+import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.eraserStroke
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.green
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.position
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.red
@@ -79,6 +81,34 @@ internal class StrokeRasterizationTest {
         assertEquals(red, colorAt(changed, position(0, 0)))
         assertEquals(black, colorAt(changed, position(1, 0)))
         assertEquals(red, colorAt(changed, position(2, 0)))
+    }
+
+    @Test
+    fun `eraser replaces with canonical blank through the same patch and inverse path`() {
+        val canvas = canvas(3, 1)
+        val original = snapshot(canvas, pixels = listOf(red, green, black))
+        val stroke = eraserStroke(canvas, listOf(position(0, 0), position(2, 0), position(0, 0)))
+
+        val patch = rasterized(rasterizeStroke(original, stroke))
+        val changed = applied(patch.applyTo(original))
+        val restored = applied(patch.inverse().applyTo(changed))
+
+        assertEquals(2, patch.changeCount)
+        assertEquals(PixelColor.blank, colorAt(changed, position(0, 0)))
+        assertEquals(green, colorAt(changed, position(1, 0)))
+        assertEquals(PixelColor.blank, colorAt(changed, position(2, 0)))
+        assertEquals(original, restored)
+    }
+
+    @Test
+    fun `already blank erase shares the canonical no changes result`() {
+        val canvas = canvas(1, 1)
+        val original = snapshot(canvas, revision(Long.MAX_VALUE), listOf(PixelColor.blank))
+
+        assertEquals(
+            StrokeRasterizationResult.NoChanges,
+            rasterizeStroke(original, eraserStroke(canvas, listOf(position(0, 0)))),
+        )
     }
 
     @Test

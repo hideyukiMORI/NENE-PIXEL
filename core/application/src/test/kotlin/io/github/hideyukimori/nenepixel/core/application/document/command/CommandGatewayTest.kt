@@ -7,6 +7,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.App
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.canvas
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.colorAt
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.defaultDocumentId
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.eraserStroke
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.green
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.otherDocumentId
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.position
@@ -14,6 +15,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.App
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.revision
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.state
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.stroke
+import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelRegion
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
@@ -124,6 +126,45 @@ internal class CommandGatewayTest {
 
         assertEquals(RejectionReason.NoEffectiveChange, rejected(gateway.execute(command)))
         assertEquals(initial, gateway.runtimeState.documentState)
+    }
+
+    @Test
+    fun `eraser applies blank and undo redo use the same recorded transition path`() {
+        val initial = state(canvas(2, 1), pixels = listOf(red, green))
+        val gateway = CommandGateway.create(initial)
+        val command = command(initial, eraserStroke(initial.size, listOf(position(1, 0), position(0, 0))))
+
+        val changeSet = applied(gateway.execute(command))
+        val erased = gateway.runtimeState.documentState
+
+        assertEquals(2, changeSet.patch.changeCount)
+        assertEquals(PixelColor.blank, colorAt(erased.snapshot, position(0, 0)))
+        assertEquals(PixelColor.blank, colorAt(erased.snapshot, position(1, 0)))
+        assertEquals(HistoryAvailability.UndoAvailable, gateway.runtimeState.historyAvailability)
+
+        applied(gateway.execute(UndoCommand.create(erased.id, erased.revision)))
+        assertEquals(initial, gateway.runtimeState.documentState)
+
+        val restored = gateway.runtimeState.documentState
+        applied(gateway.execute(RedoCommand.create(restored.id, restored.revision)))
+        assertEquals(erased, gateway.runtimeState.documentState)
+    }
+
+    @Test
+    fun `already blank eraser uses no effective change without revision or history`() {
+        val initial = state(canvas(1, 1), pixels = listOf(PixelColor.blank))
+        val gateway = CommandGateway.create(initial)
+
+        val reason =
+            rejected(
+                gateway.execute(
+                    command(initial, eraserStroke(initial.size, listOf(position(0, 0)))),
+                ),
+            )
+
+        assertEquals(RejectionReason.NoEffectiveChange, reason)
+        assertEquals(initial, gateway.runtimeState.documentState)
+        assertEquals(HistoryAvailability.None, gateway.runtimeState.historyAvailability)
     }
 
     @Test

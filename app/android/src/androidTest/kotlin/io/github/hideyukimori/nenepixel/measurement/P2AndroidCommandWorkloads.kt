@@ -14,6 +14,7 @@ import io.github.hideyukimori.nenepixel.core.domain.document.DocumentId
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.document.Revision
 import io.github.hideyukimori.nenepixel.core.domain.drawing.Stroke
+import io.github.hideyukimori.nenepixel.core.domain.drawing.StrokeEffect
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasHeight
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasWidth
@@ -329,7 +330,7 @@ private class CoreMeasurementValues(
         ApplyStrokeCommand.create(
             state.id,
             state.revision,
-            Stroke.create(canvas, path, red).requiredValue(),
+            Stroke.create(canvas, path, StrokeEffect.Paint(red)).requiredValue(),
         )
 
     fun revision(value: Long): Revision = Revision.create(value).requiredValue()

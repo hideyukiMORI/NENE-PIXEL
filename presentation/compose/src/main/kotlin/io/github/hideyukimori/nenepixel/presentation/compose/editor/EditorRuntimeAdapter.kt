@@ -116,6 +116,7 @@ internal class EditorRuntimeAdapter(
         return EditorRenderState(
             snapshot = state.documentState.snapshot,
             activeColor = state.workspaceState.activeColor,
+            activeTool = state.workspaceState.activeTool,
             preview = state.workspaceState.preview,
             viewport = state.workspaceState.viewport,
             canUndo = state.historyAvailability == HistoryAvailability.UndoAvailable,

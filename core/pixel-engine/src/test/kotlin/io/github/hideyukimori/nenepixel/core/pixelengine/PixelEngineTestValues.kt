@@ -4,6 +4,7 @@ import io.github.hideyukimori.nenepixel.core.domain.color.ColorChannel
 import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.document.Revision
 import io.github.hideyukimori.nenepixel.core.domain.drawing.Stroke
+import io.github.hideyukimori.nenepixel.core.domain.drawing.StrokeEffect
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasHeight
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasWidth
@@ -36,7 +37,12 @@ internal object PixelEngineTestValues {
         canvas: CanvasSize,
         path: List<PixelPosition>,
         color: PixelColor,
-    ): Stroke = Stroke.create(canvas, path, color).value()
+    ): Stroke = Stroke.create(canvas, path, StrokeEffect.Paint(color)).value()
+
+    fun eraserStroke(
+        canvas: CanvasSize,
+        path: List<PixelPosition>,
+    ): Stroke = Stroke.create(canvas, path, StrokeEffect.Erase).value()
 
     fun region(
         canvas: CanvasSize,

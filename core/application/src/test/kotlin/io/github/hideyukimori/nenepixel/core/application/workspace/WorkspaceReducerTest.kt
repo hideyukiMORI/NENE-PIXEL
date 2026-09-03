@@ -13,9 +13,13 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceRedu
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportState
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportValueResult
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportZoom
+import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
 import io.github.hideyukimori.nenepixel.core.domain.drawing.Stroke
+import io.github.hideyukimori.nenepixel.core.domain.drawing.StrokeEffect
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelLimits
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Test
@@ -30,6 +34,7 @@ internal class WorkspaceReducerTest {
         val equal = WorkspaceState.create(red, canvas)
 
         assertEquals(red, first.activeColor)
+        assertEquals(DrawingTool.Pencil, first.activeTool)
         assertEquals(ViewportState.initial(canvas), first.viewport)
         assertNull(first.preview)
         assertEquals(equal, first)
@@ -48,10 +53,27 @@ internal class WorkspaceReducerTest {
         val repeated = unchanged(reducer.reduce(changed, WorkspaceAction.ChangeActiveColor(green)))
 
         assertEquals(green, changed.activeColor)
-        assertEquals(red, changed.preview?.color)
+        assertEquals(StrokeEffect.Paint(red), changed.preview?.effect)
         assertEquals(previewing.preview, changed.preview)
         assertEquals(WorkspaceNoChangeReason.ActiveColorAlreadySelected, repeated.reason)
         assertSame(changed, repeated.nextState)
+    }
+
+    @Test
+    fun `active tool changes only through reducer and an active gesture keeps its captured effect`() {
+        val canvas = canvas(2, 1)
+        val initial = WorkspaceState.create(red, canvas)
+        val eraserSelected = reduced(reducer.reduce(initial, WorkspaceAction.SelectTool(DrawingTool.Eraser)))
+        val repeated = unchanged(reducer.reduce(eraserSelected, WorkspaceAction.SelectTool(DrawingTool.Eraser)))
+        val previewing = begin(eraserSelected, canvas, position(0, 0))
+        val pencilSelected = reduced(reducer.reduce(previewing, WorkspaceAction.SelectTool(DrawingTool.Pencil)))
+
+        assertEquals(DrawingTool.Eraser, eraserSelected.activeTool)
+        assertEquals(WorkspaceNoChangeReason.ActiveToolAlreadySelected, repeated.reason)
+        assertSame(eraserSelected, repeated.nextState)
+        assertEquals(DrawingTool.Pencil, pencilSelected.activeTool)
+        assertEquals(StrokeEffect.Erase, pencilSelected.preview?.effect)
+        assertEquals(previewing.preview, pencilSelected.preview)
     }
 
     @Test
@@ -61,7 +83,7 @@ internal class WorkspaceReducerTest {
         val previewing = begin(initial, canvas, position(0, 0))
 
         assertEquals(canvas, previewing.preview?.canvas)
-        assertEquals(red, previewing.preview?.color)
+        assertEquals(StrokeEffect.Paint(red), previewing.preview?.effect)
         assertEquals(listOf(position(0, 0)), previewing.preview?.positions())
 
         val alreadyActive =
@@ -76,6 +98,28 @@ internal class WorkspaceReducerTest {
 
         val outside = rejected(reducer.reduce(initial, WorkspaceAction.BeginGesturePreview(canvas, position(2, 0))))
         assertOutside(outside, initial, canvas, position(2, 0))
+    }
+
+    @Test
+    fun `sample gaps use the canonical bounded Bresenham path in both preview and commit`() {
+        val canvas = canvas(6, 3)
+        val initial = WorkspaceState.create(red, canvas)
+        val previewing = extend(begin(initial, canvas, position(0, 0)), position(5, 2))
+        val expected =
+            listOf(
+                position(0, 0),
+                position(1, 0),
+                position(2, 1),
+                position(3, 1),
+                position(4, 2),
+                position(5, 2),
+            )
+
+        assertEquals(expected, previewing.preview?.positions())
+        assertEquals(expected.size, previewing.preview?.positionCount)
+
+        val prepared = prepared(reducer.reduce(previewing, WorkspaceAction.PrepareGestureCommit))
+        assertEquals(expected, prepared.stroke.positions())
     }
 
     @Test
@@ -133,7 +177,7 @@ internal class WorkspaceReducerTest {
         val prepared = prepared(reducer.reduce(recolored, WorkspaceAction.PrepareGestureCommit))
 
         assertEquals(document.size, prepared.stroke.canvas)
-        assertEquals(red, prepared.stroke.color)
+        assertEquals(StrokeEffect.Paint(red), prepared.stroke.effect)
         assertEquals(listOf(position(0, 0), position(1, 0)), prepared.stroke.positions())
         assertEquals(green, prepared.nextState.activeColor)
         assertNull(prepared.nextState.preview)
@@ -142,6 +186,31 @@ internal class WorkspaceReducerTest {
         val outOfOrder = rejected(reducer.reduce(prepared.nextState, WorkspaceAction.PrepareGestureCommit))
         assertEquals(WorkspaceActionRejection.NoActivePreview, outOfOrder.rejection)
         assertSame(prepared.nextState, outOfOrder.nextState)
+    }
+
+    @Test
+    fun `expanded path accepts cap minus one and cap then rejects cap plus one atomically`() {
+        val canvas = canvas(256, 1)
+        var state = begin(WorkspaceState.create(red, canvas), canvas, position(0, 0))
+        repeat(FULL_WIDTH_SEGMENT_COUNT) { segment ->
+            val x = if (segment % 2 == 0) 255 else 0
+            state = extend(state, position(x, 0))
+        }
+
+        val capMinusOne = extend(state, position(2, 0))
+        val cap = extend(capMinusOne, position(3, 0))
+        val rejected = rejected(reducer.reduce(cap, WorkspaceAction.ExtendGesturePreview(position(4, 0))))
+        val rejection =
+            assertInstanceOf(
+                WorkspaceActionRejection.PreviewPathAboveSupportedMaximum::class.java,
+                rejected.rejection,
+            )
+
+        assertEquals(PixelLimits.MAX_RAW_STROKE_POSITIONS - 1, capMinusOne.preview?.positionCount)
+        assertEquals(PixelLimits.MAX_RAW_STROKE_POSITIONS, cap.preview?.positionCount)
+        assertEquals((PixelLimits.MAX_RAW_STROKE_POSITIONS + 1).toLong(), rejection.attemptedCount)
+        assertEquals(PixelLimits.MAX_RAW_STROKE_POSITIONS, rejection.maximum)
+        assertSame(cap, rejected.nextState)
     }
 
     @Test
@@ -245,4 +314,8 @@ internal class WorkspaceReducerTest {
         val state: WorkspaceState,
         val results: List<WorkspaceReductionResult>,
     )
+
+    private companion object {
+        const val FULL_WIDTH_SEGMENT_COUNT: Int = 1_028
+    }
 }
