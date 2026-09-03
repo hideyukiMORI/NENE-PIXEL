@@ -58,9 +58,7 @@ public class PixelPatch private constructor(
                     ),
                 )
             }
-        }
-        repeat(changeCount) { index ->
-            surface.writePackedRgba8888(storage.positions[index], afterAt(index))
+            surface.writePackedRgba8888(positionIndex, afterAt(index))
         }
         return PixelPatchApplicationResult.Applied(surface.snapshot(afterRevision))
     }

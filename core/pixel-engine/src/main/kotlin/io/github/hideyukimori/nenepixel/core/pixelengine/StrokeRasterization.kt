@@ -23,32 +23,62 @@ private fun rasterizeMatchingCanvas(
     val target = stroke.color.toPackedRgba8888()
     val canvasPixels = snapshot.size.pixelCount.toInt()
     val sourcePixels = snapshot.copyPackedRgba8888()
-    val seen = BooleanArray(canvasPixels)
-    val effective = IntArray(minOf(stroke.positionCount, canvasPixels))
-    var changeCount = 0
-    stroke.forEachPosition { position ->
-        val index = position.rowMajorIndex(snapshot.size)
-        if (!seen[index]) {
-            seen[index] = true
-            if (sourcePixels[index] != target) {
-                effective[changeCount] = index
-                changeCount += 1
-            }
-        }
-    }
-    return if (changeCount == 0) {
+    val positions =
+        EffectivePositionCollector(
+            canvasPixels = canvasPixels,
+            capacity = minOf(stroke.positionCount, canvasPixels),
+        ).collect(stroke, snapshot.size, sourcePixels, target)
+    return if (positions.isEmpty()) {
         StrokeRasterizationResult.NoChanges
     } else {
-        val positions = effective.copyOf(changeCount).also(IntArray::sort)
-        val before = IntArray(changeCount) { index -> sourcePixels[positions[index]] }
+        val before = IntArray(positions.size) { index -> sourcePixels[positions[index]] }
         PixelPatch
             .createPackedRgba8888(
                 snapshot.size,
                 snapshot.revision,
                 positions,
                 before,
-                IntArray(changeCount) { target },
+                IntArray(positions.size) { target },
             ).toRasterizationResult()
+    }
+}
+
+private class EffectivePositionCollector(
+    canvasPixels: Int,
+    capacity: Int,
+) {
+    private val seen = BooleanArray(canvasPixels)
+    private val effective = IntArray(capacity)
+    private var changeCount = 0
+    private var lastEffectiveIndex = -1
+    private var isCanonicalOrder = true
+
+    fun collect(
+        stroke: Stroke,
+        size: CanvasSize,
+        sourcePixels: IntArray,
+        target: Int,
+    ): IntArray {
+        stroke.forEachPosition { position ->
+            accept(position.rowMajorIndex(size), sourcePixels, target)
+        }
+        return effective.copyOf(changeCount).also { positions ->
+            if (!isCanonicalOrder) positions.sort()
+        }
+    }
+
+    private fun accept(
+        index: Int,
+        sourcePixels: IntArray,
+        target: Int,
+    ) {
+        if (seen[index]) return
+        seen[index] = true
+        if (sourcePixels[index] == target) return
+        if (index <= lastEffectiveIndex) isCanonicalOrder = false
+        effective[changeCount] = index
+        changeCount += 1
+        lastEffectiveIndex = index
     }
 }
 
