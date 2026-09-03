@@ -5,8 +5,17 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.Cha
 
 internal class HistoryEntry private constructor(
     val changeSet: ChangeSet,
+    val beforePosition: HistoryPosition,
+    val afterPosition: HistoryPosition,
 ) {
+    val retainedChangeCount: Int
+        get() = changeSet.retainedChangeCount
+
     companion object {
-        fun create(applied: CommandResult.Applied): HistoryEntry = HistoryEntry(applied.changeSet)
+        fun create(
+            applied: CommandResult.Applied,
+            beforePosition: HistoryPosition,
+            afterPosition: HistoryPosition,
+        ): HistoryEntry = HistoryEntry(applied.changeSet, beforePosition, afterPosition)
     }
 }

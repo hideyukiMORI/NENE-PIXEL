@@ -1,6 +1,7 @@
 package io.github.hideyukimori.nenepixel.core.application.document.command
 
 import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryEntry
+import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryPosition
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.black
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.canvas
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.green
@@ -134,7 +135,14 @@ internal class UndoRedoCommandHandlerTest {
             )
         val result = gateway.execute(command)
         val appliedResult = assertInstanceOf(CommandResult.Applied::class.java, result)
-        return HandlerFixture(initial, HistoryEntry.create(appliedResult))
+        return HandlerFixture(
+            initial,
+            HistoryEntry.create(
+                appliedResult,
+                HistoryPosition.initial,
+                HistoryPosition.create(1L),
+            ),
+        )
     }
 
     private fun assertRejected(result: DocumentTransitionResult): RejectionReason =

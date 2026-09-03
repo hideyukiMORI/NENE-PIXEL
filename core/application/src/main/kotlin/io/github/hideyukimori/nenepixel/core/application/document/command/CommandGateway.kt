@@ -1,9 +1,8 @@
 package io.github.hideyukimori.nenepixel.core.application.document.command
 
-import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryEntry
-import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryRetentionPolicy
-import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryRetentionResult
-import io.github.hideyukimori.nenepixel.core.application.document.history.OneLevelHistoryState
+import io.github.hideyukimori.nenepixel.core.application.document.history.BoundedLinearHistory
+import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryAppendRejection
+import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryAppendResult
 import io.github.hideyukimori.nenepixel.core.application.document.transition.DocumentTransitionResult
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 
@@ -12,7 +11,7 @@ public class CommandGateway private constructor(
 ) {
     private val executionLock: Any = Any()
     private var currentState: DocumentState = initialState
-    private var historyState: OneLevelHistoryState = OneLevelHistoryState.Empty
+    private var history: BoundedLinearHistory = BoundedLinearHistory.empty()
     private val applyStrokeCommandHandler: ApplyStrokeCommandHandler = ApplyStrokeCommandHandler()
     private val undoCommandHandler: UndoCommandHandler = UndoCommandHandler()
     private val redoCommandHandler: RedoCommandHandler = RedoCommandHandler()
@@ -20,7 +19,13 @@ public class CommandGateway private constructor(
     public val runtimeState: CommandRuntimeState
         get() =
             synchronized(executionLock) {
-                CommandRuntimeState(currentState, historyState.availability)
+                CommandRuntimeState(
+                    documentState = currentState,
+                    historyAvailability = history.availability,
+                    historyPosition = history.currentPosition,
+                    historyEntryCount = history.entryCount,
+                    retainedHistoryChangeCount = history.retainedChangeCount,
+                )
             }
 
     public fun execute(command: DocumentCommand): CommandResult =
@@ -36,9 +41,10 @@ public class CommandGateway private constructor(
         when (val result = applyStrokeCommandHandler.execute(currentState, command)) {
             is DocumentTransitionResult.Created -> {
                 val applied = CommandResult.Applied(result.transition.changeSet)
-                requireSupportedHistory(applied)
-                val nextHistory = OneLevelHistoryState.UndoAvailable(HistoryEntry.create(applied))
-                commit(result, nextHistory, applied)
+                when (val append = history.append(applied)) {
+                    is HistoryAppendResult.Appended -> commit(result, append.history, applied)
+                    is HistoryAppendResult.Rejected -> CommandResult.Rejected(append.rejection.toReason())
+                }
             }
 
             is DocumentTransitionResult.Rejected -> {
@@ -47,13 +53,11 @@ public class CommandGateway private constructor(
         }
 
     private fun executeUndo(command: UndoCommand): CommandResult {
-        val previousHistory = historyState
-        val entry = (previousHistory as? OneLevelHistoryState.UndoAvailable)?.entry
+        val entry = history.undoEntry
         return when (val result = undoCommandHandler.execute(currentState, command, entry)) {
             is DocumentTransitionResult.Created -> {
                 val applied = CommandResult.Applied(result.transition.changeSet)
-                val nextHistory = moveToRedo(previousHistory)
-                commit(result, nextHistory, applied)
+                commit(result, history.moveBackward(), applied)
             }
 
             is DocumentTransitionResult.Rejected -> {
@@ -63,13 +67,11 @@ public class CommandGateway private constructor(
     }
 
     private fun executeRedo(command: RedoCommand): CommandResult {
-        val previousHistory = historyState
-        val entry = (previousHistory as? OneLevelHistoryState.RedoAvailable)?.entry
+        val entry = history.redoEntry
         return when (val result = redoCommandHandler.execute(currentState, command, entry)) {
             is DocumentTransitionResult.Created -> {
                 val applied = CommandResult.Applied(result.transition.changeSet)
-                val nextHistory = moveToUndo(previousHistory)
-                commit(result, nextHistory, applied)
+                commit(result, history.moveForward(), applied)
             }
 
             is DocumentTransitionResult.Rejected -> {
@@ -80,42 +82,13 @@ public class CommandGateway private constructor(
 
     private fun commit(
         result: DocumentTransitionResult.Created,
-        nextHistory: OneLevelHistoryState,
+        nextHistory: BoundedLinearHistory,
         applied: CommandResult.Applied,
     ): CommandResult.Applied {
         currentState = result.transition.nextState
-        historyState = nextHistory
+        history = nextHistory
         return applied
     }
-
-    private fun requireSupportedHistory(applied: CommandResult.Applied) {
-        val evaluation =
-            HistoryRetentionPolicy.evaluate(
-                entryCount = 1,
-                retainedChangeCount = applied.changeSet.retainedChangeCount,
-            )
-        check(evaluation is HistoryRetentionResult.Accepted) {
-            "One-level history exceeded the accepted retention policy: $evaluation"
-        }
-    }
-
-    private fun moveToRedo(previousHistory: OneLevelHistoryState): OneLevelHistoryState =
-        when (previousHistory) {
-            is OneLevelHistoryState.UndoAvailable -> OneLevelHistoryState.RedoAvailable(previousHistory.entry)
-
-            OneLevelHistoryState.Empty,
-            is OneLevelHistoryState.RedoAvailable,
-            -> error("Undo transition was created without an undo history entry.")
-        }
-
-    private fun moveToUndo(previousHistory: OneLevelHistoryState): OneLevelHistoryState =
-        when (previousHistory) {
-            is OneLevelHistoryState.RedoAvailable -> OneLevelHistoryState.UndoAvailable(previousHistory.entry)
-
-            OneLevelHistoryState.Empty,
-            is OneLevelHistoryState.UndoAvailable,
-            -> error("Redo transition was created without a redo history entry.")
-        }
 
     private fun rejected(result: DocumentTransitionResult.Rejected): CommandResult.Rejected =
         CommandResult.Rejected(result.reason)
@@ -124,3 +97,14 @@ public class CommandGateway private constructor(
         public fun create(initialState: DocumentState): CommandGateway = CommandGateway(initialState)
     }
 }
+
+private fun HistoryAppendRejection.toReason(): RejectionReason =
+    when (this) {
+        is HistoryAppendRejection.EntryAboveRetainedChangeMaximum -> {
+            RejectionReason.HistoryEntryAboveRetainedChangeMaximum(attemptedCount, maximum)
+        }
+
+        HistoryAppendRejection.PositionExhausted -> {
+            RejectionReason.HistoryPositionExhausted
+        }
+    }

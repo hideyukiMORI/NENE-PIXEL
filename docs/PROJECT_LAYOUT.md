@@ -122,10 +122,10 @@ Owns behavior coordination:
 - `WorkspaceReducer`
 - active drawing-tool and palette-index ownership with bounded document-pixel gesture interpolation
 - immutable palette configuration used to derive the gesture-captured Pencil color
-- the single current `EditorRuntime` owner for command, workspace, and dirty state
+- the single current `EditorRuntime` owner for command, workspace, and derived clean-checkpoint state
 - validated new-document requests, canonical blank runtime construction, and identifier ports
 - validated workspace viewport values and the portable canonical forward/inverse transform
-- history and undo/redo coordination
+- bounded linear history, dual-budget eviction, exact-position undo/redo, and clean-checkpoint coordination
 - query projections
 - ports for persistence, clocks, identifiers, and future external effects
 

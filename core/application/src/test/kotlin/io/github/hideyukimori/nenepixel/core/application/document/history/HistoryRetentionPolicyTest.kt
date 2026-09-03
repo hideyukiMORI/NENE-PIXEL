@@ -6,44 +6,45 @@ import org.junit.jupiter.api.Test
 
 internal class HistoryRetentionPolicyTest {
     @Test
-    fun `entry boundary is accepted through cap and rejected at cap plus one`() {
+    fun `entry cap retains the newest bounded suffix`() {
         assertEquals(
-            HistoryRetentionResult.Accepted,
-            HistoryRetentionPolicy.evaluate(PixelLimits.MAX_HISTORY_ENTRIES - 1, 0),
+            HistoryRetentionResult.Retained(0, PixelLimits.MAX_HISTORY_ENTRIES - 1),
+            HistoryRetentionPolicy.retain(List(PixelLimits.MAX_HISTORY_ENTRIES - 1) { 1 }),
         )
         assertEquals(
-            HistoryRetentionResult.Accepted,
-            HistoryRetentionPolicy.evaluate(PixelLimits.MAX_HISTORY_ENTRIES, 0),
+            HistoryRetentionResult.Retained(0, PixelLimits.MAX_HISTORY_ENTRIES),
+            HistoryRetentionPolicy.retain(List(PixelLimits.MAX_HISTORY_ENTRIES) { 1 }),
         )
         assertEquals(
-            HistoryRetentionResult.Rejected(
-                HistoryRetentionRejection.EntryCountAboveSupportedMaximum(
-                    PixelLimits.MAX_HISTORY_ENTRIES + 1,
-                    PixelLimits.MAX_HISTORY_ENTRIES,
-                ),
-            ),
-            HistoryRetentionPolicy.evaluate(PixelLimits.MAX_HISTORY_ENTRIES + 1, 0),
+            HistoryRetentionResult.Retained(1, PixelLimits.MAX_HISTORY_ENTRIES),
+            HistoryRetentionPolicy.retain(List(PixelLimits.MAX_HISTORY_ENTRIES + 1) { 1 }),
         )
     }
 
     @Test
-    fun `retained change boundary is accepted through cap and rejected at cap plus one`() {
+    fun `retained change cap evicts oldest entries deterministically`() {
+        val fullCanvasChangeCount = PixelLimits.MAX_CANVAS_PIXELS
+
         assertEquals(
-            HistoryRetentionResult.Accepted,
-            HistoryRetentionPolicy.evaluate(1, PixelLimits.MAX_RETAINED_CHANGES - 1),
+            HistoryRetentionResult.Retained(0, PixelLimits.MAX_RETAINED_CHANGES),
+            HistoryRetentionPolicy.retain(List(8) { fullCanvasChangeCount }),
         )
         assertEquals(
-            HistoryRetentionResult.Accepted,
-            HistoryRetentionPolicy.evaluate(1, PixelLimits.MAX_RETAINED_CHANGES),
+            HistoryRetentionResult.Retained(1, PixelLimits.MAX_RETAINED_CHANGES),
+            HistoryRetentionPolicy.retain(List(9) { fullCanvasChangeCount }),
         )
+    }
+
+    @Test
+    fun `single entry above retained change cap is rejected with typed limit`() {
         assertEquals(
             HistoryRetentionResult.Rejected(
-                HistoryRetentionRejection.ChangeCountAboveSupportedMaximum(
+                HistoryRetentionRejection.EntryAboveRetainedChangeMaximum(
                     PixelLimits.MAX_RETAINED_CHANGES + 1,
                     PixelLimits.MAX_RETAINED_CHANGES,
                 ),
             ),
-            HistoryRetentionPolicy.evaluate(1, PixelLimits.MAX_RETAINED_CHANGES + 1),
+            HistoryRetentionPolicy.retain(listOf(PixelLimits.MAX_RETAINED_CHANGES + 1)),
         )
     }
 }

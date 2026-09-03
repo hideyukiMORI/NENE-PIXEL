@@ -1,9 +1,11 @@
 package io.github.hideyukimori.nenepixel.core.application.document.history
 
-public sealed interface HistoryAvailability {
-    public data object None : HistoryAvailability
-
-    public data object UndoAvailable : HistoryAvailability
-
-    public data object RedoAvailable : HistoryAvailability
+public enum class HistoryAvailability(
+    public val canUndo: Boolean,
+    public val canRedo: Boolean,
+) {
+    None(canUndo = false, canRedo = false),
+    UndoAvailable(canUndo = true, canRedo = false),
+    RedoAvailable(canUndo = false, canRedo = true),
+    UndoAndRedoAvailable(canUndo = true, canRedo = true),
 }
