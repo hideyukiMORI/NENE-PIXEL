@@ -10,10 +10,11 @@ One concept has one canonical name. New synonyms in code are prohibited. Add or 
 | `DocumentId` | Validated 32-character lowercase hexadecimal identity of one Document | document key, UUID string |
 | `DocumentState` | Immutable saved and undoable truth of a Document | editor state, model data |
 | `WorkspaceState` | Immutable ephemeral editor/session state not saved in the Document | temporary document, UI model |
-| `EditorRuntime` | Application owner of the current CommandGateway, WorkspaceState, and dirty state | view model, controller, session |
+| `EditorRuntime` | Application owner of the current CommandGateway, WorkspaceState, clean checkpoint, and derived dirty-state projection | view model, controller, session |
 | `NewDocumentRequest` | Validated canvas request created once from raw width and height text before allocation | width/height integers, form state |
 | `DocumentIdSource` | Core-owned port that supplies a validated identity without core random or process reads | UUID call in core, ID string |
-| `DocumentDirtyState` | Closed application state indicating whether the current document has committed changes since its clean boundary | changed flag, UI Boolean |
+| `DocumentDirtyState` | Derived closed state comparing the current runtime-local history position with DocumentCleanCheckpoint | revision comparison, latched changed flag, UI Boolean |
+| `DocumentCleanCheckpoint` | Application-owned document identity and runtime-local HistoryPosition defining the current clean boundary | saved Revision, snapshot copy, UI dirty flag |
 | `ViewportZoom` | Validated finite fit-relative viewport factor in the closed range 1.0 through 64.0 | raw scale Double, saved zoom |
 | `ViewportCenter` | Validated finite preferred center in continuous document-edge coordinates | screen pan, surface offset |
 | `ViewportState` | Workspace-owned fit-relative zoom and document-coordinate center | camera state, transform matrix |
@@ -61,6 +62,9 @@ One concept has one canonical name. New synonyms in code are prohibited. Add or 
 | `CommandFailure` | Typed external/runtime failure while executing a command | rejection, false |
 | `DomainValueResult` | Closed created/rejected result returned by invariant-bearing domain factories | nullable value, thrown validation error |
 | `HistoryEntry` | Undo/redo record derived from one committed ChangeSet | callback, snapshot stack item |
+| `BoundedLinearHistory` | Gateway-owned ordered HistoryEntry list with one between-entry cursor and oldest-first dual-budget eviction | undo stack plus redo stack, snapshot history |
+| `HistoryPosition` | Internal runtime-local identity restored with a history cursor and used by the clean checkpoint | Revision, audit sequence, persisted lineage |
+| `HistoryAvailability` | Closed none, undo-only, redo-only, or undo-and-redo projection derived from the history cursor | mutually exclusive stack flag, two UI-owned Booleans |
 | `Port` | Core-owned interface for a required outside capability | service interface, gateway when it is not command execution |
 | `Adapter` | Boundary implementation or translator connected to a Port | manager, integration helper |
 | `Codec` | Deterministic encoder/decoder for a versioned format | serializer helper, converter |

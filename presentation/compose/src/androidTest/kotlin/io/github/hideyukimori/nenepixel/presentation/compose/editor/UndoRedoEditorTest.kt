@@ -44,6 +44,7 @@ internal class UndoRedoEditorTest {
 
         composeRule.onNodeWithText("Undo").assertIsNotEnabled()
         composeRule.onNodeWithText("Redo").assertIsNotEnabled()
+        composeRule.onNodeWithText("No unsaved changes").assertExists()
         composeRule
             .onNodeWithContentDescription("16 by 16 pixel canvas")
             .performTouchInput {
@@ -59,6 +60,7 @@ internal class UndoRedoEditorTest {
         assertEquals(1L, drawn.snapshot.revision.value)
         assertTrue(drawn.canUndo)
         assertFalse(drawn.canRedo)
+        composeRule.onNodeWithText("Unsaved changes").assertExists()
         composeRule.onNodeWithText("Undo").assertIsEnabled().performClick()
         composeRule.waitForIdle()
 
@@ -67,6 +69,7 @@ internal class UndoRedoEditorTest {
         assertEquals(0L, undone.snapshot.revision.value)
         assertFalse(undone.canUndo)
         assertTrue(undone.canRedo)
+        composeRule.onNodeWithText("No unsaved changes").assertExists()
         composeRule.onNodeWithText("Redo").assertIsEnabled().performClick()
         composeRule.waitForIdle()
 
@@ -75,6 +78,39 @@ internal class UndoRedoEditorTest {
         assertEquals(1L, redone.snapshot.revision.value)
         assertTrue(redone.canUndo)
         assertFalse(redone.canRedo)
+        composeRule.onNodeWithText("Unsaved changes").assertExists()
+    }
+
+    @Test
+    fun multiStepHistoryExposesBothControlsAndNewBranchClearsRedo() {
+        val controller = controller()
+        composeRule.setContent {
+            NenePixelEditor(initialState = controller.renderState, callbacks = controller.callbacks)
+        }
+
+        touchPixel(FIRST_PIXEL_PERCENT)
+        composeRule.onNodeWithContentDescription(SECOND_PALETTE_DESCRIPTION).performClick()
+        touchPixel(SECOND_PIXEL_PERCENT)
+        composeRule.waitForIdle()
+
+        assertEquals(2L, controller.renderState.snapshot.revision.value)
+        composeRule.onNodeWithText("Undo").assertIsEnabled().performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Undo").assertIsEnabled()
+        composeRule.onNodeWithText("Redo").assertIsEnabled()
+        composeRule.onNodeWithText("Unsaved changes").assertExists()
+
+        composeRule.onNodeWithText("Undo").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Undo").assertIsNotEnabled()
+        composeRule.onNodeWithText("Redo").assertIsEnabled()
+        composeRule.onNodeWithText("No unsaved changes").assertExists()
+
+        touchPixel(THIRD_PIXEL_PERCENT)
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Undo").assertIsEnabled()
+        composeRule.onNodeWithText("Redo").assertIsNotEnabled()
+        composeRule.onNodeWithText("Unsaved changes").assertExists()
     }
 
     @Test
@@ -278,10 +314,14 @@ internal class UndoRedoEditorTest {
     }
 
     private fun touchFirstPixel() {
+        touchPixel(FIRST_PIXEL_PERCENT)
+    }
+
+    private fun touchPixel(percent: Float) {
         composeRule
             .onNodeWithContentDescription("16 by 16 pixel canvas")
             .performTouchInput {
-                down(position = percentOffset(FIRST_PIXEL_PERCENT, FIRST_PIXEL_PERCENT))
+                down(position = percentOffset(percent, FIRST_PIXEL_PERCENT))
                 up()
             }
     }
@@ -339,6 +379,8 @@ internal class UndoRedoEditorTest {
         const val START_PERCENT: Float = 0.05f
         const val END_PERCENT: Float = 0.25f
         const val FIRST_PIXEL_PERCENT: Float = 0.03f
+        const val SECOND_PIXEL_PERCENT: Float = 0.09f
+        const val THIRD_PIXEL_PERCENT: Float = 0.15f
         const val SWIPE_DURATION_MILLIS: Long = 300L
         const val EXACT_PALETTE_RGBA: Int = 0x01020304
         const val FIRST_PALETTE_DESCRIPTION: String = "Palette color 1, RGBA 255, 0, 0, 255"

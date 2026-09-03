@@ -15,8 +15,10 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.App
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.stroke
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelLimits
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
+import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Test
 
 internal class CommandGatewayHistoryTest {
@@ -94,19 +96,33 @@ internal class CommandGatewayHistoryTest {
     }
 
     @Test
-    fun `one level history replaces the prior entry`() {
-        val initial = state(canvas(2, 1))
+    fun `multiple steps expose undo and redo together and restore every exact state`() {
+        val initial = state(canvas(3, 1))
         val gateway = CommandGateway.create(initial)
         applied(gateway.execute(strokeCommand(initial, position(0, 0), red)))
         val afterFirst = gateway.runtimeState.documentState
         applied(gateway.execute(strokeCommand(afterFirst, position(1, 0), green)))
         val afterSecond = gateway.runtimeState.documentState
+        applied(gateway.execute(strokeCommand(afterSecond, position(2, 0), red)))
+        val afterThird = gateway.runtimeState.documentState
+
+        applied(gateway.execute(UndoCommand.create(afterThird.id, afterThird.revision)))
+        assertEquals(afterSecond, gateway.runtimeState.documentState)
+        assertEquals(HistoryAvailability.UndoAndRedoAvailable, gateway.runtimeState.historyAvailability)
 
         applied(gateway.execute(UndoCommand.create(afterSecond.id, afterSecond.revision)))
-
         assertEquals(afterFirst, gateway.runtimeState.documentState)
-        assertEquals(red, colorAt(gateway.runtimeState.documentState.snapshot, position(0, 0)))
-        assertEquals(black, colorAt(gateway.runtimeState.documentState.snapshot, position(1, 0)))
+        assertEquals(HistoryAvailability.UndoAndRedoAvailable, gateway.runtimeState.historyAvailability)
+
+        applied(gateway.execute(RedoCommand.create(afterFirst.id, afterFirst.revision)))
+        assertEquals(afterSecond, gateway.runtimeState.documentState)
+        assertEquals(HistoryAvailability.UndoAndRedoAvailable, gateway.runtimeState.historyAvailability)
+
+        applied(gateway.execute(UndoCommand.create(afterSecond.id, afterSecond.revision)))
+        assertEquals(afterFirst, gateway.runtimeState.documentState)
+        applied(gateway.execute(UndoCommand.create(afterFirst.id, afterFirst.revision)))
+        assertEquals(initial, gateway.runtimeState.documentState)
+        assertEquals(HistoryAvailability.RedoAvailable, gateway.runtimeState.historyAvailability)
     }
 
     @Test
@@ -134,6 +150,100 @@ internal class CommandGatewayHistoryTest {
         )
         assertEquals(black, colorAt(gateway.runtimeState.documentState.snapshot, position(0, 0)))
         assertEquals(green, colorAt(gateway.runtimeState.documentState.snapshot, position(1, 0)))
+    }
+
+    @Test
+    fun `branch after undo keeps a unique history position despite reusing revision`() {
+        val initial = state(canvas(3, 1))
+        val gateway = CommandGateway.create(initial)
+        applied(gateway.execute(strokeCommand(initial, position(0, 0), red)))
+        val afterFirst = gateway.runtimeState.documentState
+        applied(gateway.execute(strokeCommand(afterFirst, position(1, 0), green)))
+        val abandoned = gateway.runtimeState.documentState
+        applied(gateway.execute(UndoCommand.create(abandoned.id, abandoned.revision)))
+
+        applied(gateway.execute(strokeCommand(afterFirst, position(2, 0), green)))
+        val branched = gateway.runtimeState.documentState
+
+        assertEquals(abandoned.revision, branched.revision)
+        assertNotEquals(abandoned.snapshot, branched.snapshot)
+        assertEquals(HistoryAvailability.UndoAvailable, gateway.runtimeState.historyAvailability)
+        assertEquals(
+            RejectionReason.NoRedoAvailable,
+            rejected(gateway.execute(RedoCommand.create(branched.id, branched.revision))),
+        )
+        applied(gateway.execute(UndoCommand.create(branched.id, branched.revision)))
+        assertEquals(afterFirst, gateway.runtimeState.documentState)
+        applied(gateway.execute(RedoCommand.create(afterFirst.id, afterFirst.revision)))
+        assertEquals(branched, gateway.runtimeState.documentState)
+    }
+
+    @Test
+    fun `entry cap evicts the oldest command and keeps exactly sixty four undo steps`() {
+        val initial = state(canvas(1, 1))
+        val gateway = CommandGateway.create(initial)
+
+        repeat(PixelLimits.MAX_HISTORY_ENTRIES + 1) { index ->
+            val current = gateway.runtimeState.documentState
+            val color = if (index % 2 == 0) red else green
+            applied(gateway.execute(strokeCommand(current, position(0, 0), color)))
+        }
+
+        assertEquals(PixelLimits.MAX_HISTORY_ENTRIES, gateway.runtimeState.historyEntryCount)
+        assertEquals(PixelLimits.MAX_HISTORY_ENTRIES, gateway.runtimeState.retainedHistoryChangeCount)
+        repeat(PixelLimits.MAX_HISTORY_ENTRIES) {
+            val current = gateway.runtimeState.documentState
+            applied(gateway.execute(UndoCommand.create(current.id, current.revision)))
+        }
+        assertEquals(1L, gateway.runtimeState.documentState.revision.value)
+        assertEquals(red, colorAt(gateway.runtimeState.documentState.snapshot, position(0, 0)))
+        assertEquals(
+            RejectionReason.NoUndoAvailable,
+            rejected(
+                gateway.execute(
+                    UndoCommand.create(
+                        gateway.runtimeState.documentState.id,
+                        gateway.runtimeState.documentState.revision,
+                    ),
+                ),
+            ),
+        )
+    }
+
+    @Test
+    fun `retained change workload stays at policy cap and evicts one full canvas entry`() {
+        val size = canvas(PixelLimits.MAX_CANVAS_AXIS, PixelLimits.MAX_CANVAS_AXIS)
+        val initial = state(size)
+        val gateway = CommandGateway.create(initial)
+        val fullCanvasPath = fullCanvasPath()
+
+        repeat(9) { index ->
+            val current = gateway.runtimeState.documentState
+            val color = if (index % 2 == 0) red else green
+            applied(
+                gateway.execute(
+                    ApplyStrokeCommand.create(
+                        current.id,
+                        current.revision,
+                        stroke(size, fullCanvasPath, color),
+                    ),
+                ),
+            )
+        }
+
+        assertEquals(8, gateway.runtimeState.historyEntryCount)
+        assertEquals(PixelLimits.MAX_RETAINED_CHANGES, gateway.runtimeState.retainedHistoryChangeCount)
+        repeat(8) {
+            val current = gateway.runtimeState.documentState
+            applied(gateway.execute(UndoCommand.create(current.id, current.revision)))
+        }
+        assertEquals(1L, gateway.runtimeState.documentState.revision.value)
+        assertEquals(red, colorAt(gateway.runtimeState.documentState.snapshot, position(0, 0)))
+        val oldestRetained = gateway.runtimeState.documentState
+        assertEquals(
+            RejectionReason.NoUndoAvailable,
+            rejected(gateway.execute(UndoCommand.create(oldestRetained.id, oldestRetained.revision))),
+        )
     }
 
     @Test
@@ -209,6 +319,11 @@ internal class CommandGatewayHistoryTest {
             state.revision,
             stroke(state.size, listOf(position), color),
         )
+
+    private fun fullCanvasPath(): List<PixelPosition> =
+        List(PixelLimits.MAX_CANVAS_PIXELS) { index ->
+            position(index % PixelLimits.MAX_CANVAS_AXIS, index / PixelLimits.MAX_CANVAS_AXIS)
+        }
 
     private data class ReplayOutcome(
         val results: List<CommandResult>,

@@ -35,4 +35,11 @@ public sealed interface RejectionReason {
     public data object NoUndoAvailable : RejectionReason
 
     public data object NoRedoAvailable : RejectionReason
+
+    public data class HistoryEntryAboveRetainedChangeMaximum internal constructor(
+        public val attemptedCount: Int,
+        public val maximum: Int,
+    ) : RejectionReason
+
+    public data object HistoryPositionExhausted : RejectionReason
 }

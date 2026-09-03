@@ -28,11 +28,7 @@ public class EditorRuntime private constructor(
 
     public fun execute(command: DocumentCommand): CommandResult =
         synchronized(runtimeLock) {
-            val result = owners.commandGateway.execute(command)
-            if (result is CommandResult.Applied) {
-                owners = owners.copy(dirtyState = DocumentDirtyState.Dirty)
-            }
-            result
+            owners.commandGateway.execute(command)
         }
 
     public fun reduce(action: WorkspaceAction): WorkspaceReductionResult =
@@ -66,7 +62,7 @@ public class EditorRuntime private constructor(
             documentState = commandState.documentState,
             historyAvailability = commandState.historyAvailability,
             workspaceState = workspaceState,
-            dirtyState = dirtyState,
+            dirtyState = cleanCheckpoint.deriveDirtyState(commandState),
         )
     }
 
@@ -88,7 +84,7 @@ public class EditorRuntime private constructor(
 private data class RuntimeOwners(
     val commandGateway: CommandGateway,
     val workspaceState: WorkspaceState,
-    val dirtyState: DocumentDirtyState,
+    val cleanCheckpoint: DocumentCleanCheckpoint,
 )
 
 private fun createRuntimeOwners(
@@ -98,9 +94,10 @@ private fun createRuntimeOwners(
     val documentId = documentIdSource.nextDocumentId()
     val snapshot = PixelSnapshot.createFilled(canvas, Revision.initial(), PixelColor.blank)
     val document = DocumentState.create(documentId, snapshot)
+    val commandGateway = CommandGateway.create(document)
     return RuntimeOwners(
-        CommandGateway.create(document),
+        commandGateway,
         WorkspaceState.create(canvas),
-        DocumentDirtyState.Clean,
+        DocumentCleanCheckpoint.create(commandGateway.runtimeState),
     )
 }

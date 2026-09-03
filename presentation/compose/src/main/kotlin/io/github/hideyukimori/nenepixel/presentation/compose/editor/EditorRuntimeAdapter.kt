@@ -4,7 +4,6 @@ import io.github.hideyukimori.nenepixel.core.application.document.command.ApplyS
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandResult
 import io.github.hideyukimori.nenepixel.core.application.document.command.RedoCommand
 import io.github.hideyukimori.nenepixel.core.application.document.command.UndoCommand
-import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryAvailability
 import io.github.hideyukimori.nenepixel.core.application.editor.EditorRuntime
 import io.github.hideyukimori.nenepixel.core.application.editor.NewDocumentRequest
 import io.github.hideyukimori.nenepixel.core.application.editor.NewDocumentResult
@@ -120,8 +119,9 @@ internal class EditorRuntimeAdapter(
             activeTool = state.workspaceState.activeTool,
             preview = state.workspaceState.preview,
             viewport = state.workspaceState.viewport,
-            canUndo = state.historyAvailability == HistoryAvailability.UndoAvailable,
-            canRedo = state.historyAvailability == HistoryAvailability.RedoAvailable,
+            canUndo = state.historyAvailability.canUndo,
+            canRedo = state.historyAvailability.canRedo,
+            dirtyState = state.dirtyState,
         )
     }
 

@@ -8,6 +8,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.App
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.red
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.state
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.stroke
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.fail
@@ -25,8 +26,12 @@ internal class HistoryEntryTest {
             )
         val applied = gateway.execute(command) as? CommandResult.Applied ?: fail("Expected applied command")
 
-        val entry = HistoryEntry.create(applied)
+        val beforePosition = HistoryPosition.initial
+        val afterPosition = HistoryPosition.create(1L)
+        val entry = HistoryEntry.create(applied, beforePosition, afterPosition)
 
         assertSame(applied.changeSet, entry.changeSet)
+        assertEquals(beforePosition, entry.beforePosition)
+        assertEquals(afterPosition, entry.afterPosition)
     }
 }

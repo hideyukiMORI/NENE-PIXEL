@@ -2,7 +2,9 @@ package io.github.hideyukimori.nenepixel.core.application.editor
 
 import io.github.hideyukimori.nenepixel.core.application.document.command.ApplyStrokeCommand
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandResult
+import io.github.hideyukimori.nenepixel.core.application.document.command.RedoCommand
 import io.github.hideyukimori.nenepixel.core.application.document.command.RejectionReason
+import io.github.hideyukimori.nenepixel.core.application.document.command.UndoCommand
 import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryAvailability
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.canvas
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.eraserStroke
@@ -19,6 +21,7 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.View
 import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentId
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelLimits
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
@@ -127,7 +130,7 @@ internal class EditorRuntimeTest {
     }
 
     @Test
-    fun `only an applied document command marks runtime dirty`() {
+    fun `applied command is dirty undo to checkpoint is clean and redo is dirty`() {
         val runtime = EditorRuntime.create(canvas(2, 2), toolPalette, SequentialDocumentIdSource())
         val initial = runtime.state
         val wrongTarget = SequentialDocumentIdSource().second
@@ -141,6 +144,72 @@ internal class EditorRuntimeTest {
         assertEquals(DocumentDirtyState.Clean, runtime.state.dirtyState)
 
         applyOnePixel(runtime)
+        assertEquals(DocumentDirtyState.Dirty, runtime.state.dirtyState)
+
+        val afterApply = runtime.state.documentState
+        assertInstanceOf(
+            CommandResult.Applied::class.java,
+            runtime.execute(UndoCommand.create(afterApply.id, afterApply.revision)),
+        )
+        assertEquals(DocumentDirtyState.Clean, runtime.state.dirtyState)
+
+        val afterUndo = runtime.state.documentState
+        assertInstanceOf(
+            CommandResult.Applied::class.java,
+            runtime.execute(RedoCommand.create(afterUndo.id, afterUndo.revision)),
+        )
+        assertEquals(DocumentDirtyState.Dirty, runtime.state.dirtyState)
+    }
+
+    @Test
+    fun `replacement branch stays dirty even when revision equals abandoned state`() {
+        val runtime = EditorRuntime.create(canvas(2, 1), toolPalette, SequentialDocumentIdSource())
+        apply(runtime, position(0, 0), red)
+        val first = runtime.state.documentState
+        apply(runtime, position(1, 0), green)
+        val abandoned = runtime.state.documentState
+        assertInstanceOf(
+            CommandResult.Applied::class.java,
+            runtime.execute(UndoCommand.create(abandoned.id, abandoned.revision)),
+        )
+        apply(runtime, position(1, 0), red)
+
+        assertEquals(abandoned.revision, runtime.state.documentState.revision)
+        assertNotEquals(abandoned.snapshot, runtime.state.documentState.snapshot)
+        assertEquals(DocumentDirtyState.Dirty, runtime.state.dirtyState)
+
+        val branch = runtime.state.documentState
+        assertInstanceOf(
+            CommandResult.Applied::class.java,
+            runtime.execute(UndoCommand.create(branch.id, branch.revision)),
+        )
+        assertEquals(first, runtime.state.documentState)
+        assertEquals(DocumentDirtyState.Dirty, runtime.state.dirtyState)
+        val afterFirstUndo = runtime.state.documentState
+        assertInstanceOf(
+            CommandResult.Applied::class.java,
+            runtime.execute(UndoCommand.create(afterFirstUndo.id, afterFirstUndo.revision)),
+        )
+        assertEquals(DocumentDirtyState.Clean, runtime.state.dirtyState)
+    }
+
+    @Test
+    fun `evicting the clean checkpoint keeps oldest reachable state dirty`() {
+        val runtime = EditorRuntime.create(canvas(1, 1), toolPalette, SequentialDocumentIdSource())
+
+        repeat(PixelLimits.MAX_HISTORY_ENTRIES + 1) { index ->
+            apply(runtime, position(0, 0), if (index % 2 == 0) red else green)
+        }
+        repeat(PixelLimits.MAX_HISTORY_ENTRIES) {
+            val current = runtime.state.documentState
+            assertInstanceOf(
+                CommandResult.Applied::class.java,
+                runtime.execute(UndoCommand.create(current.id, current.revision)),
+            )
+        }
+
+        assertEquals(1L, runtime.state.documentState.revision.value)
+        assertEquals(HistoryAvailability.RedoAvailable, runtime.state.historyAvailability)
         assertEquals(DocumentDirtyState.Dirty, runtime.state.dirtyState)
     }
 
@@ -179,13 +248,21 @@ internal class EditorRuntimeTest {
     }
 
     private fun applyOnePixel(runtime: EditorRuntime) {
+        apply(runtime, position(0, 0), red)
+    }
+
+    private fun apply(
+        runtime: EditorRuntime,
+        position: io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition,
+        color: PixelColor,
+    ) {
         val target = runtime.state.documentState
         val result =
             runtime.execute(
                 ApplyStrokeCommand.create(
                     target.id,
                     target.revision,
-                    stroke(target.size, listOf(position(0, 0)), red),
+                    stroke(target.size, listOf(position), color),
                 ),
             )
         assertInstanceOf(CommandResult.Applied::class.java, result)

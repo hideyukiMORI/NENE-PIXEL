@@ -433,6 +433,7 @@ private fun HistoryAvailability.csvName(): String =
         HistoryAvailability.None -> "none"
         HistoryAvailability.UndoAvailable -> "undo_available"
         HistoryAvailability.RedoAvailable -> "redo_available"
+        HistoryAvailability.UndoAndRedoAvailable -> "undo_and_redo_available"
     }
 
 private fun <T> DomainValueResult<T>.requiredValue(): T =

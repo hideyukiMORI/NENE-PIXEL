@@ -69,9 +69,9 @@ Persistence observes committed results through an application port. It does not 
 
 Creating a new document installs a newly constructed editor runtime; it is not an edit of the
 previous `DocumentState`. One application `EditorRuntime` atomically owns the active
-`CommandGateway`, `WorkspaceState`, and dirty state. Its canonical new-document path creates a blank
-initial-revision document with empty history, clean dirty state, and the canonical initial viewport,
-then replaces all owned runtime parts together.
+`CommandGateway`, `WorkspaceState`, and clean checkpoint. Its canonical new-document path creates a
+blank initial-revision document with empty history, a clean derived dirty state, and the canonical
+initial viewport, then replaces all owned runtime parts together.
 
 Raw dimension text is accepted only by `NewDocumentRequest.create`. Rejection occurs before
 identity generation, snapshot allocation, or runtime replacement. Cancellation does not invoke the
@@ -164,6 +164,20 @@ the forward patch. It swaps exact before/after values and revisions without mate
 change payload.
 
 Undo and redo themselves enter through the application command boundary.
+
+`CommandGateway` owns one `BoundedLinearHistory`: an immutable ordered entry list and one cursor
+between entries. Entries before the cursor are undoable and entries at or after it are redoable, so
+an interior cursor exposes both operations. A successful new command after undo removes the redo
+suffix before appending its `ChangeSet`. The oldest retained entries are then evicted until both the
+64-entry and 524,288-change budgets hold; the new entry is never silently discarded. A single entry
+that could not fit is rejected before either document or history commit.
+
+Each retained entry also records internal before/after `HistoryPosition` values. These positions
+distinguish replacement branches only inside the active runtime and are not revision, persistence,
+audit, or command-staleness identities. `EditorRuntime` derives `DocumentDirtyState` from the exact
+current document/position pair and its application-owned `DocumentCleanCheckpoint`. Undo to that
+checkpoint is clean; the same revision on a replacement branch is dirty; an evicted checkpoint is
+not recreated by undoing to the retained base.
 
 `Revision` is the version recorded on a specific committed `DocumentState` and its patches in this transition contract. Applying a recorded canonical inverse restores its recorded before revision, and redo restores its recorded after revision. A revision value does not uniquely identify a state across abandoned and replacement branches, and it is not a globally monotonic event or audit sequence; any future asynchronous lineage or audit sequence requires a distinct type and an accepted ADR.
 
