@@ -10,7 +10,7 @@ internal class P2AndroidCommandMeasurementTest {
     @Test
     fun measureRepresentativeCommandWorkloadsOnArt() {
         val environment = P2AndroidMeasurementEnvironment.fromRunnerArguments()
-        val baseline = PostGcMemorySnapshot.capture(environment)
+        val baseline = PostGcMemorySnapshot.captureBaseline(environment)
         val samples = mutableListOf<P2AndroidMeasurementSample>()
 
         P2CommandWorkloadCatalog.specs.forEach { spec ->
@@ -25,7 +25,6 @@ internal class P2AndroidCommandMeasurementTest {
                         latencyNanos = execution.latencyNanos,
                         outcome = execution.outcome,
                         runtimeDelta = execution.runtimeDelta,
-                        memory = PostGcMemorySnapshot.capture(execution.retainedWorkload),
                     )
             }
         }

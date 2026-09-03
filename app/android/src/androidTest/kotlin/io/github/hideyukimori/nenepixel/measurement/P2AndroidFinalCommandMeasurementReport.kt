@@ -108,7 +108,7 @@ internal object P2AndroidFinalCommandMeasurementReport {
             contractRows.getValue("checkpoint_row_count"),
             metadataRow(
                 "measurement_boundary",
-                "one prepared CommandGateway.execute call only; fixture, ART snapshots, post-GC heap/PSS, " +
+                "one prepared CommandGateway.execute call only; fixture, ART snapshots, process memory, " +
                     "correctness, checkpoints, and report writing excluded from direct latency",
             ),
             metadataRow(
@@ -118,8 +118,8 @@ internal object P2AndroidFinalCommandMeasurementReport {
             ),
             metadataRow(
                 "memory_boundary",
-                "one post-GC baseline before measured samples; per-sample diagnostic post-verification Java heap and " +
-                    "process PSS while retaining the prepared gateway, document, and one-level history",
+                "one post-GC process baseline before measured samples; sample memory columns are blank and retained " +
+                    "Java heap and process PSS belong to the dedicated retained-memory route",
             ),
             metadataRow(
                 "correctness_boundary",
@@ -190,7 +190,6 @@ internal object P2AndroidFinalCommandMeasurementReport {
             "render_invalidation_height" to invalidation?.height,
             "unchanged_state_identity" to outcome.unchangedStateIdentity,
             *runtimeValues(sample.runtimeDelta).toTypedArray(),
-            *memoryValues(sample.memory).toTypedArray(),
             "boundary" to SAMPLE_ASSERTION_BOUNDARY,
         )
     }

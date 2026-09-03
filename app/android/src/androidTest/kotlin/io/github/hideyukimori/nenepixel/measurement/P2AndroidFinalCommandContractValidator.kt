@@ -100,6 +100,5 @@ internal object P2AndroidFinalCommandContractValidator {
         check(runtime.allocatedBytesDelta >= 0L)
         check(runtime.gcCountDelta >= 0L && runtime.gcTimeMillisDelta >= 0L)
         check(runtime.blockingGcCountDelta >= 0L && runtime.blockingGcTimeMillisDelta >= 0L)
-        validateMemory(sample.memory)
     }
 }

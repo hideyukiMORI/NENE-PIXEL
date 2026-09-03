@@ -1,5 +1,8 @@
 package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
+import android.graphics.Bitmap
+import android.graphics.Paint
+import android.graphics.RectF
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.runtime.Composable
@@ -9,8 +12,11 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import io.github.hideyukimori.nenepixel.core.application.workspace.ToolGesture
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportGridVisibility
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportSurfaceBounds
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportTransform
@@ -26,8 +32,15 @@ internal fun PixelCanvas(
     onRenderStateChanged: (EditorRenderState) -> Unit,
     modifier: Modifier,
 ) {
-    val pixels = remember(renderState.snapshot) { renderState.snapshot.toRenderedPixels() }
-    val preview = remember(renderState.preview) { renderState.preview.toPositions() }
+    val pixels = remember(renderState.snapshot) { renderState.snapshot.toRenderedBitmap() }
+    val pixelPaint =
+        remember {
+            Paint().apply {
+                isAntiAlias = false
+                isDither = false
+                isFilterBitmap = false
+            }
+        }
     val canvas = renderState.snapshot.size
     Canvas(
         modifier =
@@ -38,28 +51,39 @@ internal fun PixelCanvas(
     ) {
         val surface = createViewportSurface() ?: return@Canvas
         val transform = createViewportTransform(canvas, surface, renderState) ?: return@Canvas
-        drawPixels(transform, pixels)
-        drawPreview(transform, preview, renderState.activeColor.toComposeColor())
+        drawPixels(transform, canvas, pixels, pixelPaint)
+        drawPreview(transform, renderState.preview, renderState.activeColor.toComposeColor())
         drawGrid(canvas, transform)
     }
 }
 
 private fun DrawScope.drawPixels(
     transform: ViewportTransform,
-    pixels: List<RenderedPixel>,
+    canvas: CanvasSize,
+    pixels: Bitmap,
+    paint: Paint,
 ) {
-    pixels.forEach { pixel ->
-        transform.surfaceBounds(pixel.position)?.let { bounds -> drawPixel(bounds, pixel.color) }
+    val extent = transform.canvasProjection(canvas) ?: return
+    val destination =
+        RectF(
+            extent.first.left.toFloat(),
+            extent.first.top.toFloat(),
+            extent.last.right.toFloat(),
+            extent.last.bottom.toFloat(),
+        )
+    drawIntoCanvas { canvas ->
+        canvas.nativeCanvas.drawBitmap(pixels, null, destination, paint)
     }
 }
 
 private fun DrawScope.drawPreview(
     transform: ViewportTransform,
-    preview: List<PixelPosition>,
+    preview: ToolGesture?,
     color: Color,
 ) {
-    preview.forEach { position ->
-        transform.surfaceBounds(position)?.let { bounds -> drawPixel(bounds, color.copy(alpha = PREVIEW_ALPHA)) }
+    val previewColor = color.copy(alpha = PREVIEW_ALPHA)
+    preview?.forEachPosition { position ->
+        transform.surfaceBounds(position)?.let { bounds -> drawPixel(bounds, previewColor) }
     }
 }
 
@@ -79,7 +103,7 @@ private fun DrawScope.drawGrid(
     transform: ViewportTransform,
 ) {
     if (transform.gridVisibility != ViewportGridVisibility.Visible) return
-    val extent = transform.gridExtent(canvas) ?: return
+    val extent = transform.canvasProjection(canvas) ?: return
     repeat(canvas.width.value) { x ->
         val bounds = transform.surfaceBounds(pixelPosition(x, 0)) ?: return@repeat
         drawLine(bounds.left.toFloat(), extent.first.top.toFloat(), extent.last.bottom.toFloat(), vertical = true)

@@ -18,7 +18,7 @@ internal class P2AndroidFinalCommandMeasurementTest {
             specs.associateWith { spec ->
                 P2AndroidCommandMeasurementRunner.warmUp(spec, plan.warmupIterations)
             }
-        val baselineMemory = PostGcMemorySnapshot.capture(environment)
+        val baselineMemory = PostGcMemorySnapshot.captureBaseline(environment)
         val display = P2AndroidPhysicalCheckpointCapture.defaultDisplay(environment.targetContext)
         val baselineCheckpoint =
             P2AndroidPhysicalCheckpointCapture
@@ -46,7 +46,6 @@ internal class P2AndroidFinalCommandMeasurementTest {
                             P2AndroidFinalCommandSample.Observation(
                                 latencyNanos = execution.latencyNanos,
                                 runtimeDelta = execution.runtimeDelta,
-                                memory = PostGcMemorySnapshot.capture(execution.retainedWorkload),
                             ),
                         outcome = execution.outcome,
                     )

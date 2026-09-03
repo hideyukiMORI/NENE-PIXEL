@@ -5,23 +5,68 @@ Status: incomplete and blocking ADR 0005 acceptance. This ledger records evidenc
 
 ## Decision boundary
 
-ADR 0005 may become `accepted` only after one semantic, storage, and logical-limit policy has
-passed the complete pre-fixed matrix on the named physical minimum Android profile. Host JVM
-and emulator results are auxiliary. Missing physical ART, retained heap, PSS, GC, or frame
-evidence is a blocker, not a waiver.
+This section is the current continuation contract and supersedes the decision use of the earlier
+"largest passing maximum", combined command/memory, exhaustive matrix, and paired-compositor
+protocols retained later in this ledger. Those passages and all artifacts already collected under
+them remain immutable chronological diagnostic evidence; they are not deleted, overwritten,
+retroactively reclassified, or required to be recollected under their original protocol.
+
+ADR 0005 may become `accepted` after one semantic, storage, and conservative MVP supported-cap
+policy has passed the applicable lane-separated matrix on the named physical minimum Android
+profile. The decision comparison is limited to the current representation, flat packed RGBA8888,
+and one best tiled or copy-on-write challenger selected by a predeclared deterministic host
+screening rule. Host JVM and emulator results are auxiliary. Physical command-tail and retained-
+memory/PSS evidence remain required, but strict SurfaceFlinger/Perfetto correlation is deferred
+until the selected renderer path exists and is not an ADR-0005 acceptance blocker.
+
+The lanes are independent:
+
+| Lane | Current collection rule |
+| --- | --- |
+| Correctness | Prove exact pixels, semantic equality/hash, ordering, containment, revisions, inverse round trip, affected/unaffected pixels, `ChangeSet`, invalidation, and atomic no-op or typed rejection behavior at representative and boundary workloads. |
+| Latency and ART tail | Preserve raw warmup/sample rows and cheap public invariants. Do not force GC/finalization or perform a full-document equality scan, digest, or hash between measured samples. |
+| Retained memory and PSS | Use independent invocations with an explicitly retained owner and post-GC checkpoints. Forced GC/finalization is allowed only here and is not a per-command GC result. |
+| Frame | Measure representative correct-frame and deadline behavior after the chosen renderer path exists. Defer strict compositor/physical-present correlation to the renderer milestone. |
+
+A supported cap must be at or below an explicitly measured passing point, include documented
+headroom for the named MVP workload, and preserve typed cap-plus-one rejection. It is not a claim
+of the largest possible or implementation-theoretical maximum. A passing largest measured point
+does not require open-ended exploration before a conservative cap can be selected.
 
 Current evidence state:
 
 | Evidence | State | Decision use |
 | --- | --- | --- |
 | Immutable M1 sparse host reproduction | complete for the rerun recorded below | starting evidence only |
-| Current-main P2 representation route | current canonical host route, isolated current host render projection, preliminary and final-tail physical command/frame screening, and five-invocation current retained-memory evidence complete | incomplete; candidate projection/memory, full physical matrix, peak/churn, and compositor correlation required |
-| Analytical storage candidates | flat packed and tiled/COW square/rectangular snapshot/apply, dense and sparse/rectangular native patch/inverse, raw duplicate/no-op/reference-clear, and retained analytical-history screening recorded; palette U8 contract tested | incomplete; retained and sparse/rectangular analytical matrices are complete, while semantic selection and candidate-specific physical evidence remain required |
+| Current-main P2 representation route | current canonical host route, isolated current host render projection, preliminary and final-tail physical command/frame screening, and five-invocation current retained-memory evidence complete | diagnostic baseline; the combined final-tail protocol does not replace clean lane-specific latency or memory evidence |
+| Analytical storage candidates | flat packed and tiled/COW square/rectangular snapshot/apply, dense and sparse/rectangular native patch/inverse, raw duplicate/no-op/reference-clear, and retained analytical-history screening recorded; palette U8 contract tested | T16 selected as the single tiled/COW physical challenger by the fixed screening rule below; compare only current, flat packed, and T16 |
 | Named emulator | ART command harness complete in explicit auxiliary mode | cannot satisfy physical evidence |
-| Named physical minimum Android device | profile fixed; preliminary/final-tail command and frame screening plus current-canonical retained-memory evidence recorded | valid physical evidence; complete physical matrix still blocking |
-| Accepted representation or hard limits | none | ADR remains proposed |
+| Named physical minimum Android device | profile fixed; preliminary/final-tail command and frame screening plus current-canonical retained-memory evidence recorded | valid diagnostic evidence; clean lane-specific command and selected-candidate memory evidence remain |
+| Renderer/compositor evidence | current-path frame screening and rejected correlation attempts recorded | deferred until the selected renderer path exists; not an ADR-0005 acceptance blocker |
+| Accepted representation or supported caps | none | ADR remains proposed |
 
 Active waivers: none.
+
+### Tiled/COW challenger screening decision
+
+Before collecting any new physical candidate result, the immutable schema-v8 host artifact fixes
+the tiled/COW screening rule: among T16, T32, and T64 rows for the 256x256 canvas that have a
+non-empty p95 latency and passing correctness, minimize the maximum recorded p95 latency across
+all operation rows; break a tie with the lower maximum p95 allocation, then the smaller tile edge.
+This rule is risk-oriented, deterministic, and selects only the challenger for physical comparison;
+it does not select the production representation or a supported cap.
+
+Applying the rule to `host-candidates.csv` schema v8, SHA-256
+`4DF70289D142C5982FFE75F9037A6D4EF84DD355E4708306C763DA1E8768792E`, gives:
+
+| Tiled/COW candidate | Included 256x256 metric rows | Maximum p95 latency | Maximum p95 allocation |
+| --- | ---: | ---: | ---: |
+| T16 | 41 | 7,219,400 ns | 10,088,320 bytes |
+| T32 | 41 | 12,177,200 ns | 10,088,320 bytes |
+| T64 | 41 | 7,880,500 ns | 10,088,320 bytes |
+
+T16 is therefore the only tiled/COW challenger admitted to the new physical comparison. T32 and
+T64 remain immutable diagnostic rows and are not carried forward into another test matrix.
 
 ## Immutable M1 reproduction
 
@@ -1494,7 +1539,14 @@ or a physical frame. Candidate render projection remains pending its canonical r
 boundary, so this result selects no representation or hard limit and does not close the physical
 evidence blocker.
 
-## Pre-fixed measurement contract
+## Historical pre-fixed measurement contract
+
+This section preserves the protocol that governed the completed diagnostic batches below. The
+current continuation contract in [Decision boundary](#decision-boundary) governs all new
+collection and ADR acceptance. In particular, new latency batches must not force GC/finalization
+or perform full-document equality scans, digests, or hashes between samples; memory and frame
+evidence use their separate lanes; and strict compositor correlation waits for the selected
+renderer path.
 
 The following pass conditions are fixed before choosing a representation or hard product limit.
 They apply only at explicitly measured workload candidates and do not themselves define a
@@ -2866,26 +2918,35 @@ recorded downstream hold remains in force.
 
 ### Required workload matrix
 
-- square and rectangular canvases, with axis and total-pixel candidates varied separately;
-- blank plus one color, 256 colors, and deterministic high-entropy RGBA;
-- sparse one-pixel, diagonal, row/column, 25%, 50%, and 100% dense serpentine changes;
-- duplicate raw path, changed eraser-equivalent, blank/no-op eraser-equivalent, and same-color
-  no-op;
-- patch create, apply, invert, late conflict, and exact forward/inverse round trip;
-- analytical retained entries and total retained changes at every valid `T <= H * N` pair fixed
-  by the retained analytical history slice above, without introducing production multi-step
-  history;
-- render projection and a representative correct-frame observation; and
-- max-minus-one, max, max-plus-one, rectangular product overflow, pre-allocation rejection,
-  shuffled ordering, and maximum patch/history interaction.
+The current decision matrix is intentionally bounded. Earlier exhaustive square/rectangle,
+density, and analytical-history sweeps remain diagnostic screening evidence; they do not create a
+duty to search for a largest possible workload.
 
-Every decision row that reports a lower-level property asserts deterministic pixels, canonical
-ordering, bounds, revisions, inverse round trip, affected region, unaffected pixels, and atomic
-no-op or rejection behavior. Command-boundary tail rows assert the public observables fixed in the
-refreshed-build contract above and rely on the associated isolated core rows for private patch
-storage invariants.
+| Decision row | Candidates | Minimum required cases | Lane |
+| --- | --- | --- | --- |
+| Semantic and storage correctness | current baseline, flat packed RGBA8888, one preselected tiled/COW challenger | canonical blank, deterministic RGBA including alpha zero, sparse change, dense change, eraser-equivalent, same-color no-op, late conflict, exact forward/inverse round trip | correctness |
+| Supported canvas cap | selected representation, with the current baseline retained for comparison | representative square plus the most demanding supported rectangle; cap-minus-one, cap, cap-plus-one, area/axis overflow, and pre-allocation typed rejection | correctness, then latency and memory |
+| Command tail | all three decision candidates until one fails or is selected | sparse diagonal apply, dense apply, same-color no-op, undo, and redo at the representative cap workload | latency and ART tail |
+| Retained ownership | current baseline and surviving candidate or candidates | canonical document plus the declared retained history/change budget at the representative cap; five independent checkpoints | retained memory and PSS |
+| Raw stroke, patch, and history caps | selected representation | duplicate/no-op raw stroke; unique patch; entry and retained-change budget at cap-minus-one, cap, and cap-plus-one | correctness, then targeted latency or memory where the bound changes resource use |
+| Renderer handoff | selected production representation after its renderer exists | representative correct frame and deadline behavior | frame; strict compositor correlation deferred |
+
+Full-document pixel equality, semantic hashes, canonical ordering, containment, inverse storage,
+and affected/unaffected-pixel checks run in the correctness rows. Latency rows retain only cheap
+per-sample public outcome, revision, history, `ChangeSet`, invalidation, and no-op identity checks;
+they must not force GC/finalization or compute a full-document digest/hash between samples.
+Retained history evidence proves the declared entry and retained-change bounds; it does not need
+to enumerate every analytical `T <= H * N` combination or introduce production multi-step
+history.
 
 ## P2 raw artifact contract
+
+The paths and checksums already recorded in this ledger are immutable diagnostic evidence. The
+table below preserves the chronological artifact plan, including frame/compositor paths that are
+now deferred. New lane-specific collection must use a new schema and distinct no-overwrite path;
+it must never replace an existing host artifact or reuse a combined command/post-GC result as a
+clean latency or retained-memory result. Strict compositor artifacts become required only by the
+later renderer milestone if that issue adopts them.
 
 Current-main host measurements must use the separately named Gradle route
 `measureP2RepresentationLimits`, a schema beginning `nene-pixel-p2-representation-limits-`, and
@@ -2970,37 +3031,39 @@ inferred from the preliminary build `94010` rows.
 
 ## Current blocker
 
-Host, isolated current host render projection, emulator-smoke, preliminary physical command
-evidence, final current 256-square command tail evidence, and the complete host logical retained-
-history and sparse/rectangular native-patch matrices are currently available. The schema v6 and v7
-analytical results and the current HotSpot projection result are not retained-memory, candidate-
-projection, or physical-render evidence. The valid final current command tail fails the pre-fixed
-core-latency condition at 256 x 256 while passing correctness and isolated blocking-GC conditions.
-The separately fixed refreshed-build 64 x 64 command tail passes both core-latency and blocking-GC
-conditions. The fixed refreshed-build 128 x 128 command tail passes correctness and blocking-GC
-conditions but fails core latency, as does the prior 256 x 256 point. This makes 64 x 64 the largest
-passing square among those three explicit current-path square measurements, not a supported
-maximum. The separately fixed 16 x 256 and 256 x 16 tails also pass correctness, core latency, and
-blocking GC. Together with 64 x 64, all three explicitly measured same-area 4,096-pixel shapes
-pass, which is limited evidence for those exact runs rather than a causal axis, area, or shape
-threshold.
-The separately fixed 64 x 256 observation on build `94110` and 256 x 64 observation on build
-`94111` both pass correctness and blocking GC but fail core latency for dense apply, undo, and
-redo. They complete only the two requested 16,384-pixel current-path shape observations. Because
-the builds differ, they are not a paired orientation comparison and establish no axis, area,
-shape, build, or supported-limit conclusion.
+Host candidate screening, isolated current host projection, emulator smoke, physical current-path
+command tails, and current-path retained-memory/PSS and frame diagnostics are available. They stay
+immutable and useful for eliminating unsafe choices, but combined-protocol results are not
+relabelled as clean lane-specific evidence.
 
-Physical screening still does not include the complete physical workload matrix, candidate-
-specific retained memory/projection or peak headroom, post-cap churn, or compositor correlation.
-The current-canonical five-invocation steady ART/live-heap and paired-PSS slice is valid and passes
-its three applicable conditions. The separate current-canonical 256-square peak-headroom audit is
-also valid and passes. The paired refreshed-build affected-frame batch is valid but
-fails the pre-fixed timing conditions for the current dense 256-square route; its timeline IDs
-still require the now pre-fixed paired Perfetto/FrameTimeline collection before any visible-frame
-claim. Its config, correlation, validation, artifact, and cleanup contract is fixed above, but no
-valid trace evidence has yet been collected: four diagnostic attempts were rejected without a
-physical-present claim. The emulator remains useful only for functional interaction checks and
-cannot fill any of those physical gaps.
+The existing current-path observations show that 64 x 64, 16 x 256, and 256 x 16 passed their
+then-current command thresholds, while 128 x 128 and 256 x 256 failed at least one dense command
+tail. The 64 x 256 observation on device build `94110` and 256 x 64 observation on build `94111`
+both passed correctness and the recorded blocking-GC condition but failed dense apply, undo, and
+redo latency. Those cross-build 16,384-pixel observations must not be aggregated or treated as a
+paired orientation test. The current-path retained-memory/PSS slice passed its applicable
+historical conditions, and the current dense 256-square frame batch failed its historical timing
+conditions. These facts neither select a representation nor require further largest-possible
+exploration.
+
+The T16 screening decision above has resolved the former tiled/COW-shortlist blocker. The current
+blockers under the continuation contract are:
+
+1. resolve the exact semantic color contract, including alpha-zero, blank, eraser, equality/hash,
+   palette ownership, and format conversions;
+2. choose proposed conservative MVP axis, area, raw-stroke, patch, history-entry, and retained-
+   change caps with named workloads and explicit headroom rather than searching for maxima;
+3. run the mandatory correctness lane and clean physical latency/ART-tail lane for the three
+   candidates without per-sample forced GC/finalization or full-document digest/hash work;
+4. run independent retained-memory/PSS evidence for the current baseline and surviving candidate
+   or candidates, then record the exact cap-boundary typed rejection results; and
+5. select one canonical representation and one typed limit policy consistent with ADRs 0002 and
+   0003 and the existing rule IDs.
+
+Representative frame evidence is a renderer handoff after the selected production renderer path
+exists. The rejected Perfetto attempts remain diagnostic; strict SurfaceFlinger correlation and a
+complete candidate compositor matrix are not current ADR-0005 blockers. The emulator remains
+auxiliary and cannot replace the required physical latency or memory lanes.
 
 Therefore:
 
@@ -3019,13 +3082,16 @@ Complete this section only after all required collection succeeds:
 | --- | --- |
 | Accepted semantic contract | pending |
 | Accepted storage candidate | pending |
-| Accepted axis and total-pixel limits | pending |
-| Accepted raw-stroke and patch limits | pending |
-| Accepted history-entry and retained-change limits | pending |
-| Largest measured passing candidates | pending |
+| Three-candidate comparison | current baseline + flat packed RGBA8888 + preselected tiled/COW T16; physical comparison pending |
+| Conservative MVP axis and total-pixel caps | pending; record supporting measured point, workload, headroom, and cap-plus-one rejection |
+| Conservative MVP raw-stroke and patch caps | pending; record supporting measured point, workload, headroom, and cap-plus-one rejection |
+| Conservative MVP history-entry and retained-change caps | pending; record supporting measured point, retained-owner model, headroom, and cap-plus-one rejection |
+| Correctness lane | pending; exact semantic/state/patch/inverse/revision/invalidation/no-op/rejection result |
+| Latency and ART-tail lane | pending; no per-sample forced GC/finalization or full-document digest/hash |
+| Retained-memory and PSS lane | pending; independent invocations and post-GC checkpoints |
+| Renderer/frame handoff | pending; representative evidence after renderer exists, strict compositor correlation deferred |
 | Physical profile ID | `NENE-P2-ALLDOCUBE-IPL80MP-A16-API36`; identity fixed, complete evidence pending |
-| Raw artifact checksum set | pending |
-| Correctness result | pending |
+| Raw artifact checksum set | pending; distinct no-overwrite lane artifacts plus unchanged diagnostic hashes |
 | ADR 0005 acceptance commit | pending |
 
 Related canonical evidence: [M1 Vertical-slice Baseline and Exit Proof](M1_EXIT_PROOF.md).

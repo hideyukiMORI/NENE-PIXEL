@@ -10,7 +10,6 @@ internal data class P2AndroidMeasurementSample(
     val latencyNanos: Long,
     val outcome: CommandOutcomeDescriptor,
     val runtimeDelta: ArtRuntimeDelta,
-    val memory: PostGcMemorySnapshot,
 )
 
 internal object P2AndroidMeasurementReport {
@@ -67,9 +66,8 @@ internal object P2AndroidMeasurementReport {
             ),
             metadataRow(
                 "memory_boundary",
-                "post-verification explicit Java GC while retaining current gateway, document, " +
-                    "and one-level history; " +
-                    "then Runtime Java heap and Debug.MemoryInfo process PSS",
+                "one post-GC process baseline before workloads; sample memory columns are blank and retained Java " +
+                    "heap and process PSS belong to the dedicated retained-memory route",
             ),
         )
     }
@@ -105,14 +103,14 @@ internal object P2AndroidMeasurementReport {
             sample.runtimeDelta.gcTimeMillisDelta,
             sample.runtimeDelta.blockingGcCountDelta,
             sample.runtimeDelta.blockingGcTimeMillisDelta,
-            sample.memory.javaHeapUsedBytes,
-            sample.memory.javaHeapCommittedBytes,
-            sample.memory.totalPssKilobytes,
-            sample.memory.dalvikPssKilobytes,
-            sample.memory.nativePssKilobytes,
-            sample.memory.otherPssKilobytes,
-            sample.memory.totalPrivateDirtyKilobytes,
-            sample.memory.totalSharedDirtyKilobytes,
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
             SAMPLE_ASSERTION_BOUNDARY,
         )
 
@@ -159,7 +157,7 @@ internal object P2AndroidMeasurementReport {
     private const val SCHEMA: String = "nene-pixel-p2-android-command-measurement-v1"
     private const val METADATA_PREFIX_COLUMNS: Int = 3
     private const val SAMPLE_ASSERTION_BOUNDARY: String =
-        "exact DocumentState, revision, history, ChangeSet revision, and typed no-op asserted before memory capture"
+        "exact DocumentState, revision, history, ChangeSet revision, and typed no-op asserted outside latency"
     private val COLUMNS: List<String> =
         listOf(
             "record_type",

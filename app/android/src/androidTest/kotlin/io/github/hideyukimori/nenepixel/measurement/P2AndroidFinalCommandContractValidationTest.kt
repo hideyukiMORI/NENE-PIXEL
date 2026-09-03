@@ -533,6 +533,7 @@ internal class P2AndroidFinalCommandContractValidationTest {
             assertEquals(plan.canvasWidth.toString(), fields[8])
             assertEquals(plan.canvasHeight.toString(), fields[9])
             assertEquals(minOf(plan.canvasWidth, plan.canvasHeight).toString(), fields[10])
+            assertEquals(List(SAMPLE_MEMORY_COLUMN_COUNT) { "" }, fields.slice(SAMPLE_MEMORY_COLUMN_RANGE))
         }
     }
 
@@ -639,7 +640,6 @@ internal class P2AndroidFinalCommandContractValidationTest {
                 P2AndroidFinalCommandSample.Observation(
                     latencyNanos = 0L,
                     runtimeDelta = zeroRuntimeDelta(),
-                    memory = zeroMemorySnapshot(),
                 ),
             outcome = outcome,
         )
@@ -831,6 +831,8 @@ internal class P2AndroidFinalCommandContractValidationTest {
         const val CANDIDATE_256_X_64: String = "current-canonical-command-256x64-rectangle"
         const val SOURCE_COMMIT: String = "0123456789abcdef0123456789abcdef01234567"
         const val FINAL_COMMAND_COLUMN_COUNT: Int = 53
+        const val SAMPLE_MEMORY_COLUMN_COUNT: Int = 8
+        val SAMPLE_MEMORY_COLUMN_RANGE: IntRange = 35..42
         val RECTANGLE_CANDIDATES: List<String> =
             listOf(
                 CANDIDATE_16_X_256,

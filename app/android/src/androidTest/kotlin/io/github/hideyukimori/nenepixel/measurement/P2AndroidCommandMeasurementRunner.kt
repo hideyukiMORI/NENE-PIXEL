@@ -6,7 +6,6 @@ internal data class P2MeasuredCommandExecution(
     val latencyNanos: Long,
     val outcome: CommandOutcomeDescriptor,
     val runtimeDelta: ArtRuntimeDelta,
-    val retainedWorkload: Any,
 )
 
 internal object P2AndroidCommandMeasurementRunner {
@@ -36,7 +35,6 @@ internal object P2AndroidCommandMeasurementRunner {
             latencyNanos = latencyNanos,
             outcome = outcome,
             runtimeDelta = runtimeAfter.deltaFrom(runtimeBefore),
-            retainedWorkload = workload,
         )
     }
 }

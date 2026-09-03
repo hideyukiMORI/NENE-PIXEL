@@ -10,7 +10,7 @@ public fun P2FrameMeasurementEditor(
     callbacks: EditorCallbacks,
     generation: Long,
     onRenderStateChanged: (EditorRenderState) -> Unit,
-    onCanonicalContentDrawn: (Long, EditorRenderState) -> Unit,
+    onCanonicalContentDrawn: (Long, Long, EditorRenderState) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     EditorScreen(
@@ -20,7 +20,7 @@ public fun P2FrameMeasurementEditor(
         modifier =
             modifier.drawWithContent {
                 drawContent()
-                onCanonicalContentDrawn(generation, renderState)
+                onCanonicalContentDrawn(generation, renderState.snapshot.revision.value, renderState)
             },
     )
 }

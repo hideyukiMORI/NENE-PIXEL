@@ -92,8 +92,8 @@ internal object P2AndroidFrameMeasurementReport {
             metadataRow(
                 "timing_boundary",
                 "command start through completion of the first directly copied Window FrameMetrics record " +
-                    "whose canonical EditorScreen draw marker has the exact generation and EditorRenderState; " +
-                    "image capture and correctness assertions are outside timing",
+                    "whose canonical EditorScreen draw marker has the exact generation, revision, and render-state " +
+                    "reference; snapshot hashing, image capture, and correctness assertions are outside timing",
             ),
             metadataRow(
                 "frame_completion_definition",

@@ -85,7 +85,11 @@ internal data class PostGcMemorySnapshot(
     val totalSharedDirtyKilobytes: Int,
 ) {
     companion object {
-        fun capture(retained: Any): PostGcMemorySnapshot {
+        fun captureBaseline(retained: Any): PostGcMemorySnapshot = capture(retained)
+
+        fun captureRetainedMemory(retained: Any): PostGcMemorySnapshot = capture(retained)
+
+        private fun capture(retained: Any): PostGcMemorySnapshot {
             forceJavaGc()
             val runtime = Runtime.getRuntime()
             val memoryInfo = Debug.MemoryInfo()

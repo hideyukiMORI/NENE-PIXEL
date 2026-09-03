@@ -19,9 +19,9 @@ internal class P2AndroidMemoryMeasurementTest {
                 .also(P2AndroidPhysicalCheckpoint::assertInitialValidity)
 
         P2AndroidMemoryRetainedWorkload.preload()
-        val baseline = PostGcMemorySnapshot.capture(BASELINE_RETAINED_MARKER)
+        val baseline = PostGcMemorySnapshot.captureBaseline(BASELINE_RETAINED_MARKER)
         val owner = P2AndroidMemoryRetainedWorkload.prepareAndVerify()
-        val retained = PostGcMemorySnapshot.capture(owner)
+        val retained = PostGcMemorySnapshot.captureRetainedMemory(owner)
         val afterRetained =
             P2AndroidPhysicalCheckpointCapture
                 .capture(environment.targetContext, display, "after_retained", sampleIndex = 1)

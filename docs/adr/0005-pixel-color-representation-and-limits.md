@@ -48,22 +48,23 @@ This ADR must remain `proposed` until all of the following are present in the li
 document:
 
 1. the immutable M1 route has been reproduced from commit `37c0f57` in an isolated worktree;
-2. a separately named current-main P2 route has measured the current representation and all
-   required analytical candidates under the same correctness contract;
-3. the required sparse, dense, eraser-equivalent, no-op, conflict, projection, and retained
-   analytical-history workloads have results at every proposed boundary candidate;
-4. a named physical minimum Android device has supplied ART latency, allocation and GC,
-   retained heap, PSS, and frame evidence;
+2. one exact semantic color contract has passed the correctness lane described below;
+3. the current representation, flat packed RGBA8888, and one preselected best tiled or
+   copy-on-write challenger have been compared under the same correctness contract;
+4. separately collected physical latency/ART-tail and retained-memory/PSS evidence supports the
+   selected representation and conservative MVP supported caps;
 5. raw artifacts, their exact metric boundaries, profile metadata, and SHA-256 checksums are
-   recorded; and
-6. exactly one complete semantic, storage, and logical-limit policy passes every pre-fixed
-   condition without interpolation.
+   recorded without overwriting an earlier accepted or diagnostic artifact; and
+6. exactly one semantic, storage, and logical-limit policy passes the applicable pre-fixed lane
+   conditions without interpolation.
 
 Host JVM and emulator observations are auxiliary. They may expose regressions or eliminate a
-candidate, but they cannot make this ADR `accepted`, select a hard product limit, or support a
-user-visible performance claim. A hard maximum is the largest explicitly measured candidate
-that passes every applicable pre-fixed condition. If the largest measured candidate passes,
-the matrix is extended before it is called a maximum.
+candidate, but they cannot by themselves make this ADR `accepted`, select a supported product
+cap, or support a user-visible performance claim. This ADR selects conservative MVP supported
+caps at or below explicitly measured passing points with documented headroom. It does not claim
+the largest possible or implementation-theoretical maximum, and a passing largest measured point
+does not require an open-ended extension of the matrix. A later focused Issue may raise a cap
+after repeating the same decision procedure.
 
 ### Semantic decision surface
 
@@ -88,14 +89,18 @@ ownership.
 
 ### Storage decision surface
 
-The current path and at least the following analytical candidates must be compared:
+The decision comparison contains exactly the following three storage candidates:
 
 | Candidate | Required analysis |
 | --- | --- |
 | Current flat object representation | Defensive `List<PixelColor>` snapshot, mutable list surface, object changes, and materialized inverse |
 | Flat packed RGBA8888 | Private primitive ownership, pack/unpack correctness, copy and equality cost, inverse representation, and ARC-005 impact |
-| Packed tiled or copy-on-write | Tile size and ownership, sparse/dense behavior, deterministic equality/hash, snapshot sharing, and worst-case copy cost |
-| Palette-index storage | Semantic ownership, palette-edit consequences, alpha compatibility, index width, and future-format impact; evaluated separately rather than assumed equivalent to RGBA storage |
+| Tiled/COW RGBA8888, edge 16 | The single challenger selected before new physical collection by the deterministic host-screening rule recorded in the evidence ledger; ownership, sparse/dense behavior, deterministic equality/hash, snapshot sharing, and worst-case copy cost |
+
+T32 and T64 were screened on the host and remain diagnostic; they do not expand the physical
+decision matrix. Palette-index ownership, palette-edit
+consequences, alpha compatibility, and future-format impact remain part of the semantic decision;
+palette-index storage is not a fourth physical candidate for this MVP decision.
 
 Test-only candidates are analytical fixtures. None may be imported by production, exposed as a
 public implementation interface, or kept as a second production path.
@@ -126,8 +131,8 @@ No numerical value in this table is accepted yet:
 | History capacity | retained committed entries | application history owner | unresolved |
 | Retained history volume | total retained pixel changes | application history owner before document commit | unresolved |
 
-Acceptance must name each exact type or factory, its closed typed rejection, and max-minus-one,
-max, and max-plus-one behavior. Axis and area policies must prove all accepted allocation and
+Acceptance must name each exact type or factory, its closed typed rejection, and cap-minus-one,
+cap, and cap-plus-one behavior. Axis and area policies must prove all accepted allocation and
 row-major indexes are representable. Patch and raw-stroke limits must be distinct so duplicate
 and no-op samples cannot consume unbounded work while producing a small patch.
 
@@ -140,12 +145,30 @@ device-specific branch becomes business policy.
 The same typed policy must be consumed by UI, core, future project-format mapping, and future
 automation. Adapters may explain a rejection but may not duplicate or relax a constant.
 
+Each accepted numerical value is a conservative MVP supported cap, not a claim about the largest
+possible canvas or workload. The evidence document must name the measured passing point that
+supports each cap, the reserved headroom, the representative MVP workload, and the exact typed
+rejection at cap plus one. No interpolation or device-dependent runtime policy is permitted.
+
 ### Measurement contract
 
 The evidence matrix and pass conditions in the linked evidence document are fixed before a
-candidate or hard limit is selected. Every sample must also assert deterministic pixels,
-canonical ordering, containment, revisions, inverse round trip, affected region, unaffected
-pixels, and atomic no-op or rejection behavior. A fast incorrect result is a failure.
+candidate or supported cap is selected. Evidence is collected in independent lanes so that
+correctness work does not perturb latency, forced collection does not masquerade as natural GC,
+and renderer timing does not block a core representation decision:
+
+| Lane | Required boundary |
+| --- | --- |
+| Correctness | Exact deterministic pixels, semantic equality/hash, canonical ordering, containment, revisions, inverse round trip, affected region, unaffected pixels, and atomic no-op or typed rejection behavior at representative workloads and cap boundaries |
+| Latency and ART tail | Warmup plus raw command samples with cheap per-sample outcome, revision, history, `ChangeSet`, invalidation, and no-op identity checks; no forced GC/finalization and no full-document equality scan, digest, or hash between timed samples |
+| Retained memory and PSS | Independent invocations with an explicitly retained owner and post-GC checkpoints; forced GC/finalization is permitted only in this lane and is not reported as a per-command GC observation |
+| Frame | Representative correct-frame and deadline evidence collected after the selected renderer path exists; strict SurfaceFlinger/Perfetto physical-present correlation is deferred to the renderer milestone and is not an ADR-0005 acceptance blocker |
+
+The correctness lane remains mandatory: a fast incorrect result is a failure. Full-document scans
+and hashes belong there or at fixed before/after batch checkpoints, never after every latency
+sample. Existing artifacts collected under earlier combined protocols remain immutable diagnostic
+evidence; they are not rewritten, silently reclassified, or used as substitutes for a missing
+lane-specific result.
 
 Device byte observations select one fixed logical product policy; they never create a different
 canvas or history limit for each device. The measurement route adds no benchmark dependency,
@@ -175,8 +198,9 @@ named physical minimum device. The M1 16, 64, and 256 fixtures are not product-l
 ### Infer a maximum between measured candidates
 
 Rejected because allocation cliffs, GC, tiling boundaries, projection cost, and rectangular
-shapes are not reliably interpolated. Only an explicitly measured passing candidate can be
-selected, and the matrix must extend when its largest candidate passes.
+shapes are not reliably interpolated. A supported cap must be at or below an explicitly measured
+passing point with documented headroom. This ADR intentionally does not claim or search for the
+largest possible maximum.
 
 ### Use device memory readings directly as runtime limits
 
@@ -203,7 +227,8 @@ argument.
 
 ### Benefits
 
-- product limits will be based on reproducible correctness, memory, latency, and frame evidence
+- product caps will be based on reproducible, lane-separated correctness, memory, latency, and
+  renderer evidence appropriate to the implementation stage
 - semantic color remains stable across storage, Compose, PNG, and future format boundaries
 - every accepted canvas is indexable and rejectable before area-sized allocation
 - stroke, patch, and history costs receive separate deterministic bounds
@@ -212,11 +237,13 @@ argument.
 ### Costs and risks
 
 - P2-02 and representation-dependent parts of P2-04 remain blocked while this ADR is proposed
-- physical-device collection and candidate analysis require more work than a host benchmark
+- physical-device collection and the three-candidate analysis require more work than a host
+  benchmark
 - a primitive or shared representation may require coordinated public API and architecture-text
   changes even if semantic behavior is retained
-- presentation projection may dominate a storage improvement and must be measured in the same
-  decision
+- presentation projection may dominate a storage improvement; representative renderer evidence
+  follows once that path exists, while strict compositor correlation is deferred to its renderer
+  milestone
 
 ## Enforcement impact
 

@@ -56,7 +56,7 @@ internal class P2AndroidFrameMetricsCollector(
     private val lock = ReentrantLock()
     private val updated = lock.newCondition()
     private val frames = mutableListOf<P2CopiedFrameMetrics>()
-    private val markers = mutableListOf<P2CanonicalDrawMarker>()
+    private val markers = mutableListOf<P2PendingDrawMarker>()
     private var expectedDraw: ExpectedDraw? = null
     private var totalDroppedReports: Int = 0
     private var attached: Boolean = false
@@ -92,23 +92,24 @@ internal class P2AndroidFrameMetricsCollector(
 
     fun recordCanonicalContentDrawn(
         generation: Long,
+        revision: Long,
         state: EditorRenderState,
     ) {
         val drawingTimeMillis = requireNotNull(window.decorView).drawingTime
+        val callbackNanos = System.nanoTime()
         lock.withLock {
             val expected = expectedDraw
             val exactState =
                 expected != null &&
                     expected.generation == generation &&
-                    expected.state == state
+                    expected.state === state
             markers +=
-                P2CanonicalDrawMarker(
+                P2PendingDrawMarker(
                     generation = generation,
                     exactState = exactState,
-                    revision = state.snapshot.revision.value,
-                    snapshotHash = state.snapshot.hashCode(),
+                    revision = revision,
                     drawingTimeMillis = drawingTimeMillis,
-                    callbackNanos = System.nanoTime(),
+                    callbackNanos = callbackNanos,
                 )
             updated.signalAll()
         }
@@ -163,14 +164,16 @@ internal class P2AndroidFrameMetricsCollector(
             .asSequence()
             .drop(expected.markerStartIndex)
             .filter { marker -> marker.generation == generation && marker.exactState }
-            .sortedBy(P2CanonicalDrawMarker::callbackNanos)
+            .sortedBy(P2PendingDrawMarker::callbackNanos)
             .mapNotNull { marker ->
-                matchingFrame(marker, expected.frameStartIndex)?.let { frame -> P2CorrelatedFrame(marker, frame) }
+                matchingFrame(marker, expected.frameStartIndex)?.let { frame ->
+                    P2CorrelatedFrame(marker.toCanonicalAfterFrame(expected), frame)
+                }
             }.firstOrNull()
     }
 
     private fun matchingFrame(
-        marker: P2CanonicalDrawMarker,
+        marker: P2PendingDrawMarker,
         frameStartIndex: Int,
     ): P2CopiedFrameMetrics? =
         frames
@@ -191,11 +194,11 @@ internal class P2AndroidFrameMetricsCollector(
             "latestVsyncMillis=${latestFrame?.vsyncNanos?.let(TimeUnit.NANOSECONDS::toMillis)}; " +
             "closestVsyncDeltaMillis=${marker?.let(::closestVsyncDeltaMillis)}; " +
             "generationMarkerCount=${generationMarkers.size}; " +
-            "exactGenerationMarkerCount=${generationMarkers.count(P2CanonicalDrawMarker::exactState)}; " +
+            "exactGenerationMarkerCount=${generationMarkers.count(P2PendingDrawMarker::exactState)}; " +
             "markerCount=${markers.size}; frameCount=${frames.size}; droppedReports=$totalDroppedReports."
     }
 
-    private fun closestVsyncDeltaMillis(marker: P2CanonicalDrawMarker): Long? =
+    private fun closestVsyncDeltaMillis(marker: P2PendingDrawMarker): Long? =
         frames
             .asSequence()
             .map(P2CopiedFrameMetrics::vsyncNanos)
@@ -203,6 +206,24 @@ internal class P2AndroidFrameMetricsCollector(
             .map { vsyncNanos ->
                 kotlin.math.abs(TimeUnit.NANOSECONDS.toMillis(vsyncNanos) - marker.drawingTimeMillis)
             }.minOrNull()
+
+    private fun P2PendingDrawMarker.toCanonicalAfterFrame(expected: ExpectedDraw): P2CanonicalDrawMarker =
+        P2CanonicalDrawMarker(
+            generation = generation,
+            exactState = exactState,
+            revision = revision,
+            snapshotHash = expected.state.snapshot.hashCode(),
+            drawingTimeMillis = drawingTimeMillis,
+            callbackNanos = callbackNanos,
+        )
+
+    private data class P2PendingDrawMarker(
+        val generation: Long,
+        val exactState: Boolean,
+        val revision: Long,
+        val drawingTimeMillis: Long,
+        val callbackNanos: Long,
+    )
 
     private data class ExpectedDraw(
         val generation: Long,

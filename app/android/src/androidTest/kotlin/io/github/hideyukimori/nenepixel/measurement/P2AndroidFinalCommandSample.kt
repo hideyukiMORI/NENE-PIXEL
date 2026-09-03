@@ -14,7 +14,6 @@ internal data class P2AndroidFinalCommandSample(
     data class Observation(
         val latencyNanos: Long,
         val runtimeDelta: ArtRuntimeDelta,
-        val memory: PostGcMemorySnapshot,
     )
 
     val localSampleIndex: Int
@@ -28,7 +27,4 @@ internal data class P2AndroidFinalCommandSample(
 
     val runtimeDelta: ArtRuntimeDelta
         get() = observation.runtimeDelta
-
-    val memory: PostGcMemorySnapshot
-        get() = observation.memory
 }
