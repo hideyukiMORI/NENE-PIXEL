@@ -7,24 +7,22 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.percentOffset
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
-import io.github.hideyukimori.nenepixel.core.application.document.command.CommandGateway
-import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReducer
-import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceState
+import io.github.hideyukimori.nenepixel.core.application.editor.DocumentIdSource
+import io.github.hideyukimori.nenepixel.core.application.editor.EditorRuntime
 import io.github.hideyukimori.nenepixel.core.domain.color.ColorChannel
 import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentId
-import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
-import io.github.hideyukimori.nenepixel.core.domain.document.Revision
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasHeight
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasWidth
-import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -118,27 +116,94 @@ internal class UndoRedoEditorTest {
         assertEquals(1L, controller.renderState.snapshot.revision.value)
     }
 
-    private fun controller(): FixedSliceEditorController {
+    @Test
+    fun validNewDocumentCreatesCanonicalBlankRuntimeAndClosesDialog() {
+        val ids = CountingDocumentIdSource()
+        val controller = controller(ids)
+        composeRule.setContent {
+            NenePixelEditor(initialState = controller.renderState, callbacks = controller.callbacks)
+        }
+
+        openNewDocumentDialog()
+        replaceDimensions(width = "3", height = "2")
+        composeRule.onNodeWithText("Create").performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("Create new document").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("3 by 2 pixel canvas").assertExists()
+        assertEquals(2, ids.callCount)
+        assertEquals(3, controller.renderState.snapshot.size.width.value)
+        assertEquals(2, controller.renderState.snapshot.size.height.value)
+        assertEquals(0L, controller.renderState.snapshot.revision.value)
+        assertFalse(controller.renderState.canUndo)
+        assertFalse(controller.renderState.canRedo)
+    }
+
+    @Test
+    fun invalidNewDocumentShowsCorrectionAndPreservesCurrentRuntime() {
+        val ids = CountingDocumentIdSource()
+        val controller = controller(ids)
+        val beforeDocument = controller.documentState
+        val beforeWorkspace = controller.workspaceState
+        composeRule.setContent {
+            NenePixelEditor(initialState = controller.renderState, callbacks = controller.callbacks)
+        }
+
+        openNewDocumentDialog()
+        replaceDimensions(width = "257", height = "2")
+        composeRule.onNodeWithText("Create").performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("Width must be between 1 and 256.").assertExists()
+        composeRule.onNodeWithText("Create new document").assertExists()
+        assertEquals(1, ids.callCount)
+        assertSame(beforeDocument, controller.documentState)
+        assertSame(beforeWorkspace, controller.workspaceState)
+    }
+
+    @Test
+    fun cancelledNewDocumentAllocatesNothingAndPreservesCurrentRuntime() {
+        val ids = CountingDocumentIdSource()
+        val controller = controller(ids)
+        val beforeDocument = controller.documentState
+        val beforeWorkspace = controller.workspaceState
+        composeRule.setContent {
+            NenePixelEditor(initialState = controller.renderState, callbacks = controller.callbacks)
+        }
+
+        openNewDocumentDialog()
+        replaceDimensions(width = "64", height = "32")
+        composeRule.onNodeWithText("Cancel").performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("Create new document").assertDoesNotExist()
+        assertEquals(1, ids.callCount)
+        assertSame(beforeDocument, controller.documentState)
+        assertSame(beforeWorkspace, controller.workspaceState)
+    }
+
+    private fun openNewDocumentDialog() {
+        composeRule.onNodeWithText("New document").performClick()
+        composeRule.onNodeWithText("Create new document").assertExists()
+    }
+
+    private fun replaceDimensions(
+        width: String,
+        height: String,
+    ) {
+        composeRule.onNodeWithContentDescription("Document width").performTextReplacement(width)
+        composeRule.onNodeWithContentDescription("Document height").performTextReplacement(height)
+    }
+
+    private fun controller(documentIdSource: DocumentIdSource = CountingDocumentIdSource()): EditorController {
         val size =
             CanvasSize.create(
                 CanvasWidth.create(CANVAS_EDGE).requiredValue(),
                 CanvasHeight.create(CANVAS_EDGE).requiredValue(),
             )
-        val background = color(CHANNEL_MAX, CHANNEL_MAX, CHANNEL_MAX)
         val activeColor = color(CHANNEL_MAX, CHANNEL_MIN, CHANNEL_MIN)
-        val snapshot =
-            PixelSnapshot
-                .create(size, Revision.initial(), List(size.pixelCount.toInt()) { background })
-                .requiredValue()
-        val document =
-            DocumentState.create(
-                DocumentId.create(DOCUMENT_ID).requiredValue(),
-                snapshot,
-            )
-        return FixedSliceEditorController.create(
-            CommandGateway.create(document),
-            WorkspaceReducer.create(),
-            WorkspaceState.create(activeColor, size),
+        return EditorController.create(
+            EditorRuntime.create(size, activeColor, documentIdSource),
         )
     }
 
@@ -167,6 +232,23 @@ internal class UndoRedoEditorTest {
         const val START_PERCENT: Float = 0.05f
         const val END_PERCENT: Float = 0.25f
         const val SWIPE_DURATION_MILLIS: Long = 300L
-        const val DOCUMENT_ID: String = "22222222222222222222222222222222"
+    }
+}
+
+private class CountingDocumentIdSource : DocumentIdSource {
+    var callCount: Int = 0
+        private set
+
+    override fun nextDocumentId(): DocumentId {
+        callCount += 1
+        val value = callCount.coerceAtMost(9).toString().repeat(DOCUMENT_ID_LENGTH)
+        return when (val result = DocumentId.create(value)) {
+            is DomainValueResult.Created -> result.value
+            is DomainValueResult.Rejected -> error("Invalid UI test document ID: ${result.rejection}")
+        }
+    }
+
+    private companion object {
+        const val DOCUMENT_ID_LENGTH: Int = 32
     }
 }

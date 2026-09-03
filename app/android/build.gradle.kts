@@ -22,6 +22,7 @@ dependencies {
     implementation(project(":core:domain"))
     implementation(project(":presentation:compose"))
     implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.lifecycle.viewmodel)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.runtime)
     androidTestImplementation(platform(libs.androidx.compose.bom))

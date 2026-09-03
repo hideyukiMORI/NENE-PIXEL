@@ -76,6 +76,17 @@ public class PixelSnapshot private constructor(
                 rejected(DomainValueRejection.PixelSnapshotSizeMismatch(size.pixelCount, packedPixels.size))
             }
 
+        public fun createFilled(
+            size: CanvasSize,
+            revision: Revision,
+            color: PixelColor,
+        ): PixelSnapshot =
+            PixelSnapshot(
+                size,
+                revision,
+                IntArray(size.pixelCount.toInt()) { color.toPackedRgba8888() },
+            )
+
         private fun PixelPosition.rowMajorIndex(size: CanvasSize): Int = y.value * size.width.value + x.value
     }
 }

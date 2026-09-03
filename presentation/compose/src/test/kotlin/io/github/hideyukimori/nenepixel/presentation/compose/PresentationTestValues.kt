@@ -1,22 +1,20 @@
 package io.github.hideyukimori.nenepixel.presentation.compose
 
-import io.github.hideyukimori.nenepixel.core.application.document.command.CommandGateway
+import io.github.hideyukimori.nenepixel.core.application.editor.EditorRuntime
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReducer
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceState
 import io.github.hideyukimori.nenepixel.core.domain.color.ColorChannel
 import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentId
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
-import io.github.hideyukimori.nenepixel.core.domain.document.Revision
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasHeight
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasWidth
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelX
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelY
-import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
-import io.github.hideyukimori.nenepixel.presentation.compose.editor.FixedSliceEditorController
+import io.github.hideyukimori.nenepixel.presentation.compose.editor.EditorController
 import org.junit.jupiter.api.fail
 
 internal object PresentationTestValues {
@@ -41,23 +39,15 @@ internal object PresentationTestValues {
         canvas: CanvasSize = canvas(4, 4),
         activeColor: PixelColor = red,
     ): EditorFixture {
-        val snapshot =
-            PixelSnapshot
-                .create(
-                    canvas,
-                    Revision.initial(),
-                    List(canvas.pixelCount.toInt()) { white },
-                ).requiredValue()
-        val document = DocumentState.create(DocumentId.create(DOCUMENT_ID).requiredValue(), snapshot)
-        val gateway = CommandGateway.create(document)
+        val runtime = EditorRuntime.create(canvas, activeColor, TestDocumentIdSource())
         val reducer = WorkspaceReducer.create()
-        val initialWorkspace = WorkspaceState.create(activeColor, canvas)
+        val initialState = runtime.state
         return EditorFixture(
-            initialDocument = document,
-            gateway = gateway,
+            initialDocument = initialState.documentState,
+            runtime = runtime,
             reducer = reducer,
-            initialWorkspace = initialWorkspace,
-            controller = FixedSliceEditorController.create(gateway, reducer, initialWorkspace),
+            initialWorkspace = initialState.workspaceState,
+            controller = EditorController.create(runtime),
         )
     }
 
@@ -77,16 +67,14 @@ internal object PresentationTestValues {
             ColorChannel.create(blue).requiredValue(),
             ColorChannel.create(255).requiredValue(),
         )
-
-    private const val DOCUMENT_ID: String = "11111111111111111111111111111111"
 }
 
 internal data class EditorFixture(
     val initialDocument: DocumentState,
-    val gateway: CommandGateway,
+    val runtime: EditorRuntime,
     val reducer: WorkspaceReducer,
     val initialWorkspace: WorkspaceState,
-    val controller: FixedSliceEditorController,
+    val controller: EditorController,
 )
 
 internal fun <T> DomainValueResult<T>.requiredValue(): T =
@@ -94,3 +82,17 @@ internal fun <T> DomainValueResult<T>.requiredValue(): T =
         is DomainValueResult.Created -> value
         is DomainValueResult.Rejected -> fail("Test value was rejected: $rejection")
     }
+
+private class TestDocumentIdSource : io.github.hideyukimori.nenepixel.core.application.editor.DocumentIdSource {
+    private var nextValue: Int = 1
+
+    override fun nextDocumentId(): DocumentId {
+        val value = nextValue.coerceAtMost(9).toString().repeat(DOCUMENT_ID_LENGTH)
+        nextValue += 1
+        return DocumentId.create(value).requiredValue()
+    }
+
+    private companion object {
+        const val DOCUMENT_ID_LENGTH: Int = 32
+    }
+}

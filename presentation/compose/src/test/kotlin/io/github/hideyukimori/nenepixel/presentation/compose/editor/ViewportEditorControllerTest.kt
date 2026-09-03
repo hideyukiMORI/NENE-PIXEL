@@ -116,7 +116,7 @@ internal class ViewportEditorControllerTest {
         val accepted = assertInstanceOf(PointerInputAcknowledgement.Accepted::class.java, result)
 
         assertEquals(directOutcome.commandResult, accepted.commandResult)
-        assertEquals(direct.gateway.runtimeState.documentState, mapped.gateway.runtimeState.documentState)
+        assertEquals(direct.runtime.state.documentState, mapped.runtime.state.documentState)
         assertEquals(directOutcome.workspaceState, mapped.controller.workspaceState)
     }
 
@@ -136,10 +136,10 @@ internal class ViewportEditorControllerTest {
         }
         val prepared = fixture.reducer.reduce(workspace, WorkspaceAction.PrepareGestureCommit)
         val commit = assertInstanceOf(WorkspaceReductionResult.CommitPrepared::class.java, prepared)
-        val target = fixture.gateway.runtimeState.documentState
+        val target = fixture.runtime.state.documentState
         return DirectOutcome(
             commandResult =
-                fixture.gateway.execute(
+                fixture.runtime.execute(
                     ApplyStrokeCommand.create(target.id, target.revision, commit.stroke),
                 ),
             workspaceState = commit.nextState,

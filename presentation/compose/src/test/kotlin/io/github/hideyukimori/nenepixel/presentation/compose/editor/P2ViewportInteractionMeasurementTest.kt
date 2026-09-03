@@ -39,7 +39,7 @@ internal class P2ViewportInteractionMeasurementTest {
                 .create(canvas, surface, fixture.initialWorkspace.viewport)
                 .requiredValue()
         val expectedViewport = transform.apply(gesture).requiredValue()
-        val initialDocument = fixture.gateway.runtimeState.documentState
+        val initialDocument = fixture.runtime.state.documentState
         fixture.controller.viewportStarted(surface)
         return P2HostMeasuredOperation(
             execute = { fixture.controller.viewportTransformed(surface, gesture) },
@@ -57,7 +57,7 @@ internal class P2ViewportInteractionMeasurementTest {
         val accepted = assertInstanceOf(PointerInputAcknowledgement.Accepted::class.java, result)
         assertEquals(expectedViewport, accepted.renderState.viewport)
         assertEquals(expectedViewport, fixture.controller.workspaceState.viewport)
-        assertEquals(initialDocument, fixture.gateway.runtimeState.documentState)
+        assertEquals(initialDocument, fixture.runtime.state.documentState)
         assertNull(accepted.renderState.preview)
         assertFalse(accepted.renderState.canUndo)
         assertFalse(accepted.renderState.canRedo)

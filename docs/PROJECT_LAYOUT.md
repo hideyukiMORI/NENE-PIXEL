@@ -119,6 +119,8 @@ Owns behavior coordination:
 - `CommandGateway`
 - command handlers and validation
 - `WorkspaceReducer`
+- the single current `EditorRuntime` owner for command, workspace, and dirty state
+- validated new-document requests, canonical blank runtime construction, and identifier ports
 - validated workspace viewport values and the portable canonical forward/inverse transform
 - history and undo/redo coordination
 - query projections
@@ -148,7 +150,10 @@ Owns display and interaction translation:
 - tool previews
 - accessibility and Android-facing presentation behavior
 
-It renders immutable state and emits commands/actions. Rendering and input consume the same application-owned viewport transform; presentation owns no competing matrix or rounding policy. It contains no persistence calls or document transition logic.
+It renders immutable state and emits commands/actions. Rendering and input consume the same
+application-owned viewport transform; presentation owns no competing matrix, rounding policy,
+document runtime, workspace state, or dirty state. It contains no persistence calls or document
+transition logic.
 
 ### `:adapters:persistence`
 
@@ -156,7 +161,10 @@ Implements application ports for project storage and recovery. It may use Androi
 
 ### `:app:android`
 
-Is the composition root. It wires concrete adapters to ports, configures lifecycle ownership, and launches the UI. Business rules in this module are prohibited.
+Is the composition root. It wires concrete adapters to ports, retains the one activity-scoped
+application `EditorRuntime` through an AndroidX `ViewModel`, and launches the UI. Android UUID
+generation implements the application `DocumentIdSource` port here. Business rules in this module
+are prohibited.
 
 ## Source-set rules
 

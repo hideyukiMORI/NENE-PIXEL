@@ -13,6 +13,7 @@ public class EditorCallbacks internal constructor(
     private val viewportTransformed: (ViewportSurface, ViewportGesture) -> PointerInputAcknowledgement,
     private val undo: () -> EditorRenderState,
     private val redo: () -> EditorRenderState,
+    private val createNewDocument: (String, String) -> NewDocumentSubmission,
 ) {
     internal fun onPointerDown(
         surface: ViewportSurface,
@@ -41,4 +42,9 @@ public class EditorCallbacks internal constructor(
     public fun onUndo(): EditorRenderState = undo()
 
     public fun onRedo(): EditorRenderState = redo()
+
+    internal fun onCreateNewDocument(
+        rawWidth: String,
+        rawHeight: String,
+    ): NewDocumentSubmission = createNewDocument(rawWidth, rawHeight)
 }
