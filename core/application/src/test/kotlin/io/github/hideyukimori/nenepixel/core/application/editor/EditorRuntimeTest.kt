@@ -6,6 +6,9 @@ import io.github.hideyukimori.nenepixel.core.application.document.command.Reject
 import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryAvailability
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.canvas
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.eraserStroke
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.green
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.palette
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.paletteIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.position
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.red
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.stroke
@@ -26,12 +29,14 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.fail
 
 internal class EditorRuntimeTest {
+    private val toolPalette = palette(red, green)
+
     @Test
     fun `initial runtime uses one canonical blank clean empty-history construction`() {
         val canvas = canvas(2, 3)
         val ids = SequentialDocumentIdSource()
 
-        val state = EditorRuntime.create(canvas, red, ids).state
+        val state = EditorRuntime.create(canvas, toolPalette, ids).state
 
         assertEquals(1, ids.callCount)
         assertEquals(ids.first, state.documentState.id)
@@ -47,7 +52,7 @@ internal class EditorRuntimeTest {
         )
         assertEquals(HistoryAvailability.None, state.historyAvailability)
         assertEquals(DocumentDirtyState.Clean, state.dirtyState)
-        assertEquals(red, state.workspaceState.activeColor)
+        assertEquals(paletteIndex(0), state.workspaceState.activePaletteIndex)
         assertEquals(DrawingTool.Pencil, state.workspaceState.activeTool)
         assertEquals(ViewportState.initial(canvas), state.workspaceState.viewport)
         assertNull(state.workspaceState.preview)
@@ -56,7 +61,7 @@ internal class EditorRuntimeTest {
     @Test
     fun `successful creation atomically resets document history dirty workspace and viewport`() {
         val ids = SequentialDocumentIdSource()
-        val runtime = EditorRuntime.create(canvas(4, 4), red, ids)
+        val runtime = EditorRuntime.create(canvas(4, 4), toolPalette, ids)
         applyOnePixel(runtime)
         val previousViewport =
             ViewportState.create(
@@ -65,6 +70,7 @@ internal class EditorRuntimeTest {
             )
         runtime.reduce(WorkspaceAction.SetViewport(previousViewport))
         runtime.reduce(WorkspaceAction.SelectTool(DrawingTool.Eraser))
+        runtime.reduce(WorkspaceAction.SelectPaletteEntry(paletteIndex(1)))
         val before = runtime.state
 
         val result = runtime.createNewDocument(NewDocumentRequest.create("3", "2"))
@@ -87,6 +93,7 @@ internal class EditorRuntimeTest {
         assertEquals(HistoryAvailability.None, after.historyAvailability)
         assertEquals(DocumentDirtyState.Clean, after.dirtyState)
         assertEquals(DrawingTool.Pencil, after.workspaceState.activeTool)
+        assertEquals(paletteIndex(0), after.workspaceState.activePaletteIndex)
         assertEquals(ViewportState.initial(after.documentState.size), after.workspaceState.viewport)
         assertNull(after.workspaceState.preview)
         assertNotEquals(before.documentState, after.documentState)
@@ -97,7 +104,7 @@ internal class EditorRuntimeTest {
     @Test
     fun `rejected request invokes no identity or construction and preserves owner state`() {
         val ids = SequentialDocumentIdSource()
-        val runtime = EditorRuntime.create(canvas(4, 4), red, ids)
+        val runtime = EditorRuntime.create(canvas(4, 4), toolPalette, ids)
         val changedViewport =
             ViewportState.create(
                 created(ViewportZoom.create(2.0)),
@@ -121,7 +128,7 @@ internal class EditorRuntimeTest {
 
     @Test
     fun `only an applied document command marks runtime dirty`() {
-        val runtime = EditorRuntime.create(canvas(2, 2), red, SequentialDocumentIdSource())
+        val runtime = EditorRuntime.create(canvas(2, 2), toolPalette, SequentialDocumentIdSource())
         val initial = runtime.state
         val wrongTarget = SequentialDocumentIdSource().second
         val stroke = stroke(initial.documentState.size, listOf(position(0, 0)), red)
@@ -139,7 +146,7 @@ internal class EditorRuntimeTest {
 
     @Test
     fun `already blank erase leaves clean runtime and empty history`() {
-        val runtime = EditorRuntime.create(canvas(2, 2), red, SequentialDocumentIdSource())
+        val runtime = EditorRuntime.create(canvas(2, 2), toolPalette, SequentialDocumentIdSource())
         val initial = runtime.state
         val result =
             runtime.execute(
@@ -155,6 +162,20 @@ internal class EditorRuntimeTest {
         assertSame(initial.documentState, runtime.state.documentState)
         assertEquals(HistoryAvailability.None, runtime.state.historyAvailability)
         assertEquals(DocumentDirtyState.Clean, runtime.state.dirtyState)
+    }
+
+    @Test
+    fun `palette selection changes no document history or dirty state`() {
+        val runtime = EditorRuntime.create(canvas(2, 2), toolPalette, SequentialDocumentIdSource())
+        val before = runtime.state
+
+        runtime.reduce(WorkspaceAction.SelectPaletteEntry(paletteIndex(1)))
+        val after = runtime.state
+
+        assertSame(before.documentState, after.documentState)
+        assertEquals(before.historyAvailability, after.historyAvailability)
+        assertEquals(before.dirtyState, after.dirtyState)
+        assertEquals(paletteIndex(1), after.workspaceState.activePaletteIndex)
     }
 
     private fun applyOnePixel(runtime: EditorRuntime) {

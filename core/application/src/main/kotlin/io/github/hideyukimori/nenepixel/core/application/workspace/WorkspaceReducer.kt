@@ -2,15 +2,20 @@ package io.github.hideyukimori.nenepixel.core.application.workspace
 
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
 import io.github.hideyukimori.nenepixel.core.domain.drawing.StrokeEffect
+import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteEntry
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelLimits
+import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 
-public class WorkspaceReducer private constructor() {
+public class WorkspaceReducer private constructor(
+    private val palette: Palette,
+) {
     public fun reduce(
         state: WorkspaceState,
         action: WorkspaceAction,
     ): WorkspaceReductionResult =
         when (action) {
-            is WorkspaceAction.ChangeActiveColor -> changeActiveColor(state, action)
+            is WorkspaceAction.SelectPaletteEntry -> selectPaletteEntry(state, action)
             is WorkspaceAction.SelectTool -> selectTool(state, action)
             is WorkspaceAction.BeginGesturePreview -> beginGesturePreview(state, action)
             is WorkspaceAction.ExtendGesturePreview -> extendGesturePreview(state, action)
@@ -19,14 +24,25 @@ public class WorkspaceReducer private constructor() {
             is WorkspaceAction.SetViewport -> setViewport(state, action)
         }
 
-    private fun changeActiveColor(
+    private fun selectPaletteEntry(
         state: WorkspaceState,
-        action: WorkspaceAction.ChangeActiveColor,
+        action: WorkspaceAction.SelectPaletteEntry,
     ): WorkspaceReductionResult =
-        if (action.color == state.activeColor) {
-            unchanged(state, WorkspaceNoChangeReason.ActiveColorAlreadySelected)
-        } else {
-            WorkspaceReductionResult.Reduced(state.withActiveColor(action.color))
+        when (palette.entryAt(action.index)) {
+            is DomainValueResult.Rejected -> {
+                rejected(
+                    state,
+                    WorkspaceActionRejection.PaletteIndexOutsidePalette(action.index, palette.entryCount),
+                )
+            }
+
+            is DomainValueResult.Created -> {
+                if (action.index == state.activePaletteIndex) {
+                    unchanged(state, WorkspaceNoChangeReason.ActivePaletteEntryAlreadySelected)
+                } else {
+                    WorkspaceReductionResult.Reduced(state.withActivePaletteIndex(action.index))
+                }
+            }
         }
 
     private fun beginGesturePreview(
@@ -43,7 +59,7 @@ public class WorkspaceReducer private constructor() {
             }
 
             else -> {
-                val preview = ToolGesture.begin(action.canvas, action.position, state.strokeEffect())
+                val preview = ToolGesture.begin(action.canvas, action.position, state.strokeEffect(palette))
                 WorkspaceReductionResult.Reduced(state.withPreview(preview))
             }
         }
@@ -137,7 +153,7 @@ public class WorkspaceReducer private constructor() {
     ): WorkspaceReductionResult = WorkspaceReductionResult.Rejected(state, rejection)
 
     public companion object {
-        public fun create(): WorkspaceReducer = WorkspaceReducer()
+        public fun create(palette: Palette): WorkspaceReducer = WorkspaceReducer(palette)
     }
 }
 
@@ -151,8 +167,14 @@ private fun selectTool(
         WorkspaceReductionResult.Reduced(state.withActiveTool(action.tool))
     }
 
-private fun WorkspaceState.strokeEffect(): StrokeEffect =
+private fun WorkspaceState.strokeEffect(palette: Palette): StrokeEffect =
     when (activeTool) {
-        DrawingTool.Pencil -> StrokeEffect.Paint(activeColor)
+        DrawingTool.Pencil -> StrokeEffect.Paint(palette.selectedEntry(this).color)
         DrawingTool.Eraser -> StrokeEffect.Erase
+    }
+
+private fun Palette.selectedEntry(state: WorkspaceState): PaletteEntry =
+    when (val result = entryAt(state.activePaletteIndex)) {
+        is DomainValueResult.Created -> result.value
+        is DomainValueResult.Rejected -> error("Workspace palette selection is invalid: ${result.rejection}")
     }

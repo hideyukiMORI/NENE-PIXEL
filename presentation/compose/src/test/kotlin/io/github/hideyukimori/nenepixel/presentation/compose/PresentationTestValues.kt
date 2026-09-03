@@ -13,6 +13,7 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasWidth
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelX
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelY
+import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import io.github.hideyukimori.nenepixel.presentation.compose.editor.EditorController
 import org.junit.jupiter.api.fail
@@ -20,6 +21,7 @@ import org.junit.jupiter.api.fail
 internal object PresentationTestValues {
     val white: PixelColor = color(255, 255, 255)
     val red: PixelColor = color(255, 0, 0)
+    val green: PixelColor = color(0, 255, 0)
 
     fun canvas(
         width: Int,
@@ -37,10 +39,11 @@ internal object PresentationTestValues {
 
     fun fixture(
         canvas: CanvasSize = canvas(4, 4),
-        activeColor: PixelColor = red,
+        paletteColors: List<PixelColor> = listOf(red, green),
     ): EditorFixture {
-        val runtime = EditorRuntime.create(canvas, activeColor, TestDocumentIdSource())
-        val reducer = WorkspaceReducer.create()
+        val palette = Palette.create(paletteColors).requiredValue()
+        val runtime = EditorRuntime.create(canvas, palette, TestDocumentIdSource())
+        val reducer = WorkspaceReducer.create(palette)
         val initialState = runtime.state
         return EditorFixture(
             initialDocument = initialState.documentState,

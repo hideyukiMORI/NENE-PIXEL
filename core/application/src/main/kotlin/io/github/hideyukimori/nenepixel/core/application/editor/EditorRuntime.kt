@@ -11,11 +11,12 @@ import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.document.Revision
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
+import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 
 public class EditorRuntime private constructor(
     private val documentIdSource: DocumentIdSource,
-    private val initialActiveColor: PixelColor,
+    public val palette: Palette,
     private val workspaceReducer: WorkspaceReducer,
     initialOwners: RuntimeOwners,
 ) {
@@ -48,7 +49,6 @@ public class EditorRuntime private constructor(
                     owners =
                         createRuntimeOwners(
                             requestResult.request.canvas,
-                            initialActiveColor,
                             documentIdSource,
                         )
                     NewDocumentResult.Created(owners.toState())
@@ -73,14 +73,14 @@ public class EditorRuntime private constructor(
     public companion object {
         public fun create(
             initialCanvas: CanvasSize,
-            initialActiveColor: PixelColor,
+            palette: Palette,
             documentIdSource: DocumentIdSource,
         ): EditorRuntime =
             EditorRuntime(
                 documentIdSource,
-                initialActiveColor,
-                WorkspaceReducer.create(),
-                createRuntimeOwners(initialCanvas, initialActiveColor, documentIdSource),
+                palette,
+                WorkspaceReducer.create(palette),
+                createRuntimeOwners(initialCanvas, documentIdSource),
             )
     }
 }
@@ -93,7 +93,6 @@ private data class RuntimeOwners(
 
 private fun createRuntimeOwners(
     canvas: CanvasSize,
-    activeColor: PixelColor,
     documentIdSource: DocumentIdSource,
 ): RuntimeOwners {
     val documentId = documentIdSource.nextDocumentId()
@@ -101,7 +100,7 @@ private fun createRuntimeOwners(
     val document = DocumentState.create(documentId, snapshot)
     return RuntimeOwners(
         CommandGateway.create(document),
-        WorkspaceState.create(activeColor, canvas),
+        WorkspaceState.create(canvas),
         DocumentDirtyState.Clean,
     )
 }

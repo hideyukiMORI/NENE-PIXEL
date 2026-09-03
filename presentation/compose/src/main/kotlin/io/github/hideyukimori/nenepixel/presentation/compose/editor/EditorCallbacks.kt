@@ -4,6 +4,7 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.View
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportSurface
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportSurfacePoint
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 
 public class EditorCallbacks internal constructor(
     private val pointerDown: (ViewportSurface, ViewportSurfacePoint) -> PointerInputAcknowledgement,
@@ -15,6 +16,7 @@ public class EditorCallbacks internal constructor(
     private val undo: () -> EditorRenderState,
     private val redo: () -> EditorRenderState,
     private val selectTool: (DrawingTool) -> EditorRenderState,
+    private val selectPaletteEntry: (PaletteIndex) -> EditorRenderState,
     private val createNewDocument: (String, String) -> NewDocumentSubmission,
 ) {
     internal fun onPointerDown(
@@ -46,6 +48,8 @@ public class EditorCallbacks internal constructor(
     public fun onRedo(): EditorRenderState = redo()
 
     internal fun onSelectTool(tool: DrawingTool): EditorRenderState = selectTool(tool)
+
+    internal fun onSelectPaletteEntry(index: PaletteIndex): EditorRenderState = selectPaletteEntry(index)
 
     internal fun onCreateNewDocument(
         rawWidth: String,

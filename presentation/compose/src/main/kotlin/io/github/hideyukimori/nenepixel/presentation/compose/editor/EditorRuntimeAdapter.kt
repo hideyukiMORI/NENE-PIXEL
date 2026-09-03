@@ -115,7 +115,8 @@ internal class EditorRuntimeAdapter(
         val state = runtime.state
         return EditorRenderState(
             snapshot = state.documentState.snapshot,
-            activeColor = state.workspaceState.activeColor,
+            palette = runtime.palette,
+            activePaletteIndex = state.workspaceState.activePaletteIndex,
             activeTool = state.workspaceState.activeTool,
             preview = state.workspaceState.preview,
             viewport = state.workspaceState.viewport,

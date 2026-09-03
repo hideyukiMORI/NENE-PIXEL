@@ -15,9 +15,12 @@ import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
+import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import io.github.hideyukimori.nenepixel.presentation.compose.EditorFixture
 import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestValues.colorAt
 import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestValues.fixture
+import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestValues.green
 import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestValues.position
 import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestValues.red
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -100,6 +103,34 @@ internal class ViewportEditorControllerTest {
         assertEquals(PixelColor.blank, colorAt(fixture.controller.documentState, position(0, 0)))
         assertEquals(2L, fixture.controller.documentState.revision.value)
         assertTrue(erased.renderState.canUndo)
+    }
+
+    @Test
+    fun `palette selection is workspace only and a running gesture keeps its exact rgba`() {
+        val fixture = fixture()
+        val beforeSelection = fixture.runtime.state
+        fixture.controller.pointerDown(surface, surfacePoint(0, 0))
+
+        val selected = fixture.controller.callbacks.onSelectPaletteEntry(paletteIndex(1))
+
+        assertSame(beforeSelection.documentState, fixture.controller.documentState)
+        assertEquals(beforeSelection.historyAvailability, fixture.runtime.state.historyAvailability)
+        assertEquals(beforeSelection.dirtyState, fixture.runtime.state.dirtyState)
+        assertEquals(paletteIndex(1), selected.activePaletteIndex)
+        assertEquals(green, selected.activeColor)
+
+        val first = accepted(fixture.controller.pointerEnd(surface, surfacePoint(0, 0)))
+        assertInstanceOf(CommandResult.Applied::class.java, first.commandResult)
+        assertEquals(red, colorAt(fixture.controller.documentState, position(0, 0)))
+
+        fixture.controller.pointerDown(surface, surfacePoint(1, 0))
+        val second = accepted(fixture.controller.pointerEnd(surface, surfacePoint(1, 0)))
+        assertInstanceOf(CommandResult.Applied::class.java, second.commandResult)
+        assertEquals(green, colorAt(fixture.controller.documentState, position(1, 0)))
+        assertEquals(
+            green.toPackedRgba8888(),
+            colorAt(fixture.controller.documentState, position(1, 0)).toPackedRgba8888(),
+        )
     }
 
     @Test
@@ -246,6 +277,12 @@ internal class ViewportEditorControllerTest {
 
     private fun accepted(result: PointerInputAcknowledgement): PointerInputAcknowledgement.Accepted =
         assertInstanceOf(PointerInputAcknowledgement.Accepted::class.java, result)
+
+    private fun paletteIndex(value: Int): PaletteIndex =
+        when (val result = PaletteIndex.create(value)) {
+            is DomainValueResult.Created -> result.value
+            is DomainValueResult.Rejected -> fail("Palette index fixture was rejected: ${result.rejection}")
+        }
 
     private fun viewportSurface(): ViewportSurface =
         ViewportSurface.create(SURFACE_EDGE.toInt(), SURFACE_EDGE.toInt(), PIXELS_PER_DP).requiredValue()

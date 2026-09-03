@@ -23,6 +23,7 @@ internal class EditorRuntimeLifecycleTest {
     fun configurationRecreationRetainsTheOnlyDocumentAndWorkspaceOwners() {
         createDocument(width = "5", height = "3")
         composeRule.onNodeWithContentDescription("Eraser tool").performClick()
+        composeRule.onNodeWithContentDescription(SECOND_PALETTE_DESCRIPTION).performClick()
         composeRule.waitForIdle()
         lateinit var runtime: EditorRuntime
         lateinit var document: DocumentState
@@ -46,6 +47,7 @@ internal class EditorRuntimeLifecycleTest {
             assertSame(document, retained.runtime.state.documentState)
             assertSame(workspace, retained.runtime.state.workspaceState)
             assertEquals(DrawingTool.Eraser, retained.runtime.state.workspaceState.activeTool)
+            assertEquals(1, retained.runtime.state.workspaceState.activePaletteIndex.value)
         }
         composeRule.onNodeWithContentDescription("5 by 3 pixel canvas").assertExists()
     }
@@ -84,4 +86,8 @@ internal class EditorRuntimeLifecycleTest {
 
     private fun MainActivity.editorModel(): EditorRuntimeViewModel =
         ViewModelProvider(this, EditorRuntimeViewModel.factory)[EditorRuntimeViewModel::class.java]
+
+    private companion object {
+        const val SECOND_PALETTE_DESCRIPTION: String = "Palette color 2, RGBA 0, 0, 0, 255"
+    }
 }

@@ -10,11 +10,15 @@ public value class PaletteIndex private constructor(
     public val value: Int,
 ) {
     public companion object {
+        public val first: PaletteIndex = PaletteIndex(0)
+
         public fun create(value: Int): DomainValueResult<PaletteIndex> =
             if (value < 0) {
                 rejected(DomainValueRejection.NegativePaletteIndex(value))
             } else {
                 created(PaletteIndex(value))
             }
+
+        internal fun createWithinPalette(value: Int): PaletteIndex = PaletteIndex(value)
     }
 }

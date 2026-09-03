@@ -6,6 +6,7 @@ import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasHeight
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasWidth
+import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 
 internal fun createEditorRuntime(): EditorRuntime =
@@ -15,14 +16,35 @@ internal fun createEditorRuntime(): EditorRuntime =
                 CanvasWidth.create(INITIAL_CANVAS_EDGE).requiredValue(),
                 CanvasHeight.create(INITIAL_CANVAS_EDGE).requiredValue(),
             ),
-        initialActiveColor =
-            PixelColor.create(
-                red = ColorChannel.create(CHANNEL_MAX).requiredValue(),
-                green = ColorChannel.create(CHANNEL_MIN).requiredValue(),
-                blue = ColorChannel.create(CHANNEL_MIN).requiredValue(),
-                alpha = ColorChannel.create(CHANNEL_MAX).requiredValue(),
-            ),
+        palette = createMvpPalette(),
         documentIdSource = UuidDocumentIdSource(),
+    )
+
+private fun createMvpPalette(): Palette =
+    Palette
+        .create(
+            listOf(
+                color(CHANNEL_MAX, CHANNEL_MIN, CHANNEL_MIN),
+                color(CHANNEL_MIN, CHANNEL_MIN, CHANNEL_MIN),
+                color(CHANNEL_MAX, CHANNEL_MAX, CHANNEL_MAX),
+                color(CHANNEL_MIN, CHANNEL_MAX, CHANNEL_MIN),
+                color(CHANNEL_MIN, CHANNEL_MIN, CHANNEL_MAX),
+                color(CHANNEL_MAX, CHANNEL_MAX, CHANNEL_MIN),
+                color(CHANNEL_MIN, CHANNEL_MAX, CHANNEL_MAX),
+                color(CHANNEL_MAX, CHANNEL_MIN, CHANNEL_MAX),
+            ),
+        ).requiredValue()
+
+private fun color(
+    red: Int,
+    green: Int,
+    blue: Int,
+): PixelColor =
+    PixelColor.create(
+        red = ColorChannel.create(red).requiredValue(),
+        green = ColorChannel.create(green).requiredValue(),
+        blue = ColorChannel.create(blue).requiredValue(),
+        alpha = ColorChannel.create(CHANNEL_MAX).requiredValue(),
     )
 
 private fun <T> DomainValueResult<T>.requiredValue(): T =

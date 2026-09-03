@@ -114,8 +114,15 @@ oversized change set before sorting or packed ownership.
 
 Pencil and Eraser are one closed `DrawingTool` selection vocabulary. `WorkspaceState` owns the
 active tool, and `WorkspaceAction.SelectTool` is its only mutation route. Beginning a `ToolGesture`
-captures either `StrokeEffect.Paint` with the current active color or `StrokeEffect.Erase`; later
-tool or color changes do not alter that gesture.
+captures either `StrokeEffect.Paint` with the color resolved from the current palette selection or
+`StrokeEffect.Erase`; later tool or palette-selection changes do not alter that gesture.
+
+`Palette` is bounded immutable tool configuration supplied by the composition root and retained by
+`EditorRuntime`; it is not document or pixel truth. `WorkspaceState` owns only the typed
+`activePaletteIndex`, and `WorkspaceAction.SelectPaletteEntry` is its only mutation route. The
+reducer returns a typed rejection for an index outside the configured palette and a typed unchanged
+result for the current index. Selection emits no document command and changes no revision, history,
+or dirty state. Displayed active color is always derived from palette plus selection.
 
 Accepted document-pixel samples are connected by the one endpoint-inclusive, direction-symmetric,
 8-connected integer line rule in `ToolGesture`. The expanded count is checked against the raw-stroke
