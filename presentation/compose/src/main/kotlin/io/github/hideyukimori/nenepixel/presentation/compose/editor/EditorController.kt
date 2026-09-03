@@ -30,6 +30,9 @@ public class EditorController private constructor(
             undo = adapter::undo,
             redo = adapter::redo,
             selectTool = { tool -> adapter.reduce(WorkspaceAction.SelectTool(tool)).renderState },
+            selectPaletteEntry = { index ->
+                adapter.reduce(WorkspaceAction.SelectPaletteEntry(index)).renderState
+            },
             createNewDocument = adapter::createNewDocument,
         )
 

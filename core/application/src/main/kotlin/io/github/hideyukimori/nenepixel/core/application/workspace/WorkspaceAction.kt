@@ -1,14 +1,14 @@
 package io.github.hideyukimori.nenepixel.core.application.workspace
 
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportState
-import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 
 public sealed interface WorkspaceAction {
-    public data class ChangeActiveColor(
-        public val color: PixelColor,
+    public data class SelectPaletteEntry(
+        public val index: PaletteIndex,
     ) : WorkspaceAction
 
     public data class SelectTool(

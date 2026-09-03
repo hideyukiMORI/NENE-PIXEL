@@ -20,6 +20,7 @@ import io.github.hideyukimori.nenepixel.core.domain.document.DocumentId
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasHeight
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasWidth
+import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -169,6 +170,39 @@ internal class UndoRedoEditorTest {
     }
 
     @Test
+    fun paletteControlsExposeSelectionAndCommitExactRgbaThroughTheCanonicalPath() {
+        val controller = controller()
+        composeRule.setContent {
+            NenePixelEditor(initialState = controller.renderState, callbacks = controller.callbacks)
+        }
+
+        composeRule.onNodeWithContentDescription(FIRST_PALETTE_DESCRIPTION).assertIsSelected()
+        composeRule.onNodeWithContentDescription(SECOND_PALETTE_DESCRIPTION).assertIsNotSelected()
+        val before = controller.renderState.snapshot
+
+        composeRule.onNodeWithContentDescription(SECOND_PALETTE_DESCRIPTION).performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithContentDescription(FIRST_PALETTE_DESCRIPTION).assertIsNotSelected()
+        composeRule.onNodeWithContentDescription(SECOND_PALETTE_DESCRIPTION).assertIsSelected()
+        assertEquals(EXACT_PALETTE_RGBA, controller.renderState.activeColor.toPackedRgba8888())
+        assertSame(before, controller.renderState.snapshot)
+        assertFalse(controller.renderState.canUndo)
+        assertFalse(controller.renderState.canRedo)
+
+        touchFirstPixel()
+        composeRule.waitForIdle()
+
+        assertEquals(
+            EXACT_PALETTE_RGBA,
+            controller.renderState.snapshot
+                .copyPackedRgba8888()
+                .first(),
+        )
+        assertEquals(1L, controller.renderState.snapshot.revision.value)
+    }
+
+    @Test
     fun validNewDocumentCreatesCanonicalBlankRuntimeAndClosesDialog() {
         val ids = CountingDocumentIdSource()
         val controller = controller(ids)
@@ -177,6 +211,7 @@ internal class UndoRedoEditorTest {
         }
 
         composeRule.onNodeWithContentDescription("Eraser tool").performClick()
+        composeRule.onNodeWithContentDescription(SECOND_PALETTE_DESCRIPTION).performClick()
         openNewDocumentDialog()
         replaceDimensions(width = "3", height = "2")
         composeRule.onNodeWithText("Create").performClick()
@@ -185,6 +220,7 @@ internal class UndoRedoEditorTest {
         composeRule.onNodeWithText("Create new document").assertDoesNotExist()
         composeRule.onNodeWithContentDescription("3 by 2 pixel canvas").assertExists()
         composeRule.onNodeWithContentDescription("Pencil tool").assertIsSelected()
+        composeRule.onNodeWithContentDescription(FIRST_PALETTE_DESCRIPTION).assertIsSelected()
         assertEquals(2, ids.callCount)
         assertEquals(3, controller.renderState.snapshot.size.width.value)
         assertEquals(2, controller.renderState.snapshot.size.height.value)
@@ -264,9 +300,16 @@ internal class UndoRedoEditorTest {
                 CanvasWidth.create(CANVAS_EDGE).requiredValue(),
                 CanvasHeight.create(CANVAS_EDGE).requiredValue(),
             )
-        val activeColor = color(CHANNEL_MAX, CHANNEL_MIN, CHANNEL_MIN)
+        val palette =
+            Palette
+                .create(
+                    listOf(
+                        color(CHANNEL_MAX, CHANNEL_MIN, CHANNEL_MIN),
+                        color(1, 2, 3, alpha = 4),
+                    ),
+                ).requiredValue()
         return EditorController.create(
-            EditorRuntime.create(size, activeColor, documentIdSource),
+            EditorRuntime.create(size, palette, documentIdSource),
         )
     }
 
@@ -274,12 +317,13 @@ internal class UndoRedoEditorTest {
         red: Int,
         green: Int,
         blue: Int,
+        alpha: Int = CHANNEL_MAX,
     ): PixelColor =
         PixelColor.create(
             ColorChannel.create(red).requiredValue(),
             ColorChannel.create(green).requiredValue(),
             ColorChannel.create(blue).requiredValue(),
-            ColorChannel.create(CHANNEL_MAX).requiredValue(),
+            ColorChannel.create(alpha).requiredValue(),
         )
 
     private fun <T> DomainValueResult<T>.requiredValue(): T =
@@ -296,6 +340,9 @@ internal class UndoRedoEditorTest {
         const val END_PERCENT: Float = 0.25f
         const val FIRST_PIXEL_PERCENT: Float = 0.03f
         const val SWIPE_DURATION_MILLIS: Long = 300L
+        const val EXACT_PALETTE_RGBA: Int = 0x01020304
+        const val FIRST_PALETTE_DESCRIPTION: String = "Palette color 1, RGBA 255, 0, 0, 255"
+        const val SECOND_PALETTE_DESCRIPTION: String = "Palette color 2, RGBA 1, 2, 3, 4"
     }
 }
 

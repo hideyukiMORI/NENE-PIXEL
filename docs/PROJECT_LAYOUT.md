@@ -90,7 +90,7 @@ Any dependency not listed is forbidden. In particular:
 Owns semantic truth:
 
 - strongly typed identifiers and coordinates
-- canvas, frame, layer, palette, and animation value types
+- canvas, frame, layer, animation, and bounded immutable tool-palette value types
 - immutable document state and invariants
 - immutable `PixelSnapshot` value with private row-major `RRGGBBAA` storage, typed queries, and defensive bulk copies
 - immutable `Stroke` value with private row-major integer samples, a closed pencil/eraser effect,
@@ -120,7 +120,8 @@ Owns behavior coordination:
 - `CommandGateway`
 - command handlers and validation
 - `WorkspaceReducer`
-- active drawing-tool ownership and bounded document-pixel gesture interpolation
+- active drawing-tool and palette-index ownership with bounded document-pixel gesture interpolation
+- immutable palette configuration used to derive the gesture-captured Pencil color
 - the single current `EditorRuntime` owner for command, workspace, and dirty state
 - validated new-document requests, canonical blank runtime construction, and identifier ports
 - validated workspace viewport values and the portable canonical forward/inverse transform
@@ -154,8 +155,9 @@ Owns display and interaction translation:
 
 It renders immutable state and emits commands/actions. Rendering and input consume the same
 application-owned viewport transform; presentation owns no competing matrix, rounding policy,
-document runtime, workspace state, or dirty state. It contains no persistence calls or document
-transition logic.
+document runtime, workspace state, active palette selection, or dirty state. Palette controls render
+the immutable projection and emit the canonical workspace selection action. It contains no
+persistence calls or document transition logic.
 
 ### `:adapters:persistence`
 
@@ -165,8 +167,8 @@ Implements application ports for project storage and recovery. It may use Androi
 
 Is the composition root. It wires concrete adapters to ports, retains the one activity-scoped
 application `EditorRuntime` through an AndroidX `ViewModel`, and launches the UI. Android UUID
-generation implements the application `DocumentIdSource` port here. Business rules in this module
-are prohibited.
+generation implements the application `DocumentIdSource` port here, and the fixed MVP tool palette
+is supplied here as immutable configuration. Business rules in this module are prohibited.
 
 ## Source-set rules
 

@@ -36,8 +36,10 @@ One concept has one canonical name. New synonyms in code are prohibited. Add or 
 | `PixelColor` | Straight sRGB red, green, blue, and alpha U8 values; hidden RGB at alpha zero is significant | premultiplied color, packed color, Android Color |
 | `PixelBlank` | Canonical transparent-black `PixelColor` `(0,0,0,0)` written by erasing and used for a blank new canvas | white background, alpha-only clear |
 | `PixelLimits` | One conservative MVP policy: axis 256, area 65,536, raw stroke 262,144, patch 65,536, history 64, retained changes 524,288 | device memory check, adapter-local maximum |
-| `PaletteIndex` | Non-negative typed position of a PaletteEntry | palette Int, color index |
-| `PaletteEntry` | A palette slot with its typed color value/metadata | color id, swatch data |
+| `Palette` | Immutable ordered tool configuration containing 1 through 32 exact PixelColor entries | DocumentState palette, mutable color list |
+| `PaletteLimits` | One deterministic tool-palette policy whose maximum entry count is 32 | screen-size-dependent palette cap, PixelLimits |
+| `PaletteIndex` | Non-negative typed position used for closed lookup and active Palette selection | palette Int, color index |
+| `PaletteEntry` | Derived immutable Palette slot with its typed index and exact PixelColor | color id, mutable swatch data |
 | `Revision` | Non-negative version of the exact committed DocumentState; canonical undo restores the recorded prior revision | global event sequence, timestamp |
 | `Layer` | An ordered document element contributing pixels/visibility | plane, sheet |
 | `Frame` | One animation frame containing an ordered layer state | page, image |
@@ -49,7 +51,7 @@ One concept has one canonical name. New synonyms in code are prohibited. Add or 
 | `StrokeEffect` | Gesture-captured document replacement effect: Paint with exact PixelColor or Erase to PixelBlank | handler choice, UI color |
 | `ToolGesture` | Application-owned bounded sampled gesture with canonical document-pixel interpolation before commit | command, raw surface path, Compose-owned stroke |
 | `DocumentCommand` | Typed request to perform one atomic saved/undoable operation | event, action, intent |
-| `WorkspaceAction` | Typed request to change ephemeral WorkspaceState | command, UI event |
+| `WorkspaceAction` | Typed request to change ephemeral WorkspaceState, including active tool and PaletteIndex | command, UI event |
 | `CommandHandler` | The single application component implementing one command | manager, processor |
 | `CommandGateway` | The only entry point for executing DocumentCommand values | bus when no asynchronous/distributed bus exists |
 | `CommandResult` | Closed applied/rejected/failed outcome returned by command execution | nullable result, Boolean success |

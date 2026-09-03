@@ -13,6 +13,8 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasWidth
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelX
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelY
+import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelChange
@@ -37,6 +39,10 @@ internal object ApplicationTestValues {
     ): PixelPosition = PixelPosition.create(PixelX.create(x).value(), PixelY.create(y).value())
 
     fun revision(value: Long): Revision = Revision.create(value).value()
+
+    fun palette(vararg colors: PixelColor): Palette = Palette.create(colors.toList()).value()
+
+    fun paletteIndex(value: Int): PaletteIndex = PaletteIndex.create(value).value()
 
     fun snapshot(
         canvas: CanvasSize,

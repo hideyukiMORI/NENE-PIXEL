@@ -2,6 +2,7 @@ package io.github.hideyukimori.nenepixel.core.domain.validation
 
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 
 public sealed interface DomainValueRejection {
     public data class InvalidDocumentIdLength internal constructor(
@@ -68,6 +69,18 @@ public sealed interface DomainValueRejection {
 
     public data class NegativePaletteIndex internal constructor(
         public val attemptedValue: Int,
+    ) : DomainValueRejection
+
+    public data object EmptyPalette : DomainValueRejection
+
+    public data class PaletteAboveSupportedMaximum internal constructor(
+        public val attemptedCount: Int,
+        public val maximum: Int,
+    ) : DomainValueRejection
+
+    public data class PaletteIndexOutsidePalette internal constructor(
+        public val attemptedIndex: PaletteIndex,
+        public val entryCount: Int,
     ) : DomainValueRejection
 
     public data class NegativeRevision internal constructor(
