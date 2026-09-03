@@ -153,10 +153,11 @@ Core owners consume the same typed policy. UI, future project-format mapping, an
 must map those results rather than duplicate or relax a constant.
 
 These are conservative supported caps, not claims about the largest possible canvas or workload.
-The 256-square physical flat kernel supports canvas and patch caps with 16.4% p95 latency headroom
-at its slowest row and 56.5% p99 headroom. The raw-stroke cap is half the largest passing 524,288-
-sample host fixture. The physical `H=64,T=524,288` flat owner supports both history caps while
-using 3.55% of the fixed runtime maximum, leaving substantial retained-heap headroom. No
+The migrated 256-square physical production lane supports canvas and patch caps with 21.1% p95
+latency headroom at its slowest row and 58.1% p99 headroom. The raw-stroke cap is half the largest
+passing 524,288-sample host fixture. The physical `H=64,T=524,288` flat owner supports both
+history caps while using 3.55% of the fixed runtime maximum, leaving substantial retained-heap
+headroom. No
 interpolation or device-dependent runtime policy is permitted.
 
 ### Measurement contract

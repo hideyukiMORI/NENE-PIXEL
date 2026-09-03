@@ -1,7 +1,7 @@
 # P2 Pixel Representation and Limit Evidence
 
-Status: incomplete and blocking ADR 0005 acceptance. This ledger records evidence for `P2-01`
-/ Issue #38. It does not define a production representation or numerical product limit.
+Status: complete for `P2-01` / Issue #38 and supporting accepted ADR 0005. This ledger records the
+decision evidence; ADR 0005 and the canonical governing documents define the production contract.
 
 ## Decision boundary
 
@@ -38,12 +38,12 @@ Current evidence state:
 | Evidence | State | Decision use |
 | --- | --- | --- |
 | Immutable M1 sparse host reproduction | complete for the rerun recorded below | starting evidence only |
-| Current-main P2 representation route | current canonical host route, isolated current host render projection, preliminary and final-tail physical command/frame screening, clean physical 256-square command lane, and current object-plus-bitmap retained-memory comparison complete | current baseline fails the clean 256-square command target; it remains the diagnostic baseline only |
-| Analytical storage candidates | flat packed and tiled/COW square/rectangular snapshot/apply, dense and sparse/rectangular native patch/inverse, raw duplicate/no-op/reference-clear, retained analytical-history screening, and physical packed-candidate comparison recorded; palette U8 contract tested | T16 was the single tiled/COW physical challenger; it failed the dense physical kernel target, so flat packed is the only surviving storage candidate |
+| Current-main P2 representation route | historical current-object routes and the clean 256-square command lane are complete | current baseline fails the clean command target and remains immutable diagnostic evidence only |
+| Analytical storage candidates | flat packed and tiled/COW host screening, physical packed-candidate comparison, and palette U8 contract are recorded | T16 fails the dense physical kernel target; analytical candidate implementations were removed after evidence collection |
 | Named emulator | ART command harness complete in explicit auxiliary mode | cannot satisfy physical evidence |
-| Named physical minimum Android device | profile fixed; clean current command, flat/T16 kernel, and three independent current/flat retained-memory comparisons recorded | flat production command verification remains after the canonical migration |
-| Renderer/compositor evidence | current-path frame screening and rejected correlation attempts recorded; canonical snapshot-to-bitmap and single nearest-neighbor bitmap draw path implemented | representative selected-production frame handoff remains; strict compositor evidence is deferred and is not an ADR-0005 acceptance blocker |
-| Accepted representation or supported caps | none | ADR remains proposed |
+| Named physical minimum Android device | clean current command, flat/T16 kernel, three independent retained-memory comparisons, and migrated production run-06 recorded on the fixed profile | selected production command lane passes every p95/p99 target with zero blocking GC |
+| Renderer/compositor evidence | canonical snapshot-to-bitmap and one nearest-neighbor bitmap draw are implemented and the selected-production handoff test passes on the named device | strict compositor evidence is deferred to the renderer milestone and is not an ADR-0005 acceptance blocker |
+| Accepted representation or supported caps | flat packed RGBA8888 plus the one `PixelLimits` policy are accepted | width/height 256, derived area 65,536, raw stroke 262,144, patch 65,536, history 64, retained changes 524,288 |
 
 Active waivers: none.
 
@@ -2928,11 +2928,11 @@ and timing values; a full image correctness check runs only after the matching f
 The same source replaced the release presentation's per-pixel object projection and rectangle
 loop with one `ARGB_8888` bitmap created once per immutable `PixelSnapshot` and one native
 nearest-neighbor `drawBitmap` call. Workspace-only changes reuse the bitmap. Anti-aliasing,
-dithering, and bitmap filtering are disabled. The former `RenderedPixel` projection remains only
-in host test source so historical projection diagnostics stay reproducible; it is not a release or
-debug production path. Physical `CanvasBitmapProjectionTest` passed on the named device. This
-removes known nonessential draw and frame-verification work before choosing core storage, but it
-does not by itself prove a frame deadline.
+dithering, and bitmap filtering are disabled. The former `RenderedPixel` projection was removed
+after its immutable diagnostic artifact was recorded; it is not a release, debug, or test runtime
+alternative. Physical `CanvasBitmapProjectionTest` passed on the named device. This removes known
+nonessential draw and frame-verification work before choosing core storage, but it does not by
+itself prove a frame deadline.
 
 ### Physical packed-candidate command-kernel result
 
@@ -3025,6 +3025,85 @@ that the device measurement directly defines a runtime-dependent product limit.
 | `build/reports/p2/representation-limits/device-candidate-memory-flat-packed-run-01.csv` | 9,506 | `B388FC878FACF0181C780AAF3A34F4C11B67E95024B33589E084E53DF42FD6E3` |
 | `build/reports/p2/representation-limits/device-candidate-memory-flat-packed-run-02.csv` | 9,506 | `21F80DC3D6622B144C47B5992A3F2C7F2D9C8174EF5200FCD1D742C586DA003C` |
 | `build/reports/p2/representation-limits/device-candidate-memory-flat-packed-run-03.csv` | 9,506 | `74A384A800A8E8BFA4DF444B6C9746B0DE157542A719D2FAD29183A65EBDFA4F` |
+
+### Migrated flat-packed production command result
+
+Source `dca5c14212e629b20dda2c0636d1be5876deac99` atomically migrated the canonical
+domain, pixel-engine, application, and presentation path to flat packed RGBA8888, shared
+directional inverse payloads, one canonical bitmap projection, and the accepted typed limits. The
+old object/materialized-inverse path and host analytical candidate implementations were removed in
+the same focused change. Later sources removed measured redundant work without adding a second
+semantic or storage path:
+
+| Run | Source | Focus | Dense-apply p95 / p99 | Decision |
+| --- | --- | --- | ---: | --- |
+| 01 | `dca5c14212e629b20dda2c0636d1be5876deac99` | initial canonical migration | 12.994577 / 13.705923 ms | p95 fail; continue profiling |
+| 02 | `609f555ad6e756f0af792227f7dc32f073e96660` | skip already-proven ordering work and combine patch validation/write | 12.628038 / 13.206962 ms | p95 fail |
+| 03 | `c24bffba4d5d751cf215d5056a5f4de2311133e0` | attempted callback-based snapshot copy | 17.024269 / 17.371576 ms | regression; reverted completely |
+| 04 | `df9f9a0e68e5a5a2f92346831005d81e09e547e2` | retain validated stroke positions as packed row-major indexes | 9.322500 / 9.942885 ms | p95 fail |
+| 05 | `fe9b4f0978c2c11eea28f9d7f1be71d421316de5` | derive contiguous invalidation bounds without a second coordinate scan | 8.174769 / 8.625423 ms | slight p95 fail |
+| 06 | `94559fe852c55b45b570222218072fcbaecfe4c4` | consume rasterization's already-proven invariants once | 6.315231 / 6.985308 ms | pass |
+
+Each run used the same named physical profile, 5 warmups and 200 samples for each of five
+workloads, one prepared `CommandGateway.execute` measurement boundary, immutable no-overwrite
+output, and the clean-latency schema. The chronology is retained rather than selecting a favorable
+rerun. Run 03 demonstrates why the callback-copy idea was rejected; its implementation does not
+remain in the selected path.
+
+Run 06 contains 1,000 samples, 45 metadata rows, 42 fixed physical checkpoints, and one process
+baseline. The device reported Android 16/API 36 build `94111`, security patch `2026-08-05`, mode 1
+at 1200 x 1920 and 90 Hz, power saving off, interactive USB power, and thermal status no higher
+than 1. Every exact outcome, revision, change count, history state, `ChangeSet`, invalidation, and
+checkpoint invariant passed. Every operation had zero blocking-GC-count increment.
+
+| Run-06 workload | p50 | p95 | p99 | Maximum | p95 ART allocation |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| sparse apply | 0.761693 ms | 1.152961 ms | 2.752038 ms | 3.015538 ms | 901,120 bytes |
+| dense apply | 3.897808 ms | 6.315231 ms | 6.985308 ms | 7.485538 ms | 8,925,184 bytes |
+| dense same-color no-op | 0.765885 ms | 1.055461 ms | 2.677346 ms | 3.059115 ms | 6,967,296 bytes |
+| undo | 2.107692 ms | 4.433769 ms | 5.055923 ms | 5.588347 ms | 565,248 bytes |
+| redo | 2.099539 ms | 2.522961 ms | 5.031654 ms | 7.090769 ms | 9,396,224 bytes |
+
+All rows pass p95 <= 8.0 ms and p99 <= 16.67 ms. The slowest p95 leaves 21.1% target
+headroom; the slowest p99 leaves 58.1%. ART allocation remains descriptive rather than a pass
+threshold; retained ownership is bounded by the independent result above.
+
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `build/reports/p2/representation-limits/device-clean-flat-packed-command-256-run-01.csv` | 618,609 | `8243DAD55C083560951F0D7563D1B367C59C558C5F051F90833ABE21FEB4967F` |
+| `build/reports/p2/representation-limits/device-clean-flat-packed-command-256-run-02.csv` | 618,636 | `9BFBB06781EE2EC3E5BADC9990FB5028FD3C2878D15D79551C4B35FDE762180E` |
+| `build/reports/p2/representation-limits/device-clean-flat-packed-command-256-run-03.csv` | 620,149 | `3BE1425987E86716B1E5ACADC9743F8F6C38B7B41D43F940D33853C0872E9250` |
+| `build/reports/p2/representation-limits/device-clean-flat-packed-command-256-run-04.csv` | 618,209 | `B153ACB4145A3B87AD00331D17D2BCCE597BFC49C22A4404C1557A87C08968F2` |
+| `build/reports/p2/representation-limits/device-clean-flat-packed-command-256-run-05.csv` | 618,362 | `83E3184E4210409580411A02DAC11C13150D2972F1767C38CBF948F38E896226` |
+| `build/reports/p2/representation-limits/device-clean-flat-packed-command-256-run-06.csv` | 618,212 | `9BCF82F6C1D0BAC9E5423EB342C53611B165E01DC3E9EA66846123F538AC24D1` |
+
+### Accepted limit and renderer handoff result
+
+Focused contracts prove axis, raw-stroke, patch, history-entry, and retained-change cap minus one,
+cap, and cap plus one. Rejection occurs before the relevant ownership copy, containment scan,
+sort, allocation, or atomic commit. Canvas area is a derived invariant rather than a redundant
+user-reachable rejection: two independently validated positive axes no larger than 256 imply at
+most 65,536 pixels, and `CanvasSize` asserts that implication. The accepted policy is therefore:
+
+| Owner | Accepted maximum | Supporting point and headroom |
+| --- | ---: | --- |
+| width / height | 256 pixels each | run-06 256 x 256 production command pass |
+| derived canvas area | 65,536 pixels | same explicitly measured square; no second reachable area branch |
+| raw stroke | 262,144 samples | half of the passing 524,288-sample host amplification fixture; at most four samples per supported pixel |
+| patch | 65,536 unique changes | run-06 dense full-canvas production command pass |
+| history | 64 entries | independent retained owner at exactly `H=64` |
+| retained changes | 524,288 changes | independent retained owner at exactly `T=524,288`, 9,541,424-byte retained heap, 3.55% of the fixed runtime maximum |
+
+On source `94559fe852c55b45b570222218072fcbaecfe4c4`, the physical
+`CanvasBitmapProjectionTest` and `UndoRedoEditorTest` passed together through
+`:presentation:compose:connectedDebugAndroidTest`. This verifies exact bitmap handoff and the
+editor transition on the selected representation. It does not relabel earlier frame data or claim
+strict compositor timing; that correlation remains deferred to the renderer milestone.
+
+The retained historical comparison routes and analytical candidate models were removed after the
+immutable artifacts above were recorded. The repository retains one physical production-command
+route for QLT-010 reproducibility; it contains no current-object, tiled/COW, combined post-GC, or
+per-frame alternative implementation.
 
 ### Required workload matrix
 
@@ -3139,69 +3218,39 @@ low-power mode 0, interactive USB power at 100% battery, and overall thermal sta
 run-time values and source commit remain report metadata and checkpoint data rather than being
 inferred from the preliminary build `94010` rows.
 
-## Current blocker
+## Completion determination
 
-Host candidate screening, isolated current host projection, emulator smoke, physical current-path
-command tails, and current-path retained-memory/PSS and frame diagnostics are available. They stay
-immutable and useful for eliminating unsafe choices, but combined-protocol results are not
-relabelled as clean lane-specific evidence.
+P2-01 has no remaining evidence or implementation blocker. The exact semantic contract, flat
+packed storage, typed conservative caps, canonical bitmap handoff, boundary rejections, clean
+physical command tails, and independent retained-memory/PSS result are complete. Historical
+current-path, tiled/COW, combined-GC, frame, and rejected Perfetto observations remain diagnostic;
+none is relabelled or used in place of the selected lane evidence.
 
-The existing current-path observations show that 64 x 64, 16 x 256, and 256 x 16 passed their
-then-current command thresholds, while 128 x 128 and 256 x 256 failed at least one dense command
-tail. The 64 x 256 observation on device build `94110` and 256 x 64 observation on build `94111`
-both passed correctness and the recorded blocking-GC condition but failed dense apply, undo, and
-redo latency. Those cross-build 16,384-pixel observations must not be aggregated or treated as a
-paired orientation test. The current-path retained-memory/PSS slice passed its applicable
-historical conditions, and the current dense 256-square frame batch failed its historical timing
-conditions. These facts neither select a representation nor require further largest-possible
-exploration.
+Strict SurfaceFlinger/Perfetto physical-present correlation remains intentionally deferred to the
+renderer milestone. Multi-step history behavior, new-document UI, pencil/eraser UI, and palette UI
+remain owned by their later Issues. They do not justify more candidate matrices, maximum searches,
+per-sample full-state verification, or a second storage path in P2-01.
 
-The T16 screening decision, physical candidate command kernel, clean current command lane, and
-current-versus-flat retained-memory lane have resolved the former candidate-comparison blockers.
-The current blockers under the continuation contract are:
+P2-02 and representation-dependent P2-04 may become ready only after the focused PR is merged,
+Issue #38 is closed, and the required external-state read-back confirms that state. This is a
+workflow dependency, not an unresolved technical condition in ADR 0005.
 
-1. resolve the exact semantic color contract, including alpha-zero, blank, eraser, equality/hash,
-   palette ownership, and format conversions;
-2. choose proposed conservative MVP axis, area, raw-stroke, patch, history-entry, and retained-
-   change caps with named workloads and explicit headroom rather than searching for maxima;
-3. accept flat packed as the sole surviving canonical candidate and migrate the one production
-   path without retaining current or T16 runtime alternatives;
-4. record exact cap-boundary typed rejection results and run the migrated flat packed full-command
-   lane; and
-5. accept one typed limit policy consistent with ADRs 0002 and 0003 and the existing rule IDs.
-
-Representative frame evidence is a renderer handoff after the selected production renderer path
-exists. The rejected Perfetto attempts remain diagnostic; strict SurfaceFlinger correlation and a
-complete candidate compositor matrix are not current ADR-0005 blockers. The emulator remains
-auxiliary and cannot replace the required physical latency or memory lanes.
-
-Therefore:
-
-- flat packed is the sole surviving candidate, but it is not yet an accepted production contract;
-- no canvas, raw-stroke, patch, history-entry, or retained-change number is accepted;
-- the pre-fixed target table is not a production contract;
-- ADR 0005 must remain `proposed`; and
-- P2-02 and representation-dependent P2-04 work must not treat any analytical fixture as a
-  supported limit.
-
-## Completion record template
-
-Complete this section only after all required collection succeeds:
+## Completion record
 
 | Decision input | Selected evidence |
 | --- | --- |
-| Accepted semantic contract | pending |
-| Accepted storage candidate | pending |
-| Three-candidate comparison | current baseline + flat packed RGBA8888 + preselected tiled/COW T16; physical comparison pending |
-| Conservative MVP axis and total-pixel caps | pending; record supporting measured point, workload, headroom, and cap-plus-one rejection |
-| Conservative MVP raw-stroke and patch caps | pending; record supporting measured point, workload, headroom, and cap-plus-one rejection |
-| Conservative MVP history-entry and retained-change caps | pending; record supporting measured point, retained-owner model, headroom, and cap-plus-one rejection |
-| Correctness lane | pending; exact semantic/state/patch/inverse/revision/invalidation/no-op/rejection result |
-| Latency and ART-tail lane | pending; no per-sample forced GC/finalization or full-document digest/hash |
-| Retained-memory and PSS lane | pending; independent invocations and post-GC checkpoints |
-| Renderer/frame handoff | pending; representative evidence after renderer exists, strict compositor correlation deferred |
-| Physical profile ID | `NENE-P2-ALLDOCUBE-IPL80MP-A16-API36`; identity fixed, complete evidence pending |
-| Raw artifact checksum set | pending; distinct no-overwrite lane artifacts plus unchanged diagnostic hashes |
-| ADR 0005 acceptance commit | pending |
+| Accepted semantic contract | straight, unassociated sRGB RGBA8; hidden RGB at alpha zero preserved; transparent black blank; replacement pencil and canonical-blank eraser; value-owned palette semantics |
+| Accepted storage candidate | one private row-major `RRGGBBAA` `IntArray` snapshot/surface path with packed patch triplets and shared directional inverse |
+| Three-candidate comparison | current object baseline rejected; flat packed selected; preselected tiled/COW T16 rejected at dense-apply p95 9.126 ms |
+| Conservative MVP axis and total-pixel caps | width/height 256; area 65,536 derived from typed axes; run-06 dense production p95 6.315231 ms and p99 6.985308 ms; typed axis cap-plus-one rejection |
+| Conservative MVP raw-stroke and patch caps | raw 262,144 and patch 65,536; cap-minus-one/cap accepted and cap-plus-one typed before scan/copy/sort; dense patch supported by run-06 |
+| Conservative MVP history-entry and retained-change caps | 64 entries and 524,288 changes; policy boundary tests plus independent retained owner at the exact caps; retained heap 9,541,424 bytes |
+| Correctness lane | exact RGBA/alpha-zero/blank, pixels, equality/hash, order, containment, revisions, shared inverse round trip, invalidation, no-op identity, and atomic typed rejection pass |
+| Latency and ART-tail lane | run-06 passes all five p95/p99 targets; 1,000/1,000 samples have zero blocking-GC increment; no per-sample forced GC or full-state scan/hash |
+| Retained-memory and PSS lane | three independent invocations per candidate complete; flat median delta 7,352,320-byte heap and 7,570 KiB PSS, both about 80% below current |
+| Renderer/frame handoff | selected-production `CanvasBitmapProjectionTest` and `UndoRedoEditorTest` pass on physical device; strict compositor correlation deferred |
+| Physical profile ID | `NENE-P2-ALLDOCUBE-IPL80MP-A16-API36`; final run Android 16/API 36 build `94111`, security patch `2026-08-05` |
+| Raw artifact checksum set | all prior diagnostic hashes plus six distinct migrated-production no-overwrite hashes recorded above |
+| ADR 0005 acceptance commit | `dca5c14212e629b20dda2c0636d1be5876deac99`; final physical optimization source `94559fe852c55b45b570222218072fcbaecfe4c4` |
 
 Related canonical evidence: [M1 Vertical-slice Baseline and Exit Proof](M1_EXIT_PROOF.md).
