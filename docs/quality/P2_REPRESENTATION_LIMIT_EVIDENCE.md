@@ -38,11 +38,11 @@ Current evidence state:
 | Evidence | State | Decision use |
 | --- | --- | --- |
 | Immutable M1 sparse host reproduction | complete for the rerun recorded below | starting evidence only |
-| Current-main P2 representation route | current canonical host route, isolated current host render projection, preliminary and final-tail physical command/frame screening, and five-invocation current retained-memory evidence complete | diagnostic baseline; the combined final-tail protocol does not replace clean lane-specific latency or memory evidence |
-| Analytical storage candidates | flat packed and tiled/COW square/rectangular snapshot/apply, dense and sparse/rectangular native patch/inverse, raw duplicate/no-op/reference-clear, and retained analytical-history screening recorded; palette U8 contract tested | T16 selected as the single tiled/COW physical challenger by the fixed screening rule below; compare only current, flat packed, and T16 |
+| Current-main P2 representation route | current canonical host route, isolated current host render projection, preliminary and final-tail physical command/frame screening, clean physical 256-square command lane, and current object-plus-bitmap retained-memory comparison complete | current baseline fails the clean 256-square command target; it remains the diagnostic baseline only |
+| Analytical storage candidates | flat packed and tiled/COW square/rectangular snapshot/apply, dense and sparse/rectangular native patch/inverse, raw duplicate/no-op/reference-clear, retained analytical-history screening, and physical packed-candidate comparison recorded; palette U8 contract tested | T16 was the single tiled/COW physical challenger; it failed the dense physical kernel target, so flat packed is the only surviving storage candidate |
 | Named emulator | ART command harness complete in explicit auxiliary mode | cannot satisfy physical evidence |
-| Named physical minimum Android device | profile fixed; preliminary/final-tail command and frame screening plus current-canonical retained-memory evidence recorded | valid diagnostic evidence; clean lane-specific command and selected-candidate memory evidence remain |
-| Renderer/compositor evidence | current-path frame screening and rejected correlation attempts recorded | deferred until the selected renderer path exists; not an ADR-0005 acceptance blocker |
+| Named physical minimum Android device | profile fixed; clean current command, flat/T16 kernel, and three independent current/flat retained-memory comparisons recorded | flat production command verification remains after the canonical migration |
+| Renderer/compositor evidence | current-path frame screening and rejected correlation attempts recorded; canonical snapshot-to-bitmap and single nearest-neighbor bitmap draw path implemented | representative selected-production frame handoff remains; strict compositor evidence is deferred and is not an ADR-0005 acceptance blocker |
 | Accepted representation or supported caps | none | ADR remains proposed |
 
 Active waivers: none.
@@ -2916,6 +2916,116 @@ they establish no axis, area, shape, or build causality. Neither result selects 
 product maximum, or cap. ADR 0005 remains `proposed`, PR #47 remains Draft, and every previously
 recorded downstream hold remains in force.
 
+### Lane isolation and canonical bitmap presentation
+
+Source `4ede2a8b4a789ec95cf957ad0df65561e20ce215` separated correctness, command
+latency/ART, retained-memory/PSS, and frame work. The command-latency route no longer forces GC or
+finalization and no longer captures a post-GC retained owner between samples. Its existing sample
+memory columns remain empty rather than being relabelled. Correctness digests stay outside the
+timed sample boundary. Frame callbacks retain only constant-size generation, revision, reference,
+and timing values; a full image correctness check runs only after the matching frame result.
+
+The same source replaced the release presentation's per-pixel object projection and rectangle
+loop with one `ARGB_8888` bitmap created once per immutable `PixelSnapshot` and one native
+nearest-neighbor `drawBitmap` call. Workspace-only changes reuse the bitmap. Anti-aliasing,
+dithering, and bitmap filtering are disabled. The former `RenderedPixel` projection remains only
+in host test source so historical projection diagnostics stay reproducible; it is not a release or
+debug production path. Physical `CanvasBitmapProjectionTest` passed on the named device. This
+removes known nonessential draw and frame-verification work before choosing core storage, but it
+does not by itself prove a frame deadline.
+
+### Physical packed-candidate command-kernel result
+
+The fixed physical comparison from source
+`7cbefc11c2b430e36df01355f733a0252f053f2b` ran flat packed RGBA8888 and the preselected
+tiled/COW T16 challenger in one schema
+`nene-pixel-p2-android-packed-candidate-comparison-v1` artifact. It contains 1,000 samples: 100
+samples for each candidate and each of sparse apply, dense apply, dense same-color no-op, undo,
+and redo. Exact pixels, canonical change counts, revisions, inverse round trips, and outcomes
+passed. No negative runtime counter was recorded.
+
+| Candidate / workload | Median latency (ns) | p95 latency (ns) | p99 latency (ns) | p95 ART allocation (bytes) |
+| --- | ---: | ---: | ---: | ---: |
+| flat / sparse apply | 689,635 | 894,577 | 947,731 | 368,640 |
+| flat / dense apply | 4,409,615 | 6,688,538 | 7,250,000 | 1,433,600 |
+| flat / dense same-color no-op | 451,346 | 625,962 | 2,287,461 | 368,640 |
+| flat / undo | 3,010,288 | 4,951,731 | 5,015,539 | 299,008 |
+| flat / redo | 3,004,615 | 4,918,615 | 5,032,385 | 299,008 |
+| T16 / sparse apply | 282,423 | 540,077 | 620,616 | 102,400 |
+| T16 / dense apply | 6,714,135 | 9,126,154 | 9,958,692 | 2,256,896 |
+| T16 / dense same-color no-op | 990,211 | 1,834,461 | 3,126,616 | 401,408 |
+| T16 / undo | 3,951,365 | 6,159,308 | 6,428,192 | 2,846,720 |
+| T16 / redo | 3,934,019 | 6,222,231 | 6,541,616 | 2,846,720 |
+
+Flat packed passes the fixed p95 8.0 ms and p99 16.67 ms kernel targets for every workload. T16
+wins the sparse row but fails the dense-apply p95 target before application-command overhead and
+allocates more at each dense transition tail. T16 is therefore eliminated rather than retained as
+a runtime-selectable sparse optimization. Flat packed is the sole surviving storage candidate;
+its full canonical application-command lane must still pass after migration.
+
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `build/reports/p2/representation-limits/device-packed-candidates-run-01.csv` | 123,492 | `C6F3A255C3B4E0D3D73B82ADD21461A11520FA59D5BC5C72C43DBC979BEED3CC` |
+
+### Clean current-canonical 256-square command result
+
+Source `463fec1b6ac4473e19bec871035d216d2cc5b0f1` added the immutable candidate
+`current-canonical-command-256-clean-latency-v1`. The schema
+`nene-pixel-p2-android-clean-command-latency-v1` artifact contains 1,000 samples, 45 metadata
+rows, 42 physical checkpoints, and one process baseline. Every per-sample heap/PSS field is empty;
+the measured boundary is one prepared `CommandGateway.execute` call with no forced GC,
+finalization, full-document equality scan, digest, or hash between samples. All correctness,
+outcome, ordering, checkpoint, and nonnegative-counter invariants passed.
+
+| Workload | Median latency (ns) | p95 latency (ns) | p99 latency (ns) | p95 ART allocation (bytes) |
+| --- | ---: | ---: | ---: | ---: |
+| sparse apply | 21,813,980 | 24,143,000 | 24,803,577 | 6,979,584 |
+| dense apply | 103,980,596 | 112,808,577 | 117,933,730 | 28,086,272 |
+| dense same-color no-op | 33,083,577 | 34,087,154 | 35,571,000 | 5,390,336 |
+| undo | 37,797,288 | 40,341,885 | 42,260,193 | 27,078,656 |
+| redo | 34,641,404 | 41,163,385 | 41,978,923 | 33,480,704 |
+
+The current object/materialized-inverse representation fails the clean physical command target in
+all five rows. Removing the old per-sample post-GC capture corrected the measurement boundary but
+did not explain away the current implementation's cost.
+
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `build/reports/p2/representation-limits/device-clean-current-command-256-run-01.csv` | 628,484 | `33C070ABED7B1B89FE9FF0FE55941FFB902AFC8C3D000D2CBBD0E195EECC5F79` |
+
+### Independent current-versus-flat retained-memory result
+
+Source `4fba6a3f3d0d07607d5be53944339e29d9a8ec2e` fixed schema
+`nene-pixel-p2-android-candidate-retained-memory-v1` and compared two explicitly retained owners:
+the current object snapshots/materialized inverses plus canonical bitmap, and flat packed
+RGBA8888/shared directional inverses plus the same canonical bitmap. Each independent invocation
+retains a 256 x 256 final document, 64 transitions of 8,192 unique changes each, 524,288 total
+retained changes, and revision 64. Candidate preload precedes the baseline; forced GC/finalization
+occurs only at baseline and retained checkpoints. Exact final pixels, bitmap projection, every
+change count, and every forward/inverse round trip passed. All six invocations had distinct process
+IDs, stable display mode 1 at 1200 x 1920 and 90 Hz, thermal status no higher than 1, power saving
+off, an interactive display, and USB power.
+
+| Candidate | Median heap delta (bytes) | Maximum heap delta | Median retained heap | Maximum retained heap | Median PSS delta (KiB) | Maximum PSS delta |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| current object + materialized inverse + bitmap | 38,039,552 | 38,039,552 | 40,257,328 | 40,257,328 | 38,175 | 38,841 |
+| flat packed + shared inverse + bitmap | 7,352,320 | 7,352,320 | 9,541,424 | 9,541,424 | 7,570 | 7,583 |
+
+Both candidates pass the historical retained-heap and PSS headroom conditions. Flat packed reduces
+the retained Java-heap delta by 80.67% and the median paired PSS delta by 80.17% against the current
+owner under the same workload. Its retained Java heap is 3.55% of the fixed 268,435,456-byte
+runtime maximum, versus 15.00% for current. These are candidate-comparison results, not a claim
+that the device measurement directly defines a runtime-dependent product limit.
+
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `build/reports/p2/representation-limits/device-candidate-memory-current-run-01.csv` | 9,385 | `C036FA01F478A30DDBACDBCC8EE753050E7EBF98B1204BC0508F733CC102801C` |
+| `build/reports/p2/representation-limits/device-candidate-memory-current-run-02.csv` | 9,385 | `0CB617232D462C1F4F9A4D9DB93A6F370F55A2D3412AECE0B63D4CDC934F4189` |
+| `build/reports/p2/representation-limits/device-candidate-memory-current-run-03.csv` | 9,359 | `7B520A0339D3B3CEFB4C5C83183323351C27893D075888768A73A07CF7CC23F7` |
+| `build/reports/p2/representation-limits/device-candidate-memory-flat-packed-run-01.csv` | 9,506 | `B388FC878FACF0181C780AAF3A34F4C11B67E95024B33589E084E53DF42FD6E3` |
+| `build/reports/p2/representation-limits/device-candidate-memory-flat-packed-run-02.csv` | 9,506 | `21F80DC3D6622B144C47B5992A3F2C7F2D9C8174EF5200FCD1D742C586DA003C` |
+| `build/reports/p2/representation-limits/device-candidate-memory-flat-packed-run-03.csv` | 9,506 | `74A384A800A8E8BFA4DF444B6C9746B0DE157542A719D2FAD29183A65EBDFA4F` |
+
 ### Required workload matrix
 
 The current decision matrix is intentionally bounded. Earlier exhaustive square/rectangle,
@@ -3046,19 +3156,19 @@ historical conditions, and the current dense 256-square frame batch failed its h
 conditions. These facts neither select a representation nor require further largest-possible
 exploration.
 
-The T16 screening decision above has resolved the former tiled/COW-shortlist blocker. The current
-blockers under the continuation contract are:
+The T16 screening decision, physical candidate command kernel, clean current command lane, and
+current-versus-flat retained-memory lane have resolved the former candidate-comparison blockers.
+The current blockers under the continuation contract are:
 
 1. resolve the exact semantic color contract, including alpha-zero, blank, eraser, equality/hash,
    palette ownership, and format conversions;
 2. choose proposed conservative MVP axis, area, raw-stroke, patch, history-entry, and retained-
    change caps with named workloads and explicit headroom rather than searching for maxima;
-3. run the mandatory correctness lane and clean physical latency/ART-tail lane for the three
-   candidates without per-sample forced GC/finalization or full-document digest/hash work;
-4. run independent retained-memory/PSS evidence for the current baseline and surviving candidate
-   or candidates, then record the exact cap-boundary typed rejection results; and
-5. select one canonical representation and one typed limit policy consistent with ADRs 0002 and
-   0003 and the existing rule IDs.
+3. accept flat packed as the sole surviving canonical candidate and migrate the one production
+   path without retaining current or T16 runtime alternatives;
+4. record exact cap-boundary typed rejection results and run the migrated flat packed full-command
+   lane; and
+5. accept one typed limit policy consistent with ADRs 0002 and 0003 and the existing rule IDs.
 
 Representative frame evidence is a renderer handoff after the selected production renderer path
 exists. The rejected Perfetto attempts remain diagnostic; strict SurfaceFlinger correlation and a
@@ -3067,7 +3177,7 @@ auxiliary and cannot replace the required physical latency or memory lanes.
 
 Therefore:
 
-- no representation candidate has been selected;
+- flat packed is the sole surviving candidate, but it is not yet an accepted production contract;
 - no canvas, raw-stroke, patch, history-entry, or retained-change number is accepted;
 - the pre-fixed target table is not a production contract;
 - ADR 0005 must remain `proposed`; and
