@@ -30,6 +30,16 @@ public class PixelSnapshot private constructor(
 
     public fun copyPackedRgba8888(): IntArray = packedPixels.copyOf()
 
+    public fun mapPackedRgba8888(
+        revision: Revision,
+        transform: (rowMajorIndex: Int, packedRgba8888: Int) -> Int,
+    ): PixelSnapshot =
+        PixelSnapshot(
+            size,
+            revision,
+            IntArray(packedPixels.size) { index -> transform(index, packedPixels[index]) },
+        )
+
     override fun equals(other: Any?): Boolean =
         this === other ||
             (
