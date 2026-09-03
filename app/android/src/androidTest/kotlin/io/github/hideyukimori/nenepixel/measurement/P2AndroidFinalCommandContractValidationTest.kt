@@ -215,16 +215,33 @@ internal class P2AndroidFinalCommandContractValidationTest {
     @Test
     fun fixedPhysicalProfileMetadataIsExact() {
         assertEquals(
-            "ALLDOCUBE/iPlay80miniPro/T830:16/BP2A.250605.031.A3/94110:user/release-keys",
+            "ALLDOCUBE/iPlay80miniPro/T830:16/BP2A.250605.031.A3/94111:user/release-keys",
             P2AndroidFinalCommandProfile.BUILD_FINGERPRINT,
         )
-        assertEquals("2026-06-05", P2AndroidFinalCommandProfile.SECURITY_PATCH)
+        assertEquals("2026-08-05", P2AndroidFinalCommandProfile.SECURITY_PATCH)
         assertEquals(268_435_456L, P2AndroidFinalCommandProfile.RUNTIME_MAX_MEMORY_BYTES)
         assertEquals(256, P2AndroidFinalCommandProfile.MEMORY_CLASS_MIB)
         assertEquals(1, P2AndroidFinalCommandProfile.DISPLAY_MODE_ID)
         assertEquals(1_200, P2AndroidFinalCommandProfile.DISPLAY_WIDTH_PIXELS)
         assertEquals(1_920, P2AndroidFinalCommandProfile.DISPLAY_HEIGHT_PIXELS)
         assertEquals(90.0f, P2AndroidFinalCommandProfile.REFRESH_RATE_HERTZ)
+    }
+
+    @Test
+    fun fixedArtRuntimeStatMetadataNamesAreExact() {
+        assertEquals(
+            listOf(
+                "art.gc.blocking-gc-count",
+                "art.gc.blocking-gc-count-rate-histogram",
+                "art.gc.blocking-gc-time",
+                "art.gc.bytes-allocated",
+                "art.gc.bytes-freed",
+                "art.gc.gc-count",
+                "art.gc.gc-count-rate-histogram",
+                "art.gc.gc-time",
+            ),
+            P2AndroidFinalCommandProfile.ART_RUNTIME_STAT_NAMES,
+        )
     }
 
     @Test

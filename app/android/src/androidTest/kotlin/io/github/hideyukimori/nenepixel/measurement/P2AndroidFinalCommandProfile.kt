@@ -20,6 +20,10 @@ internal object P2AndroidFinalCommandProfile {
         check(activityManager.memoryClass == MEMORY_CLASS_MIB) {
             "Final command ActivityManager.memoryClass must be $MEMORY_CLASS_MIB MiB."
         }
+        val runtimeStatNames = sortedArtRuntimeStats().map { (name, _) -> name }
+        check(runtimeStatNames == ART_RUNTIME_STAT_NAMES) {
+            "Final command ART runtime stat names must be $ART_RUNTIME_STAT_NAMES."
+        }
     }
 
     fun validateBaselineCheckpoint(checkpoint: P2AndroidPhysicalCheckpoint) {
@@ -40,12 +44,23 @@ internal object P2AndroidFinalCommandProfile {
     }
 
     const val BUILD_FINGERPRINT: String =
-        "ALLDOCUBE/iPlay80miniPro/T830:16/BP2A.250605.031.A3/94110:user/release-keys"
-    const val SECURITY_PATCH: String = "2026-06-05"
+        "ALLDOCUBE/iPlay80miniPro/T830:16/BP2A.250605.031.A3/94111:user/release-keys"
+    const val SECURITY_PATCH: String = "2026-08-05"
     const val RUNTIME_MAX_MEMORY_BYTES: Long = 268_435_456L
     const val MEMORY_CLASS_MIB: Int = 256
     const val DISPLAY_MODE_ID: Int = 1
     const val DISPLAY_WIDTH_PIXELS: Int = 1_200
     const val DISPLAY_HEIGHT_PIXELS: Int = 1_920
     const val REFRESH_RATE_HERTZ: Float = 90.0f
+    val ART_RUNTIME_STAT_NAMES: List<String> =
+        listOf(
+            "art.gc.blocking-gc-count",
+            "art.gc.blocking-gc-count-rate-histogram",
+            "art.gc.blocking-gc-time",
+            "art.gc.bytes-allocated",
+            "art.gc.bytes-freed",
+            "art.gc.gc-count",
+            "art.gc.gc-count-rate-histogram",
+            "art.gc.gc-time",
+        )
 }
