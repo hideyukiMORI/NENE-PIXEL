@@ -15,26 +15,9 @@ internal data class P2AndroidMeasurementEnvironment(
     val auxiliaryEmulatorArgumentPresent: Boolean,
     val warmupIterations: Int,
     val sampleCount: Int,
-    val frameWarmupIterations: Int,
-    val frameSampleCount: Int,
 ) {
-    val outputFile: File
-        get() = File(targetContext.filesDir, OUTPUT_RELATIVE_PATH)
-
-    val frameOutputFile: File
-        get() = File(targetContext.filesDir, FRAME_OUTPUT_RELATIVE_PATH)
-
     fun finalCommandOutputFile(plan: P2AndroidFinalCommandPlan): File =
         File(targetContext.filesDir, plan.outputRelativePath)
-
-    fun memoryRunOutputFile(runIndex: Int): File =
-        File(
-            targetContext.filesDir,
-            "p2-measurements/p2-android-memory-run-${runIndex.toString().padStart(2, '0')}.csv",
-        )
-
-    val memoryAggregateOutputFile: File
-        get() = File(targetContext.filesDir, MEMORY_AGGREGATE_OUTPUT_RELATIVE_PATH)
 
     companion object {
         fun fromRunnerArguments(): P2AndroidMeasurementEnvironment {
@@ -65,18 +48,6 @@ internal data class P2AndroidMeasurementEnvironment(
                         DEFAULT_SAMPLE_COUNT,
                         MAX_SAMPLE_COUNT,
                     ),
-                frameWarmupIterations =
-                    arguments.positiveInt(
-                        FRAME_WARMUP_ARGUMENT,
-                        DEFAULT_FRAME_WARMUP_ITERATIONS,
-                        MAX_WARMUP_ITERATIONS,
-                    ),
-                frameSampleCount =
-                    arguments.positiveInt(
-                        FRAME_SAMPLE_COUNT_ARGUMENT,
-                        DEFAULT_FRAME_SAMPLE_COUNT,
-                        MAX_SAMPLE_COUNT,
-                    ),
             )
         }
 
@@ -84,21 +55,10 @@ internal data class P2AndroidMeasurementEnvironment(
         const val AUXILIARY_EMULATOR_ARGUMENT: String = "nene.p2.allowEmulatorAuxiliary"
         const val WARMUP_ARGUMENT: String = "nene.p2.warmupIterations"
         const val SAMPLE_COUNT_ARGUMENT: String = "nene.p2.sampleCount"
-        const val FRAME_WARMUP_ARGUMENT: String = "nene.p2.frameWarmupIterations"
-        const val FRAME_SAMPLE_COUNT_ARGUMENT: String = "nene.p2.frameSampleCount"
-
-        private const val OUTPUT_RELATIVE_PATH: String =
-            "p2-measurements/p2-android-command-measurement.csv"
-        private const val FRAME_OUTPUT_RELATIVE_PATH: String =
-            "p2-measurements/p2-android-frame-measurement.csv"
-        private const val MEMORY_AGGREGATE_OUTPUT_RELATIVE_PATH: String =
-            "p2-measurements/p2-android-memory-aggregate.csv"
         private const val PHYSICAL_EVIDENCE: String = "physical_device"
         private const val AUXILIARY_EVIDENCE: String = "auxiliary_emulator"
         private const val DEFAULT_WARMUP_ITERATIONS: Int = 5
         private const val DEFAULT_SAMPLE_COUNT: Int = 20
-        private const val DEFAULT_FRAME_WARMUP_ITERATIONS: Int = 5
-        private const val DEFAULT_FRAME_SAMPLE_COUNT: Int = 200
         private const val MAX_WARMUP_ITERATIONS: Int = 100
         private const val MAX_SAMPLE_COUNT: Int = 1_000
     }

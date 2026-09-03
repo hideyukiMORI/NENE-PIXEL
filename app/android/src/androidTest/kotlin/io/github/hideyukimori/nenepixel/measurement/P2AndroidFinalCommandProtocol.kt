@@ -6,19 +6,17 @@ internal object P2AndroidFinalCommandProtocol {
     const val WORKLOAD_COUNT: Int = 5
     const val RUN_INDEX: Int = 1
     const val PHYSICAL_PROFILE_ID: String = "NENE-P2-ALLDOCUBE-IPL80MP-A16-API36"
-    const val SCHEMA: String = "nene-pixel-p2-android-final-command-measurement-v1"
     const val CLEAN_LATENCY_SCHEMA: String = "nene-pixel-p2-android-clean-command-latency-v1"
 
     fun resolve(identity: P2AndroidRunIdentity): P2AndroidFinalCommandPlan {
-        val plan =
-            requireNotNull(PLANS_BY_CANDIDATE_ID[identity.candidateId]) {
-                "Unknown final command candidate ID '${identity.candidateId}'."
-            }
-        check(identity.runIndex == plan.runIndex) {
-            "Final command run index for '${plan.candidateId}' must be ${plan.runIndex}."
+        require(identity.candidateId == FINAL_PLAN.candidateId) {
+            "Unknown final command candidate ID '${identity.candidateId}'."
         }
-        validatePlan(plan)
-        return plan
+        check(identity.runIndex == FINAL_PLAN.runIndex) {
+            "Final command run index for '${FINAL_PLAN.candidateId}' must be ${FINAL_PLAN.runIndex}."
+        }
+        validatePlan(FINAL_PLAN)
+        return FINAL_PLAN
     }
 
     fun resolve(
@@ -52,7 +50,7 @@ internal object P2AndroidFinalCommandProtocol {
 
     private fun validatePlan(plan: P2AndroidFinalCommandPlan) {
         check(plan.runIndex == RUN_INDEX)
-        check(plan.schema == SCHEMA || plan.schema == CLEAN_LATENCY_SCHEMA)
+        check(plan.schema == CLEAN_LATENCY_SCHEMA)
         check(plan.warmupIterations == WARMUP_ITERATIONS)
         check(plan.samplesPerWorkload == SAMPLES_PER_WORKLOAD)
         check(plan.specs.size == WORKLOAD_COUNT)
@@ -67,301 +65,26 @@ internal object P2AndroidFinalCommandProtocol {
         ) { "Final command sample count must end on a physical checkpoint boundary." }
     }
 
-    private val PLANS_BY_CANDIDATE_ID: Map<String, P2AndroidFinalCommandPlan> =
-        listOf(
-            P2AndroidFinalCommandPlan(
-                identity =
-                    P2AndroidFinalCommandPlan.Identity(
-                        candidateId = "flat-packed-command-256-clean-latency-v6",
-                        runIndex = RUN_INDEX,
-                    ),
-                workload =
-                    P2AndroidFinalCommandPlan.Workload(
-                        canvasWidth = 256,
-                        canvasHeight = 256,
-                        warmupIterations = WARMUP_ITERATIONS,
-                        samplesPerWorkload = SAMPLES_PER_WORKLOAD,
-                        schema = CLEAN_LATENCY_SCHEMA,
-                    ),
-                output =
-                    P2AndroidFinalCommandPlan.Output(
-                        outputIdentity = "device-clean-flat-packed-command-256-run-06",
-                        relativePath = "p2-measurements/p2-android-clean-flat-packed-command-256-run-06.csv",
-                        publicationPolicy = P2AndroidFinalCommandPlan.PublicationPolicy.FailIfExists,
-                    ),
-            ),
-            P2AndroidFinalCommandPlan(
-                identity =
-                    P2AndroidFinalCommandPlan.Identity(
-                        candidateId = "flat-packed-command-256-clean-latency-v5",
-                        runIndex = RUN_INDEX,
-                    ),
-                workload =
-                    P2AndroidFinalCommandPlan.Workload(
-                        canvasWidth = 256,
-                        canvasHeight = 256,
-                        warmupIterations = WARMUP_ITERATIONS,
-                        samplesPerWorkload = SAMPLES_PER_WORKLOAD,
-                        schema = CLEAN_LATENCY_SCHEMA,
-                    ),
-                output =
-                    P2AndroidFinalCommandPlan.Output(
-                        outputIdentity = "device-clean-flat-packed-command-256-run-05",
-                        relativePath = "p2-measurements/p2-android-clean-flat-packed-command-256-run-05.csv",
-                        publicationPolicy = P2AndroidFinalCommandPlan.PublicationPolicy.FailIfExists,
-                    ),
-            ),
-            P2AndroidFinalCommandPlan(
-                identity =
-                    P2AndroidFinalCommandPlan.Identity(
-                        candidateId = "flat-packed-command-256-clean-latency-v4",
-                        runIndex = RUN_INDEX,
-                    ),
-                workload =
-                    P2AndroidFinalCommandPlan.Workload(
-                        canvasWidth = 256,
-                        canvasHeight = 256,
-                        warmupIterations = WARMUP_ITERATIONS,
-                        samplesPerWorkload = SAMPLES_PER_WORKLOAD,
-                        schema = CLEAN_LATENCY_SCHEMA,
-                    ),
-                output =
-                    P2AndroidFinalCommandPlan.Output(
-                        outputIdentity = "device-clean-flat-packed-command-256-run-04",
-                        relativePath = "p2-measurements/p2-android-clean-flat-packed-command-256-run-04.csv",
-                        publicationPolicy = P2AndroidFinalCommandPlan.PublicationPolicy.FailIfExists,
-                    ),
-            ),
-            P2AndroidFinalCommandPlan(
-                identity =
-                    P2AndroidFinalCommandPlan.Identity(
-                        candidateId = "flat-packed-command-256-clean-latency-v3",
-                        runIndex = RUN_INDEX,
-                    ),
-                workload =
-                    P2AndroidFinalCommandPlan.Workload(
-                        canvasWidth = 256,
-                        canvasHeight = 256,
-                        warmupIterations = WARMUP_ITERATIONS,
-                        samplesPerWorkload = SAMPLES_PER_WORKLOAD,
-                        schema = CLEAN_LATENCY_SCHEMA,
-                    ),
-                output =
-                    P2AndroidFinalCommandPlan.Output(
-                        outputIdentity = "device-clean-flat-packed-command-256-run-03",
-                        relativePath = "p2-measurements/p2-android-clean-flat-packed-command-256-run-03.csv",
-                        publicationPolicy = P2AndroidFinalCommandPlan.PublicationPolicy.FailIfExists,
-                    ),
-            ),
-            P2AndroidFinalCommandPlan(
-                identity =
-                    P2AndroidFinalCommandPlan.Identity(
-                        candidateId = "flat-packed-command-256-clean-latency-v2",
-                        runIndex = RUN_INDEX,
-                    ),
-                workload =
-                    P2AndroidFinalCommandPlan.Workload(
-                        canvasWidth = 256,
-                        canvasHeight = 256,
-                        warmupIterations = WARMUP_ITERATIONS,
-                        samplesPerWorkload = SAMPLES_PER_WORKLOAD,
-                        schema = CLEAN_LATENCY_SCHEMA,
-                    ),
-                output =
-                    P2AndroidFinalCommandPlan.Output(
-                        outputIdentity = "device-clean-flat-packed-command-256-run-02",
-                        relativePath = "p2-measurements/p2-android-clean-flat-packed-command-256-run-02.csv",
-                        publicationPolicy = P2AndroidFinalCommandPlan.PublicationPolicy.FailIfExists,
-                    ),
-            ),
-            P2AndroidFinalCommandPlan(
-                identity =
-                    P2AndroidFinalCommandPlan.Identity(
-                        candidateId = "flat-packed-command-256-clean-latency-v1",
-                        runIndex = RUN_INDEX,
-                    ),
-                workload =
-                    P2AndroidFinalCommandPlan.Workload(
-                        canvasWidth = 256,
-                        canvasHeight = 256,
-                        warmupIterations = WARMUP_ITERATIONS,
-                        samplesPerWorkload = SAMPLES_PER_WORKLOAD,
-                        schema = CLEAN_LATENCY_SCHEMA,
-                    ),
-                output =
-                    P2AndroidFinalCommandPlan.Output(
-                        outputIdentity = "device-clean-flat-packed-command-256-run-01",
-                        relativePath = "p2-measurements/p2-android-clean-flat-packed-command-256-run-01.csv",
-                        publicationPolicy = P2AndroidFinalCommandPlan.PublicationPolicy.FailIfExists,
-                    ),
-            ),
-            P2AndroidFinalCommandPlan(
-                identity =
-                    P2AndroidFinalCommandPlan.Identity(
-                        candidateId = "current-canonical-command-256-clean-latency-v1",
-                        runIndex = RUN_INDEX,
-                    ),
-                workload =
-                    P2AndroidFinalCommandPlan.Workload(
-                        canvasWidth = 256,
-                        canvasHeight = 256,
-                        warmupIterations = WARMUP_ITERATIONS,
-                        samplesPerWorkload = SAMPLES_PER_WORKLOAD,
-                        schema = CLEAN_LATENCY_SCHEMA,
-                    ),
-                output =
-                    P2AndroidFinalCommandPlan.Output(
-                        outputIdentity = "device-clean-current-command-256-run-01",
-                        relativePath = "p2-measurements/p2-android-clean-current-command-256-run-01.csv",
-                        publicationPolicy = P2AndroidFinalCommandPlan.PublicationPolicy.FailIfExists,
-                    ),
-            ),
-            P2AndroidFinalCommandPlan(
-                identity =
-                    P2AndroidFinalCommandPlan.Identity(
-                        candidateId = "current-canonical-command-256-square",
-                        runIndex = RUN_INDEX,
-                    ),
-                workload =
-                    P2AndroidFinalCommandPlan.Workload(
-                        canvasWidth = 256,
-                        canvasHeight = 256,
-                        warmupIterations = WARMUP_ITERATIONS,
-                        samplesPerWorkload = SAMPLES_PER_WORKLOAD,
-                        schema = SCHEMA,
-                    ),
-                output =
-                    P2AndroidFinalCommandPlan.Output(
-                        outputIdentity = "device-core",
-                        relativePath = "p2-measurements/p2-android-final-command-measurement.csv",
-                        publicationPolicy = P2AndroidFinalCommandPlan.PublicationPolicy.OverwriteExisting,
-                    ),
-            ),
-            P2AndroidFinalCommandPlan(
-                identity =
-                    P2AndroidFinalCommandPlan.Identity(
-                        candidateId = "current-canonical-command-64-square",
-                        runIndex = RUN_INDEX,
-                    ),
-                workload =
-                    P2AndroidFinalCommandPlan.Workload(
-                        canvasWidth = 64,
-                        canvasHeight = 64,
-                        warmupIterations = WARMUP_ITERATIONS,
-                        samplesPerWorkload = SAMPLES_PER_WORKLOAD,
-                        schema = SCHEMA,
-                    ),
-                output =
-                    P2AndroidFinalCommandPlan.Output(
-                        outputIdentity = "device-core-current-64-square",
-                        relativePath = "p2-measurements/p2-android-final-command-64-square.csv",
-                        publicationPolicy = P2AndroidFinalCommandPlan.PublicationPolicy.FailIfExists,
-                    ),
-            ),
-            P2AndroidFinalCommandPlan(
-                identity =
-                    P2AndroidFinalCommandPlan.Identity(
-                        candidateId = "current-canonical-command-128-square",
-                        runIndex = RUN_INDEX,
-                    ),
-                workload =
-                    P2AndroidFinalCommandPlan.Workload(
-                        canvasWidth = 128,
-                        canvasHeight = 128,
-                        warmupIterations = WARMUP_ITERATIONS,
-                        samplesPerWorkload = SAMPLES_PER_WORKLOAD,
-                        schema = SCHEMA,
-                    ),
-                output =
-                    P2AndroidFinalCommandPlan.Output(
-                        outputIdentity = "device-core-current-128-square",
-                        relativePath = "p2-measurements/p2-android-final-command-128-square.csv",
-                        publicationPolicy = P2AndroidFinalCommandPlan.PublicationPolicy.FailIfExists,
-                    ),
-            ),
-            P2AndroidFinalCommandPlan(
-                identity =
-                    P2AndroidFinalCommandPlan.Identity(
-                        candidateId = "current-canonical-command-16x256-rectangle",
-                        runIndex = RUN_INDEX,
-                    ),
-                workload =
-                    P2AndroidFinalCommandPlan.Workload(
-                        canvasWidth = 16,
-                        canvasHeight = 256,
-                        warmupIterations = WARMUP_ITERATIONS,
-                        samplesPerWorkload = SAMPLES_PER_WORKLOAD,
-                        schema = SCHEMA,
-                    ),
-                output =
-                    P2AndroidFinalCommandPlan.Output(
-                        outputIdentity = "device-core-current-16x256-rectangle",
-                        relativePath = "p2-measurements/p2-android-final-command-16x256-rectangle.csv",
-                        publicationPolicy = P2AndroidFinalCommandPlan.PublicationPolicy.FailIfExists,
-                    ),
-            ),
-            P2AndroidFinalCommandPlan(
-                identity =
-                    P2AndroidFinalCommandPlan.Identity(
-                        candidateId = "current-canonical-command-256x16-rectangle",
-                        runIndex = RUN_INDEX,
-                    ),
-                workload =
-                    P2AndroidFinalCommandPlan.Workload(
-                        canvasWidth = 256,
-                        canvasHeight = 16,
-                        warmupIterations = WARMUP_ITERATIONS,
-                        samplesPerWorkload = SAMPLES_PER_WORKLOAD,
-                        schema = SCHEMA,
-                    ),
-                output =
-                    P2AndroidFinalCommandPlan.Output(
-                        outputIdentity = "device-core-current-256x16-rectangle",
-                        relativePath = "p2-measurements/p2-android-final-command-256x16-rectangle.csv",
-                        publicationPolicy = P2AndroidFinalCommandPlan.PublicationPolicy.FailIfExists,
-                    ),
-            ),
-            P2AndroidFinalCommandPlan(
-                identity =
-                    P2AndroidFinalCommandPlan.Identity(
-                        candidateId = "current-canonical-command-64x256-rectangle",
-                        runIndex = RUN_INDEX,
-                    ),
-                workload =
-                    P2AndroidFinalCommandPlan.Workload(
-                        canvasWidth = 64,
-                        canvasHeight = 256,
-                        warmupIterations = WARMUP_ITERATIONS,
-                        samplesPerWorkload = SAMPLES_PER_WORKLOAD,
-                        schema = SCHEMA,
-                    ),
-                output =
-                    P2AndroidFinalCommandPlan.Output(
-                        outputIdentity = "device-core-current-64x256-rectangle",
-                        relativePath = "p2-measurements/p2-android-final-command-64x256-rectangle.csv",
-                        publicationPolicy = P2AndroidFinalCommandPlan.PublicationPolicy.FailIfExists,
-                    ),
-            ),
-            P2AndroidFinalCommandPlan(
-                identity =
-                    P2AndroidFinalCommandPlan.Identity(
-                        candidateId = "current-canonical-command-256x64-rectangle",
-                        runIndex = RUN_INDEX,
-                    ),
-                workload =
-                    P2AndroidFinalCommandPlan.Workload(
-                        canvasWidth = 256,
-                        canvasHeight = 64,
-                        warmupIterations = WARMUP_ITERATIONS,
-                        samplesPerWorkload = SAMPLES_PER_WORKLOAD,
-                        schema = SCHEMA,
-                    ),
-                output =
-                    P2AndroidFinalCommandPlan.Output(
-                        outputIdentity = "device-core-current-256x64-rectangle",
-                        relativePath = "p2-measurements/p2-android-final-command-256x64-rectangle.csv",
-                        publicationPolicy = P2AndroidFinalCommandPlan.PublicationPolicy.FailIfExists,
-                    ),
-            ),
-        ).associateBy(P2AndroidFinalCommandPlan::candidateId)
+    private val FINAL_PLAN: P2AndroidFinalCommandPlan =
+        P2AndroidFinalCommandPlan(
+            identity =
+                P2AndroidFinalCommandPlan.Identity(
+                    candidateId = "flat-packed-command-256-clean-latency-v6",
+                    runIndex = RUN_INDEX,
+                ),
+            workload =
+                P2AndroidFinalCommandPlan.Workload(
+                    canvasWidth = 256,
+                    canvasHeight = 256,
+                    warmupIterations = WARMUP_ITERATIONS,
+                    samplesPerWorkload = SAMPLES_PER_WORKLOAD,
+                    schema = CLEAN_LATENCY_SCHEMA,
+                ),
+            output =
+                P2AndroidFinalCommandPlan.Output(
+                    outputIdentity = "device-clean-flat-packed-command-256-run-06",
+                    relativePath = "p2-measurements/p2-android-clean-flat-packed-command-256-run-06.csv",
+                    publicationPolicy = P2AndroidFinalCommandPlan.PublicationPolicy.FailIfExists,
+                ),
+        )
 }
