@@ -2730,6 +2730,63 @@ product-limit, retained-memory/PSS, candidate-physical, complete-physical-matrix
 render, compositor, P2-02, and representation-dependent P2-04 holds remain in force regardless of
 either outcome.
 
+### Pre-fixed refreshed-device-build continuation for the 256 x 64 tail
+
+A read-only preflight on 2026-09-03, before APK installation or the first 256 x 64
+instrumentation attempt, found that the named physical tablet had advanced from build `94110`,
+security patch 2026-06-05, to build fingerprint
+`ALLDOCUBE/iPlay80miniPro/T830:16/BP2A.250605.031.A3/94111:user/release-keys` and security patch
+2026-08-05. The final three 256 x 64 host targets remained absent. The application package was
+still registered with PackageManager, but `run-as` reported that its private data directory did
+not exist, so the fixed private on-device output was absent. No measurement row, batch UUID, or
+256 x 64 result existed when this continuation was fixed.
+
+The hardware profile ID remains `NENE-P2-ALLDOCUBE-IPL80MP-A16-API36`. The preflight still
+reported physical 1200 x 1920, mode 1 at 90 Hz, device-wide thermal status 1, power saving off,
+USB power, 100% battery, original `stay_on_while_plugged_in=0`, and an asleep display. The
+instrumentation must continue to validate those conditions at every existing checkpoint and must
+also report `Runtime.maxMemory()` 268,435,456 bytes and `ActivityManager.memoryClass` 256 MiB.
+
+The unexecuted `current-canonical-command-256x64-rectangle` run is therefore continued only on
+build `94111` and security patch 2026-08-05. Before measurement, the final-command AndroidTest
+profile and its exact-value contract test advance to those two values. That implementation may
+change AndroidTest source only; it changes no production source, public API, dependency, Gradle
+wiring, module, report schema, candidate ID, geometry, workload, threshold, publication path, or
+cleanup rule. Both APKs must then come from one no-cache build of the new full source commit, and
+their byte lengths and SHA-256 values must be fixed in the new batch tool artifact before
+installation. The production `src/main` diff from parity baseline
+`b8674a44c022630ab2925dcdda0780a598a7b4e8` to that source must remain empty.
+
+The profile preflight must also reject the run before sampling unless `Debug.getRuntimeStats()`
+exposes exactly the same eight sorted string keys used by the 45-row metadata contract:
+`art.gc.blocking-gc-count`, `art.gc.blocking-gc-count-rate-histogram`,
+`art.gc.blocking-gc-time`, `art.gc.bytes-allocated`, `art.gc.bytes-freed`,
+`art.gc.gc-count`, `art.gc.gc-count-rate-histogram`, and `art.gc.gc-time`. This check adds no
+column or metric and does not reinterpret the five tracked per-sample counters. It prevents an OS
+update from producing a different metadata count only after the full run has completed.
+
+For this continuation, the earlier statement that every iteration makes exactly one
+`CommandGateway.execute` call means exactly one measured call after untimed
+`PreparedCommandWorkload` creation. Undo preparation performs one untimed apply, and redo
+preparation performs one untimed apply plus one untimed undo before the single measured call. This
+clarifies the already-recorded `measurement_boundary`; it changes neither the timed interval nor
+the accepted 64 x 256 result.
+
+All other terms of the pre-fixed 256 x 64 contract above remain unchanged, including its unique
+run-1 batch, `FailIfExists`, 53 columns, 45 metadata plus one baseline plus 42 checkpoints plus
+1,000 samples, exact 256 x 64 geometry, 64-position diagonal, shape-specific invalidation,
+nearest-rank gates, independent audit, three-file no-overwrite publication, and exact cleanup.
+The already accepted 64 x 256 batch remains immutable evidence from build `94110`; it is not
+rerun, relabeled, or revalidated against the new AndroidTest profile.
+
+Because the two 16K orientations now come from different device software builds, their raw rows
+must not be aggregated or treated as a same-build paired comparison. Each remains an independent
+current-canonical observation on the named hardware profile. Any numerical difference may reflect
+build, run, orientation, or their interaction, so it cannot establish axis, area, shape, or build
+causality. Completing the 256 x 64 observation still closes only the two explicitly requested
+shape points; it selects no representation, product maximum, or cap and does not release any
+existing ADR, PR, P2-02, P2-04, memory, render, compositor, or post-cap hold.
+
 ### Required workload matrix
 
 - square and rectangular canvases, with axis and total-pixel candidates varied separately;
