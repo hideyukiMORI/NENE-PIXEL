@@ -13,7 +13,7 @@ public value class CanvasHeight private constructor(
     public companion object {
         public fun create(value: Int): DomainValueResult<CanvasHeight> =
             when {
-                value <= 0 -> {
+                value < PixelLimits.MIN_CANVAS_AXIS -> {
                     rejected(DomainValueRejection.NonPositiveCanvasHeight(value))
                 }
 

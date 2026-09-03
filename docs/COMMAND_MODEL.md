@@ -65,6 +65,24 @@ Touch / Stylus / Mouse / Keyboard
 
 Persistence observes committed results through an application port. It does not create another mutation path.
 
+## New-document runtime boundary
+
+Creating a new document installs a newly constructed editor runtime; it is not an edit of the
+previous `DocumentState`. One application `EditorRuntime` atomically owns the active
+`CommandGateway`, `WorkspaceState`, and dirty state. Its canonical new-document path creates a blank
+initial-revision document with empty history, clean dirty state, and the canonical initial viewport,
+then replaces all owned runtime parts together.
+
+Raw dimension text is accepted only by `NewDocumentRequest.create`. Rejection occurs before
+identity generation, snapshot allocation, or runtime replacement. Cancellation does not invoke the
+factory. Document identity is supplied as a validated `DocumentId` through the application-owned
+`DocumentIdSource` port.
+
+`CMD-001` governs all mutations inside the active document runtime. Installing an entirely new
+runtime does not mutate the abandoned document and MUST NOT create cross-document history. A future
+saved-document replacement or import operation is a separate command/change-set decision and is not
+an alternate P2 new-document path.
+
 ## Mandatory rules
 
 ### CMD-001 — Document mutation uses commands

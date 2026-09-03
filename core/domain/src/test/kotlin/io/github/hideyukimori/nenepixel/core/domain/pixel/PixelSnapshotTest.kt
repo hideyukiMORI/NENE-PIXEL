@@ -98,6 +98,17 @@ internal class PixelSnapshotTest {
         assertEquals(TRANSPARENT_RED.toPackedRgba8888(), created(snapshot.packedRgba8888At(pixelPosition(1, 0))))
     }
 
+    @Test
+    fun `filled snapshot owns one canonical value across the validated canvas`() {
+        val snapshot = PixelSnapshot.createFilled(canvasSize(3, 2), Revision.initial(), TRANSPARENT_RED)
+
+        assertEquals(Revision.initial(), snapshot.revision)
+        assertEquals(
+            List(6) { TRANSPARENT_RED.toPackedRgba8888() },
+            snapshot.copyPackedRgba8888().toList(),
+        )
+    }
+
     private companion object {
         val BLACK = color(0, 0, 0, 255)
         val RED = color(255, 0, 0, 255)

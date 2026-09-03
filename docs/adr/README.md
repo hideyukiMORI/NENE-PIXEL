@@ -44,3 +44,4 @@ An ADR must include:
 | [0003](0003-recorded-revision-undo-semantics.md) | accepted | Canonical undo/redo restores the revisions recorded by the committed ChangeSet |
 | [0004](0004-bounded-workspace-viewport.md) | accepted | Bounded workspace viewport, canonical render/input mapping, and multi-touch arbitration |
 | [0005](0005-pixel-color-representation-and-limits.md) | accepted | Straight sRGB RGBA8 semantics, flat packed storage/shared inverse, and conservative canvas, stroke, patch, and history limits |
+| [0006](0006-validated-new-document-runtime.md) | accepted | Typed new-document input, canonical application runtime ownership, and Android lifecycle retention |

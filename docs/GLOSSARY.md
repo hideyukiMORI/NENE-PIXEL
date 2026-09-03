@@ -10,6 +10,10 @@ One concept has one canonical name. New synonyms in code are prohibited. Add or 
 | `DocumentId` | Validated 32-character lowercase hexadecimal identity of one Document | document key, UUID string |
 | `DocumentState` | Immutable saved and undoable truth of a Document | editor state, model data |
 | `WorkspaceState` | Immutable ephemeral editor/session state not saved in the Document | temporary document, UI model |
+| `EditorRuntime` | Application owner of the current CommandGateway, WorkspaceState, and dirty state | view model, controller, session |
+| `NewDocumentRequest` | Validated canvas request created once from raw width and height text before allocation | width/height integers, form state |
+| `DocumentIdSource` | Core-owned port that supplies a validated identity without core random or process reads | UUID call in core, ID string |
+| `DocumentDirtyState` | Closed application state indicating whether the current document has committed changes since its clean boundary | changed flag, UI Boolean |
 | `ViewportZoom` | Validated finite fit-relative viewport factor in the closed range 1.0 through 64.0 | raw scale Double, saved zoom |
 | `ViewportCenter` | Validated finite preferred center in continuous document-edge coordinates | screen pan, surface offset |
 | `ViewportState` | Workspace-owned fit-relative zoom and document-coordinate center | camera state, transform matrix |

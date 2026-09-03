@@ -40,13 +40,22 @@ internal fun EditorScreen(
             ) {
                 Text(text = "NENE-PIXEL", style = MaterialTheme.typography.headlineSmall)
                 ActiveColorIndicator(renderState)
+                NewDocumentControls(renderState, callbacks, onRenderStateChanged)
                 HistoryControls(renderState, callbacks, onRenderStateChanged)
-                PixelCanvas(
-                    renderState = renderState,
-                    callbacks = callbacks,
-                    onRenderStateChanged = onRenderStateChanged,
-                    modifier = Modifier.fillMaxWidth().aspectRatio(FIXED_CANVAS_ASPECT_RATIO),
-                )
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                ) {
+                    PixelCanvas(
+                        renderState = renderState,
+                        callbacks = callbacks,
+                        onRenderStateChanged = onRenderStateChanged,
+                        modifier =
+                            Modifier
+                                .aspectRatio(renderState.snapshot.size.aspectRatio())
+                                .fillMaxWidth(),
+                    )
+                }
             }
         }
     }
@@ -74,4 +83,6 @@ private val SCREEN_PADDING = 24.dp
 private val ACTIVE_COLOR_PADDING = 16.dp
 private val ACTIVE_COLOR_SPACING = 8.dp
 private val ACTIVE_COLOR_SWATCH_SIZE = 28.dp
-private const val FIXED_CANVAS_ASPECT_RATIO: Float = 1.0f
+
+private fun io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize.aspectRatio(): Float =
+    width.value.toFloat() / height.value.toFloat()

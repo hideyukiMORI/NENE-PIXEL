@@ -1,30 +1,26 @@
 package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
 import io.github.hideyukimori.nenepixel.core.application.document.command.ApplyStrokeCommand
-import io.github.hideyukimori.nenepixel.core.application.document.command.CommandGateway
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandResult
+import io.github.hideyukimori.nenepixel.core.application.document.command.RedoCommand
+import io.github.hideyukimori.nenepixel.core.application.document.command.UndoCommand
 import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryAvailability
+import io.github.hideyukimori.nenepixel.core.application.editor.EditorRuntime
+import io.github.hideyukimori.nenepixel.core.application.editor.NewDocumentRequest
+import io.github.hideyukimori.nenepixel.core.application.editor.NewDocumentResult
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceAction
-import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReducer
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReductionResult
-import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceState
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 
-internal class EditorWorkspaceSession(
-    private val commandGateway: CommandGateway,
-    private val workspaceReducer: WorkspaceReducer,
-    initialWorkspaceState: WorkspaceState,
+internal class EditorRuntimeAdapter(
+    private val runtime: EditorRuntime,
 ) {
-    var workspaceState: WorkspaceState = initialWorkspaceState
-        private set
-
     val renderState: EditorRenderState
         get() = createRenderState()
 
     fun reduce(action: WorkspaceAction): PointerInputAcknowledgement {
-        val hadPreview = workspaceState.preview != null
-        val reduction = workspaceReducer.reduce(workspaceState, action)
-        workspaceState = reduction.nextState
+        val hadPreview = runtime.state.workspaceState.preview != null
+        val reduction = runtime.reduce(action)
         val nextRenderState = createRenderState()
         return when (reduction) {
             is WorkspaceReductionResult.Reduced -> {
@@ -50,8 +46,7 @@ internal class EditorWorkspaceSession(
     }
 
     fun finishGesture(position: PixelPosition): PointerInputAcknowledgement {
-        val extension = workspaceReducer.reduce(workspaceState, WorkspaceAction.ExtendGesturePreview(position))
-        workspaceState = extension.nextState
+        val extension = runtime.reduce(WorkspaceAction.ExtendGesturePreview(position))
         return when (extension) {
             is WorkspaceReductionResult.Reduced,
             is WorkspaceReductionResult.Unchanged,
@@ -63,13 +58,38 @@ internal class EditorWorkspaceSession(
         }
     }
 
+    fun undo(): EditorRenderState {
+        val target = runtime.state.documentState
+        runtime.execute(UndoCommand.create(target.id, target.revision))
+        return createRenderState()
+    }
+
+    fun redo(): EditorRenderState {
+        val target = runtime.state.documentState
+        runtime.execute(RedoCommand.create(target.id, target.revision))
+        return createRenderState()
+    }
+
+    fun createNewDocument(
+        rawWidth: String,
+        rawHeight: String,
+    ): NewDocumentSubmission =
+        when (val result = runtime.createNewDocument(NewDocumentRequest.create(rawWidth, rawHeight))) {
+            is NewDocumentResult.Created -> {
+                NewDocumentSubmission.Created(createRenderState())
+            }
+
+            is NewDocumentResult.Rejected -> {
+                NewDocumentSubmission.Rejected(createRenderState(), result.rejection.toUserMessage())
+            }
+        }
+
     fun ignored(): PointerInputAcknowledgement = PointerInputAcknowledgement.Ignored(createRenderState())
 
     fun rejected(): PointerInputAcknowledgement = PointerInputAcknowledgement.Rejected(createRenderState())
 
     private fun prepareAndExecute(): PointerInputAcknowledgement {
-        val preparation = workspaceReducer.reduce(workspaceState, WorkspaceAction.PrepareGestureCommit)
-        workspaceState = preparation.nextState
+        val preparation = runtime.reduce(WorkspaceAction.PrepareGestureCommit)
         return when (preparation) {
             is WorkspaceReductionResult.CommitPrepared -> {
                 val commandResult = execute(preparation)
@@ -86,20 +106,20 @@ internal class EditorWorkspaceSession(
     }
 
     private fun execute(preparation: WorkspaceReductionResult.CommitPrepared): CommandResult {
-        val target = commandGateway.runtimeState.documentState
+        val target = runtime.state.documentState
         val command = ApplyStrokeCommand.create(target.id, target.revision, preparation.stroke)
-        return commandGateway.execute(command)
+        return runtime.execute(command)
     }
 
     private fun createRenderState(): EditorRenderState {
-        val runtimeState = commandGateway.runtimeState
+        val state = runtime.state
         return EditorRenderState(
-            snapshot = runtimeState.documentState.snapshot,
-            activeColor = workspaceState.activeColor,
-            preview = workspaceState.preview,
-            viewport = workspaceState.viewport,
-            canUndo = runtimeState.historyAvailability == HistoryAvailability.UndoAvailable,
-            canRedo = runtimeState.historyAvailability == HistoryAvailability.RedoAvailable,
+            snapshot = state.documentState.snapshot,
+            activeColor = state.workspaceState.activeColor,
+            preview = state.workspaceState.preview,
+            viewport = state.workspaceState.viewport,
+            canUndo = state.historyAvailability == HistoryAvailability.UndoAvailable,
+            canRedo = state.historyAvailability == HistoryAvailability.RedoAvailable,
         )
     }
 

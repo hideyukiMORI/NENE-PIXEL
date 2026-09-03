@@ -1,8 +1,7 @@
 package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
-import io.github.hideyukimori.nenepixel.core.application.document.command.CommandGateway
+import io.github.hideyukimori.nenepixel.core.application.editor.EditorRuntime
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceAction
-import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReducer
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceState
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportGesture
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportMappingResult
@@ -13,13 +12,12 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.View
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 
-public class FixedSliceEditorController private constructor(
-    private val commandGateway: CommandGateway,
-    private val historyCommandAdapter: HistoryCommandAdapter,
-    private val session: EditorWorkspaceSession,
+public class EditorController private constructor(
+    private val runtime: EditorRuntime,
+    private val adapter: EditorRuntimeAdapter,
 ) {
     public val renderState: EditorRenderState
-        get() = session.renderState
+        get() = adapter.renderState
 
     public val callbacks: EditorCallbacks =
         EditorCallbacks(
@@ -29,29 +27,24 @@ public class FixedSliceEditorController private constructor(
             pointerCancel = ::pointerCancel,
             viewportStarted = ::viewportStarted,
             viewportTransformed = ::viewportTransformed,
-            undo = {
-                historyCommandAdapter.undo()
-                session.renderState
-            },
-            redo = {
-                historyCommandAdapter.redo()
-                session.renderState
-            },
+            undo = adapter::undo,
+            redo = adapter::redo,
+            createNewDocument = adapter::createNewDocument,
         )
 
     internal val documentState: DocumentState
-        get() = commandGateway.runtimeState.documentState
+        get() = runtime.state.documentState
 
     internal val workspaceState: WorkspaceState
-        get() = session.workspaceState
+        get() = runtime.state.workspaceState
 
     internal fun pointerDown(
         surface: ViewportSurface,
         point: ViewportSurfacePoint,
     ): PointerInputAcknowledgement =
         withMappedPoint(surface, point, outsideIsCancellation = false) { position ->
-            session.reduce(
-                WorkspaceAction.BeginGesturePreview(commandGateway.runtimeState.documentState.size, position),
+            adapter.reduce(
+                WorkspaceAction.BeginGesturePreview(runtime.state.documentState.size, position),
             )
         }
 
@@ -60,26 +53,26 @@ public class FixedSliceEditorController private constructor(
         point: ViewportSurfacePoint,
     ): PointerInputAcknowledgement =
         withMappedPoint(surface, point, outsideIsCancellation = true) { position ->
-            session.reduce(WorkspaceAction.ExtendGesturePreview(position))
+            adapter.reduce(WorkspaceAction.ExtendGesturePreview(position))
         }
 
     internal fun pointerEnd(
         surface: ViewportSurface,
         point: ViewportSurfacePoint,
     ): PointerInputAcknowledgement =
-        withMappedPoint(surface, point, outsideIsCancellation = true, action = session::finishGesture)
+        withMappedPoint(surface, point, outsideIsCancellation = true, action = adapter::finishGesture)
 
     internal fun pointerCancel(): PointerInputAcknowledgement =
-        if (session.workspaceState.preview == null) {
-            session.ignored()
+        if (runtime.state.workspaceState.preview == null) {
+            adapter.ignored()
         } else {
-            session.reduce(WorkspaceAction.CancelGesturePreview)
+            adapter.reduce(WorkspaceAction.CancelGesturePreview)
         }
 
     internal fun viewportStarted(surface: ViewportSurface): PointerInputAcknowledgement =
         when (val transform = createTransform(surface)) {
-            is ViewportValueResult.Created -> session.reduce(WorkspaceAction.SetViewport(transform.value.viewport))
-            is ViewportValueResult.Rejected -> session.rejected()
+            is ViewportValueResult.Created -> adapter.reduce(WorkspaceAction.SetViewport(transform.value.viewport))
+            is ViewportValueResult.Rejected -> adapter.rejected()
         }
 
     internal fun viewportTransformed(
@@ -87,16 +80,17 @@ public class FixedSliceEditorController private constructor(
         gesture: ViewportGesture,
     ): PointerInputAcknowledgement =
         when (val transform = createTransform(surface)) {
-            is ViewportValueResult.Created -> {
-                when (val nextViewport = transform.value.apply(gesture)) {
-                    is ViewportValueResult.Created -> session.reduce(WorkspaceAction.SetViewport(nextViewport.value))
-                    is ViewportValueResult.Rejected -> session.rejected()
-                }
-            }
+            is ViewportValueResult.Created -> applyViewportGesture(transform.value, gesture)
+            is ViewportValueResult.Rejected -> adapter.rejected()
+        }
 
-            is ViewportValueResult.Rejected -> {
-                session.rejected()
-            }
+    private fun applyViewportGesture(
+        transform: ViewportTransform,
+        gesture: ViewportGesture,
+    ): PointerInputAcknowledgement =
+        when (val nextViewport = transform.apply(gesture)) {
+            is ViewportValueResult.Created -> adapter.reduce(WorkspaceAction.SetViewport(nextViewport.value))
+            is ViewportValueResult.Rejected -> adapter.rejected()
         }
 
     private fun withMappedPoint(
@@ -111,7 +105,7 @@ public class FixedSliceEditorController private constructor(
             }
 
             is ViewportValueResult.Rejected -> {
-                session.rejected()
+                adapter.rejected()
             }
         }
 
@@ -121,8 +115,8 @@ public class FixedSliceEditorController private constructor(
         outsideIsCancellation: Boolean,
         action: (PixelPosition) -> PointerInputAcknowledgement,
     ): PointerInputAcknowledgement {
-        if (transform.viewport != session.workspaceState.viewport) {
-            val normalization = session.reduce(WorkspaceAction.SetViewport(transform.viewport))
+        if (transform.viewport != runtime.state.workspaceState.viewport) {
+            val normalization = adapter.reduce(WorkspaceAction.SetViewport(transform.viewport))
             if (
                 normalization is PointerInputAcknowledgement.Cancelled ||
                 normalization is PointerInputAcknowledgement.Rejected
@@ -135,27 +129,21 @@ public class FixedSliceEditorController private constructor(
 
             ViewportMappingResult.OutsideCanvas,
             ViewportMappingResult.OutsideSurface,
-            -> if (outsideIsCancellation) pointerCancel() else session.ignored()
+            -> if (outsideIsCancellation) pointerCancel() else adapter.ignored()
         }
     }
 
-    private fun createTransform(surface: ViewportSurface): ViewportValueResult<ViewportTransform> =
-        ViewportTransform.create(
-            canvas = commandGateway.runtimeState.documentState.size,
+    private fun createTransform(surface: ViewportSurface): ViewportValueResult<ViewportTransform> {
+        val state = runtime.state
+        return ViewportTransform.create(
+            canvas = state.documentState.size,
             surface = surface,
-            viewport = session.workspaceState.viewport,
+            viewport = state.workspaceState.viewport,
         )
+    }
 
     public companion object {
-        public fun create(
-            commandGateway: CommandGateway,
-            workspaceReducer: WorkspaceReducer,
-            initialWorkspaceState: WorkspaceState,
-        ): FixedSliceEditorController =
-            FixedSliceEditorController(
-                commandGateway,
-                HistoryCommandAdapter(commandGateway),
-                EditorWorkspaceSession(commandGateway, workspaceReducer, initialWorkspaceState),
-            )
+        public fun create(runtime: EditorRuntime): EditorController =
+            EditorController(runtime, EditorRuntimeAdapter(runtime))
     }
 }
