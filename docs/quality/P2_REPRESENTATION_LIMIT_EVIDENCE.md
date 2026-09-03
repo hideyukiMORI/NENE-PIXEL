@@ -2787,6 +2787,83 @@ causality. Completing the 256 x 64 observation still closes only the two explici
 shape points; it selects no representation, product maximum, or cap and does not release any
 existing ADR, PR, P2-02, P2-04, memory, render, compositor, or post-cap hold.
 
+### Cross-build current-canonical 16K rectangular final-command tails result
+
+Both pre-fixed 16K orientations completed as independent current-canonical observations on the
+named hardware profile. The accepted 64 x 256 batch
+`06f3c930-59bf-456f-90ec-874b5c8f4bd3` used source
+`d45801142a5056075533a78cd3b66b7f6d36ad19`, build `94110`, and security patch 2026-06-05.
+The accepted 256 x 64 batch `6a857f68-b614-46ec-899c-500de0f9f299` used source
+`0b57206204ab1ccb1731bab7ac1b2aeac8c1d941`, build `94111`, and security patch 2026-08-05.
+The production `src/main` diff from parity baseline
+`b8674a44c022630ab2925dcdda0780a598a7b4e8` to each source was empty across all five fixed
+paths. The later source passed CI run `33745640144`; its one no-cache APK build completed in 40
+seconds with all 95 tasks executed, and the refreshed connected contract reported `OK (23 tests)`.
+
+The 64 x 256 batch used an app APK of 11,664,182 bytes with SHA-256
+`71B732DE85D2984360CD6676184D66250D87EDA34444DB04EDA82E278BB5C796` and a test APK of
+1,323,073 bytes with SHA-256
+`3B4FA96AE993DC7D910ADDA1AEB209A954330DF2B2A0DE25FFAE892F1B1867A5`. The 256 x 64
+batch used the same app APK bytes and hash and a refreshed test APK of 1,323,649 bytes with SHA-256
+`AFD715EA58AA62C508942047A97ED1DADAF2582FF8A53CA764EADFC29CE20F65`. Both exact
+measurement invocations reported `OK (1 test)`; their instrumentation times were respectively
+88.741 and 88.187 seconds.
+
+Both CSVs have exactly 53 columns and 1,088 data rows: 45 metadata, one process baseline, 42
+ordered physical checkpoints, and 1,000 samples. Independent deterministic recomputation found
+zero mismatches and high/medium/low finding counts of zero for both batches. Metadata encoded the
+fixed run identity, and every baseline, checkpoint, and sample row retained the corresponding
+identity fields. The sample rows retained the fixed workload order, 200 local samples per
+workload, global indices 1 through 1,000, shape-specific 64-position diagonal and 16,384-position
+dense geometry, correctness hashes, outcomes, revisions, history, public `ChangeSet`, invalidation,
+and no-op identity. All checkpoints retained mode 1, 1200 x 1920 at 90 Hz, thermal status 1, power
+saving disabled, an interactive display, USB power, and 100% battery.
+
+Nearest-rank recomputation produced the following command-only latency result. Each p95 uses rank
+190 and each p99 rank 198 from 200 rows without interpolation or exclusion:
+
+| Shape / workload | p95 latency (ns) | p99 latency (ns) | Fixed core-latency condition |
+| --- | ---: | ---: | --- |
+| 64 x 256 / sparse apply | 5,452,653 | 5,595,961 | PASS |
+| 64 x 256 / dense apply | 24,382,193 | 24,541,538 | FAIL |
+| 64 x 256 / same-color no-op | 7,150,577 | 7,195,577 | PASS |
+| 64 x 256 / undo | 9,022,615 | 9,553,384 | FAIL |
+| 64 x 256 / redo | 12,600,308 | 13,630,115 | FAIL |
+| 256 x 64 / sparse apply | 5,631,577 | 5,760,731 | PASS |
+| 256 x 64 / dense apply | 22,625,577 | 22,878,116 | FAIL |
+| 256 x 64 / same-color no-op | 5,298,423 | 5,460,885 | PASS |
+| 256 x 64 / undo | 9,135,923 | 9,847,192 | FAIL |
+| 256 x 64 / redo | 13,043,000 | 13,953,731 | FAIL |
+
+Core latency therefore fails for `dense_apply_stroke`, `dense_undo`, and `dense_redo` in each
+batch. Blocking GC passes separately for both shapes with zero blocking-GC-count delta in all
+1,000 operations; the 256 x 64 batch also had zero blocking-GC-time delta in all 1,000 operations.
+The gate-external all-GC and allocation diagnostics were respectively 922/1,000 and 125/1,000 zero
+samples for 64 x 256, and 904/1,000 and 105/1,000 zero samples for 256 x 64.
+
+The immutable published artifacts are:
+
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `build/reports/p2/representation-limits/device-core-current-64x256-rectangle.csv` | 662,233 | `9055A6D61F620C027C72080A22569341887C842925C3F3A0E05231E9E79A8DF2` |
+| `build/reports/p2/representation-limits/device-core-current-64x256-rectangle-tool.txt` | 7,802 | `0BAE387F82FA248C5F2D864BFCFE2B6658BCEFA4D3A2A8F33C8B03871ED461CA` |
+| `build/reports/p2/representation-limits/device-core-current-64x256-rectangle-logcat.txt` | 155,408 | `6424CF5AF9559B677BDA3897F5A506E15EB10D81900E2800FEAA7615C5FD525D` |
+| `build/reports/p2/representation-limits/device-core-current-256x64-rectangle.csv` | 662,796 | `27727819298D9454429595C55D8E0FF652618966AEC6BA1421AFC042E67AB585` |
+| `build/reports/p2/representation-limits/device-core-current-256x64-rectangle-tool.txt` | 8,545 | `AECE81CF0840D4F55B69248B90268390A7235F369FA85058FEC74155CA63FCE0` |
+| `build/reports/p2/representation-limits/device-core-current-256x64-rectangle-logcat.txt` | 159,047 | `AA50F07A2785956EE46652A712E1FC4DA593512A81BF84A59C6EE24B4CCE5364` |
+
+Both scoped logs covered their complete instrumentation interval and had zero fatal exceptions,
+fatal signals, ANRs, untyped instrumentation failures, or thermal matches. Host/device CSV hashes
+matched before exact on-device cleanup, and the original stay-awake and wakefulness states were
+restored. The 256 x 64 publication used three no-overwrite moves after a separate publication
+audit reported zero mismatches and high/medium/low findings of zero.
+
+These results close only the two requested 16K shape observations. Because their device software
+builds differ, the values above are not a paired orientation comparison and must not be aggregated;
+they establish no axis, area, shape, or build causality. Neither result selects a representation,
+product maximum, or cap. ADR 0005 remains `proposed`, PR #47 remains Draft, and every previously
+recorded downstream hold remains in force.
+
 ### Required workload matrix
 
 - square and rectangular canvases, with axis and total-pixel candidates varied separately;
@@ -2907,6 +2984,11 @@ maximum. The separately fixed 16 x 256 and 256 x 16 tails also pass correctness,
 blocking GC. Together with 64 x 64, all three explicitly measured same-area 4,096-pixel shapes
 pass, which is limited evidence for those exact runs rather than a causal axis, area, or shape
 threshold.
+The separately fixed 64 x 256 observation on build `94110` and 256 x 64 observation on build
+`94111` both pass correctness and blocking GC but fail core latency for dense apply, undo, and
+redo. They complete only the two requested 16,384-pixel current-path shape observations. Because
+the builds differ, they are not a paired orientation comparison and establish no axis, area,
+shape, build, or supported-limit conclusion.
 
 Physical screening still does not include the complete physical workload matrix, candidate-
 specific retained memory/projection or peak headroom, post-cap churn, or compositor correlation.
