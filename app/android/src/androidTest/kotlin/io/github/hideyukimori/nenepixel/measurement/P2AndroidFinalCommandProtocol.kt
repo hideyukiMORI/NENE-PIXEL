@@ -7,6 +7,7 @@ internal object P2AndroidFinalCommandProtocol {
     const val RUN_INDEX: Int = 1
     const val PHYSICAL_PROFILE_ID: String = "NENE-P2-ALLDOCUBE-IPL80MP-A16-API36"
     const val SCHEMA: String = "nene-pixel-p2-android-final-command-measurement-v1"
+    const val CLEAN_LATENCY_SCHEMA: String = "nene-pixel-p2-android-clean-command-latency-v1"
 
     fun resolve(identity: P2AndroidRunIdentity): P2AndroidFinalCommandPlan {
         val plan =
@@ -51,7 +52,7 @@ internal object P2AndroidFinalCommandProtocol {
 
     private fun validatePlan(plan: P2AndroidFinalCommandPlan) {
         check(plan.runIndex == RUN_INDEX)
-        check(plan.schema == SCHEMA)
+        check(plan.schema == SCHEMA || plan.schema == CLEAN_LATENCY_SCHEMA)
         check(plan.warmupIterations == WARMUP_ITERATIONS)
         check(plan.samplesPerWorkload == SAMPLES_PER_WORKLOAD)
         check(plan.specs.size == WORKLOAD_COUNT)
@@ -68,6 +69,27 @@ internal object P2AndroidFinalCommandProtocol {
 
     private val PLANS_BY_CANDIDATE_ID: Map<String, P2AndroidFinalCommandPlan> =
         listOf(
+            P2AndroidFinalCommandPlan(
+                identity =
+                    P2AndroidFinalCommandPlan.Identity(
+                        candidateId = "current-canonical-command-256-clean-latency-v1",
+                        runIndex = RUN_INDEX,
+                    ),
+                workload =
+                    P2AndroidFinalCommandPlan.Workload(
+                        canvasWidth = 256,
+                        canvasHeight = 256,
+                        warmupIterations = WARMUP_ITERATIONS,
+                        samplesPerWorkload = SAMPLES_PER_WORKLOAD,
+                        schema = CLEAN_LATENCY_SCHEMA,
+                    ),
+                output =
+                    P2AndroidFinalCommandPlan.Output(
+                        outputIdentity = "device-clean-current-command-256-run-01",
+                        relativePath = "p2-measurements/p2-android-clean-current-command-256-run-01.csv",
+                        publicationPolicy = P2AndroidFinalCommandPlan.PublicationPolicy.FailIfExists,
+                    ),
+            ),
             P2AndroidFinalCommandPlan(
                 identity =
                     P2AndroidFinalCommandPlan.Identity(

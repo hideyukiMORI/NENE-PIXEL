@@ -15,6 +15,21 @@ import java.io.File
 @RunWith(AndroidJUnit4::class)
 internal class P2AndroidFinalCommandContractValidationTest {
     @Test
+    fun resolvesCleanCurrentLatencyPlanWithDistinctSchemaAndNoOverwritePath() {
+        val plan = resolve(CANDIDATE_256_CLEAN, runIndex = 1)
+
+        assertEquals(CANDIDATE_256_CLEAN, plan.candidateId)
+        assertEquals("nene-pixel-p2-android-clean-command-latency-v1", plan.schema)
+        assertEquals("device-clean-current-command-256-run-01", plan.outputIdentity)
+        assertEquals(
+            "p2-measurements/p2-android-clean-current-command-256-run-01.csv",
+            plan.outputRelativePath,
+        )
+        assertEquals(P2AndroidFinalCommandPlan.PublicationPolicy.FailIfExists, plan.publicationPolicy)
+        assertCommonCountsAndOrder(plan, sparsePositionCount = 256, densePositionCount = 65_536)
+    }
+
+    @Test
     fun preservesExact256SquarePlan() {
         val plan = resolve(CANDIDATE_256, runIndex = 1)
 
@@ -822,6 +837,7 @@ internal class P2AndroidFinalCommandContractValidationTest {
     }
 
     private companion object {
+        const val CANDIDATE_256_CLEAN: String = "current-canonical-command-256-clean-latency-v1"
         const val CANDIDATE_256: String = "current-canonical-command-256-square"
         const val CANDIDATE_64: String = "current-canonical-command-64-square"
         const val CANDIDATE_128: String = "current-canonical-command-128-square"
