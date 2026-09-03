@@ -98,30 +98,6 @@ internal class PixelSnapshotTest {
         assertEquals(TRANSPARENT_RED.toPackedRgba8888(), created(snapshot.packedRgba8888At(pixelPosition(1, 0))))
     }
 
-    @Test
-    fun `packed mapping builds one row major successor without changing its source`() {
-        val original =
-            created(
-                PixelSnapshot.createPackedRgba8888(
-                    canvasSize(2, 1),
-                    Revision.initial(),
-                    intArrayOf(BLACK.toPackedRgba8888(), GREEN.toPackedRgba8888()),
-                ),
-            )
-        val visited = mutableListOf<Int>()
-
-        val mapped =
-            original.mapPackedRgba8888(created(Revision.create(1L))) { index, packed ->
-                visited += index
-                if (index == 1) RED.toPackedRgba8888() else packed
-            }
-
-        assertEquals(listOf(0, 1), visited)
-        assertEquals(GREEN, created(original.colorAt(pixelPosition(1, 0))))
-        assertEquals(RED, created(mapped.colorAt(pixelPosition(1, 0))))
-        assertEquals(1L, mapped.revision.value)
-    }
-
     private companion object {
         val BLACK = color(0, 0, 0, 255)
         val RED = color(255, 0, 0, 255)

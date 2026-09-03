@@ -88,6 +88,7 @@ internal class StrokeTest {
         input.clear()
 
         assertEquals(listOf(pixelPosition(1, 1), pixelPosition(0, 0), pixelPosition(1, 1)), stroke.positions())
+        assertEquals(listOf(3, 0, 3), List(stroke.positionCount, stroke::rowMajorIndexAt))
         assertEquals(3, stroke.positionCount)
         assertEquals(RED, stroke.color)
         assertEquals(equal, stroke)

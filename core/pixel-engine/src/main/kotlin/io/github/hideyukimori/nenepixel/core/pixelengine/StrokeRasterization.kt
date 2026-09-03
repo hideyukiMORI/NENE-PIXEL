@@ -1,10 +1,7 @@
 package io.github.hideyukimori.nenepixel.core.pixelengine
 
 import io.github.hideyukimori.nenepixel.core.domain.drawing.Stroke
-import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
-import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
-import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 
 public fun rasterizeStroke(
     snapshot: PixelSnapshot,
@@ -27,7 +24,7 @@ private fun rasterizeMatchingCanvas(
         EffectivePositionCollector(
             canvasPixels = canvasPixels,
             capacity = minOf(stroke.positionCount, canvasPixels),
-        ).collect(stroke, snapshot.size, sourcePixels, target)
+        ).collect(stroke, sourcePixels, target)
     return if (positions.isEmpty()) {
         StrokeRasterizationResult.NoChanges
     } else {
@@ -55,12 +52,11 @@ private class EffectivePositionCollector(
 
     fun collect(
         stroke: Stroke,
-        size: CanvasSize,
         sourcePixels: IntArray,
         target: Int,
     ): IntArray {
-        stroke.forEachPosition { position ->
-            accept(position.rowMajorIndex(size), sourcePixels, target)
+        repeat(stroke.positionCount) { pathIndex ->
+            accept(stroke.rowMajorIndexAt(pathIndex), sourcePixels, target)
         }
         return effective.copyOf(changeCount).also { positions ->
             if (!isCanonicalOrder) positions.sort()
@@ -120,11 +116,3 @@ private fun unexpectedPatchRejection(rejection: PixelPatchCreationRejection): No
 
 private fun rejected(rejection: StrokeRasterizationRejection): StrokeRasterizationResult =
     StrokeRasterizationResult.Rejected(rejection)
-
-private fun PixelPosition.rowMajorIndex(size: CanvasSize): Int = y.value * size.width.value + x.value
-
-private fun <T> DomainValueResult<T>.requiredValue(): T =
-    when (this) {
-        is DomainValueResult.Created -> value
-        is DomainValueResult.Rejected -> error("A validated stroke position was rejected: $rejection")
-    }

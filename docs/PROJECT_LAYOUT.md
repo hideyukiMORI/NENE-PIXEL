@@ -93,9 +93,10 @@ Owns semantic truth:
 - canvas, frame, layer, palette, and animation value types
 - immutable document state and invariants
 - immutable `PixelSnapshot` value with private row-major `RRGGBBAA` storage, typed queries, and defensive bulk copies
+- immutable `Stroke` value with private row-major integer samples and semantic position iteration
 - typed rejection/failure vocabulary shared by core modules
 
-It does not own UI state, serialization annotations, database entities, Android resources, or pixel work buffers. Its private packed snapshot array is immutable by construction and never escapes.
+It does not own UI state, serialization annotations, database entities, Android resources, or pixel work buffers. Its private snapshot and stroke arrays are immutable by construction and never escape.
 
 ### `:core:pixel-engine`
 

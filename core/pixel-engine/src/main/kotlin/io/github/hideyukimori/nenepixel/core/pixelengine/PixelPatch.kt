@@ -44,29 +44,23 @@ public class PixelPatch private constructor(
         }
 
     private fun applyToMatchingSnapshot(snapshot: PixelSnapshot): PixelPatchApplicationResult {
-        var changeIndex = 0
-        var mismatch: PixelPatchApplicationRejection.BeforeValueMismatch? = null
-        val next =
-            snapshot.mapPackedRgba8888(afterRevision) { positionIndex, actual ->
-                if (changeIndex >= changeCount || storage.positions[changeIndex] != positionIndex) {
-                    actual
-                } else {
-                    val expected = beforeAt(changeIndex)
-                    val replacement = afterAt(changeIndex)
-                    changeIndex += 1
-                    if (actual != expected && mismatch == null) {
-                        mismatch =
-                            PixelPatchApplicationRejection.BeforeValueMismatch(
-                                position = canvas.positionAt(positionIndex),
-                                expected = PixelColor.fromPackedRgba8888(expected),
-                                actual = PixelColor.fromPackedRgba8888(actual),
-                            )
-                    }
-                    replacement
-                }
+        val surface = PixelSurface.from(snapshot)
+        repeat(changeCount) { index ->
+            val positionIndex = storage.positions[index]
+            val actual = surface.packedRgba8888At(positionIndex)
+            val expected = beforeAt(index)
+            if (actual != expected) {
+                return rejected(
+                    PixelPatchApplicationRejection.BeforeValueMismatch(
+                        position = canvas.positionAt(positionIndex),
+                        expected = PixelColor.fromPackedRgba8888(expected),
+                        actual = PixelColor.fromPackedRgba8888(actual),
+                    ),
+                )
             }
-        check(changeIndex == changeCount)
-        return mismatch?.let(::rejected) ?: PixelPatchApplicationResult.Applied(next)
+            surface.writePackedRgba8888(positionIndex, afterAt(index))
+        }
+        return PixelPatchApplicationResult.Applied(surface.snapshot(afterRevision))
     }
 
     public fun inverse(): PixelPatch =

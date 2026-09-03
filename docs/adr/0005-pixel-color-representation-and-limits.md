@@ -96,9 +96,8 @@ palette-index storage is not a fourth physical candidate for this MVP decision.
 
 `PixelSnapshot` remains one final domain value and privately owns one row-major `IntArray` whose
 bits are `RRGGBBAA`. Inputs are defensively copied or packed; the owned array is never mutated after
-construction or exposed. A bulk read returns a defensive copy. Successor construction may map
-the immutable packed values into one newly owned private array without exposing either array.
-`PixelSurface`, where a mutable work surface is required, privately owns one row-major packed `IntArray` inside
+construction or exposed. A bulk read returns a defensive copy. `PixelSurface`, where a mutable
+work surface is required, privately owns one row-major packed `IntArray` inside
 `:core:pixel-engine`. `PixelPatch` privately owns row-major integer positions plus packed before
 and after arrays. Its inverse is a directional view that shares those arrays and swaps both values
 and exact recorded revisions; it is not a second materialized payload.
@@ -111,6 +110,11 @@ representable without narrowing. Domain-owned packed storage refines ADR 0002 an
 immutable-by-construction private primitive storage is permitted in `PixelSnapshot`; mutable work
 storage remains exclusive to the pixel engine. Defensive read copies are projections, not exposed
 owned storage.
+
+`Stroke` likewise packs its already validated ordered samples into one private row-major `IntArray`.
+Semantic position iteration reconstructs typed positions, while the pixel engine reads primitive
+indices without retaining or receiving the owned array. This removes per-command coordinate-object
+traversal without changing gesture order, duplicate meaning, equality, or hash behavior.
 
 Test-only current and tiled candidate implementations are not production APIs or runtime options
 and are removed after their immutable evidence has been recorded.
