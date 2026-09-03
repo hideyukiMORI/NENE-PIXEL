@@ -55,6 +55,17 @@ internal class StrokeRasterizationTest {
     }
 
     @Test
+    fun `contiguous row major path computes its exact region without a second position scan`() {
+        val canvas = canvas(4, 2)
+        val original = snapshot(canvas)
+        val path = listOf(position(1, 1), position(2, 1))
+
+        val patch = rasterized(rasterizeStroke(original, stroke(canvas, path, red)))
+
+        assertEquals(region(canvas, position(1, 1), canvas(2, 1)), patch.affectedRegion)
+    }
+
+    @Test
     fun `already colored positions do not expand the effective patch or invalidation`() {
         val canvas = canvas(3, 1)
         val original = snapshot(canvas, pixels = listOf(red, black, black))

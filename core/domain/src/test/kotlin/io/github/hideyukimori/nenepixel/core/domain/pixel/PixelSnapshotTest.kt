@@ -5,6 +5,7 @@ import io.github.hideyukimori.nenepixel.core.domain.DomainValueAssertions.reject
 import io.github.hideyukimori.nenepixel.core.domain.DomainValueTestValues.canvasSize
 import io.github.hideyukimori.nenepixel.core.domain.DomainValueTestValues.color
 import io.github.hideyukimori.nenepixel.core.domain.DomainValueTestValues.pixelPosition
+import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.document.Revision
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueRejection
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -39,6 +40,24 @@ internal class PixelSnapshotTest {
     }
 
     @Test
+    fun `maximum canvas mismatch is rejected before reading or copying an element`() {
+        val canvas = canvasSize(PixelLimits.MAX_CANVAS_AXIS, PixelLimits.MAX_CANVAS_AXIS)
+        val sentinel =
+            object : AbstractList<PixelColor>() {
+                override val size: Int = 1
+
+                override fun get(index: Int): PixelColor = error("Snapshot mismatch read element $index.")
+            }
+
+        val rejection = rejected(PixelSnapshot.create(canvas, Revision.initial(), sentinel))
+        val mismatch = assertInstanceOf(DomainValueRejection.PixelSnapshotSizeMismatch::class.java, rejection)
+
+        assertEquals(PixelLimits.MAX_CANVAS_PIXELS.toLong(), canvas.pixelCount)
+        assertEquals(PixelLimits.MAX_CANVAS_PIXELS.toLong(), mismatch.expectedPixelCount)
+        assertEquals(1, mismatch.actualPixelCount)
+    }
+
+    @Test
     fun `snapshot rejects an outside typed position`() {
         val snapshot = created(PixelSnapshot.create(canvasSize(1, 1), Revision.initial(), listOf(BLACK)))
 
@@ -58,10 +77,32 @@ internal class PixelSnapshotTest {
         assertEquals(BLACK, created(snapshot.colorAt(pixelPosition(0, 0))))
     }
 
+    @Test
+    fun `packed snapshot inputs and bulk reads are defensive`() {
+        val packed = intArrayOf(BLACK.toPackedRgba8888(), TRANSPARENT_RED.toPackedRgba8888())
+        val snapshot =
+            created(
+                PixelSnapshot.createPackedRgba8888(
+                    canvasSize(2, 1),
+                    Revision.initial(),
+                    packed,
+                ),
+            )
+
+        packed[0] = RED.toPackedRgba8888()
+        val copy = snapshot.copyPackedRgba8888()
+        copy[1] = BLACK.toPackedRgba8888()
+
+        assertEquals(BLACK, created(snapshot.colorAt(pixelPosition(0, 0))))
+        assertEquals(TRANSPARENT_RED, created(snapshot.colorAt(pixelPosition(1, 0))))
+        assertEquals(TRANSPARENT_RED.toPackedRgba8888(), created(snapshot.packedRgba8888At(pixelPosition(1, 0))))
+    }
+
     private companion object {
         val BLACK = color(0, 0, 0, 255)
         val RED = color(255, 0, 0, 255)
         val GREEN = color(0, 255, 0, 255)
         val BLUE = color(0, 0, 255, 255)
+        val TRANSPARENT_RED = color(255, 0, 0, 0)
     }
 }

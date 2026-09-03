@@ -21,14 +21,14 @@ internal fun createFixedSliceEditorController(): FixedSliceEditorController {
             CanvasWidth.create(FIXED_CANVAS_EDGE).requiredValue(),
             CanvasHeight.create(FIXED_CANVAS_EDGE).requiredValue(),
         )
-    val background = color(red = CHANNEL_MAX, green = CHANNEL_MAX, blue = CHANNEL_MAX)
+    val background = PixelColor.blank
     val activeColor = color(red = CHANNEL_MAX, green = CHANNEL_MIN, blue = CHANNEL_MIN)
     val snapshot =
         PixelSnapshot
-            .create(
+            .createPackedRgba8888(
                 size = canvas,
                 revision = Revision.initial(),
-                pixels = List(canvas.pixelCount.toInt()) { background },
+                packedPixels = IntArray(canvas.pixelCount.toInt()) { background.toPackedRgba8888() },
             ).requiredValue()
     val document =
         DocumentState.create(

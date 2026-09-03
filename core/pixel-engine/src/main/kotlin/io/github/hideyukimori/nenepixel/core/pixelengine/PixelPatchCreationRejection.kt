@@ -8,6 +8,11 @@ public sealed interface PixelPatchCreationRejection {
 
     public data object RevisionOverflow : PixelPatchCreationRejection
 
+    public data class ChangeCountAboveSupportedMaximum internal constructor(
+        public val attemptedCount: Int,
+        public val maximum: Int,
+    ) : PixelPatchCreationRejection
+
     public data class PositionOutsideCanvas internal constructor(
         public val canvas: CanvasSize,
         public val position: PixelPosition,

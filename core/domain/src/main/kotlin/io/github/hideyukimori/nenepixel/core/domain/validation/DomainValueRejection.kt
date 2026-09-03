@@ -17,8 +17,18 @@ public sealed interface DomainValueRejection {
         public val attemptedValue: Int,
     ) : DomainValueRejection
 
+    public data class CanvasWidthAboveSupportedMaximum internal constructor(
+        public val attemptedValue: Int,
+        public val maximum: Int,
+    ) : DomainValueRejection
+
     public data class NonPositiveCanvasHeight internal constructor(
         public val attemptedValue: Int,
+    ) : DomainValueRejection
+
+    public data class CanvasHeightAboveSupportedMaximum internal constructor(
+        public val attemptedValue: Int,
+        public val maximum: Int,
     ) : DomainValueRejection
 
     public data class NegativePixelX internal constructor(
@@ -46,6 +56,11 @@ public sealed interface DomainValueRejection {
     ) : DomainValueRejection
 
     public data object EmptyStrokePath : DomainValueRejection
+
+    public data class StrokePathAboveSupportedMaximum internal constructor(
+        public val attemptedCount: Int,
+        public val maximum: Int,
+    ) : DomainValueRejection
 
     public data class ColorChannelOutsideRange internal constructor(
         public val attemptedValue: Int,

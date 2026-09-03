@@ -1,6 +1,6 @@
 package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
-import androidx.compose.ui.graphics.Color
+import android.graphics.Bitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import io.github.hideyukimori.nenepixel.core.application.workspace.ToolGesture
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportMappingResult
@@ -16,12 +16,7 @@ import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import kotlin.math.roundToInt
 
-internal data class RenderedPixel(
-    val position: PixelPosition,
-    val color: Color,
-)
-
-internal data class GridExtent(
+internal data class CanvasProjection(
     val first: ViewportSurfaceBounds,
     val last: ViewportSurfaceBounds,
 )
@@ -58,20 +53,18 @@ internal fun ViewportTransform.surfaceBounds(position: PixelPosition): ViewportS
         -> null
     }
 
-internal fun ViewportTransform.gridExtent(canvas: CanvasSize): GridExtent? {
+internal fun ViewportTransform.canvasProjection(canvas: CanvasSize): CanvasProjection? {
     val first = surfaceBounds(pixelPosition(0, 0))
     val last = surfaceBounds(pixelPosition(canvas.width.value - 1, canvas.height.value - 1))
-    return if (first == null || last == null) null else GridExtent(first, last)
+    return if (first == null || last == null) null else CanvasProjection(first, last)
 }
 
-internal fun PixelSnapshot.toRenderedPixels(): List<RenderedPixel> =
-    List(size.pixelCount.toInt()) { index ->
-        val position = pixelPosition(index % size.width.value, index / size.width.value)
-        RenderedPixel(position, colorAt(position).requiredValue().toComposeColor())
-    }
-
-internal fun ToolGesture?.toPositions(): List<PixelPosition> =
-    if (this == null) emptyList() else buildList { forEachPosition(::add) }
+internal fun PixelSnapshot.toRenderedBitmap(): Bitmap {
+    val width = size.width.value
+    val colors = copyPackedRgba8888()
+    colors.indices.forEach { index -> colors[index] = colors[index].rgbaToArgb8888() }
+    return Bitmap.createBitmap(colors, width, size.height.value, Bitmap.Config.ARGB_8888)
+}
 
 internal fun pixelPosition(
     x: Int,
@@ -80,8 +73,14 @@ internal fun pixelPosition(
 
 internal fun CanvasSize.accessibilityDescription(): String = "${width.value} by ${height.value} pixel canvas"
 
+private fun Int.rgbaToArgb8888(): Int = ((this and CHANNEL_MASK) shl ALPHA_SHIFT) or (this ushr CHANNEL_SHIFT)
+
 private fun <T> DomainValueResult<T>.requiredValue(): T =
     when (this) {
         is DomainValueResult.Created -> value
         is DomainValueResult.Rejected -> error("Validated render projection was rejected: $rejection")
     }
+
+private const val ALPHA_SHIFT: Int = 24
+private const val CHANNEL_SHIFT: Int = 8
+private const val CHANNEL_MASK: Int = 0xff

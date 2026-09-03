@@ -1,5 +1,6 @@
 package io.github.hideyukimori.nenepixel.core.pixelengine
 
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelLimits
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.black
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.canvas
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.green
@@ -52,6 +53,23 @@ internal class PixelPatchCreationTest {
     }
 
     @Test
+    fun `maximum supported square corners create an exact affected region`() {
+        val maximumCanvas = canvas(PixelLimits.MAX_CANVAS_AXIS, PixelLimits.MAX_CANVAS_AXIS)
+        val origin = position(0, 0)
+        val oppositeCorner = position(PixelLimits.MAX_CANVAS_AXIS - 1, PixelLimits.MAX_CANVAS_AXIS - 1)
+        val first = PixelChange.create(origin, black, green)
+        val last = PixelChange.create(oppositeCorner, black, red)
+        val fromUnordered = created(PixelPatch.create(maximumCanvas, revision(0L), listOf(last, first)))
+        val fromCanonical = created(PixelPatch.create(maximumCanvas, revision(0L), listOf(first, last)))
+        val expectedRegion = region(maximumCanvas, origin, maximumCanvas)
+
+        assertEquals(fromCanonical, fromUnordered)
+        assertEquals(2, fromUnordered.changeCount)
+        assertEquals(expectedRegion, fromUnordered.affectedRegion)
+        assertEquals(expectedRegion, fromUnordered.inverse().affectedRegion)
+    }
+
+    @Test
     fun `empty and unchanged patches are rejected`() {
         val canvas = canvas(1, 1)
         val unchanged = PixelChange.create(position(0, 0), black, black)
@@ -84,12 +102,128 @@ internal class PixelPatchCreationTest {
     }
 
     @Test
-    fun `revision overflow is rejected`() {
-        val change = PixelChange.create(position(0, 0), black, red)
+    fun `outside first input is fully materialized before typed validation`() {
+        val canvas = canvas(3, 2)
+        val outsidePosition = position(3, 0)
+        val changes =
+            AccessRecordingList(
+                listOf(
+                    PixelChange.create(outsidePosition, black, red),
+                    PixelChange.create(position(2, 1), black, green),
+                    PixelChange.create(position(0, 0), black, red),
+                ),
+            )
+
+        val rejection = creationRejected(PixelPatch.create(canvas, revision(0L), changes))
+        val outside =
+            assertInstanceOf(
+                PixelPatchCreationRejection.PositionOutsideCanvas::class.java,
+                rejection,
+            )
+
+        assertEquals(setOf(0, 1, 2), changes.accessedIndices.toSet())
+        assertEquals(canvas, outside.canvas)
+        assertEquals(outsidePosition, outside.position)
+    }
+
+    @Test
+    fun `maximum supported square rejects an outside corner`() {
+        val maximumCanvas = canvas(PixelLimits.MAX_CANVAS_AXIS, PixelLimits.MAX_CANVAS_AXIS)
+        val originChange = PixelChange.create(position(0, 0), black, green)
+        val outsidePosition = position(PixelLimits.MAX_CANVAS_AXIS, PixelLimits.MAX_CANVAS_AXIS)
+        val outsideChange = PixelChange.create(outsidePosition, black, red)
+
+        val rejection =
+            creationRejected(
+                PixelPatch.create(
+                    maximumCanvas,
+                    revision(0L),
+                    listOf(outsideChange, originChange),
+                ),
+            )
+        val outside =
+            assertInstanceOf(
+                PixelPatchCreationRejection.PositionOutsideCanvas::class.java,
+                rejection,
+            )
+
+        assertEquals(maximumCanvas, outside.canvas)
+        assertEquals(outsidePosition, outside.position)
+    }
+
+    @Test
+    fun `patch cap plus one rejects before reading or sorting changes`() {
+        val accessed = mutableListOf<Int>()
+        val changes =
+            object : AbstractList<PixelChange>() {
+                override val size: Int = PixelLimits.MAX_PATCH_CHANGES + 1
+
+                override fun get(index: Int): PixelChange {
+                    accessed += index
+                    error("Oversized patch read index $index.")
+                }
+            }
+
+        val rejection = creationRejected(PixelPatch.create(canvas(1, 1), revision(0L), changes))
+
+        assertEquals(emptyList<Int>(), accessed)
+        assertEquals(
+            PixelPatchCreationRejection.ChangeCountAboveSupportedMaximum(
+                PixelLimits.MAX_PATCH_CHANGES + 1,
+                PixelLimits.MAX_PATCH_CHANGES,
+            ),
+            rejection,
+        )
+    }
+
+    @Test
+    fun `patch cap minus one and cap are accepted`() {
+        val maximumCanvas = canvas(PixelLimits.MAX_CANVAS_AXIS, PixelLimits.MAX_CANVAS_AXIS)
+        val changes =
+            List(PixelLimits.MAX_PATCH_CHANGES) { index ->
+                PixelChange.create(
+                    position(index % PixelLimits.MAX_CANVAS_AXIS, index / PixelLimits.MAX_CANVAS_AXIS),
+                    black,
+                    red,
+                )
+            }
+
+        assertEquals(
+            PixelLimits.MAX_PATCH_CHANGES - 1,
+            created(PixelPatch.create(maximumCanvas, revision(0L), changes.dropLast(1))).changeCount,
+        )
+        assertEquals(
+            PixelLimits.MAX_PATCH_CHANGES,
+            created(PixelPatch.create(maximumCanvas, revision(0L), changes)).changeCount,
+        )
+    }
+
+    @Test
+    fun `revision overflow is rejected before reading source changes`() {
+        val unreadableChanges =
+            object : AbstractList<PixelChange>() {
+                override val size: Int = 1
+
+                override fun get(index: Int): PixelChange = error("Revision overflow read source change $index.")
+            }
 
         assertEquals(
             PixelPatchCreationRejection.RevisionOverflow,
-            creationRejected(PixelPatch.create(canvas(1, 1), revision(Long.MAX_VALUE), listOf(change))),
+            creationRejected(PixelPatch.create(canvas(1, 1), revision(Long.MAX_VALUE), unreadableChanges)),
         )
+    }
+
+    private class AccessRecordingList<T>(
+        private val values: List<T>,
+    ) : AbstractList<T>() {
+        val accessedIndices: MutableList<Int> = mutableListOf()
+
+        override val size: Int
+            get() = values.size
+
+        override fun get(index: Int): T {
+            accessedIndices.add(index)
+            return values[index]
+        }
     }
 }

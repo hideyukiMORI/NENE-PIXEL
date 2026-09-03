@@ -1,5 +1,6 @@
 package io.github.hideyukimori.nenepixel.core.pixelengine
 
+import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.document.Revision
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.black
@@ -58,6 +59,27 @@ internal class PixelPatchApplicationTest {
         val changed = applied(patch.applyTo(original))
         val restored = applied(patch.inverse().applyTo(changed))
 
+        assertEquals(original, restored)
+    }
+
+    @Test
+    fun `alpha zero hidden rgb survives packed apply and inverse exactly`() {
+        val hiddenSource = PixelColor.fromPackedRgba8888(0x12345600)
+        val hiddenTarget = PixelColor.fromPackedRgba8888(0xaabbcc00.toInt())
+        val original = snapshot(canvas(1, 1), pixels = listOf(hiddenSource))
+        val patch =
+            created(
+                PixelPatch.create(
+                    original.size,
+                    original.revision,
+                    listOf(PixelChange.create(position(0, 0), hiddenSource, hiddenTarget)),
+                ),
+            )
+
+        val changed = applied(patch.applyTo(original))
+        val restored = applied(patch.inverse().applyTo(changed))
+
+        assertEquals(hiddenTarget, changed.color(position(0, 0)))
         assertEquals(original, restored)
     }
 

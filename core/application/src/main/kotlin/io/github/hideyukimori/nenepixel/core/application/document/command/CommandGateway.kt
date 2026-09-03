@@ -1,6 +1,8 @@
 package io.github.hideyukimori.nenepixel.core.application.document.command
 
 import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryEntry
+import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryRetentionPolicy
+import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryRetentionResult
 import io.github.hideyukimori.nenepixel.core.application.document.history.OneLevelHistoryState
 import io.github.hideyukimori.nenepixel.core.application.document.transition.DocumentTransitionResult
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
@@ -34,6 +36,7 @@ public class CommandGateway private constructor(
         when (val result = applyStrokeCommandHandler.execute(currentState, command)) {
             is DocumentTransitionResult.Created -> {
                 val applied = CommandResult.Applied(result.transition.changeSet)
+                requireSupportedHistory(applied)
                 val nextHistory = OneLevelHistoryState.UndoAvailable(HistoryEntry.create(applied))
                 commit(result, nextHistory, applied)
             }
@@ -83,6 +86,17 @@ public class CommandGateway private constructor(
         currentState = result.transition.nextState
         historyState = nextHistory
         return applied
+    }
+
+    private fun requireSupportedHistory(applied: CommandResult.Applied) {
+        val evaluation =
+            HistoryRetentionPolicy.evaluate(
+                entryCount = 1,
+                retainedChangeCount = applied.changeSet.retainedChangeCount,
+            )
+        check(evaluation is HistoryRetentionResult.Accepted) {
+            "One-level history exceeded the accepted retention policy: $evaluation"
+        }
     }
 
     private fun moveToRedo(previousHistory: OneLevelHistoryState): OneLevelHistoryState =

@@ -17,6 +17,9 @@ public class ChangeSet private constructor(
     public val renderInvalidation: PixelRegion
         get() = patch.affectedRegion
 
+    internal val retainedChangeCount: Int
+        get() = patch.changeCount
+
     override fun equals(other: Any?): Boolean =
         this === other ||
             (other is ChangeSet && patch == other.patch && inversePatch == other.inversePatch)

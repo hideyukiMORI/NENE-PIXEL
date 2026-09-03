@@ -67,7 +67,10 @@ Excluded items require later milestone entry criteria; they are not hidden TODOs
 
 ## Limits and performance budgets
 
-Exact canvas, history, file-size, and memory limits are not guessed in this document. M1/M2 benchmarks must establish representative limits before the project-format v1 contract freezes them.
+ADR 0005 accepts these conservative M2 drawing limits: canvas axes 1 through 256, canvas area at
+most 65,536 pixels, raw stroke paths at most 262,144 positions, patches at most 65,536 unique
+changes, history at most 64 entries, and at most 524,288 total retained changes. File-size limits
+remain for the project-format ADR.
 
 Every limit must be:
 

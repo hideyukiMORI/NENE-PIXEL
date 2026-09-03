@@ -23,21 +23,23 @@ One concept has one canonical name. New synonyms in code are prohibited. Add or 
 | `ViewportValueResult` | Closed created/rejected result for viewport value or derived-transform validation | DomainValueResult, nullable viewport |
 | `ViewportValueRejection` | Closed expected reason a viewport value or derived calculation is invalid | exception, error string |
 | `RenderCache` | Disposable derived data used only to accelerate rendering | state, document cache |
-| `CanvasSize` | Validated pixel width and height of the drawable coordinate space | image size when referring to document coordinates |
-| `CanvasWidth` / `CanvasHeight` | Positive typed axis dimensions used to construct CanvasSize | width/height Int at a core boundary |
+| `CanvasSize` | Validated pixel width and height whose total area is at most 65,536 pixels | image size when referring to document coordinates |
+| `CanvasWidth` / `CanvasHeight` | Positive typed axis dimension in the supported range 1 through 256 | width/height Int at a core boundary |
 | `PixelPosition` | Validated integer position in document pixel coordinates | point, coord, offset |
 | `PixelX` / `PixelY` | Non-negative typed document pixel axes used to construct PixelPosition | x/y Int at a core boundary |
 | `PixelRegion` | Canvas-contained rectangular region with half-open right/bottom bounds | rect when domain meaning is intended |
 | `ColorChannel` | One unsigned 8-bit semantic RGBA channel | color byte, channel Int |
-| `PixelColor` | Semantic red, green, blue, and alpha channels independent of pixel-engine storage | packed color, Android Color |
+| `PixelColor` | Straight sRGB red, green, blue, and alpha U8 values; hidden RGB at alpha zero is significant | premultiplied color, packed color, Android Color |
+| `PixelBlank` | Canonical transparent-black `PixelColor` `(0,0,0,0)` written by erasing and used for a blank new canvas | white background, alpha-only clear |
+| `PixelLimits` | One conservative MVP policy: axis 256, area 65,536, raw stroke 262,144, patch 65,536, history 64, retained changes 524,288 | device memory check, adapter-local maximum |
 | `PaletteIndex` | Non-negative typed position of a PaletteEntry | palette Int, color index |
 | `PaletteEntry` | A palette slot with its typed color value/metadata | color id, swatch data |
 | `Revision` | Non-negative version of the exact committed DocumentState; canonical undo restores the recorded prior revision | global event sequence, timestamp |
 | `Layer` | An ordered document element contributing pixels/visibility | plane, sheet |
 | `Frame` | One animation frame containing an ordered layer state | page, image |
-| `PixelSurface` | Pixel-engine abstraction for a bounded raster surface | bitmap when referring to the core abstraction |
-| `PixelSnapshot` | Domain-owned immutable row-major value of complete pixel content at a defined revision | exposed buffer, bitmap data |
-| `PixelPatch` | Pixel-engine-owned immutable set of bounded before/after pixel changes | diff, delta, update data |
+| `PixelSurface` | Pixel-engine private mutable flat packed work surface for a bounded raster | Android Bitmap, domain snapshot |
+| `PixelSnapshot` | Domain-owned immutable row-major semantic pixels at one revision, privately stored as packed `RRGGBBAA` | exposed buffer, Android Bitmap |
+| `PixelPatch` | Pixel-engine-owned row-major packed before/after changes with one shared directional inverse payload | materialized inverse, diff, delta |
 | `Stroke` | One committed drawing gesture with a defined tool/path/style | line when it includes the complete drawing operation |
 | `ToolGesture` | Presentation-level pointer/stylus sequence before commit | command, stroke before it is committed |
 | `DocumentCommand` | Typed request to perform one atomic saved/undoable operation | event, action, intent |
