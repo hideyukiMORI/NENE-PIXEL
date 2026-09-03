@@ -17,6 +17,10 @@ internal object P2AndroidPackedCandidateReport {
         samples: List<P2AndroidPackedCandidateSample>,
     ): File {
         val output = P2AndroidPackedCandidateProtocol.outputFile(environment)
+        val outputDirectory = requireNotNull(output.parentFile)
+        check(outputDirectory.isDirectory || outputDirectory.mkdirs()) {
+            "Failed to create packed candidate measurement output directory: ${outputDirectory.absolutePath}"
+        }
         return P2AndroidFinalCommandOutputPublication.publish(
             output = output,
             policy = P2AndroidFinalCommandPlan.PublicationPolicy.FailIfExists,
