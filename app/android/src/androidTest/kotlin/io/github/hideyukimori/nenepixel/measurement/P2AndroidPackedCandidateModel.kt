@@ -50,6 +50,13 @@ internal sealed class P2PackedCandidateSnapshot {
             check(packedAt(index) == expected) { "Candidate sparse pixel mismatch at $index." }
         }
     }
+
+    fun verifyEquivalent(expected: P2PackedCandidateSnapshot) {
+        check(kind == expected.kind && revision == expected.revision) { "Candidate snapshot identity mismatch." }
+        repeat(P2AndroidPackedCandidateProtocol.PIXEL_COUNT) { index ->
+            check(packedAt(index) == expected.packedAt(index)) { "Candidate round-trip mismatch at $index." }
+        }
+    }
 }
 
 internal class P2FlatPackedCandidateSnapshot private constructor(

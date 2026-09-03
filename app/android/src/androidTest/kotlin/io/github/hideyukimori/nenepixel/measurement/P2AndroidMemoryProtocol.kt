@@ -137,7 +137,7 @@ internal object P2AndroidMemoryProtocol {
     const val RETAINED_OWNER_DESCRIPTOR: String =
         "final DocumentState, 64 opaque public ChangeSets, and canonical materialized projection only"
     const val PROJECTION_BOUNDARY_DESCRIPTOR: String =
-        "release-absent debug bridge delegates to PixelSnapshot.toRenderedPixels; storage remains opaque"
+        "release-absent debug bridge retains the canonical PixelSnapshot bitmap projection; storage remains opaque"
     const val PRIVATE_PATCH_BOUNDARY_DESCRIPTOR: String =
         "patch counts, ordering, inverse replay, and logical storage remain isolated host evidence"
     const val CHURN_STATUS: String = "not_evaluated_cap_policy_unselected"

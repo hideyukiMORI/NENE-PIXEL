@@ -1,65 +1,45 @@
 package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
-import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
+import android.graphics.Bitmap
+import androidx.core.graphics.get
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
-import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import java.security.MessageDigest
 
 public class P2RetainedProjectionMeasurementOwner internal constructor(
-    private val pixels: List<RenderedPixel>,
+    private val bitmap: Bitmap,
 ) {
-    public val pixelCount: Int = pixels.size
-    public val firstX: Int =
-        pixels
-            .first()
-            .position.x.value
-    public val firstY: Int =
-        pixels
-            .first()
-            .position.y.value
-    public val firstArgb: Int = pixels.first().color.toArgb()
-    public val lastX: Int =
-        pixels
-            .last()
-            .position.x.value
-    public val lastY: Int =
-        pixels
-            .last()
-            .position.y.value
-    public val lastArgb: Int = pixels.last().color.toArgb()
-    public val projectionDigestSha256: String = pixels.projectionDigest()
+    public val pixelCount: Int = bitmap.width * bitmap.height
+    public val firstX: Int = 0
+    public val firstY: Int = 0
+    public val firstArgb: Int = bitmap[firstX, firstY]
+    public val lastX: Int = bitmap.width - 1
+    public val lastY: Int = bitmap.height - 1
+    public val lastArgb: Int = bitmap[lastX, lastY]
+    public val projectionDigestSha256: String = bitmap.projectionDigest()
 
-    public fun mismatchCount(expectedArgb: Int): Int = pixels.count { pixel -> pixel.color.toArgb() != expectedArgb }
+    public fun mismatchCount(expectedArgb: Int): Int {
+        var mismatches = 0
+        repeat(bitmap.height) { y ->
+            repeat(bitmap.width) { x ->
+                if (bitmap[x, y] != expectedArgb) mismatches += 1
+            }
+        }
+        return mismatches
+    }
 }
 
 public fun retainP2ProjectionForMeasurement(snapshot: PixelSnapshot): P2RetainedProjectionMeasurementOwner =
-    P2RetainedProjectionMeasurementOwner(snapshot.toRenderedPixels())
+    P2RetainedProjectionMeasurementOwner(snapshot.toRenderedBitmap())
 
-internal data class RenderedPixel(
-    val position: PixelPosition,
-    val color: Color,
-)
-
-internal fun PixelSnapshot.toRenderedPixels(): List<RenderedPixel> =
-    List(size.pixelCount.toInt()) { index ->
-        val position = pixelPosition(index % size.width.value, index / size.width.value)
-        val color =
-            when (val result = colorAt(position)) {
-                is DomainValueResult.Created -> result.value
-                is DomainValueResult.Rejected -> error("Validated legacy projection was rejected: ${result.rejection}")
-            }
-        RenderedPixel(position, color.toComposeColor())
-    }
-
-private fun List<RenderedPixel>.projectionDigest(): String {
+private fun Bitmap.projectionDigest(): String {
     val digest = MessageDigest.getInstance("SHA-256")
-    digest.updateInt(size)
-    forEach { pixel ->
-        digest.updateInt(pixel.position.x.value)
-        digest.updateInt(pixel.position.y.value)
-        digest.updateInt(pixel.color.toArgb())
+    digest.updateInt(width * height)
+    repeat(height) { y ->
+        repeat(width) { x ->
+            digest.updateInt(x)
+            digest.updateInt(y)
+            digest.updateInt(this@projectionDigest[x, y])
+        }
     }
     return digest.digest().hex()
 }
