@@ -2,6 +2,8 @@ package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
 import io.github.hideyukimori.nenepixel.core.application.document.command.ApplyStrokeCommand
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandResult
+import io.github.hideyukimori.nenepixel.core.application.document.command.RejectionReason
+import io.github.hideyukimori.nenepixel.core.application.editor.DocumentDirtyState
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceAction
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReductionResult
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceState
@@ -9,7 +11,9 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.View
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportSurface
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportSurfacePoint
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportValueResult
+import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
+import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.presentation.compose.EditorFixture
 import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestValues.colorAt
@@ -58,6 +62,60 @@ internal class ViewportEditorControllerTest {
         assertEquals(accepted.renderState.snapshot, redone.snapshot)
         assertTrue(redone.canUndo)
         assertFalse(redone.canRedo)
+    }
+
+    @Test
+    fun `sample gap commits one interpolated pencil command and one history entry`() {
+        val fixture = fixture()
+        fixture.controller.pointerDown(surface, surfacePoint(0, 0))
+
+        val end = fixture.controller.pointerEnd(surface, surfacePoint(3, 0))
+        val accepted = assertInstanceOf(PointerInputAcknowledgement.Accepted::class.java, end)
+        assertInstanceOf(CommandResult.Applied::class.java, accepted.commandResult)
+
+        repeat(4) { x -> assertEquals(red, colorAt(fixture.controller.documentState, position(x, 0))) }
+        assertEquals(1L, fixture.controller.documentState.revision.value)
+        assertTrue(accepted.renderState.canUndo)
+        assertFalse(accepted.renderState.canRedo)
+    }
+
+    @Test
+    fun `gesture captures pencil before tool change and the next eraser uses the same command path`() {
+        val fixture = fixture()
+        val beforeSelection = fixture.controller.documentState
+        fixture.controller.pointerDown(surface, surfacePoint(0, 0))
+
+        val selected = fixture.controller.callbacks.onSelectTool(DrawingTool.Eraser)
+        assertSame(beforeSelection, fixture.controller.documentState)
+        val pencilEnd = fixture.controller.pointerEnd(surface, surfacePoint(0, 0))
+
+        assertEquals(DrawingTool.Eraser, selected.activeTool)
+        assertInstanceOf(CommandResult.Applied::class.java, accepted(pencilEnd).commandResult)
+        assertEquals(red, colorAt(fixture.controller.documentState, position(0, 0)))
+
+        fixture.controller.pointerDown(surface, surfacePoint(0, 0))
+        val erased = fixture.controller.pointerEnd(surface, surfacePoint(0, 0))
+
+        assertInstanceOf(CommandResult.Applied::class.java, accepted(erased).commandResult)
+        assertEquals(PixelColor.blank, colorAt(fixture.controller.documentState, position(0, 0)))
+        assertEquals(2L, fixture.controller.documentState.revision.value)
+        assertTrue(erased.renderState.canUndo)
+    }
+
+    @Test
+    fun `already blank eraser is one typed no-op without history or dirty state`() {
+        val fixture = fixture()
+        fixture.controller.callbacks.onSelectTool(DrawingTool.Eraser)
+        fixture.controller.pointerDown(surface, surfacePoint(0, 0))
+
+        val end = accepted(fixture.controller.pointerEnd(surface, surfacePoint(0, 0)))
+        val rejected = assertInstanceOf(CommandResult.Rejected::class.java, end.commandResult)
+
+        assertEquals(RejectionReason.NoEffectiveChange, rejected.reason)
+        assertSame(fixture.initialDocument, fixture.controller.documentState)
+        assertFalse(end.renderState.canUndo)
+        assertFalse(end.renderState.canRedo)
+        assertEquals(DocumentDirtyState.Clean, fixture.runtime.state.dirtyState)
     }
 
     @Test
@@ -120,11 +178,36 @@ internal class ViewportEditorControllerTest {
         assertEquals(directOutcome.workspaceState, mapped.controller.workspaceState)
     }
 
+    @Test
+    fun `direct reducer and controller eraser paths produce identical results`() {
+        val direct = fixture()
+        val mapped = fixture()
+        seedFirstRow(direct)
+        seedFirstRow(mapped)
+        val samples = listOf(position(0, 0), position(3, 0))
+
+        val directOutcome = executeDirect(direct, samples, DrawingTool.Eraser)
+        mapped.controller.callbacks.onSelectTool(DrawingTool.Eraser)
+        mapped.controller.pointerDown(surface, surfacePoint(0, 0))
+        val mappedOutcome = accepted(mapped.controller.pointerEnd(surface, surfacePoint(3, 0)))
+
+        assertEquals(directOutcome.commandResult, mappedOutcome.commandResult)
+        assertEquals(direct.runtime.state.documentState, mapped.runtime.state.documentState)
+        assertEquals(directOutcome.workspaceState, mapped.controller.workspaceState)
+        repeat(4) { x ->
+            assertEquals(PixelColor.blank, colorAt(mapped.controller.documentState, position(x, 0)))
+        }
+    }
+
     private fun executeDirect(
         fixture: EditorFixture,
         samples: List<PixelPosition>,
+        tool: DrawingTool = DrawingTool.Pencil,
     ): DirectOutcome {
         var workspace = fixture.initialWorkspace
+        if (tool != workspace.activeTool) {
+            workspace = fixture.reducer.reduce(workspace, WorkspaceAction.SelectTool(tool)).nextState
+        }
         workspace =
             fixture.reducer
                 .reduce(
@@ -146,6 +229,13 @@ internal class ViewportEditorControllerTest {
         )
     }
 
+    private fun seedFirstRow(fixture: EditorFixture) {
+        val target = fixture.runtime.state.documentState
+        val directOutcome = executeDirect(fixture, listOf(position(0, 0), position(3, 0)))
+        assertInstanceOf(CommandResult.Applied::class.java, directOutcome.commandResult)
+        assertEquals(target.revision.value + 1L, fixture.runtime.state.documentState.revision.value)
+    }
+
     private fun zoomGesture(): ViewportGesture =
         ViewportGesture.create(
             previousFirst = surfacePoint(100.0, 100.0),
@@ -153,6 +243,9 @@ internal class ViewportEditorControllerTest {
             currentFirst = surfacePoint(80.0, 80.0),
             currentSecond = surfacePoint(320.0, 320.0),
         )
+
+    private fun accepted(result: PointerInputAcknowledgement): PointerInputAcknowledgement.Accepted =
+        assertInstanceOf(PointerInputAcknowledgement.Accepted::class.java, result)
 
     private fun viewportSurface(): ViewportSurface =
         ViewportSurface.create(SURFACE_EDGE.toInt(), SURFACE_EDGE.toInt(), PIXELS_PER_DP).requiredValue()

@@ -3,6 +3,7 @@ package io.github.hideyukimori.nenepixel.presentation.compose.editor
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportGesture
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportSurface
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportSurfacePoint
+import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
 
 public class EditorCallbacks internal constructor(
     private val pointerDown: (ViewportSurface, ViewportSurfacePoint) -> PointerInputAcknowledgement,
@@ -13,6 +14,7 @@ public class EditorCallbacks internal constructor(
     private val viewportTransformed: (ViewportSurface, ViewportGesture) -> PointerInputAcknowledgement,
     private val undo: () -> EditorRenderState,
     private val redo: () -> EditorRenderState,
+    private val selectTool: (DrawingTool) -> EditorRenderState,
     private val createNewDocument: (String, String) -> NewDocumentSubmission,
 ) {
     internal fun onPointerDown(
@@ -42,6 +44,8 @@ public class EditorCallbacks internal constructor(
     public fun onUndo(): EditorRenderState = undo()
 
     public fun onRedo(): EditorRenderState = redo()
+
+    internal fun onSelectTool(tool: DrawingTool): EditorRenderState = selectTool(tool)
 
     internal fun onCreateNewDocument(
         rawWidth: String,

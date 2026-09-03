@@ -40,6 +40,7 @@ internal fun EditorScreen(
             ) {
                 Text(text = "NENE-PIXEL", style = MaterialTheme.typography.headlineSmall)
                 ActiveColorIndicator(renderState)
+                ToolControls(renderState, callbacks, onRenderStateChanged)
                 NewDocumentControls(renderState, callbacks, onRenderStateChanged)
                 HistoryControls(renderState, callbacks, onRenderStateChanged)
                 Box(

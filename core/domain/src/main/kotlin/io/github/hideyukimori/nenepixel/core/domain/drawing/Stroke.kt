@@ -1,6 +1,5 @@
 package io.github.hideyukimori.nenepixel.core.domain.drawing
 
-import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelX
@@ -14,7 +13,7 @@ import io.github.hideyukimori.nenepixel.core.domain.validation.rejected
 public class Stroke private constructor(
     public val canvas: CanvasSize,
     private val rowMajorPath: IntArray,
-    public val color: PixelColor,
+    public val effect: StrokeEffect,
 ) {
     public val positionCount: Int
         get() = rowMajorPath.size
@@ -31,13 +30,13 @@ public class Stroke private constructor(
                 other is Stroke &&
                     canvas == other.canvas &&
                     rowMajorPath.contentEquals(other.rowMajorPath) &&
-                    color == other.color
+                    effect == other.effect
             )
 
     override fun hashCode(): Int =
-        ((canvas.hashCode() * HASH_MULTIPLIER) + rowMajorPath.contentHashCode()) * HASH_MULTIPLIER + color.hashCode()
+        ((canvas.hashCode() * HASH_MULTIPLIER) + rowMajorPath.contentHashCode()) * HASH_MULTIPLIER + effect.hashCode()
 
-    override fun toString(): String = "Stroke(canvas=$canvas, positionCount=$positionCount, color=$color)"
+    override fun toString(): String = "Stroke(canvas=$canvas, positionCount=$positionCount, effect=$effect)"
 
     public companion object {
         private const val HASH_MULTIPLIER: Int = 31
@@ -45,7 +44,7 @@ public class Stroke private constructor(
         public fun create(
             canvas: CanvasSize,
             path: List<PixelPosition>,
-            color: PixelColor,
+            effect: StrokeEffect,
         ): DomainValueResult<Stroke> =
             when {
                 path.isEmpty() -> {
@@ -62,14 +61,14 @@ public class Stroke private constructor(
                 }
 
                 else -> {
-                    createWithinVolume(canvas, path, color)
+                    createWithinVolume(canvas, path, effect)
                 }
             }
 
         private fun createWithinVolume(
             canvas: CanvasSize,
             path: List<PixelPosition>,
-            color: PixelColor,
+            effect: StrokeEffect,
         ): DomainValueResult<Stroke> {
             val outside = path.firstOrNull { position -> !canvas.contains(position) }
             return if (outside == null) {
@@ -77,7 +76,7 @@ public class Stroke private constructor(
                     Stroke(
                         canvas,
                         IntArray(path.size) { index -> path[index].rowMajorIndex(canvas) },
-                        color,
+                        effect,
                     ),
                 )
             } else {

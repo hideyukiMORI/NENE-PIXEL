@@ -2,6 +2,8 @@ package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -117,6 +119,56 @@ internal class UndoRedoEditorTest {
     }
 
     @Test
+    fun pencilAndEraserControlsUseOneWorkspaceSelectionAndCommandPath() {
+        val controller = controller()
+        composeRule.setContent {
+            NenePixelEditor(initialState = controller.renderState, callbacks = controller.callbacks)
+        }
+
+        composeRule.onNodeWithContentDescription("Pencil tool").assertIsSelected()
+        composeRule.onNodeWithContentDescription("Eraser tool").assertIsNotSelected()
+        touchFirstPixel()
+        composeRule.waitForIdle()
+
+        val drawn = controller.renderState
+        assertEquals(1L, drawn.snapshot.revision.value)
+        assertTrue(drawn.snapshot.copyPackedRgba8888().any { pixel -> pixel != PixelColor.blank.toPackedRgba8888() })
+
+        composeRule.onNodeWithContentDescription("Eraser tool").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithContentDescription("Eraser tool").assertIsSelected()
+        composeRule.onNodeWithContentDescription("Pencil tool").assertIsNotSelected()
+        assertEquals(drawn.snapshot, controller.renderState.snapshot)
+
+        touchFirstPixel()
+        composeRule.waitForIdle()
+
+        assertEquals(2L, controller.renderState.snapshot.revision.value)
+        assertTrue(
+            controller.renderState.snapshot
+                .copyPackedRgba8888()
+                .all { pixel -> pixel == PixelColor.blank.toPackedRgba8888() },
+        )
+    }
+
+    @Test
+    fun alreadyBlankEraserGestureIsNoOpWithoutHistory() {
+        val controller = controller()
+        composeRule.setContent {
+            NenePixelEditor(initialState = controller.renderState, callbacks = controller.callbacks)
+        }
+
+        composeRule.onNodeWithContentDescription("Eraser tool").performClick()
+        touchFirstPixel()
+        composeRule.waitForIdle()
+
+        assertEquals(0L, controller.renderState.snapshot.revision.value)
+        assertFalse(controller.renderState.canUndo)
+        assertFalse(controller.renderState.canRedo)
+        composeRule.onNodeWithText("Undo").assertIsNotEnabled()
+    }
+
+    @Test
     fun validNewDocumentCreatesCanonicalBlankRuntimeAndClosesDialog() {
         val ids = CountingDocumentIdSource()
         val controller = controller(ids)
@@ -124,6 +176,7 @@ internal class UndoRedoEditorTest {
             NenePixelEditor(initialState = controller.renderState, callbacks = controller.callbacks)
         }
 
+        composeRule.onNodeWithContentDescription("Eraser tool").performClick()
         openNewDocumentDialog()
         replaceDimensions(width = "3", height = "2")
         composeRule.onNodeWithText("Create").performClick()
@@ -131,6 +184,7 @@ internal class UndoRedoEditorTest {
 
         composeRule.onNodeWithText("Create new document").assertDoesNotExist()
         composeRule.onNodeWithContentDescription("3 by 2 pixel canvas").assertExists()
+        composeRule.onNodeWithContentDescription("Pencil tool").assertIsSelected()
         assertEquals(2, ids.callCount)
         assertEquals(3, controller.renderState.snapshot.size.width.value)
         assertEquals(2, controller.renderState.snapshot.size.height.value)
@@ -187,6 +241,15 @@ internal class UndoRedoEditorTest {
         composeRule.onNodeWithText("Create new document").assertExists()
     }
 
+    private fun touchFirstPixel() {
+        composeRule
+            .onNodeWithContentDescription("16 by 16 pixel canvas")
+            .performTouchInput {
+                down(position = percentOffset(FIRST_PIXEL_PERCENT, FIRST_PIXEL_PERCENT))
+                up()
+            }
+    }
+
     private fun replaceDimensions(
         width: String,
         height: String,
@@ -231,6 +294,7 @@ internal class UndoRedoEditorTest {
         const val CHANNEL_MAX: Int = 255
         const val START_PERCENT: Float = 0.05f
         const val END_PERCENT: Float = 0.25f
+        const val FIRST_PIXEL_PERCENT: Float = 0.03f
         const val SWIPE_DURATION_MILLIS: Long = 300L
     }
 }

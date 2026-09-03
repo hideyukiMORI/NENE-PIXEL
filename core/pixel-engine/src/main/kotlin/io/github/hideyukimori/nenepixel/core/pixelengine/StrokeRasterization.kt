@@ -1,6 +1,8 @@
 package io.github.hideyukimori.nenepixel.core.pixelengine
 
+import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.drawing.Stroke
+import io.github.hideyukimori.nenepixel.core.domain.drawing.StrokeEffect
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 
 public fun rasterizeStroke(
@@ -17,7 +19,7 @@ private fun rasterizeMatchingCanvas(
     snapshot: PixelSnapshot,
     stroke: Stroke,
 ): StrokeRasterizationResult {
-    val target = stroke.color.toPackedRgba8888()
+    val target = stroke.effect.targetColor().toPackedRgba8888()
     val canvasPixels = snapshot.size.pixelCount.toInt()
     val sourcePixels = snapshot.copyPackedRgba8888()
     val collection =
@@ -41,6 +43,12 @@ private fun rasterizeMatchingCanvas(
             ).toRasterizationResult()
     }
 }
+
+private fun StrokeEffect.targetColor(): PixelColor =
+    when (this) {
+        is StrokeEffect.Paint -> color
+        StrokeEffect.Erase -> PixelColor.blank
+    }
 
 private class EffectivePositionCollector(
     canvasPixels: Int,

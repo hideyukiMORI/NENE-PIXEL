@@ -2,8 +2,10 @@ package io.github.hideyukimori.nenepixel.core.application.editor
 
 import io.github.hideyukimori.nenepixel.core.application.document.command.ApplyStrokeCommand
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandResult
+import io.github.hideyukimori.nenepixel.core.application.document.command.RejectionReason
 import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryAvailability
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.canvas
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.eraserStroke
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.position
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.red
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.stroke
@@ -13,6 +15,7 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.View
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportZoom
 import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentId
+import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
@@ -45,6 +48,7 @@ internal class EditorRuntimeTest {
         assertEquals(HistoryAvailability.None, state.historyAvailability)
         assertEquals(DocumentDirtyState.Clean, state.dirtyState)
         assertEquals(red, state.workspaceState.activeColor)
+        assertEquals(DrawingTool.Pencil, state.workspaceState.activeTool)
         assertEquals(ViewportState.initial(canvas), state.workspaceState.viewport)
         assertNull(state.workspaceState.preview)
     }
@@ -60,6 +64,7 @@ internal class EditorRuntimeTest {
                 runtime.state.workspaceState.viewport.center,
             )
         runtime.reduce(WorkspaceAction.SetViewport(previousViewport))
+        runtime.reduce(WorkspaceAction.SelectTool(DrawingTool.Eraser))
         val before = runtime.state
 
         val result = runtime.createNewDocument(NewDocumentRequest.create("3", "2"))
@@ -81,6 +86,7 @@ internal class EditorRuntimeTest {
         )
         assertEquals(HistoryAvailability.None, after.historyAvailability)
         assertEquals(DocumentDirtyState.Clean, after.dirtyState)
+        assertEquals(DrawingTool.Pencil, after.workspaceState.activeTool)
         assertEquals(ViewportState.initial(after.documentState.size), after.workspaceState.viewport)
         assertNull(after.workspaceState.preview)
         assertNotEquals(before.documentState, after.documentState)
@@ -129,6 +135,26 @@ internal class EditorRuntimeTest {
 
         applyOnePixel(runtime)
         assertEquals(DocumentDirtyState.Dirty, runtime.state.dirtyState)
+    }
+
+    @Test
+    fun `already blank erase leaves clean runtime and empty history`() {
+        val runtime = EditorRuntime.create(canvas(2, 2), red, SequentialDocumentIdSource())
+        val initial = runtime.state
+        val result =
+            runtime.execute(
+                ApplyStrokeCommand.create(
+                    initial.documentState.id,
+                    initial.documentState.revision,
+                    eraserStroke(initial.documentState.size, listOf(position(0, 0))),
+                ),
+            )
+        val rejection = assertInstanceOf(CommandResult.Rejected::class.java, result)
+
+        assertEquals(RejectionReason.NoEffectiveChange, rejection.reason)
+        assertSame(initial.documentState, runtime.state.documentState)
+        assertEquals(HistoryAvailability.None, runtime.state.historyAvailability)
+        assertEquals(DocumentDirtyState.Clean, runtime.state.dirtyState)
     }
 
     private fun applyOnePixel(runtime: EditorRuntime) {

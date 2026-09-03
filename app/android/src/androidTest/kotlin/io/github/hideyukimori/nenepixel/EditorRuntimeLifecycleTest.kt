@@ -9,6 +9,7 @@ import androidx.lifecycle.ViewModelProvider
 import io.github.hideyukimori.nenepixel.core.application.editor.EditorRuntime
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceState
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
+import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Rule
@@ -21,6 +22,8 @@ internal class EditorRuntimeLifecycleTest {
     @Test
     fun configurationRecreationRetainsTheOnlyDocumentAndWorkspaceOwners() {
         createDocument(width = "5", height = "3")
+        composeRule.onNodeWithContentDescription("Eraser tool").performClick()
+        composeRule.waitForIdle()
         lateinit var runtime: EditorRuntime
         lateinit var document: DocumentState
         lateinit var workspace: WorkspaceState
@@ -42,6 +45,7 @@ internal class EditorRuntimeLifecycleTest {
             assertSame(controller, retained.controller)
             assertSame(document, retained.runtime.state.documentState)
             assertSame(workspace, retained.runtime.state.workspaceState)
+            assertEquals(DrawingTool.Eraser, retained.runtime.state.workspaceState.activeTool)
         }
         composeRule.onNodeWithContentDescription("5 by 3 pixel canvas").assertExists()
     }

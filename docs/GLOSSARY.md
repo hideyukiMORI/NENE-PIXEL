@@ -45,7 +45,9 @@ One concept has one canonical name. New synonyms in code are prohibited. Add or 
 | `PixelSnapshot` | Domain-owned immutable row-major semantic pixels at one revision, privately stored as packed `RRGGBBAA` | exposed buffer, Android Bitmap |
 | `PixelPatch` | Pixel-engine-owned row-major packed before/after changes with one shared directional inverse payload | materialized inverse, diff, delta |
 | `Stroke` | One committed drawing gesture with a defined tool/path/style | line when it includes the complete drawing operation |
-| `ToolGesture` | Presentation-level pointer/stylus sequence before commit | command, stroke before it is committed |
+| `DrawingTool` | Closed workspace-selectable Pencil or Eraser identity | brush string, UI-local selected tool |
+| `StrokeEffect` | Gesture-captured document replacement effect: Paint with exact PixelColor or Erase to PixelBlank | handler choice, UI color |
+| `ToolGesture` | Application-owned bounded sampled gesture with canonical document-pixel interpolation before commit | command, raw surface path, Compose-owned stroke |
 | `DocumentCommand` | Typed request to perform one atomic saved/undoable operation | event, action, intent |
 | `WorkspaceAction` | Typed request to change ephemeral WorkspaceState | command, UI event |
 | `CommandHandler` | The single application component implementing one command | manager, processor |

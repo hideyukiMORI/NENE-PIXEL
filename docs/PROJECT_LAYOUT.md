@@ -93,7 +93,8 @@ Owns semantic truth:
 - canvas, frame, layer, palette, and animation value types
 - immutable document state and invariants
 - immutable `PixelSnapshot` value with private row-major `RRGGBBAA` storage, typed queries, and defensive bulk copies
-- immutable `Stroke` value with private row-major integer samples and semantic position iteration
+- immutable `Stroke` value with private row-major integer samples, a closed pencil/eraser effect,
+  and semantic position iteration
 - typed rejection/failure vocabulary shared by core modules
 
 It does not own UI state, serialization annotations, database entities, Android resources, or pixel work buffers. Its private snapshot and stroke arrays are immutable by construction and never escape.
@@ -119,6 +120,7 @@ Owns behavior coordination:
 - `CommandGateway`
 - command handlers and validation
 - `WorkspaceReducer`
+- active drawing-tool ownership and bounded document-pixel gesture interpolation
 - the single current `EditorRuntime` owner for command, workspace, and dirty state
 - validated new-document requests, canonical blank runtime construction, and identifier ports
 - validated workspace viewport values and the portable canonical forward/inverse transform

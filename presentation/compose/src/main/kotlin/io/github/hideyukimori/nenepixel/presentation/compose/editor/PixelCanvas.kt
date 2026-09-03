@@ -21,6 +21,7 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.View
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportSurfaceBounds
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportTransform
 import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
+import io.github.hideyukimori.nenepixel.core.domain.drawing.StrokeEffect
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.presentation.compose.input.viewportPointerInput
@@ -52,7 +53,7 @@ internal fun PixelCanvas(
         val surface = createViewportSurface() ?: return@Canvas
         val transform = createViewportTransform(canvas, surface, renderState) ?: return@Canvas
         drawPixels(transform, canvas, pixels, pixelPaint)
-        drawPreview(transform, renderState.preview, renderState.activeColor.toComposeColor())
+        drawPreview(transform, renderState.preview)
         drawGrid(canvas, transform)
     }
 }
@@ -79,13 +80,18 @@ private fun DrawScope.drawPixels(
 private fun DrawScope.drawPreview(
     transform: ViewportTransform,
     preview: ToolGesture?,
-    color: Color,
 ) {
-    val previewColor = color.copy(alpha = PREVIEW_ALPHA)
-    preview?.forEachPosition { position ->
+    val previewColor = preview?.effect?.previewColor() ?: return
+    preview.forEachPosition { position ->
         transform.surfaceBounds(position)?.let { bounds -> drawPixel(bounds, previewColor) }
     }
 }
+
+private fun StrokeEffect.previewColor(): Color =
+    when (this) {
+        is StrokeEffect.Paint -> color.toComposeColor().copy(alpha = PREVIEW_ALPHA)
+        StrokeEffect.Erase -> PresentationPalette.eraserPreview
+    }
 
 private fun DrawScope.drawPixel(
     bounds: ViewportSurfaceBounds,

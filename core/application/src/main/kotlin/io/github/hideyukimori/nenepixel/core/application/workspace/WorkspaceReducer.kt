@@ -1,5 +1,9 @@
 package io.github.hideyukimori.nenepixel.core.application.workspace
 
+import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
+import io.github.hideyukimori.nenepixel.core.domain.drawing.StrokeEffect
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelLimits
+
 public class WorkspaceReducer private constructor() {
     public fun reduce(
         state: WorkspaceState,
@@ -7,6 +11,7 @@ public class WorkspaceReducer private constructor() {
     ): WorkspaceReductionResult =
         when (action) {
             is WorkspaceAction.ChangeActiveColor -> changeActiveColor(state, action)
+            is WorkspaceAction.SelectTool -> selectTool(state, action)
             is WorkspaceAction.BeginGesturePreview -> beginGesturePreview(state, action)
             is WorkspaceAction.ExtendGesturePreview -> extendGesturePreview(state, action)
             WorkspaceAction.CancelGesturePreview -> cancelGesturePreview(state)
@@ -38,7 +43,7 @@ public class WorkspaceReducer private constructor() {
             }
 
             else -> {
-                val preview = ToolGesture.begin(action.canvas, action.position, state.activeColor)
+                val preview = ToolGesture.begin(action.canvas, action.position, state.strokeEffect())
                 WorkspaceReductionResult.Reduced(state.withPreview(preview))
             }
         }
@@ -53,15 +58,36 @@ public class WorkspaceReducer private constructor() {
                 outsideCanvas(state, preview.canvas, action.position)
             }
 
-            action.position == preview.lastPosition -> {
-                unchanged(state, WorkspaceNoChangeReason.DuplicatePreviewSample)
-            }
-
             else -> {
-                WorkspaceReductionResult.Reduced(state.withPreview(preview.extend(action.position)))
+                extendGesturePreview(state, preview, action.position)
             }
         }
     }
+
+    private fun extendGesturePreview(
+        state: WorkspaceState,
+        preview: ToolGesture,
+        position: io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition,
+    ): WorkspaceReductionResult =
+        when (val result = preview.extend(position)) {
+            is ToolGestureExtensionResult.Extended -> {
+                WorkspaceReductionResult.Reduced(state.withPreview(result.gesture))
+            }
+
+            ToolGestureExtensionResult.Duplicate -> {
+                unchanged(state, WorkspaceNoChangeReason.DuplicatePreviewSample)
+            }
+
+            is ToolGestureExtensionResult.AboveSupportedMaximum -> {
+                rejected(
+                    state,
+                    WorkspaceActionRejection.PreviewPathAboveSupportedMaximum(
+                        result.attemptedCount,
+                        PixelLimits.MAX_RAW_STROKE_POSITIONS,
+                    ),
+                )
+            }
+        }
 
     private fun cancelGesturePreview(state: WorkspaceState): WorkspaceReductionResult =
         if (state.preview == null) {
@@ -114,3 +140,19 @@ public class WorkspaceReducer private constructor() {
         public fun create(): WorkspaceReducer = WorkspaceReducer()
     }
 }
+
+private fun selectTool(
+    state: WorkspaceState,
+    action: WorkspaceAction.SelectTool,
+): WorkspaceReductionResult =
+    if (action.tool == state.activeTool) {
+        WorkspaceReductionResult.Unchanged(state, WorkspaceNoChangeReason.ActiveToolAlreadySelected)
+    } else {
+        WorkspaceReductionResult.Reduced(state.withActiveTool(action.tool))
+    }
+
+private fun WorkspaceState.strokeEffect(): StrokeEffect =
+    when (activeTool) {
+        DrawingTool.Pencil -> StrokeEffect.Paint(activeColor)
+        DrawingTool.Eraser -> StrokeEffect.Erase
+    }
