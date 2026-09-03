@@ -1,5 +1,6 @@
 package io.github.hideyukimori.nenepixel.core.domain.geometry
 
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelLimits
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueRejection
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import io.github.hideyukimori.nenepixel.core.domain.validation.created
@@ -11,10 +12,23 @@ public value class CanvasWidth private constructor(
 ) {
     public companion object {
         public fun create(value: Int): DomainValueResult<CanvasWidth> =
-            if (value <= 0) {
-                rejected(DomainValueRejection.NonPositiveCanvasWidth(value))
-            } else {
-                created(CanvasWidth(value))
+            when {
+                value <= 0 -> {
+                    rejected(DomainValueRejection.NonPositiveCanvasWidth(value))
+                }
+
+                value > PixelLimits.MAX_CANVAS_AXIS -> {
+                    rejected(
+                        DomainValueRejection.CanvasWidthAboveSupportedMaximum(
+                            value,
+                            PixelLimits.MAX_CANVAS_AXIS,
+                        ),
+                    )
+                }
+
+                else -> {
+                    created(CanvasWidth(value))
+                }
             }
     }
 }

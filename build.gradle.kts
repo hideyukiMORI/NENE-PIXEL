@@ -53,13 +53,3 @@ tasks.register("measureP2ViewportInteraction") {
     description = "Measures the P2 canonical viewport-to-controller interaction path."
     dependsOn(":presentation:compose:measureP2ViewportInteraction")
 }
-
-tasks.register("measureP2RepresentationLimits") {
-    group = "verification"
-    description = "Runs the P2 pixel representation and limit measurement harness."
-    dependsOn(
-        ":core:application:measureP2RepresentationLimits",
-        ":core:pixel-engine:measureP2RepresentationCandidates",
-        ":presentation:compose:measureP2RenderProjection",
-    )
-}

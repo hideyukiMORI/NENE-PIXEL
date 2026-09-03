@@ -142,7 +142,7 @@ internal class ViewportTransformGestureTest {
 
     @Test
     fun `non-finite derived gesture arithmetic is rejected`() {
-        val hugeCanvas = canvas(Int.MAX_VALUE, Int.MAX_VALUE)
+        val hugeCanvas = canvas(256, 256)
         val transform = transform(hugeCanvas, surface(1, 1), ViewportState.initial(hugeCanvas))
         val gesture =
             gesture(

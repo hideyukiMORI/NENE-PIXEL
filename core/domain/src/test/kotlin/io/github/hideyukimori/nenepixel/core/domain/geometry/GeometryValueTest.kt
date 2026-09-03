@@ -4,6 +4,7 @@ import io.github.hideyukimori.nenepixel.core.domain.DomainValueAssertions.create
 import io.github.hideyukimori.nenepixel.core.domain.DomainValueAssertions.rejected
 import io.github.hideyukimori.nenepixel.core.domain.DomainValueTestValues.canvasSize
 import io.github.hideyukimori.nenepixel.core.domain.DomainValueTestValues.pixelPosition
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelLimits
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueRejection
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -13,10 +14,12 @@ import org.junit.jupiter.api.Test
 
 internal class GeometryValueTest {
     @Test
-    fun `dimensions are positive and pixel count uses Long arithmetic`() {
-        val maximumSize = canvasSize(Int.MAX_VALUE, Int.MAX_VALUE)
+    fun `dimensions enforce supported axis boundaries and bounded area`() {
+        val maximumSize = canvasSize(PixelLimits.MAX_CANVAS_AXIS, PixelLimits.MAX_CANVAS_AXIS)
 
-        assertEquals(Int.MAX_VALUE.toLong() * Int.MAX_VALUE.toLong(), maximumSize.pixelCount)
+        assertEquals(PixelLimits.MAX_CANVAS_PIXELS.toLong(), maximumSize.pixelCount)
+        assertEquals(PixelLimits.MAX_CANVAS_AXIS - 1, created(CanvasWidth.create(255)).value)
+        assertEquals(PixelLimits.MAX_CANVAS_AXIS, created(CanvasHeight.create(256)).value)
         assertInstanceOf(
             DomainValueRejection.NonPositiveCanvasWidth::class.java,
             rejected(CanvasWidth.create(0)),
@@ -24,6 +27,14 @@ internal class GeometryValueTest {
         assertInstanceOf(
             DomainValueRejection.NonPositiveCanvasHeight::class.java,
             rejected(CanvasHeight.create(-1)),
+        )
+        assertEquals(
+            DomainValueRejection.CanvasWidthAboveSupportedMaximum(257, PixelLimits.MAX_CANVAS_AXIS),
+            rejected(CanvasWidth.create(257)),
+        )
+        assertEquals(
+            DomainValueRejection.CanvasHeightAboveSupportedMaximum(257, PixelLimits.MAX_CANVAS_AXIS),
+            rejected(CanvasHeight.create(257)),
         )
     }
 
@@ -62,14 +73,14 @@ internal class GeometryValueTest {
     }
 
     @Test
-    fun `region outside canvas is rejected without integer overflow`() {
-        val canvas = canvasSize(Int.MAX_VALUE, Int.MAX_VALUE)
+    fun `region outside maximum supported canvas is rejected`() {
+        val canvas = canvasSize(PixelLimits.MAX_CANVAS_AXIS, PixelLimits.MAX_CANVAS_AXIS)
         val rejection =
             rejected(
                 PixelRegion.create(
                     canvas = canvas,
-                    origin = pixelPosition(Int.MAX_VALUE, Int.MAX_VALUE),
-                    size = canvas,
+                    origin = pixelPosition(PixelLimits.MAX_CANVAS_AXIS - 1, PixelLimits.MAX_CANVAS_AXIS - 1),
+                    size = canvasSize(2, 2),
                 ),
             )
 

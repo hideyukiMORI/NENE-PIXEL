@@ -89,9 +89,19 @@ A pointer gesture MAY generate ephemeral previews, but MUST commit as one semant
 
 The default drawing unit is a stroke or an explicitly bounded `PixelPatch`.
 
+The accepted conservative MVP limits are one `PixelLimits` policy: at most 262,144 ordered raw
+stroke positions and at most 65,536 unique effective patch changes. Stroke construction rejects an
+oversized raw path before containment scan or ownership copy. Patch construction rejects an
+oversized change set before sorting or packed ownership.
+
 ### CMD-006 — Validation precedes transition
 
 A handler MUST validate identifiers, dimensions, bounds, mode compatibility, and preconditions before changing state. Partial application is prohibited.
+
+Canvas axes are limited to 256 and total area to 65,536 pixels before snapshot, work-buffer, or
+render allocation. History accepts at most 64 committed entries and 524,288 total retained pixel
+changes; both budgets are checked before document and history commit. Limits are deterministic and
+MUST NOT branch on runtime free memory or adapter identity.
 
 An invalid command returns a typed rejection and leaves all state unchanged.
 
@@ -111,6 +121,10 @@ Consumers MUST NOT infer the change again from UI input.
 ### CMD-008 — Undo and redo use recorded transitions
 
 Undo/redo MUST operate on committed `ChangeSet` records or their canonical inverse representation. UI-specific closures, arbitrary object snapshots per pixel, and handler-specific undo callbacks are prohibited.
+
+The canonical inverse is a directional view over the same packed position/before/after payload as
+the forward patch. It swaps exact before/after values and revisions without materializing a second
+change payload.
 
 Undo and redo themselves enter through the application command boundary.
 

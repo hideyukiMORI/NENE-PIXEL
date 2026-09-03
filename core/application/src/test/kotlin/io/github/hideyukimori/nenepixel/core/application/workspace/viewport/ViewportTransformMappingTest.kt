@@ -80,22 +80,23 @@ internal class ViewportTransformMappingTest {
 
     @Test
     fun `integer dimensions are widened before fit division`() {
-        val transform = transform(canvas(512, 512), surface(320, 160), state(1.0, 256.0, 256.0))
+        val transform = transform(canvas(256, 256), surface(320, 160), state(1.0, 128.0, 128.0))
         val first = bounds(transform.toSurfaceBounds(position(0, 0)))
 
-        assertBounds(first, 80.0, 0.0, 80.3125, 0.3125)
+        assertBounds(first, 80.0, 0.0, 80.625, 0.625)
     }
 
     @Test
-    fun `finite inputs that collapse adjacent double edges reject transform creation`() {
+    fun `maximum supported finite canvas creates a safe transform`() {
+        val maximumCanvas = canvas(256, 256)
         val result =
             ViewportTransform.create(
-                canvas(Int.MAX_VALUE, 1),
+                maximumCanvas,
                 surface(1, Int.MAX_VALUE),
-                ViewportState.initial(canvas(Int.MAX_VALUE, 1)),
+                ViewportState.initial(maximumCanvas),
             )
 
-        assertSame(ViewportValueRejection.UnsafeDerivedTransform, rejection(result))
+        assertTrue(result is ViewportValueResult.Created)
     }
 
     private fun assertFit(

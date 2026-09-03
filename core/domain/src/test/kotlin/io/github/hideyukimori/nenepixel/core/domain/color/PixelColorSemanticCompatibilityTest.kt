@@ -25,6 +25,16 @@ internal class PixelColorSemanticCompatibilityTest {
         assertEquals(UByte.MIN_VALUE, transparentRed.alpha.value)
     }
 
+    @Test
+    fun `straight semantic RGBA packs exactly and blank is transparent black`() {
+        edgeColors().forEach { channels ->
+            val color = pixelColor(channels)
+            assertEquals(color, PixelColor.fromPackedRgba8888(color.toPackedRgba8888()))
+        }
+        assertEquals(pixelColor(RgbaChannels(0, 0, 0, 0)), PixelColor.blank)
+        assertEquals(0, PixelColor.blank.toPackedRgba8888())
+    }
+
     private fun assertValueIdentity(channels: RgbaChannels) {
         val first = pixelColor(channels)
         val equal = pixelColor(channels)

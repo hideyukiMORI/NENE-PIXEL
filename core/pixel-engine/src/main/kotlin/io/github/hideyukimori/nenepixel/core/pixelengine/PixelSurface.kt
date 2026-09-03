@@ -4,44 +4,38 @@ import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.document.Revision
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
-import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelX
-import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelY
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 
 internal class PixelSurface private constructor(
     private val size: CanvasSize,
-    private val pixels: MutableList<PixelColor>,
+    private val packedPixels: IntArray,
 ) {
-    fun colorAt(position: PixelPosition): PixelColor = pixels[position.rowMajorIndex(size)]
+    fun colorAt(position: PixelPosition): PixelColor =
+        PixelColor.fromPackedRgba8888(packedPixels[position.rowMajorIndex(size)])
+
+    fun packedRgba8888At(rowMajorIndex: Int): Int = packedPixels[rowMajorIndex]
 
     fun write(change: PixelChange) {
-        pixels[change.position.rowMajorIndex(size)] = change.after
+        packedPixels[change.position.rowMajorIndex(size)] = change.after.toPackedRgba8888()
     }
 
-    fun snapshot(revision: Revision): PixelSnapshot = PixelSnapshot.create(size, revision, pixels).requiredValue()
+    fun writePackedRgba8888(
+        rowMajorIndex: Int,
+        value: Int,
+    ) {
+        packedPixels[rowMajorIndex] = value
+    }
+
+    fun snapshot(revision: Revision): PixelSnapshot =
+        PixelSnapshot.createPackedRgba8888(size, revision, packedPixels).requiredValue()
 
     companion object {
-        fun from(snapshot: PixelSnapshot): PixelSurface {
-            val pixelCount = snapshot.size.pixelCount.toInt()
-            val ownedPixels =
-                MutableList(pixelCount) { index ->
-                    val position = snapshot.size.positionAt(index)
-                    snapshot.colorAt(position).requiredValue()
-                }
-            return PixelSurface(snapshot.size, ownedPixels)
-        }
-
-        private fun CanvasSize.positionAt(index: Int): PixelPosition =
-            PixelPosition.create(
-                x = PixelX.create(index % width.value).requiredValue(),
-                y = PixelY.create(index / width.value).requiredValue(),
-            )
+        fun from(snapshot: PixelSnapshot): PixelSurface = PixelSurface(snapshot.size, snapshot.copyPackedRgba8888())
     }
 }
 
-private fun PixelPosition.rowMajorIndex(size: CanvasSize): Int =
-    (y.value.toLong() * size.width.value.toLong() + x.value.toLong()).toInt()
+private fun PixelPosition.rowMajorIndex(size: CanvasSize): Int = y.value * size.width.value + x.value
 
 private fun <T> DomainValueResult<T>.requiredValue(): T =
     when (this) {

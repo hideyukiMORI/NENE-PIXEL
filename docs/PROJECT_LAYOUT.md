@@ -19,7 +19,7 @@ The module graph is part of the architecture. A package convention alone is not 
     Command gateway, handlers, workspace reducer, queries, ports
 
 :core:domain
-    Document model, value types, immutable pixel snapshot, invariants, closed outcomes
+    Document model, value types, privately packed immutable pixel snapshot, invariants, closed outcomes
 
 :core:pixel-engine
     Mutable pixel surface, patches, raster algorithms, controlled mutation
@@ -92,24 +92,24 @@ Owns semantic truth:
 - strongly typed identifiers and coordinates
 - canvas, frame, layer, palette, and animation value types
 - immutable document state and invariants
-- immutable `PixelSnapshot` value with typed read-only queries
+- immutable `PixelSnapshot` value with private row-major `RRGGBBAA` storage, typed queries, and defensive bulk copies
 - typed rejection/failure vocabulary shared by core modules
 
-It does not own UI state, serialization annotations, database entities, Android resources, or mutable pixel storage.
+It does not own UI state, serialization annotations, database entities, Android resources, or pixel work buffers. Its private packed snapshot array is immutable by construction and never escapes.
 
 ### `:core:pixel-engine`
 
 Owns performance-sensitive raster behavior:
 
-- pixel-surface implementation
-- private mutable pixel storage loaded from and returned as domain snapshots
+- flat packed pixel-surface implementation
+- private mutable row-major pixel storage loaded from and returned as domain snapshots
 - brush rasterization
 - flood fill
 - selection masks and bounded transforms
 - patch calculation and application
 - render invalidation regions
 
-This is the only controlled mutation enclave. Its public API returns domain `PixelSnapshot` values and pixel-engine `PixelPatch` values and never leaks storage.
+This is the only controlled mutation enclave. Its public API returns domain `PixelSnapshot` values and flat packed `PixelPatch` values with shared directional inverses and never leaks owned storage.
 
 ### `:core:application`
 

@@ -8,7 +8,6 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.View
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportSurfaceBounds
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportTransform
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportValueResult
-import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelX
@@ -62,11 +61,8 @@ internal fun ViewportTransform.canvasProjection(canvas: CanvasSize): CanvasProje
 
 internal fun PixelSnapshot.toRenderedBitmap(): Bitmap {
     val width = size.width.value
-    val colors =
-        IntArray(size.pixelCount.toInt()) { index ->
-            val position = pixelPosition(index % width, index / width)
-            colorAt(position).requiredValue().toArgb8888()
-        }
+    val colors = copyPackedRgba8888()
+    colors.indices.forEach { index -> colors[index] = colors[index].rgbaToArgb8888() }
     return Bitmap.createBitmap(colors, width, size.height.value, Bitmap.Config.ARGB_8888)
 }
 
@@ -77,11 +73,7 @@ internal fun pixelPosition(
 
 internal fun CanvasSize.accessibilityDescription(): String = "${width.value} by ${height.value} pixel canvas"
 
-private fun PixelColor.toArgb8888(): Int =
-    (alpha.value.toInt() shl ALPHA_SHIFT) or
-        (red.value.toInt() shl RED_SHIFT) or
-        (green.value.toInt() shl GREEN_SHIFT) or
-        blue.value.toInt()
+private fun Int.rgbaToArgb8888(): Int = ((this and CHANNEL_MASK) shl ALPHA_SHIFT) or (this ushr CHANNEL_SHIFT)
 
 private fun <T> DomainValueResult<T>.requiredValue(): T =
     when (this) {
@@ -90,5 +82,5 @@ private fun <T> DomainValueResult<T>.requiredValue(): T =
     }
 
 private const val ALPHA_SHIFT: Int = 24
-private const val RED_SHIFT: Int = 16
-private const val GREEN_SHIFT: Int = 8
+private const val CHANNEL_SHIFT: Int = 8
+private const val CHANNEL_MASK: Int = 0xff

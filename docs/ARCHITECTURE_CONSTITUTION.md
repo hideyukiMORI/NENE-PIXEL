@@ -46,11 +46,11 @@ The same fact MUST NOT be independently stored in more than one category. Derive
 
 ### ARC-005 — Controlled mutation enclave
 
-Externally visible domain and application state MUST be immutable. Mutable pixel buffers and algorithm workspaces MAY exist only inside `:core:pixel-engine` implementation classes.
+Externally visible domain and application state MUST be immutable. `PixelSnapshot` MAY privately own defensive packed primitive storage that is never mutated after construction and is never exposed; any bulk read returns a copy. Mutable pixel buffers and algorithm workspaces MAY exist only inside `:core:pixel-engine` implementation classes.
 
 The pixel engine MUST:
 
-- never expose mutable arrays, buffers, iterators, or collections
+- never expose owned mutable arrays, buffers, iterators, or collections
 - accept validated value types
 - return immutable `PixelPatch`, `PixelSnapshot`, or typed results
 - produce deterministic output for the same input

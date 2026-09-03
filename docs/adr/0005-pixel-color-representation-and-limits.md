@@ -1,7 +1,7 @@
 # ADR 0005: Pixel and color representation with bounded document policy
 
-- Status: proposed
-- Date: 2026-09-01
+- Status: accepted
+- Date: 2026-09-03
 - Issue: #38
 - Affected rules: `ARC-001` through `ARC-005`, `ARC-007` through `ARC-012`, `CMD-005` through `CMD-010`, `KOT-001` through `KOT-003`, `KOT-005`, `KOT-007`, `KOT-008`, `KOT-013`, `KOT-016`, `KOT-020`, `QLT-006` through `QLT-010`
 
@@ -39,13 +39,9 @@ save, load, and export must not reinterpret pixel colors.
 
 ## Decision
 
-### Proposed evidence gate
+### Evidence determination
 
-While this ADR is `proposed`, it fixes the decision procedure only. It does not accept a new
-pixel representation, color interpretation, public production API, or numerical limit.
-
-This ADR must remain `proposed` until all of the following are present in the linked evidence
-document:
+The linked evidence document supplies all of the following:
 
 1. the immutable M1 route has been reproduced from commit `37c0f57` in an isolated worktree;
 2. one exact semantic color contract has passed the correctness lane described below;
@@ -58,83 +54,85 @@ document:
 6. exactly one semantic, storage, and logical-limit policy passes the applicable pre-fixed lane
    conditions without interpolation.
 
-Host JVM and emulator observations are auxiliary. They may expose regressions or eliminate a
-candidate, but they cannot by themselves make this ADR `accepted`, select a supported product
-cap, or support a user-visible performance claim. This ADR selects conservative MVP supported
-caps at or below explicitly measured passing points with documented headroom. It does not claim
-the largest possible or implementation-theoretical maximum, and a passing largest measured point
-does not require an open-ended extension of the matrix. A later focused Issue may raise a cap
-after repeating the same decision procedure.
+Host JVM and emulator observations remain auxiliary. The physical flat-packed kernel passes every
+fixed latency tail, T16 fails dense apply, and the current object path fails the clean command
+lane. At `N=65,536`, `H=64`, and `T=524,288`, flat packed with shared inverse and canonical bitmap
+uses 9,541,424 bytes retained Java heap and a 7,570 KiB median paired PSS delta, respectively
+80.67% and 80.17% below the current comparison. This ADR selects conservative MVP caps at or below
+those explicitly measured points. It does not claim the largest possible or theoretical maximum.
 
-### Semantic decision surface
+### Semantic color contract
 
-Before acceptance, this section must replace every unresolved item with one precise semantic
-contract:
+| Question | Accepted answer |
+| --- | --- |
+| Channel model | Four unsigned 8-bit channels in red, green, blue, alpha semantic order in the sRGB color space |
+| Alpha | Straight, unassociated semantic alpha; core values are never premultiplied |
+| Alpha zero | Hidden RGB is preserved and participates in equality, hash, save/load, and export |
+| Blank | Transparent black, RGBA `(0,0,0,0)` |
+| Eraser | Replace every effective target with canonical blank; blank-to-blank is a no-op |
+| Pencil | Replace every effective target with the gesture-captured selected `PixelColor`; no blending or compositing occurs in document truth |
+| Equality and hash | All four semantic channels participate, independent of storage layout |
+| Palette | Each pixel owns its RGBA value, never a palette identity or index |
+| Compatibility | Compose receives the same sRGB channels and may premultiply only inside disposable rendering; PNG and project formats encode/decode straight RGBA from `PixelSnapshot`, never from a rendered bitmap |
 
-| Question | Required accepted answer | Current status |
-| --- | --- | --- |
-| Channel model | Exact RGBA8 channel order and named color space | unresolved |
-| Alpha | Straight or premultiplied semantic alpha | unresolved |
-| Alpha zero | Preserve hidden RGB or canonicalize to one transparent value | unresolved |
-| Blank | Exact new-canvas and cleared-pixel value | unresolved |
-| Eraser | Exact value written and its same-value no-op behavior | unresolved |
-| Pencil | Replace, source-over, or another exact composition rule | unresolved |
-| Equality and hash | Semantic equality independent of internal packing | unresolved |
-| Palette | Pixels own semantic color or reference palette identity | unresolved |
-| Compatibility | Exact Compose, PNG, and future project-format conversion meaning | unresolved |
+Palette content is a bounded immutable tool configuration, not `DocumentState` or pixel truth.
+Only active palette selection is workspace state. Palette selection therefore changes no document,
+revision, history, or dirty state. Palette-entry editing is not introduced by this ADR.
 
-Semantic `PixelColor` meaning remains separate from storage layout during evaluation. A storage
-candidate must not silently determine the color space, alpha behavior, blank value, or palette
-ownership.
-
-### Storage decision surface
+### Canonical storage decision
 
 The decision comparison contains exactly the following three storage candidates:
 
-| Candidate | Required analysis |
+| Candidate | Decision |
 | --- | --- |
-| Current flat object representation | Defensive `List<PixelColor>` snapshot, mutable list surface, object changes, and materialized inverse |
-| Flat packed RGBA8888 | Private primitive ownership, pack/unpack correctness, copy and equality cost, inverse representation, and ARC-005 impact |
-| Tiled/COW RGBA8888, edge 16 | The single challenger selected before new physical collection by the deterministic host-screening rule recorded in the evidence ledger; ownership, sparse/dense behavior, deterministic equality/hash, snapshot sharing, and worst-case copy cost |
+| Current flat object representation | Rejected: clean physical command tails fail and retained memory is materially higher |
+| Flat packed RGBA8888 | Selected as the only production representation |
+| Tiled/COW RGBA8888, edge 16 | Rejected: physical dense-apply p95 is 9.126 ms, above the fixed 8.0 ms target |
 
 T32 and T64 were screened on the host and remain diagnostic; they do not expand the physical
 decision matrix. Palette-index ownership, palette-edit
 consequences, alpha compatibility, and future-format impact remain part of the semantic decision;
 palette-index storage is not a fourth physical candidate for this MVP decision.
 
-Test-only candidates are analytical fixtures. None may be imported by production, exposed as a
-public implementation interface, or kept as a second production path.
+`PixelSnapshot` remains one final domain value and privately owns one row-major `IntArray` whose
+bits are `RRGGBBAA`. Inputs are defensively copied or packed; the owned array is never mutated after
+construction or exposed. A bulk read returns a defensive copy. `PixelSurface`, where a mutable
+work surface is required, privately owns one row-major packed `IntArray` inside
+`:core:pixel-engine`. `PixelPatch` privately owns row-major integer positions plus packed before
+and after arrays. Its inverse is a directional view that shares those arrays and swaps both values
+and exact recorded revisions; it is not a second materialized payload.
 
-Acceptance must name exactly one canonical implementation for each of `PixelSnapshot`,
-`PixelSurface`, `PixelPatch`, and inverse change data. It must also state:
+Snapshots are not tiled and share no mutable or structural backing across revisions. Patch order
+is ascending row-major. Equality and hash use canvas, exact revision, direction, and semantic
+packed content rather than primitive-array identity. Pixel positions, counts, and row-major indexes
+use `Int`; accepted area is at most 65,536, so `y * width + x`, array sizes, and byte counts are
+representable without narrowing. Domain-owned packed storage refines ADR 0002 and `ARC-005`:
+immutable-by-construction private primitive storage is permitted in `PixelSnapshot`; mutable work
+storage remains exclusive to the pixel engine. Defensive read copies are projections, not exposed
+owned storage.
 
-- row-major query and canonical patch-order semantics;
-- defensive ownership and whether any storage is structurally shared;
-- equality and hash behavior;
-- integer index type and overflow proof;
-- where mutation is permitted and how mutable storage is prevented from escaping;
-- whether the chosen private primitive ownership refines the literal ARC-005 and ADR 0002
-  wording; and
-- how the forward and inverse views preserve exact before and after revisions from ADR 0003.
+Test-only current and tiled candidate implementations are not production APIs or runtime options
+and are removed after their immutable evidence has been recorded.
 
-### Limit decision surface
+### Conservative MVP limits
 
-No numerical value in this table is accepted yet:
-
-| Limit | Unit | Owning validation boundary | Value |
+| Limit | Unit | Owning validation boundary | Accepted maximum |
 | --- | --- | --- | --- |
-| Canvas width | pixels on one axis | validated canvas construction | unresolved |
-| Canvas height | pixels on one axis | validated canvas construction | unresolved |
-| Canvas area | total pixels | validated canvas construction before allocation | unresolved |
-| Raw stroke volume | ordered samples per accepted stroke | stroke construction before ownership copy or raster work | unresolved |
-| Patch volume | unique changed pixels per accepted patch | patch/raster boundary before unbounded sort or commit | unresolved |
-| History capacity | retained committed entries | application history owner | unresolved |
-| Retained history volume | total retained pixel changes | application history owner before document commit | unresolved |
+| Canvas width | pixels on one axis | `CanvasWidth.create` before `CanvasSize` or allocation | 256 |
+| Canvas height | pixels on one axis | `CanvasHeight.create` before `CanvasSize` or allocation | 256 |
+| Canvas area | total pixels | invariant derived from validated axes and asserted by `CanvasSize` before allocation | 65,536 |
+| Raw stroke volume | ordered samples per accepted stroke | `Stroke.create` before containment scan, ownership copy, or raster work | 262,144 |
+| Patch volume | unique changed pixels per accepted patch | `PixelPatch.create`/stroke rasterization before sort, packed ownership, or commit | 65,536 |
+| History capacity | retained committed entries | application history retention policy before atomic commit | 64 |
+| Retained history volume | total retained pixel changes | application history retention policy before atomic commit | 524,288 |
 
-Acceptance must name each exact type or factory, its closed typed rejection, and cap-minus-one,
-cap, and cap-plus-one behavior. Axis and area policies must prove all accepted allocation and
-row-major indexes are representable. Patch and raw-stroke limits must be distinct so duplicate
-and no-op samples cannot consume unbounded work while producing a small patch.
+All limits come from one canonical `PixelLimits` policy. Axis, raw-stroke, patch, and history owners
+return closed typed rejections and test cap minus one, cap, and cap plus one before the bounded
+resource is allocated, sorted, or committed. Canvas area is deliberately not a second reachable
+validation path: two positive axes independently bounded at 256 mathematically imply area at most
+65,536. `CanvasSize` asserts that invariant, while any integer rectangle attempting to exceed it
+already receives the applicable typed axis rejection. Raw stroke and patch limits remain separate:
+up to four full-canvas raw samples per pixel may collapse to at most one effective change per pixel.
 
 History entry count alone is not a sufficient memory bound. The accepted policy must derive a
 deterministic retained-change bound from the selected patch and inverse representation. An
@@ -142,13 +140,15 @@ accepted patch must not become a committed but undo-disabled mutation. Capacity 
 volume are checked before the atomic document/history commit; no runtime free-memory reading or
 device-specific branch becomes business policy.
 
-The same typed policy must be consumed by UI, core, future project-format mapping, and future
-automation. Adapters may explain a rejection but may not duplicate or relax a constant.
+Core owners consume the same typed policy. UI, future project-format mapping, and future automation
+must map those results rather than duplicate or relax a constant.
 
-Each accepted numerical value is a conservative MVP supported cap, not a claim about the largest
-possible canvas or workload. The evidence document must name the measured passing point that
-supports each cap, the reserved headroom, the representative MVP workload, and the exact typed
-rejection at cap plus one. No interpolation or device-dependent runtime policy is permitted.
+These are conservative supported caps, not claims about the largest possible canvas or workload.
+The 256-square physical flat kernel supports canvas and patch caps with 16.4% p95 latency headroom
+at its slowest row and 56.5% p99 headroom. The raw-stroke cap is half the largest passing 524,288-
+sample host fixture. The physical `H=64,T=524,288` flat owner supports both history caps while
+using 3.55% of the fixed runtime maximum, leaving substantial retained-heap headroom. No
+interpolation or device-dependent runtime policy is permitted.
 
 ### Measurement contract
 
@@ -178,11 +178,10 @@ separate decision.
 ### Relationship to accepted ADRs
 
 - ADR 0001 remains unchanged.
-- ADR 0002 remains normative while this ADR is proposed. Acceptance must state whether it
-  refines its semantic RGBA, immutable domain snapshot, and pixel-engine mutation boundary or
-  explicitly supersedes identified sections. Palette-indexed document truth or storage outside
-  the engine enclave cannot be introduced as an implementation detail.
-- ADR 0003 remains normative. This ADR may refine physical inverse storage, but undo and redo
+- ADR 0002 remains normative and is refined only for private immutable-by-construction packed
+  `PixelSnapshot` storage and defensive packed read copies. Palette-indexed document truth remains
+  prohibited.
+- ADR 0003 remains normative. This ADR refines physical inverse storage, but undo and redo
   must continue to apply recorded exact before/after values and revisions without rebuilding or
   rebasing a transition.
 - ADR 0004 remains distinct. Its transform rejects unsafe derived mappings for any validated
@@ -236,7 +235,7 @@ argument.
 
 ### Costs and risks
 
-- P2-02 and representation-dependent parts of P2-04 remain blocked while this ADR is proposed
+- the atomic packed migration touches domain, engine, application, presentation, and evidence code
 - physical-device collection and the three-candidate analysis require more work than a host
   benchmark
 - a primitive or shared representation may require coordinated public API and architecture-text
@@ -247,8 +246,7 @@ argument.
 
 ## Enforcement impact
 
-When the evidence is complete, the accepted revision of this ADR must update the affected
-canonical documents before or with production migration. At minimum:
+This accepted ADR updates the affected canonical documents with the production migration:
 
 - `GLOSSARY.md` records the accepted color, blank, representation, and limit meanings.
 - `PROJECT_LAYOUT.md` records the selected ownership and any explicitly permitted private
@@ -263,8 +261,7 @@ canonical documents before or with production migration. At minimum:
 - architecture validation and root `check` reject duplicate storage or policy paths.
 - physical evidence and its checksums remain linked from this ADR.
 
-No quality gate, suppression, baseline, schema, external API, or waiver is introduced by this
-proposed policy-first document.
+No quality gate, suppression, baseline, external API, or waiver is introduced.
 
 ## Migration and rollback
 
@@ -284,16 +281,14 @@ change and the old implementation, alias, adapter, and analytical candidate code
 before P2-02 becomes ready. No read-old/write-new or runtime-selectable path is retained.
 
 Rollback reverts the whole unmerged focused change to the prior accepted ADR 0002/0003 path.
-If evidence invalidates the proposed decision before implementation, revise or reject this ADR;
-do not partially migrate production. If physical evidence invalidates an implemented candidate,
-revert the complete focused migration and return this ADR to a new proposed decision rather
-than keeping both representations.
+If physical verification invalidates the implementation, revert the complete focused migration
+and return this ADR to a new proposed decision rather than keeping both representations.
 
 ## Related
 
 - Issue: #38
 - Evidence: [P2 Representation and Limit Evidence](../quality/P2_REPRESENTATION_LIMIT_EVIDENCE.md)
-- Refines: ADR 0002 and ADR 0003 only after acceptance; none while proposed
+- Refines: ADR 0002 private snapshot storage/read boundary and ADR 0003 inverse physical storage
 - Distinct from: ADR 0004 viewport bounds and mapping safety
 - Supersedes: none
 - Superseded by: none

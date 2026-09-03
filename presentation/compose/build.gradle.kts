@@ -27,8 +27,6 @@ dependencies {
 
 val p2ViewportInteractionMeasurementClass =
     "io.github.hideyukimori.nenepixel.presentation.compose.editor.P2ViewportInteractionMeasurementTest"
-val p2RenderProjectionMeasurementClass =
-    "io.github.hideyukimori.nenepixel.presentation.compose.editor.P2RenderProjectionMeasurementTest"
 
 afterEvaluate {
     val debugUnitTest = tasks.named<Test>("testDebugUnitTest")
@@ -46,25 +44,6 @@ afterEvaluate {
             "nene.p2.viewport.measurement.outputDirectory",
             rootProject.layout.buildDirectory
                 .dir("reports/p2/viewport")
-                .get()
-                .asFile.absolutePath,
-        )
-        outputs.upToDateWhen { false }
-    }
-    tasks.register<Test>("measureP2RenderProjection") {
-        group = "verification"
-        description = "Measures the P2 current host PixelSnapshot render-projection path."
-        dependsOn(tasks.named("compileDebugUnitTestKotlin"))
-        testClassesDirs = debugUnitTest.get().testClassesDirs
-        classpath = debugUnitTest.get().classpath
-        filter.includeTestsMatching(p2RenderProjectionMeasurementClass)
-        useJUnitPlatform()
-        maxParallelForks = 1
-        jvmArgs("-Xms512m", "-Xmx512m")
-        systemProperty(
-            "nene.p2.projection.measurement.outputDirectory",
-            rootProject.layout.buildDirectory
-                .dir("reports/p2/representation-limits")
                 .get()
                 .asFile.absolutePath,
         )

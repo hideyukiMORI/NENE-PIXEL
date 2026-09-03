@@ -1,5 +1,6 @@
 package io.github.hideyukimori.nenepixel.core.pixelengine
 
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelLimits
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.black
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.canvas
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.green
@@ -52,10 +53,10 @@ internal class PixelPatchCreationTest {
     }
 
     @Test
-    fun `maximum square valid corners create an exact non overflowing affected region`() {
-        val maximumCanvas = canvas(Int.MAX_VALUE, Int.MAX_VALUE)
+    fun `maximum supported square corners create an exact affected region`() {
+        val maximumCanvas = canvas(PixelLimits.MAX_CANVAS_AXIS, PixelLimits.MAX_CANVAS_AXIS)
         val origin = position(0, 0)
-        val oppositeCorner = position(Int.MAX_VALUE - 1, Int.MAX_VALUE - 1)
+        val oppositeCorner = position(PixelLimits.MAX_CANVAS_AXIS - 1, PixelLimits.MAX_CANVAS_AXIS - 1)
         val first = PixelChange.create(origin, black, green)
         val last = PixelChange.create(oppositeCorner, black, red)
         val fromUnordered = created(PixelPatch.create(maximumCanvas, revision(0L), listOf(last, first)))
@@ -126,10 +127,10 @@ internal class PixelPatchCreationTest {
     }
 
     @Test
-    fun `maximum square rejects an outside corner before overflowing affected region arithmetic`() {
-        val maximumCanvas = canvas(Int.MAX_VALUE, Int.MAX_VALUE)
+    fun `maximum supported square rejects an outside corner`() {
+        val maximumCanvas = canvas(PixelLimits.MAX_CANVAS_AXIS, PixelLimits.MAX_CANVAS_AXIS)
         val originChange = PixelChange.create(position(0, 0), black, green)
-        val outsidePosition = position(Int.MAX_VALUE, Int.MAX_VALUE)
+        val outsidePosition = position(PixelLimits.MAX_CANVAS_AXIS, PixelLimits.MAX_CANVAS_AXIS)
         val outsideChange = PixelChange.create(outsidePosition, black, red)
 
         val rejection =
@@ -148,6 +149,53 @@ internal class PixelPatchCreationTest {
 
         assertEquals(maximumCanvas, outside.canvas)
         assertEquals(outsidePosition, outside.position)
+    }
+
+    @Test
+    fun `patch cap plus one rejects before reading or sorting changes`() {
+        val accessed = mutableListOf<Int>()
+        val changes =
+            object : AbstractList<PixelChange>() {
+                override val size: Int = PixelLimits.MAX_PATCH_CHANGES + 1
+
+                override fun get(index: Int): PixelChange {
+                    accessed += index
+                    error("Oversized patch read index $index.")
+                }
+            }
+
+        val rejection = creationRejected(PixelPatch.create(canvas(1, 1), revision(0L), changes))
+
+        assertEquals(emptyList<Int>(), accessed)
+        assertEquals(
+            PixelPatchCreationRejection.ChangeCountAboveSupportedMaximum(
+                PixelLimits.MAX_PATCH_CHANGES + 1,
+                PixelLimits.MAX_PATCH_CHANGES,
+            ),
+            rejection,
+        )
+    }
+
+    @Test
+    fun `patch cap minus one and cap are accepted`() {
+        val maximumCanvas = canvas(PixelLimits.MAX_CANVAS_AXIS, PixelLimits.MAX_CANVAS_AXIS)
+        val changes =
+            List(PixelLimits.MAX_PATCH_CHANGES) { index ->
+                PixelChange.create(
+                    position(index % PixelLimits.MAX_CANVAS_AXIS, index / PixelLimits.MAX_CANVAS_AXIS),
+                    black,
+                    red,
+                )
+            }
+
+        assertEquals(
+            PixelLimits.MAX_PATCH_CHANGES - 1,
+            created(PixelPatch.create(maximumCanvas, revision(0L), changes.dropLast(1))).changeCount,
+        )
+        assertEquals(
+            PixelLimits.MAX_PATCH_CHANGES,
+            created(PixelPatch.create(maximumCanvas, revision(0L), changes)).changeCount,
+        )
     }
 
     @Test

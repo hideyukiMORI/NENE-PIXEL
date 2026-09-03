@@ -1,6 +1,7 @@
 package io.github.hideyukimori.nenepixel.core.pixelengine
 
 import io.github.hideyukimori.nenepixel.core.domain.drawing.Stroke
+import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
@@ -19,33 +20,43 @@ private fun rasterizeMatchingCanvas(
     snapshot: PixelSnapshot,
     stroke: Stroke,
 ): StrokeRasterizationResult {
-    val changes = stroke.pixelChanges(snapshot)
-    return if (changes.isEmpty()) {
-        StrokeRasterizationResult.NoChanges
-    } else {
-        changes.toRasterizationResult(snapshot)
-    }
-}
-
-private fun List<PixelChange>.toRasterizationResult(snapshot: PixelSnapshot): StrokeRasterizationResult =
-    when (val result = PixelPatch.create(snapshot.size, snapshot.revision, this)) {
-        is PixelPatchCreationResult.Created -> StrokeRasterizationResult.Rasterized(result.patch)
-        is PixelPatchCreationResult.Rejected -> result.rejection.toRasterizationResult()
-    }
-
-private fun Stroke.pixelChanges(snapshot: PixelSnapshot): List<PixelChange> {
-    val seen = mutableSetOf<PixelPosition>()
-    val changes = mutableListOf<PixelChange>()
-    forEachPosition { position ->
-        if (seen.add(position)) {
-            val before = snapshot.colorAt(position).requiredValue()
-            if (before != color) {
-                changes.add(PixelChange.create(position, before, color))
+    val target = stroke.color.toPackedRgba8888()
+    val canvasPixels = snapshot.size.pixelCount.toInt()
+    val sourcePixels = snapshot.copyPackedRgba8888()
+    val seen = BooleanArray(canvasPixels)
+    val effective = IntArray(minOf(stroke.positionCount, canvasPixels))
+    var changeCount = 0
+    stroke.forEachPosition { position ->
+        val index = position.rowMajorIndex(snapshot.size)
+        if (!seen[index]) {
+            seen[index] = true
+            if (sourcePixels[index] != target) {
+                effective[changeCount] = index
+                changeCount += 1
             }
         }
     }
-    return changes
+    return if (changeCount == 0) {
+        StrokeRasterizationResult.NoChanges
+    } else {
+        val positions = effective.copyOf(changeCount).also(IntArray::sort)
+        val before = IntArray(changeCount) { index -> sourcePixels[positions[index]] }
+        PixelPatch
+            .createPackedRgba8888(
+                snapshot.size,
+                snapshot.revision,
+                positions,
+                before,
+                IntArray(changeCount) { target },
+            ).toRasterizationResult()
+    }
 }
+
+private fun PixelPatchCreationResult.toRasterizationResult(): StrokeRasterizationResult =
+    when (this) {
+        is PixelPatchCreationResult.Created -> StrokeRasterizationResult.Rasterized(patch)
+        is PixelPatchCreationResult.Rejected -> rejection.toRasterizationResult()
+    }
 
 private fun PixelPatchCreationRejection.toRasterizationResult(): StrokeRasterizationResult =
     when (this) {
@@ -54,6 +65,10 @@ private fun PixelPatchCreationRejection.toRasterizationResult(): StrokeRasteriza
         }
 
         PixelPatchCreationRejection.EmptyPatch -> {
+            unexpectedPatchRejection(this)
+        }
+
+        is PixelPatchCreationRejection.ChangeCountAboveSupportedMaximum -> {
             unexpectedPatchRejection(this)
         }
 
@@ -75,6 +90,8 @@ private fun unexpectedPatchRejection(rejection: PixelPatchCreationRejection): No
 
 private fun rejected(rejection: StrokeRasterizationRejection): StrokeRasterizationResult =
     StrokeRasterizationResult.Rejected(rejection)
+
+private fun PixelPosition.rowMajorIndex(size: CanvasSize): Int = y.value * size.width.value + x.value
 
 private fun <T> DomainValueResult<T>.requiredValue(): T =
     when (this) {
