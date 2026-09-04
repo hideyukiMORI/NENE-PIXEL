@@ -79,6 +79,10 @@ gradlePlugin {
             id = "nene.android-compose"
             implementationClass = "io.github.hideyukimori.nenepixel.buildlogic.AndroidComposePlugin"
         }
+        create("androidTest") {
+            id = "nene.android-test"
+            implementationClass = "io.github.hideyukimori.nenepixel.buildlogic.AndroidTestPlugin"
+        }
         create("rootQuality") {
             id = "nene.root-quality"
             implementationClass = "io.github.hideyukimori.nenepixel.buildlogic.RootQualityPlugin"

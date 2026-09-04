@@ -23,6 +23,9 @@ Every required CI gate MUST be runnable locally through Gradle. CI-only shell lo
 ### QLT-004 — Generated drift fails
 
 CI regenerates deterministic outputs or verifies their hashes and fails if the working tree would change.
+The committed critical-journey Baseline Profile is verified without a CI device: the manual profile
+must be absent, exactly one generated text profile must be non-empty, and its recorded SHA-256 must
+match. Refreshing that artifact is a separate explicit physical-device operation defined by ADR 0010.
 
 ### QLT-005 — Gate weakening is an architectural change
 

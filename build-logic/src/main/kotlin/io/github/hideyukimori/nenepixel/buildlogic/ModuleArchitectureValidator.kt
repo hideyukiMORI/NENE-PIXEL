@@ -43,7 +43,7 @@ internal class ModuleArchitectureValidator(
                     null
                 }
 
-                dependency.isArchitectureToolingDependency() -> {
+                dependency.isBuildToolingDependency() -> {
                     null
                 }
 
@@ -64,7 +64,7 @@ internal class ModuleArchitectureValidator(
         val productionEdges =
             moduleDependencies
                 .filterNot { dependency -> dependency.source == dependency.target }
-                .filterNot { dependency -> dependency.isArchitectureToolingDependency() }
+                .filterNot { dependency -> dependency.isBuildToolingDependency() }
                 .groupBy(DeclaredModuleDependency::source)
                 .mapValues { (_, dependencies) -> dependencies.map(DeclaredModuleDependency::target).toSet() }
         return CycleDetector(productionEdges).findCycles().map { cycle ->
@@ -96,8 +96,18 @@ internal class ModuleArchitectureValidator(
                 )
             }
 
-    private fun DeclaredModuleDependency.isArchitectureToolingDependency(): Boolean =
-        configuration == "detektPlugins" && target == ARCHITECTURE_RULES_MODULE
+    private fun DeclaredModuleDependency.isBuildToolingDependency(): Boolean =
+        (configuration == "detektPlugins" && target == ARCHITECTURE_RULES_MODULE) ||
+            (
+                source == ANDROID_APP_MODULE &&
+                    configuration == "baselineProfile" &&
+                    target == BASELINE_PROFILE_MODULE
+            ) ||
+            (
+                source == BASELINE_PROFILE_MODULE &&
+                    configuration == "testedApks" &&
+                    target == ANDROID_APP_MODULE
+            )
 
     private fun DeclaredExternalDependency.isPlatformDependency(): Boolean =
         platformGroupPrefixes.any(group::startsWith) || name.endsWith("-android")
@@ -110,6 +120,8 @@ internal class ModuleArchitectureValidator(
 
     private companion object {
         const val ARCHITECTURE_RULES_MODULE = ":quality:architecture-rules"
+        const val BASELINE_PROFILE_MODULE = ":quality:baseline-profile"
+        const val ANDROID_APP_MODULE = ":app:android"
         const val DOMAIN_MODULE = ":core:domain"
         const val KOTLIN_GROUP = "org.jetbrains.kotlin"
 
@@ -130,16 +142,17 @@ internal class ModuleArchitectureValidator(
                 ":adapters:automation",
                 ":quality",
                 ARCHITECTURE_RULES_MODULE,
+                BASELINE_PROFILE_MODULE,
             )
 
         val containerModules = setOf(":", ":adapters", ":app", ":core", ":presentation", ":quality")
-        val productionModules = knownModules - containerModules - ARCHITECTURE_RULES_MODULE
+        val productionModules = knownModules - containerModules - ARCHITECTURE_RULES_MODULE - BASELINE_PROFILE_MODULE
         val allowedDependencies =
             mapOf(
                 ":" to emptySet(),
                 ":adapters" to emptySet(),
                 ":app" to emptySet(),
-                ":app:android" to productionModules - ":app:android",
+                ANDROID_APP_MODULE to productionModules - ANDROID_APP_MODULE,
                 ":core" to emptySet(),
                 ":presentation" to emptySet(),
                 ":presentation:compose" to setOf(":core:application", ":core:domain"),
@@ -151,6 +164,7 @@ internal class ModuleArchitectureValidator(
                 ":adapters:automation" to setOf(":core:application"),
                 ":quality" to emptySet(),
                 ARCHITECTURE_RULES_MODULE to emptySet(),
+                BASELINE_PROFILE_MODULE to emptySet(),
             )
 
         val platformGroupPrefixes =

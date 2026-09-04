@@ -42,7 +42,7 @@ The module graph is part of the architecture. A package convention alone is not 
 
 Do not create empty future modules. The names above are reserved canonical destinations and are created only when their first concrete responsibility exists.
 
-The root `validateArchitecture` task reads the configured Gradle project graph and rejects unapproved module names, forbidden project dependencies, cycles, and platform dependencies in `:core:*`. The `:quality:architecture-rules` module is a build-only exception: application modules may load it through the `detektPlugins` configuration, but production code may not depend on it. `:quality:baseline-profile` is a separate build-only exception accepted by ADR 0010: only `:app:android` may reference it, only through the `baselineProfile` configuration, and no production or test source set may depend on it.
+The root `validateArchitecture` task reads the configured Gradle project graph and rejects unapproved module names, forbidden project dependencies, cycles, and platform dependencies in `:core:*`. The `:quality:architecture-rules` module is a build-only exception: application modules may load it through the `detektPlugins` configuration, but production code may not depend on it. `:quality:baseline-profile` is a separate build-only exception accepted by ADR 0010: `:app:android` references the producer only through `baselineProfile`, the producer references the target application only through the generated `testedApks` configuration, and no production or test source set may depend on either module through those edges.
 
 ## Allowed dependency graph
 
@@ -74,6 +74,9 @@ The root `validateArchitecture` task reads the configured Gradle project graph a
 :app:android
     -> all modules needed only for explicit composition
     -[baselineProfile build edge]-> :quality:baseline-profile
+
+:quality:baseline-profile
+    -[testedApks build edge]-> :app:android
 ```
 
 Any dependency not listed is forbidden. In particular:

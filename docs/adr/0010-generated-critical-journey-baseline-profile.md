@@ -35,13 +35,14 @@ producer. It owns only the out-of-process, deterministic Pencil/Undo collection 
 import a core module, call a document or workspace state owner, duplicate renderer geometry, or
 become a runtime dependency.
 
-`:app:android` is the sole consumer. The only permitted project edge is its Gradle
-`baselineProfile` configuration to `:quality:baseline-profile`; an `implementation`, `api`, test, or
-other production dependency on the producer is forbidden. The root architecture validator knows
-this exact build-only exception and continues to reject unknown modules, cycles, and every other
-unlisted edge.
+`:app:android` is the sole consumer. Two Gradle build edges implement that relationship: its
+`baselineProfile` configuration references `:quality:baseline-profile`, and the producer's generated
+`testedApks` configuration references `:app:android` from `targetProjectPath`. An `implementation`,
+`api`, test, or other production dependency in either direction is forbidden. The root architecture
+validator knows these exact build-only exceptions and continues to reject unknown modules, cycles,
+and every other unlisted edge.
 
-A shared `nene.android-test` convention owns Android test-module compiler, SDK, lint, formatting,
+A shared `nene.android-test` convention owns Android test-module compiler, SDK, formatting,
 static-analysis, dependency-locking, and JVM policy. Module-local divergence from the established
 Android policy is prohibited.
 

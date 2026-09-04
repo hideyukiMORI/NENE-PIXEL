@@ -52,6 +52,25 @@ The M0 reproducibility smoke profile is a Pixel 8 Pro AVD running API 35 / Andro
 
 The verified fresh-clone transcript, including cold-launch and clean-tree evidence, is recorded in [Fresh-clone and M0 Exit Proof](quality/FRESH_CLONE_PROOF.md).
 
+## Regenerate the Baseline Profile
+
+ADR 0010 defines one explicit generation path for the committed critical-journey profile. Connect
+exactly one unlocked physical Android device, keep it on USB power, and run:
+
+```powershell
+.\gradlew.bat :app:android:generateBaselineProfile
+$firstProfileHash = (Get-FileHash app/android/src/main/generated/baselineProfiles/baseline-prof.txt -Algorithm SHA256).Hash
+.\gradlew.bat :app:android:generateBaselineProfile
+$secondProfileHash = (Get-FileHash app/android/src/main/generated/baselineProfiles/baseline-prof.txt -Algorithm SHA256).Hash
+if ($firstProfileHash -cne $secondProfileHash) { throw "Baseline Profile generation was not reproducible." }
+```
+
+Record the accepted hash in
+`app/android/src/main/generated/baselineProfiles.sha256` as one lowercase SHA-256 value, then run
+`.\gradlew.bat validateBaselineProfile`. The task rejects the former hand-written profile, missing,
+empty, or multiple generated text profiles, a malformed hash, and generated drift. Ordinary builds
+and CI verify this committed artifact and never start a connected-device generation automatically.
+
 ## Run the canonical quality gate
 
 Execution frequency is mandatory under [QLT-011 through QLT-016](QUALITY_GATES.md#verification-execution-policy).

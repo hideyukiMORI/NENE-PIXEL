@@ -28,13 +28,17 @@ public class RootQualityPlugin : Plugin<Project> {
                 repositoryDirectory.set(target.layout.projectDirectory)
                 validationDate.set(LocalDate.now(ZoneId.of("Asia/Tokyo")).toString())
             }
+        val validateBaselineProfile =
+            target.tasks.register<BaselineProfileValidationTask>("validateBaselineProfile") {
+                repositoryDirectory.set(target.layout.projectDirectory)
+            }
 
         collectArchitectureInputs(target, validateArchitecture)
 
         target.tasks.register("check") {
             group = "verification"
             description = "Runs every canonical local quality gate."
-            dependsOn(validateArchitecture, validateDocumentation, validateNoBaselines)
+            dependsOn(validateArchitecture, validateBaselineProfile, validateDocumentation, validateNoBaselines)
         }
     }
 
