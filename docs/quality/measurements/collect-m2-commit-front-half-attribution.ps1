@@ -322,6 +322,8 @@ Write-RunState -Status "preflight" -CompletedOperations 0
 $completedOperations = 0
 try {
     Invoke-TargetAdb -Arguments @("shell", "cmd", "input", "keyevent", "WAKEUP") | Out-Null
+    Invoke-TargetAdb -Arguments @("shell", "wm", "dismiss-keyguard") | Out-Null
+    Start-Sleep -Milliseconds 250
     $environmentRows.Add((Get-EnvironmentCheckpoint -Name "before_install"))
     Invoke-TargetAdb -Arguments @("install", "-r", "-d", $resolvedApk) | Out-Null
     Invoke-TargetAdb -Arguments @("shell", "cmd", "package", "compile", "--reset", $packageName) | Out-Null
