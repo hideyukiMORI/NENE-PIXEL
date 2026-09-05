@@ -1624,3 +1624,86 @@ delay and which emitted Compose/traversal/recording or scheduler interval accoun
 markers are unavailable, overlapping slices are not additive, and traced timing or synthetic host
 responses cannot prove a speedup. No runtime candidate, APK rebuild, profile generation, full suite,
 dependency, new renderer or threshold change is authorized by this diagnostic protocol.
+
+### V3 result: complete attribution, not performance acceptance
+
+The sole v3 invocation used harness `edacaa99838d73f883fce19ba74bb9700a444924` with the unchanged
+exact `efb8c36` APK. It completed all ten operations and retained twenty unique frames (ten preview,
+ten COMMIT), each with exactly one app actual/expected association and one SurfaceFlinger actual
+association. All recorded UI checkpoints and three 90 Hz, unlocked, USB-powered, thermal-status-1
+environment checks passed; the fatal/ANR scan passed. This does not add an independent pixel oracle.
+
+The trace spans 71.433673 seconds, below the 120-second cap. Collector wall time including host SQL
+analysis was 186.007 seconds. Finalized device/local trace sizes are both 32,941,642 bytes, SHA-256
+`5ff13add98b54ae69e02c9e0ee677ddcb431b32cb0563700ccad7b605d23916e`. Final flush succeeded once;
+all fifteen flushes succeeded, required integrity counters are present, and all error/data-loss,
+parser/pairing and per-buffer loss/drop/wrap/overwrite failures are zero. Eight service-global
+discarded chunks are informational. All twenty associated SurfaceFlinger frames finished on time.
+
+All ten previews were within the raw app-frame deadline; nine COMMIT frames exceeded it. The
+maximum was sample 7 at +2.909252 ms; sample 10 was the only on-time COMMIT at -0.519955 ms.
+These are intrusive, old-artifact diagnostic observations, not v7 decision percentiles or current
+main acceptance. V3 consumed its one invocation, with no replacement or acceptance collection.
+
+Offline interval analysis used Perfetto's monotonic conversion with a stable clock offset for all
+twenty rows. Expected-frame versus raw intended-vsync alignment residuals were at most 693 ns.
+Thread-state intervals cover all forty animation-to-traversal and draw-to-queue windows exactly.
+Thirty-eight windows contain only CPU Running; sample 1's COMMIT animation window includes
+0.124615 ms Runnable and sample 7's COMMIT draw window includes 0.177384 ms Runnable. None contains
+Sleeping. All ten COMMIT `Recomposer:recompose` and `TextStringSimpleNode::measure` slices consist
+entirely of Running. The additional front-half work is therefore observed CPU execution, not an
+unidentified main-thread sleep. This does not establish which app call caused every CPU instruction.
+
+| Observed COMMIT quantity (ms) | Sample 7, largest overrun | Sample 10, only on-time |
+| --- | ---: | ---: |
+| Main Running over the full app frame | 5.819233 | 2.977461 |
+| Animation-to-traversal plus draw-to-queue Running | 4.803732 | 2.150500 |
+| Recomposer recompose slice | 2.139577 | 0.755269 |
+| Compose recompose child slice | 1.412116 | 0.486539 |
+| Text measurement slice | 1.032538 | 0.400962 |
+| AndroidOwner measure/layout slice | 1.645154 | 0.540308 |
+| AndroidOwner draw slice | 0.670769 | 0.552885 |
+
+Rows overlap hierarchically and MUST NOT be added. Sample 7 ran the front half across CPUs 4/6
+with duration-weighted observed frequency about 1.121 GHz; sample 10 used CPU 7 at 1.536 GHz.
+Frequency changes within each running interval are included. Samples 2-6 and 8-9 used CPU 6 at
+1.2288 GHz in these windows. This is scheduling/frequency context, not a controlled causal effect,
+not proof that frequency alone explains the tail, and not permission to pin CPUs or force frequency.
+
+The separate RenderThread `QueueSubmit` slice also has material waiting: late COMMIT median
+Running/Runnable/Sleeping is 0.203577/0.347384/3.468769 ms, versus
+0.184114/0.063886/3.381269 ms in the sole on-time COMMIT. Sleeping does not prove GPU saturation.
+The largest-overrun sample's QueueSubmit is shorter than several other COMMIT samples. A backend
+replacement or revival of the rejected offscreen candidate is not supported by this trace.
+
+#### Improvement recommendation and limits
+
+Prioritize elimination of repeated COMMIT presentation CPU work, with text measurement and
+recomposition as the measured regions. In the retained UI checkpoints, the only changed string is
+the document dirty-status label; `HistoryControls.kt` changes that string while Undo/Redo enabled
+states also change. Source inspection and the sole text-measure slice are consistent with that label,
+but no source-specific marker uniquely identifies it. `HistoryControls.kt` and `EditorScreen.kt`
+are byte-equivalent between the measured source and this main-based worktree.
+
+A concrete optimization hypothesis is bounded reuse of the two dirty-status text layouts with
+proper invalidation for density, font scale, style/font resolution and constraints, preserving
+current label geometry, semantics and dirty/history ownership. This is not a newly selected candidate:
+the earlier `c86133c` premeasured-label implementation already attempted this direction and was
+reverted after its old +0.381973 ms ten-sample result. The new trace establishes where CPU is spent
+but does not prove that restoring that implementation meets the current gate. The prior leaf-state
+and precomposed-label changes likewise remain rejected. No speedup or additive saving is claimed.
+
+The next implementation decision must isolate the concrete label/control operation and explain a
+meaningful difference from those rejected implementations, or prospectively justify revisiting one
+using this new CPU evidence and a valid comparison. Required checks would cover dirty/Undo/Redo
+semantics, exact text/canvas geometry and pixels, font/density/constraint invalidation and a separately
+fixed untraced decision comparison. No production edit, architecture/API change, additional trace,
+profile generation or APK rebuild followed this diagnostic. #54 remains open with its historical
+FAIL, #44 remains blocked, and #62's profile-provenance gap is unchanged. Active waivers: none.
+
+All raw files, SQL, thread/slice/core/frequency rows, clock checks, integrity logs and summary remain
+under private `experiments/67/commit-front-half-attribution-v3-run-01/`; the additional interval
+queries are in `offline-cause-analysis-02/`. The earlier offline attempt and its CSV-header/clock
+alignment assertion failure are retained separately; it collected no device data and changed no
+run verdict. Interpretation follows the [Perfetto scheduling documentation](https://perfetto.dev/docs/data-sources/cpu-scheduling)
+and [FrameTimeline definitions](https://perfetto.dev/docs/data-sources/frametimeline).
