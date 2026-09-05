@@ -48,3 +48,4 @@ An ADR must include:
 | [0007](0007-bounded-pencil-eraser-gesture.md) | accepted | Bounded interpolated gestures and one pencil/eraser Stroke effect path |
 | [0008](0008-bounded-tool-palette.md) | accepted | Bounded immutable tool palette and one indexed workspace-selection path |
 | [0009](0009-bounded-linear-history-clean-checkpoint.md) | accepted | Bounded linear history cursor, oldest-first eviction, and runtime-local clean-checkpoint identity |
+| [0011](0011-change-scoped-verification.md) | accepted | Change-scoped verification, immutable evidence reuse, and bounded prospective performance decisions |
