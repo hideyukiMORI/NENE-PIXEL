@@ -1,5 +1,7 @@
 package io.github.hideyukimori.nenepixel.buildlogic
 
+import java.nio.charset.CodingErrorAction
+import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
 import java.security.MessageDigest
@@ -54,11 +56,56 @@ internal class BaselineProfileArtifactValidator(
             violations.add("QLT-004 requires the generated Baseline Profile to be non-empty.")
         }
 
+        val canonicalBytes = canonicalProfileBytes(bytes, violations) ?: return
+        validateRules(canonicalBytes, violations)
+
         val hashPath = repositoryDirectory.resolve(HASH_FILE)
         if (!Files.isRegularFile(hashPath)) {
             violations.add("QLT-004 requires the generated Baseline Profile hash: $HASH_FILE")
         } else {
-            validateHash(bytes, hashPath, violations)
+            validateHash(canonicalBytes, hashPath, violations)
+        }
+    }
+
+    private fun canonicalProfileBytes(
+        bytes: ByteArray,
+        violations: MutableList<String>,
+    ): ByteArray? {
+        val text =
+            try {
+                StandardCharsets.UTF_8
+                    .newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .decode(java.nio.ByteBuffer.wrap(bytes))
+                    .toString()
+            } catch (_: java.nio.charset.CharacterCodingException) {
+                violations.add("QLT-004 requires the generated Baseline Profile to be valid UTF-8.")
+                return null
+            }
+        if (text.startsWith(BYTE_ORDER_MARK)) {
+            violations.add("QLT-004 requires UTF-8 Baseline Profile source without a byte-order mark.")
+            return null
+        }
+        val normalized = text.replace(CARRIAGE_RETURN_LINE_FEED, LINE_FEED_TEXT)
+        if (normalized.contains(CARRIAGE_RETURN_TEXT)) {
+            violations.add("QLT-004 permits only LF or CRLF Baseline Profile line separators.")
+            return null
+        }
+        val withoutTerminalSeparator = normalized.removeSuffix(LINE_FEED_TEXT)
+        return withoutTerminalSeparator.toByteArray(StandardCharsets.UTF_8)
+    }
+
+    private fun validateRules(
+        canonicalBytes: ByteArray,
+        violations: MutableList<String>,
+    ) {
+        val rules = canonicalBytes.toString(StandardCharsets.UTF_8).split(LINE_FEED_TEXT)
+        if (rules.any { it.isEmpty() }) {
+            violations.add("QLT-004 requires generated Baseline Profile rules without blank lines.")
+        }
+        if (rules.size != rules.distinct().size) {
+            violations.add("QLT-004 requires generated Baseline Profile rules without duplicates.")
         }
     }
 
@@ -102,5 +149,9 @@ internal class BaselineProfileArtifactValidator(
         const val TAB: Byte = 9
         const val LINE_FEED: Byte = 10
         const val CARRIAGE_RETURN: Byte = 13
+        const val BYTE_ORDER_MARK = "\uFEFF"
+        const val CARRIAGE_RETURN_LINE_FEED = "\r\n"
+        const val CARRIAGE_RETURN_TEXT = "\r"
+        const val LINE_FEED_TEXT = "\n"
     }
 }

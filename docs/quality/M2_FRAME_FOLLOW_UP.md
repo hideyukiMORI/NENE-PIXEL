@@ -1209,9 +1209,8 @@ condition with margin; otherwise its result is recorded without a favorable reru
 ## Generated critical-journey Baseline Profile validation
 
 Committed source `c4d63042bcabb3f3421441d851db73369c90e252` contains the 13,510-rule generated
-Pencil/Undo profile retained by that unmerged ADR 0010 decision. The original comparison recorded
-the 1,421,321-byte Windows CRLF SHA-256
-`2ab1ca1413a5f835b5e30810636d25649dd749034d5b76a9f81aecf09de5cb2a`, but a later audit found
+Pencil/Undo profile retained by ADR 0010. The original comparison recorded the 1,421,321-byte
+Windows CRLF SHA-256 `2ab1ca1413a5f835b5e30810636d25649dd749034d5b76a9f81aecf09de5cb2a`, but a later audit found
 that its equal hashes came from the pre-existing source after failed generation/pull attempts, not
 two proven fresh producer outputs. Issue #62 migrates the same ordered rule-and-flag content to
 canonical LF SHA-256 `de1a637f6c9884b96ef242deaf0d56c5cd3864c83275e0850d766eb07be4130f`

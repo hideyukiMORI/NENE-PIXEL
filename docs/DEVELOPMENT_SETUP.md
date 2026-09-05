@@ -55,21 +55,33 @@ The verified fresh-clone transcript, including cold-launch and clean-tree eviden
 ## Regenerate the Baseline Profile
 
 ADR 0010 defines one explicit generation path for the committed critical-journey profile. Connect
-exactly one unlocked physical Android device, keep it on USB power, and run:
+exactly one unlocked physical Android device, keep it on USB power, use a clean short standalone
+clone whose exact Git revision can be embedded in later release-like artifacts, and run:
 
 ```powershell
-.\gradlew.bat :app:android:generateBaselineProfile
-$firstProfileHash = (Get-FileHash app/android/src/main/generated/baselineProfiles/baseline-prof.txt -Algorithm SHA256).Hash
-.\gradlew.bat :app:android:generateBaselineProfile
-$secondProfileHash = (Get-FileHash app/android/src/main/generated/baselineProfiles/baseline-prof.txt -Algorithm SHA256).Hash
-if ($firstProfileHash -cne $secondProfileHash) { throw "Baseline Profile generation was not reproducible." }
+.\docs\quality\generate-baseline-profile.ps1 -EvidenceId "issue-NNN-YYYYMMDD-HHMM"
 ```
 
-Record the accepted hash in
-`app/android/src/main/generated/baselineProfiles.sha256` as one lowercase SHA-256 value, then run
-`.\gradlew.bat validateBaselineProfile`. The task rejects the former hand-written profile, missing,
-empty, or multiple generated text profiles, a malformed hash, and generated drift. Ordinary builds
-and CI verify this committed artifact and never start a connected-device generation automatically.
+The evidence identity is unique and caller-selected; the command refuses an existing directory.
+It runs the producer exactly twice and writes ignored, versioned evidence to
+`build/reports/baseline-profile-generation/<evidence-id>/`. Each invocation is preserved before the
+next starts: Gradle output, fresh raw producer profile, merged/source profile, available
+instrumentation results/logs, task outcomes, source revision, APK/test-APK hashes, and manifest.
+Any producer output present before an invocation is moved into that invocation's evidence directory
+before Gradle starts; it cannot satisfy the fresh-output check and is not discarded.
+Compilation and packaging may use normal Gradle cache/daemon behavior. Acceptance requires actual
+connected producer execution and fresh pulled output; an unchanged final hash is expected when both
+fresh invocations generated the same content.
+
+The command compares every ordered rule and flag after canonical UTF-8/LF normalization with no
+terminal separator, refuses rule/flag drift, writes the accepted canonical source and lowercase
+SHA-256 manifest only after the pair matches, then runs the narrow `validateBaselineProfile` task.
+Only a successful validation writes the acceptance manifest. A failed pair or validation restores
+the pre-generation tracked source/hash; its evidence remains and is not retried under a new identity.
+The command does not hand-edit generated rules, filter framework code, build a signed measurement
+APK, or start a performance run.
+Ordinary builds and CI verify the committed canonical artifact and never start connected-device
+generation automatically.
 
 ## Run the canonical quality gate
 

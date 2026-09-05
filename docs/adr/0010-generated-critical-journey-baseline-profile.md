@@ -80,11 +80,45 @@ project-owned Baseline Profile source after migration. The hand-written `baselin
 removed in the same focused change; retaining manual and generated rule paths together is
 prohibited.
 
-Two isolated generation invocations on the declared physical device must produce byte-identical
-normalized output before the artifact is accepted. The canonical local `check` verifies that the
-manual file is absent, exactly one generated text profile exists, it is non-empty, and its recorded
-SHA-256 matches. Generated drift therefore fails locally and in CI without asking CI to provision a
-device.
+Two isolated generation invocations on the declared physical device must produce identical
+canonical profile content before the artifact is accepted. Canonical profile content is UTF-8
+without a byte-order mark, joins rules with LF and no terminal separator, retains the producer's
+deterministic rule order, and preserves every complete rule including its `H`, `S`, and `P` flags.
+CRLF and LF encodings of the same ordered rules have one canonical hash; a changed rule, flag,
+order, duplicate, malformed UTF-8 input, or bare CR separator does not. No package or framework
+rule is excluded from this comparison.
+
+The one documented generation command runs exactly two producer invocations. Before starting the
+second invocation it stores the first invocation's fresh raw producer output, merged/source output,
+available instrumentation results and logs, task outcomes, source revision, tested APK hashes, and
+a manifest under a caller-supplied evidence identity. It does the same for the second invocation
+before comparing them. Producer output that predates an invocation is first moved into that
+invocation's evidence directory, so it cannot qualify as fresh and is not discarded. Evidence schema
+`nene-pixel-baseline-profile-evidence-v1` refuses an existing identity or invocation directory
+instead of overwriting it.
+
+An invocation is fresh only when Gradle succeeds, the connected producer task actually executes,
+the output pull reports no failure, and a newly written producer profile is present. Compilation,
+packaging, merge, or lifecycle tasks may legitimately be `UP-TO-DATE` or `FROM-CACHE`; those labels
+neither prove nor disprove fresh producer execution. Identical pre/post source hashes are valid when
+fresh producer evidence proves that the regenerated content is identical. A failed producer or
+pull followed by hashing an old source file is always rejected.
+
+The tracked source and hash are snapshotted before either invocation. They are replaced with the
+matched canonical result only for the final narrow artifact validation. A pair or validation failure
+restores the snapshot while retaining the failed evidence. Only successful final validation writes
+the acceptance manifest; a matched pair manifest alone is not an acceptance result.
+
+The producer enables strict internal stability. This makes failure to converge within the
+producer's bounded iterations fatal, but does not replace the two-invocation comparison and does not
+claim that internal convergence prevents process-to-process rule variation.
+
+The canonical local `check` verifies that the manual file is absent, exactly one generated text
+profile exists, it is non-empty canonical UTF-8, and its recorded canonical SHA-256 matches.
+Generated drift therefore fails locally and in CI without asking CI to provision a device. Exact
+source revision embedded in the signed release-like APK remains a later packaging/measurement
+acceptance check; the generation manifest records the Git source revision and exact tested APK
+hashes without creating a second revision authority.
 
 The signed release-like APK must retain the exact source revision, valid v2/v3 signatures, and the
 two expected packaged profile assets. Its compiled baseline profile must remain below Android's
@@ -130,7 +164,8 @@ their own focused Issues.
 ### Benefits
 
 - shipped profile rules originate from the actual canonical UI, command, history, and rendering path;
-- regeneration has one explicit producer and a byte-for-byte acceptance check;
+- regeneration has one explicit producer, versioned retained evidence, and an exact canonical
+  rule-and-flag acceptance check;
 - normal local and CI builds remain device-independent while still rejecting committed drift;
 - production modules gain no test-tool imports or alternate state access; and
 - the existing physical frame protocol can evaluate the packaged result without changing its schema.
@@ -142,6 +177,7 @@ their own focused Issues.
   canonical journey intentionally change;
 - compiler/runtime updates may legitimately alter generated rules and require the same two-run
   review; and
+- generated evidence consumes ignored local storage and must be retained outside tracked source;
 - a generated profile can still fail the frame threshold, in which case Issue #54 remains open and
   the result is recorded without a favorable rerun.
 
@@ -151,7 +187,9 @@ their own focused Issues.
 - build-logic tests cover the Android test convention;
 - the producer has focused instrumentation assertions for launch, Pencil dirty state, Undo, and the
   restored clean state;
-- `check` validates generated artifact cardinality and SHA-256 identity;
+- the producer rejects internal non-convergence, and the canonical host wrapper rejects stale,
+  failed, nonfresh, overwritten, or rule/flag-divergent invocation evidence;
+- `check` validates generated artifact cardinality, canonical encoding, and SHA-256 identity;
 - dependency locks and verification metadata cover every new artifact; and
 - no warning, lint, detekt, architecture, frame threshold, suppression, baseline exception, or waiver
   is weakened.
@@ -162,6 +200,13 @@ Migration adds the accepted module and convention, generates and verifies the so
 then removes the manual wildcard file before packaging. No production state, public API, document
 schema, or user data migrates.
 
+The evidence-contract correction in Issue #62 changes the recorded hash for the existing 13,510
+ordered rules from Windows CRLF bytes to their canonical UTF-8/LF bytes. It does not add, remove,
+reorder, or edit a generated rule and does not relabel any historical generation or performance
+result. This representation proof does not retroactively establish fresh producer provenance for
+the earlier unversioned runs. Existing logs remain historical evidence; only later authorized
+generations may produce schema-v1 manifests.
+
 Rollback removes the producer, consumer plugin/edge, generated profile and hash, convention, catalog
 entries, dependency state, architecture exception, and this ADR together, then restores the prior
 single manual profile only if Issue #54 explicitly returns to that accepted baseline. A partial
@@ -170,6 +215,7 @@ rollback that leaves two profile sources or an unvalidated generated artifact is
 ## Related
 
 - Issue: #54
+- Evidence correction: #62
 - Builds on: ADR 0001 initial build toolchain
 - Builds on: ADR 0007 canonical Pencil gesture
 - Builds on: ADR 0009 bounded history and clean checkpoint

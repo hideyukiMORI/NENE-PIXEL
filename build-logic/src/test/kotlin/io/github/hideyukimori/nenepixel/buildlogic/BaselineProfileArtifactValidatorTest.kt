@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
 import java.security.MessageDigest
@@ -18,6 +19,45 @@ internal class BaselineProfileArtifactValidatorTest {
         writeHash(Files.readAllBytes(profile).sha256())
 
         assertTrue(validate().isEmpty())
+    }
+
+    @Test
+    fun `LF and CRLF source use the same canonical hash`() {
+        val profile = writeProfile(PROFILE_CONTENT.replace("\n", "\r\n") + "\r\n")
+        writeHash(PROFILE_CONTENT.toByteArray(StandardCharsets.UTF_8).sha256())
+
+        assertTrue(validate().isEmpty())
+        Files.writeString(profile, PROFILE_CONTENT, StandardCharsets.UTF_8)
+        assertTrue(validate().isEmpty())
+
+        Files.writeString(profile, PROFILE_CONTENT.replace("\n", "\r"), StandardCharsets.UTF_8)
+        assertContains(validate(), "only LF or CRLF")
+    }
+
+    @Test
+    fun `rule flag drift is rejected`() {
+        val profile = writeProfile(PROFILE_CONTENT)
+        writeHash(Files.readAllBytes(profile).sha256())
+        Files.writeString(profile, PROFILE_CONTENT.replace("HSP", "SP"))
+
+        assertContains(validate(), "generated Baseline Profile drift")
+    }
+
+    @Test
+    fun `malformed UTF8 byte order mark blank rules and duplicates are rejected`() {
+        val profile = writeProfile(PROFILE_CONTENT)
+        writeHash(Files.readAllBytes(profile).sha256())
+
+        Files.write(profile, byteArrayOf(0xC3.toByte(), 0x28))
+        assertContains(validate(), "valid UTF-8")
+
+        Files.writeString(profile, "\uFEFF$PROFILE_CONTENT")
+        assertContains(validate(), "without a byte-order mark")
+
+        Files.writeString(profile, "$PROFILE_CONTENT\n\n$PROFILE_CONTENT")
+        val violations = validate()
+        assertContains(violations, "without blank lines")
+        assertContains(violations, "without duplicates")
     }
 
     @Test
@@ -97,6 +137,7 @@ internal class BaselineProfileArtifactValidatorTest {
         const val HASH_FILE = "app/android/src/main/generated/baselineProfiles.sha256"
         const val PROFILE_CONTENT =
             "HSPLio/github/hideyukimori/nenepixel/MainActivity;" +
-                "->onCreate(Landroid/os/Bundle;)V\n"
+                "->onCreate(Landroid/os/Bundle;)V\n" +
+                "SPLio/github/hideyukimori/nenepixel/MainActivity;->onResume()V"
     }
 }

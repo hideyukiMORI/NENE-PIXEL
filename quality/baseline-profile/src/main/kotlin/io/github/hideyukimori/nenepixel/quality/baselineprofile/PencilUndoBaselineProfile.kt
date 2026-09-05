@@ -24,6 +24,7 @@ internal class PencilUndoBaselineProfile {
         baselineProfileRule.collect(
             packageName = APPLICATION_PACKAGE,
             includeInStartupProfile = false,
+            strictStability = true,
         ) {
             pressHome()
             startActivityAndWait()
