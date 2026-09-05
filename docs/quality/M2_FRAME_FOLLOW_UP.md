@@ -1483,6 +1483,9 @@ UI evidence, logcat, and tool/config manifests are retained locally without a se
 
 ## Commit front-half attribution v1
 
+Historical preflight-only protocol: superseded by v2 below before any trace was started. Both
+retained v1 attempts remain `invalid-before-trace-start`; v1 permits no further collection.
+
 Issue #67 records one new attribution question after an offline all-frame review of the retained
 generated-profile and offscreen decision batches. In the generated-profile batch, all 100
 preview/commit rows join uniquely to their raw `gfxinfo` row by sample, phase, and FrameTimeline
@@ -1540,3 +1543,24 @@ This schema is attribution-only. It changes no v7 population, percentile, thresh
 FAIL, product behavior, ownership, renderer, dependency, or profile acceptance rule. It may support
 one later prospective implementation plan only if a controllable operation is identified; it is
 never a performance PASS or a substitute for an untraced v7 decision population.
+
+### Prospective v2 correction before collection
+
+Issue #67 supersedes v1 with `nene-pixel-m2-commit-front-half-attribution-v2` before the first
+trace. Read-only preflight measured one UiAutomator dump at 2.251 seconds: 40 dumps plus the
+20 fixed 1.650-second waits require 123.04 seconds even before adb/frame overhead. V2 therefore
+fixes ten operations, five warmups, one trace total, the same 120-second hard timeout, and a
+100-second host workload deadline reserving time for finalization. Fewer samples may produce no
+late commit; that is inconclusive with no replacement run. This is not a 20-operation acceptance
+population. All v1 source/APK/profile, device, preview/commit waits, quiet reset, all-frame
+association and diagnostic-only conditions above remain unchanged.
+
+The initial clean checkpoint requires disabled Undo and Redo; the clean checkpoint restored by
+Undo requires disabled Undo and enabled Redo. The collector retains partial raw/frame evidence
+and the original error, and attempts the exact session's stop/finalized pull once on failure.
+Starting the native producer consumes the invocation even if its acknowledgement is malformed.
+Analysis rejects trace error/data-loss/parser/loss/wrap and failed or missing final flush before
+reporting attribution. Service-global discarded chunks/patches remain informational as in
+physical-present v2. The actual UI predicates, failure paths, lifecycle fixture, parser and
+documentation receive narrow host verification before collection. No production or threshold
+change is part of this correction; the previous invalid files and historical FAIL results remain.

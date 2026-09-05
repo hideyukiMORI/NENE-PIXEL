@@ -53,6 +53,7 @@ function New-FakeInvoker {
             $configName = [System.IO.Path]::GetFileNameWithoutExtension($Arguments[5])
             $State.SessionName = $configName
             $State.Active = $true
+            if ($State.MalformedAcknowledgement) { return "malformed acknowledgement" }
             return "2468"
         }
         if ($command -eq "shell perfetto --query --long") {
@@ -90,6 +91,7 @@ function New-State {
         RemoteBytes = $RemoteBytes
         LocalBytes = $LocalBytes
         StopCount = 0
+        MalformedAcknowledgement = $false
         Commands = [System.Collections.Generic.List[string]]::new()
     }
 }
@@ -170,6 +172,23 @@ try {
     Invoke-ExpectedFailure `
         -MessagePattern "*refuses to overwrite*" `
         -Action { New-NeneAttributionInvocation -OutputDirectory $occupied -Manifest ([ordered]@{ schema = "fixture-v1" }) }
+
+    $malformedState = New-State
+    $malformedState.MalformedAcknowledgement = $true
+    $malformedInvocation = New-NeneAttributionInvocation -OutputDirectory (Join-Path $temporaryRoot "malformed") -Manifest ([ordered]@{ schema = "fixture-v1" })
+    $malformedInvoker = New-FakeInvoker -State $malformedState -ManifestPath $malformedInvocation.ManifestPath
+    $startedEvidence = @{ State = $null }
+    Invoke-ExpectedFailure -MessagePattern "*exactly one background tracing PID*" -Action {
+        Start-NenePerfettoSession -Invoker $malformedInvoker -OutputDirectory $malformedInvocation.OutputDirectory `
+            -SessionPrefix "nene-fixture" -Schema "fixture-v1" -ArtifactPrefix "trace" `
+            -ConfigTemplate 'unique_session_name: "__SESSION_NAME__"' `
+            -OnStarted { param($state) $startedEvidence.State = $state }
+    }
+    if ($null -eq $startedEvidence.State) { throw "Malformed acknowledgement lost consumed-invocation state." }
+    Stop-NenePerfettoSession -Invoker $malformedInvoker -State $startedEvidence.State -CompletionTimeoutSeconds 1 -PollMilliseconds 1 | Out-Null
+    if (-not $startedEvidence.State.Finalized -or $malformedState.StopCount -ne 1) {
+        throw "Malformed acknowledgement did not preserve a finalized trace with one stop."
+    }
 
     Write-Output "M2 Perfetto lifecycle fixture validation: PASS"
 }

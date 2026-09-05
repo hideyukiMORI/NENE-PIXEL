@@ -9,7 +9,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-$schema = "nene-pixel-m2-commit-front-half-attribution-v1"
+$schema = "nene-pixel-m2-commit-front-half-attribution-v2"
 $packageName = "io.github.hideyukimori.nenepixel"
 $surfaceFlingerProcess = "/system/bin/surfaceflinger"
 $expectedTraceProcessorSha256 = "a881f3e2d4c6131493e85bfd1f36d1efe58e1478e2991825418d5d21614c1e48"
@@ -39,8 +39,8 @@ foreach ($artifactName in $artifactNames) {
 }
 
 $frames = @(Import-Csv -LiteralPath $resolvedFrames)
-if ($frames.Count -lt 40) {
-    throw "Commit-front-half analysis requires every frame from 20 preview and commit phases."
+if ($frames.Count -lt 20) {
+    throw "Commit-front-half analysis requires every frame from 10 preview and commit phases."
 }
 $requests = [System.Collections.Generic.List[object]]::new()
 foreach ($frame in $frames) {
@@ -70,10 +70,10 @@ foreach ($frame in $frames) {
         }
     )
 }
-if ((@($requests.sample | Sort-Object -Unique) -join ",") -ne ((1..20) -join ",")) {
-    throw "Commit-front-half sample indexes are not the fixed contiguous 1..20 population."
+if ((@($requests.sample | Sort-Object -Unique) -join ",") -ne ((1..10) -join ",")) {
+    throw "Commit-front-half sample indexes are not the fixed contiguous 1..10 population."
 }
-foreach ($sample in 1..20) {
+foreach ($sample in 1..10) {
     foreach ($phase in @("preview", "commit")) {
         $phaseRows = @($requests | Where-Object { $_.sample -eq $sample -and $_.phase -eq $phase } | Sort-Object row)
         if ($phaseRows.Count -lt 1 -or (($phaseRows.row -join ",") -ne ((1..$phaseRows.Count) -join ","))) {
@@ -244,6 +244,17 @@ foreach ($log in $logs) {
 )
 
 $correlations = @(Import-Csv -LiteralPath (Join-Path $resolvedOutput "commit-front-half-correlation.csv"))
+$integrity = @(Import-Csv -LiteralPath (Join-Path $resolvedOutput "commit-front-half-integrity.csv"))
+$invalidStats = @($integrity | Where-Object {
+    [long]$_.value -ne 0 -and (
+        $_.severity -in @("error", "data_loss") -or
+        $_.name -match "loss|overrun|wrap|parse.*error|flush.*fail" -or
+        ($_.name -match "discard" -and $_.name -notin @("traced_chunks_discarded", "traced_patches_discarded"))
+    )
+})
+if ($invalidStats.Count -gt 0 -or @($integrity | Where-Object { $_.name -eq "traced_final_flush_succeeded" -and [long]$_.value -eq 1 }).Count -ne 1) {
+    throw "Trace integrity or final flush failed; attribution is invalid."
+}
 if (
     $correlations.Count -ne $requests.Count -or
     @($correlations | Where-Object { [int]$_.app_actual_count -ne 1 -or [int]$_.app_expected_count -ne 1 }).Count -gt 0

@@ -11,7 +11,7 @@ $ErrorActionPreference = "Stop"
 
 . (Join-Path $PSScriptRoot "m2-perfetto-session.ps1")
 
-$schema = "nene-pixel-m2-commit-front-half-attribution-v1"
+$schema = "nene-pixel-m2-commit-front-half-attribution-v2"
 $sourceCommit = "efb8c36003a1c62e958da92cf4fb28c2b35dc261"
 $expectedApkSha256 = "359a8f5a6975afae6f29e8680a69ae14f28164db72d36b250225f03d8f3de959"
 $expectedApkBytes = 8410691L
@@ -19,7 +19,7 @@ $expectedTraceProcessorSha256 = "a881f3e2d4c6131493e85bfd1f36d1efe58e1478e299182
 $physicalProfileId = "NENE-P2-ALLDOCUBE-IPL80MP-A16-API36"
 $packageName = "io.github.hideyukimori.nenepixel"
 $activityName = "$packageName/.MainActivity"
-$sampleCount = 20
+$sampleCount = 10
 $warmupCount = 5
 $previewWaitMilliseconds = 100
 $commitWaitMilliseconds = 350
@@ -142,7 +142,10 @@ function Save-Ui {
 }
 
 function Assert-CleanUi {
-    param([Parameter(Mandatory = $true)][xml]$Ui)
+    param(
+        [Parameter(Mandatory = $true)][xml]$Ui,
+        [switch]$AfterUndo
+    )
 
     $dirty = $Ui.SelectSingleNode("//node[@content-desc='Document dirty status']")
     $undo = $Ui.SelectSingleNode("//node[@text='Undo']")
@@ -153,7 +156,7 @@ function Assert-CleanUi {
         $null -eq $dirty -or $null -eq $undo -or $null -eq $redo -or $null -eq $pencil -or $null -eq $canvas -or
         $dirty.GetAttribute("text") -ne "No unsaved changes" -or
         $undo.ParentNode.GetAttribute("enabled") -ne "false" -or
-        $redo.ParentNode.GetAttribute("enabled") -ne "false" -or
+        $redo.ParentNode.GetAttribute("enabled") -ne $AfterUndo.IsPresent.ToString().ToLowerInvariant() -or
         $pencil.ParentNode.GetAttribute("checked") -ne "true"
     ) {
         throw "The editor is not at the canonical clean Pencil checkpoint."
@@ -386,7 +389,7 @@ try {
         Invoke-TargetAdb -Arguments @("shell", "cmd", "input", "tap", "$undoX", "$undoY") | Out-Null
         Start-Sleep -Milliseconds $quietAfterUndoMilliseconds
     }
-    Assert-CleanUi -Ui (Save-Ui -Name "ui-after-warmups") | Out-Null
+    Assert-CleanUi -Ui (Save-Ui -Name "ui-after-warmups") -AfterUndo | Out-Null
     $environmentRows.Add((Get-EnvironmentCheckpoint -Name "before_trace"))
     Invoke-TargetAdb -Arguments @("logcat", "-c") | Out-Null
 
@@ -432,10 +435,14 @@ trigger_config { trigger_mode: STOP_TRACING trigger_timeout_ms: $traceTimeoutMil
         -Schema $schema `
         -ConfigTemplate $config `
         -ArtifactPrefix "commit-front-half" `
-        -OnStarted { $script:traceStarted = $true }
+        -OnStarted { param($state) $script:traceStarted = $true; $script:traceState = $state }
     Write-RunState -Status "trace-started" -CompletedOperations 0
+    $workloadClock = [Diagnostics.Stopwatch]::StartNew()
 
     foreach ($sample in 1..$sampleCount) {
+        if ($workloadClock.Elapsed.TotalSeconds -ge 100) {
+            throw "The fixed host workload deadline expired; no further operation is permitted."
+        }
         @(Capture-Phase -Sample $sample -Phase "preview" -Motion "DOWN" -X $canvasX -Y $canvasY -WaitMilliseconds $previewWaitMilliseconds) |
             ForEach-Object { $frameRows.Add($_) }
         @(Capture-Phase -Sample $sample -Phase "commit" -Motion "UP" -X $canvasX -Y $canvasY -WaitMilliseconds $commitWaitMilliseconds) |
@@ -443,7 +450,7 @@ trigger_config { trigger_mode: STOP_TRACING trigger_timeout_ms: $traceTimeoutMil
         Assert-CommittedUi -Ui (Save-Ui -Name ("ui-committed-{0:D2}" -f $sample))
         Invoke-TargetAdb -Arguments @("shell", "cmd", "input", "tap", "$undoX", "$undoY") | Out-Null
         Start-Sleep -Milliseconds $quietAfterUndoMilliseconds
-        Assert-CleanUi -Ui (Save-Ui -Name ("ui-clean-{0:D2}" -f $sample)) | Out-Null
+        Assert-CleanUi -Ui (Save-Ui -Name ("ui-clean-{0:D2}" -f $sample)) -AfterUndo | Out-Null
         $completedOperations = $sample
         Write-RunState -Status "trace-started" -CompletedOperations $completedOperations
     }
@@ -475,10 +482,23 @@ trigger_config { trigger_mode: STOP_TRACING trigger_timeout_ms: $traceTimeoutMil
     Write-Output "commit-front-half-attribution-collected:$resolvedOutput"
 }
 catch {
+    $collectionError = $_
+    if ($frameRows.Count -gt 0 -and -not (Test-Path -LiteralPath (Join-Path $resolvedOutput "frames.csv"))) {
+        $frameRows | Export-Csv -NoTypeInformation -Encoding utf8 -LiteralPath (Join-Path $resolvedOutput "frames.csv")
+    }
+    if ($null -ne $traceState -and $traceState.Active -and -not $traceState.StopRequested) {
+        try {
+            Stop-NenePerfettoSession -Invoker $adbInvoker -State $traceState | Out-Null
+        }
+        catch {
+            $_.ToString() | Set-Content -LiteralPath (Join-Path $resolvedOutput "finalization-error.txt") -Encoding utf8NoBOM
+        }
+    }
+    $collectionError.ToString() | Set-Content -LiteralPath (Join-Path $resolvedOutput "collection-error.txt") -Encoding utf8NoBOM
     $status = if ($traceStarted) { "invalid-after-trace-start" } else { "invalid-before-trace-start" }
     Write-RunState -Status $status -CompletedOperations $completedOperations
     if ($environmentRows.Count -gt 0) {
         $environmentRows | Export-Csv -NoTypeInformation -Encoding utf8 -LiteralPath (Join-Path $resolvedOutput "environment.csv")
     }
-    throw
+    throw $collectionError
 }

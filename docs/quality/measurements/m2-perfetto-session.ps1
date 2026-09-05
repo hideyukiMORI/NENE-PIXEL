@@ -90,16 +90,6 @@ function Start-NenePerfettoSession {
     $config = $ConfigTemplate.Replace("__SESSION_NAME__", $sessionName)
     [System.IO.File]::WriteAllText($localConfig, $config, [System.Text.UTF8Encoding]::new($false))
     Invoke-NenePerfettoAdb -Invoker $Invoker -Arguments @("push", $localConfig, $remoteConfig) | Out-Null
-    $startOutput = @(
-        Invoke-NenePerfettoAdb `
-            -Invoker $Invoker `
-            -Arguments @("shell", "perfetto", "--background-wait", "--txt", "-c", $remoteConfig, "-o", $remoteTrace)
-    )
-    $pidMatches = @($startOutput | Where-Object { $_.Trim() -match "^\d+$" })
-    if ($pidMatches.Count -ne 1) {
-        throw "Perfetto did not return exactly one background tracing PID."
-    }
-
     $state = [pscustomobject]@{
         Schema = $Schema
         BatchId = $batchId
@@ -109,11 +99,24 @@ function Start-NenePerfettoSession {
         LocalConfig = $localConfig
         LocalTrace = $localTrace
         ToolPath = $toolPath
-        LauncherReportedPid = [int]$pidMatches[0].Trim()
+        LauncherReportedPid = 0
         Active = $true
         StopRequested = $false
         Finalized = $false
     }
+    if ($null -ne $OnStarted) {
+        & $OnStarted $state
+    }
+    $startOutput = @(
+        Invoke-NenePerfettoAdb `
+            -Invoker $Invoker `
+            -Arguments @("shell", "perfetto", "--background-wait", "--txt", "-c", $remoteConfig, "-o", $remoteTrace)
+    )
+    $pidMatches = @($startOutput | Where-Object { $_.Trim() -match "^\d+$" })
+    if ($pidMatches.Count -ne 1) {
+        throw "Perfetto did not return exactly one background tracing PID."
+    }
+    $state.LauncherReportedPid = [int]$pidMatches[0].Trim()
     $toolLines = @(
         "schema=$Schema",
         "batch_id=$batchId",
@@ -127,10 +130,6 @@ function Start-NenePerfettoSession {
         "normal_stop=trigger-only; wait for named-session disappearance before stat and pull"
     )
     [System.IO.File]::WriteAllLines($toolPath, $toolLines, [System.Text.UTF8Encoding]::new($false))
-    if ($null -ne $OnStarted) {
-        & $OnStarted $state
-    }
-
     $activeSessionCount = Get-NenePerfettoSessionMatchCount -Invoker $Invoker -SessionName $sessionName
     if ($activeSessionCount -ne 1) {
         throw "Perfetto service state does not expose exactly one named session before collection."
