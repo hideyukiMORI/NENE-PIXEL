@@ -1480,3 +1480,63 @@ and severity-marked loss/error values are zero. Service-global `traced_chunks_di
 `traced_patches_discarded=0` are retained as predeclared informational counters. The raw trace,
 per-frame and per-sample correlations, scheduler and workload rows, clock snapshots, integrity rows,
 UI evidence, logcat, and tool/config manifests are retained locally without a second v2 collection.
+
+## Commit front-half attribution v1
+
+Issue #67 records one new attribution question after an offline all-frame review of the retained
+generated-profile and offscreen decision batches. In the generated-profile batch, all 100
+preview/commit rows join uniquely to their raw `gfxinfo` row by sample, phase, and FrameTimeline
+vsync ID. The nine late commits have median `AnimationStart` to `PerformTraversalsStart` of
+2.1165 ms, compared with 0.9931 ms for the 41 on-time commits, while median
+`IssueDrawCommandsStart` to `SwapBuffers` is 4.6157 versus 4.5947 ms. The offscreen batch shows the
+same association. This does not prove causation, the medians are not additive, and neither old APK
+is relabelled as current `main` evidence.
+
+The retained generated-profile scheduling run 1 cannot resolve the question: continuing Undo
+ripple frames overlap later Pencil events and prevent unique phase association. Its run 2 and the
+source-attribution-v1 trace are retained zero-byte invalid artifacts with exhausted budgets. Schema
+`nene-pixel-m2-commit-front-half-attribution-v1` therefore permits exactly one distinct intrusive
+trace of the fixed generated-profile source
+`efb8c36003a1c62e958da92cf4fb28c2b35dc261` and APK SHA-256
+`359a8f5a6975afae6f29e8680a69ae14f28164db72d36b250225f03d8f3de959` (8,410,691 bytes).
+The APK's embedded revision, v2/v3 signature, packaged profile assets, and installed
+`speed-profile` state must be verified. This known artifact is valid for diagnosis of its own
+configuration even though ADR-0010 provenance remains pending and it cannot be shipped or used as
+current-`main` acceptance evidence.
+
+The fixed workload uses the physical
+`NENE-P2-ALLDOCUBE-IPL80MP-A16-API36` profile at 1200 x 1920 and 90 Hz. It installs the exact APK
+without clearing application data, requires the canonical clean 16 x 16 editor state, installs the
+packaged profile, compiles `speed-profile`, and completes five Pencil/Undo warmups before tracing.
+The sole trace then contains exactly 20 isolated operations. Each operation retains every frame from
+separate 100 ms DOWN-preview and 350 ms UP-commit `gfxinfo` windows, verifies the committed state,
+performs Undo, verifies the clean state, and waits 1,200 ms before the next DOWN so a continuing
+button ripple cannot overlap the next Pencil phase.
+
+Perfetto has a hard 120-second session timeout and records FrameTimeline, scheduling and wakeups,
+CPU frequency/idle, input/view/gfx/HWUI app slices, and process statistics. The canonical collector
+is [collect-m2-commit-front-half-attribution.ps1](measurements/collect-m2-commit-front-half-attribution.ps1);
+its shared lifecycle is covered by
+[validate-m2-perfetto-session.ps1](validate-m2-perfetto-session.ps1), and the only analyzer is
+[analyze-m2-commit-front-half-attribution.ps1](measurements/analyze-m2-commit-front-half-attribution.ps1).
+The collector uses a unique named STOP_TRACING session. After the workload it sends one stop trigger, waits at
+most 30 seconds for that exact session to disappear, then requires a positive finalized remote byte
+count before pull and an identical positive local byte count after pull. The invocation directory,
+manifest, config, tool log, raw frame rows, and trace are never overwritten. A failure after the
+trace starts consumes the sole invocation and remains invalid evidence; no replacement collection
+or automatic late-frame search is allowed.
+
+Analysis includes every associated preview and commit frame and separates late from on-time using
+the unchanged `frame_overrun_ms > 0` diagnostic classification. For the app main thread and
+RenderThread it reports Running, Runnable, Sleeping, and other thread-state overlaps and scheduled
+CPU/core intervals. It also retains overlapping Choreographer, Compose/recompose/applyChanges,
+traversal/recording, queue/sync/issue, GPU/post, and SurfaceFlinger fields where the platform emits
+them. Overlapping slices are not added together, sleep is not called GPU work, and an absent trace
+marker is reported as missing data rather than zero cost. If the 20 operations contain no late
+commit or any required frame association is ambiguous, the result is inconclusive and the budget
+still stops.
+
+This schema is attribution-only. It changes no v7 population, percentile, threshold, historical
+FAIL, product behavior, ownership, renderer, dependency, or profile acceptance rule. It may support
+one later prospective implementation plan only if a controllable operation is identified; it is
+never a performance PASS or a substitute for an untraced v7 decision population.
