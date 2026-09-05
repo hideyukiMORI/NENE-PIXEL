@@ -15,18 +15,18 @@ import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
 
 @Composable
 internal fun ToolControls(
-    renderState: EditorRenderState,
+    activeTool: DrawingTool,
     callbacks: EditorCallbacks,
     onRenderStateChanged: (EditorRenderState) -> Unit,
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(TOOL_SPACING)) {
         ToolButton(
             "Pencil",
-            renderState.activeTool == DrawingTool.Pencil,
+            activeTool == DrawingTool.Pencil,
         ) { onRenderStateChanged(callbacks.onSelectTool(DrawingTool.Pencil)) }
         ToolButton(
             "Eraser",
-            renderState.activeTool == DrawingTool.Eraser,
+            activeTool == DrawingTool.Eraser,
         ) { onRenderStateChanged(callbacks.onSelectTool(DrawingTool.Eraser)) }
     }
 }

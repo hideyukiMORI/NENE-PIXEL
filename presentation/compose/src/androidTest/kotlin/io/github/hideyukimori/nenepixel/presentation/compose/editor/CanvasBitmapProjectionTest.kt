@@ -32,6 +32,22 @@ internal class CanvasBitmapProjectionTest {
         assertArrayEquals(expected, source.argbPixels())
     }
 
+    @Test
+    fun opaqueBitmapProjectionCompositesDisplayAlphaOverCanvasColorWithoutChangingSource() {
+        val sourcePixels = intArrayOf(OPAQUE_RED, OPAQUE_GREEN, HALF_ALPHA_BLUE, TRANSPARENT_BLACK)
+        val source = snapshot(sourcePixels)
+
+        val rendered = source.toOpaqueRenderedBitmap(OPAQUE_WHITE)
+
+        val actual = IntArray(sourcePixels.size)
+        rendered.getPixels(actual, 0, CANVAS_WIDTH, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT)
+        assertArrayEquals(
+            intArrayOf(OPAQUE_RED, OPAQUE_GREEN, HALF_ALPHA_BLUE_OVER_WHITE, OPAQUE_WHITE),
+            actual,
+        )
+        assertArrayEquals(sourcePixels, source.argbPixels())
+    }
+
     private fun snapshot(argb: IntArray): PixelSnapshot {
         val size =
             CanvasSize.create(
@@ -84,5 +100,7 @@ internal class CanvasBitmapProjectionTest {
         const val OPAQUE_GREEN: Int = -0xff0100
         const val HALF_ALPHA_BLUE: Int = -0x7fffff01
         const val TRANSPARENT_BLACK: Int = 0x00000000
+        const val HALF_ALPHA_BLUE_OVER_WHITE: Int = -0x808001
+        const val OPAQUE_WHITE: Int = -0x1
     }
 }
