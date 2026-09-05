@@ -15,22 +15,31 @@ internal object P2AndroidCommandMeasurementRunner {
     ): CommandOutcomeDescriptor {
         var expectedOutcome: CommandOutcomeDescriptor? = null
         repeat(iterations) {
-            val workload = PreparedCommandWorkload.create(spec)
-            val outcome = workload.verify(workload.execute())
+            val workload = PreparedCommandWorkload.createLatency(spec)
+            val outcome = workload.verifySample(workload.execute())
             expectedOutcome?.let { previous -> assertEquals(previous, outcome) }
             expectedOutcome = outcome
         }
         return requireNotNull(expectedOutcome)
     }
 
+    fun verifyCorrectness(spec: P2CommandWorkloadSpec): CommandCorrectnessDescriptor {
+        val workload = PreparedCommandWorkload.createCorrectness(spec)
+        return workload.verifyCorrectness(workload.execute())
+    }
+
     fun executeMeasured(spec: P2CommandWorkloadSpec): P2MeasuredCommandExecution {
-        val workload = PreparedCommandWorkload.create(spec)
+        val workload = PreparedCommandWorkload.createLatency(spec)
+        return executeMeasured(workload)
+    }
+
+    internal fun executeMeasured(workload: PreparedCommandWorkload): P2MeasuredCommandExecution {
         val runtimeBefore = ArtRuntimeSnapshot.capture()
         val startedAtNanos = System.nanoTime()
         val result = workload.execute()
         val latencyNanos = System.nanoTime() - startedAtNanos
         val runtimeAfter = ArtRuntimeSnapshot.capture()
-        val outcome = workload.verify(result)
+        val outcome = workload.verifySample(result)
         return P2MeasuredCommandExecution(
             latencyNanos = latencyNanos,
             outcome = outcome,

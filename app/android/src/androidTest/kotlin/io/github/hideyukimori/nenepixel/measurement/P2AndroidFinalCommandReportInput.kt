@@ -11,6 +11,7 @@ internal data class P2AndroidFinalCommandReportInput(
     )
 
     data class Observations(
+        val correctness: List<CommandCorrectnessDescriptor>,
         val baseline: PostGcMemorySnapshot,
         val checkpoints: List<P2AndroidPhysicalCheckpoint>,
         val samples: List<P2AndroidFinalCommandSample>,
@@ -24,6 +25,9 @@ internal data class P2AndroidFinalCommandReportInput(
 
     val baseline: PostGcMemorySnapshot
         get() = observations.baseline
+
+    val correctness: List<CommandCorrectnessDescriptor>
+        get() = observations.correctness
 
     val checkpoints: List<P2AndroidPhysicalCheckpoint>
         get() = observations.checkpoints

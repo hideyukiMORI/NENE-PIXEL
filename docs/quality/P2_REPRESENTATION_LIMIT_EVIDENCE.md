@@ -3077,6 +3077,32 @@ threshold; retained ownership is bounded by the independent result above.
 | `build/reports/p2/representation-limits/device-clean-flat-packed-command-256-run-05.csv` | 618,362 | `83E3184E4210409580411A02DAC11C13150D2972F1767C38CBF948F38E896226` |
 | `build/reports/p2/representation-limits/device-clean-flat-packed-command-256-run-06.csv` | 618,212 | `9BCF82F6C1D0BAC9E5423EB342C53611B165E01DC3E9EA66846123F538AC24D1` |
 
+### Prospective command-lane correction after run-06
+
+Issue #56 audited the retained executable harness after QLT-014 became normative. Contrary to the
+historical boundary description above, the retained source called full `DocumentState` equality and
+both document and snapshot `hashCode` after every timed command and before the next sample. Timing
+excluded those calls, but that did not remove their cache, allocation, or ART observer effects.
+
+Run-06, its schema-v1 bytes, hashes, values, and historical PASS verdict remain immutable and are not
+relabelled. They cannot be reused as new QLT-014-conforming acceptance evidence. The corrected
+prospective harness uses schema `nene-pixel-p2-android-clean-command-latency-v2` and candidate
+`flat-packed-command-256-lane-separated-v1`. Before any warmup or latency sample, it executes one
+separate correctness case per workload and records exact full-document/pixel equality plus document
+and snapshot hashes in `correctness` rows. Latency `sample` rows retain only result kind, revision,
+history, public `ChangeSet` revisions, invalidation, no-op state identity, direct command time, and
+the existing ART counters; their hash columns are blank.
+
+Fixture construction remains outside direct command timing and necessarily creates an independent
+canonical gateway for each sample. The latency factory does not create or retain the correctness-only
+expected full `DocumentState`; that oracle is constructed only by the separate correctness factory.
+The necessary command/path/initial-state fixture setup can still influence later runtime state, so
+this correction makes no new latency claim and authorizes no device collection by itself. Physical
+environment probes remain fixed checkpoints rather than per-command checks. Regression coverage
+asserts for every workload that the latency factory has no correctness oracle and never enters
+full-state verification, while the separate correctness factory does both. Any future collection
+requires a separately reconciled live Issue and finite protocol under QLT-013 through QLT-015.
+
 ### Accepted limit and renderer handoff result
 
 Focused contracts prove axis, raw-stroke, patch, history-entry, and retained-change cap minus one,
