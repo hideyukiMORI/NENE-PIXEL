@@ -21,15 +21,16 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 
 @Composable
 internal fun NewDocumentControls(
-    renderState: EditorRenderState,
+    canvasSize: CanvasSize,
     callbacks: EditorCallbacks,
     onRenderStateChanged: (EditorRenderState) -> Unit,
 ) {
     val state = remember { NewDocumentControlState() }
-    NewDocumentButton(onClick = { state.open(renderState) })
+    NewDocumentButton(onClick = { state.open(canvasSize) })
     if (state.dialogVisible) {
         NewDocumentDialog(
             state = state.dialogState,
@@ -137,9 +138,9 @@ private class NewDocumentControlState {
     val dialogState: NewDocumentDialogState
         get() = NewDocumentDialogState(widthInput, heightInput, rejectionMessage)
 
-    fun open(renderState: EditorRenderState) {
-        widthInput = renderState.canvasWidthText()
-        heightInput = renderState.canvasHeightText()
+    fun open(canvasSize: CanvasSize) {
+        widthInput = canvasSize.width.value.toString()
+        heightInput = canvasSize.height.value.toString()
         rejectionMessage = null
         dialogVisible = true
     }
@@ -165,11 +166,3 @@ private class NewDocumentControlState {
         rejectionMessage = null
     }
 }
-
-private fun EditorRenderState.canvasWidthText(): String =
-    snapshot.size.width.value
-        .toString()
-
-private fun EditorRenderState.canvasHeightText(): String =
-    snapshot.size.height.value
-        .toString()

@@ -20,11 +20,14 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteEntry
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 
 @Composable
 internal fun PaletteControls(
-    renderState: EditorRenderState,
+    palette: Palette,
+    activePaletteIndex: PaletteIndex,
     callbacks: EditorCallbacks,
     onRenderStateChanged: (EditorRenderState) -> Unit,
 ) {
@@ -37,10 +40,10 @@ internal fun PaletteControls(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(PALETTE_ENTRY_SPACING, Alignment.CenterHorizontally),
         ) {
-            items(renderState.palette.entries(), key = { entry -> entry.index.value }) { entry ->
+            items(palette.entries(), key = { entry -> entry.index.value }) { entry ->
                 PaletteEntryControl(
                     entry = entry,
-                    selected = entry.index == renderState.activePaletteIndex,
+                    selected = entry.index == activePaletteIndex,
                     onClick = { onRenderStateChanged(callbacks.onSelectPaletteEntry(entry.index)) },
                 )
             }

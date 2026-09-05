@@ -16,7 +16,9 @@ import io.github.hideyukimori.nenepixel.core.application.editor.DocumentDirtySta
 
 @Composable
 internal fun HistoryControls(
-    renderState: EditorRenderState,
+    canUndo: Boolean,
+    canRedo: Boolean,
+    dirtyState: DocumentDirtyState,
     callbacks: EditorCallbacks,
     onRenderStateChanged: (EditorRenderState) -> Unit,
 ) {
@@ -27,7 +29,7 @@ internal fun HistoryControls(
     ) {
         Text(
             text =
-                when (renderState.dirtyState) {
+                when (dirtyState) {
                     DocumentDirtyState.Clean -> "No unsaved changes"
                     DocumentDirtyState.Dirty -> "Unsaved changes"
                 },
@@ -37,13 +39,13 @@ internal fun HistoryControls(
             horizontalArrangement = Arrangement.spacedBy(CONTROL_SPACING),
         ) {
             Button(
-                enabled = renderState.canUndo,
+                enabled = canUndo,
                 onClick = { onRenderStateChanged(callbacks.onUndo()) },
             ) {
                 Text("Undo")
             }
             Button(
-                enabled = renderState.canRedo,
+                enabled = canRedo,
                 onClick = { onRenderStateChanged(callbacks.onRedo()) },
             ) {
                 Text("Redo")
