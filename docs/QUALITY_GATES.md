@@ -109,6 +109,136 @@ Each project-file schema version has committed minimal golden fixtures. Tests co
 
 Performance-driven architecture exceptions require a reproducible benchmark, named target device/class, representative document size, before/after result, and correctness tests. “Faster” without measurement is not evidence.
 
+## Verification execution policy
+
+The following rules are the single authority for verification frequency and performance evaluation,
+accepted in [ADR 0011](adr/0011-change-scoped-verification.md). They govern future work, including
+Issue #54. Historical evidence remains immutable. These are mandatory agent/reviewer obligations;
+they are not claims that Gradle automatically detects every process violation.
+
+### QLT-011 — Verification follows the changed behavior
+
+Before execution, the Issue verification plan and work report MUST identify changed paths, affected
+behavior, applicable checks, and why any device measurement is needed. Use the narrowest stable
+boundary during iteration. The following triggers are mandatory:
+
+| Change or event | Required verification |
+| --- | --- |
+| Code iteration | Affected contract/regression tests and relevant compile/static checks; include consumers when their contract is affected |
+| Iteration completion, handoff, or review preparation | Affected narrow checks only; these events MUST NOT independently trigger the full suite |
+| Issue's PR ready to merge | Required successful CI `quality` running canonical `./gradlew check :app:android:assembleDebug` for the final merge candidate; no duplicate local full run is required |
+| Documentation-only change | Documentation validation during development; the same pre-merge CI gate applies when merging, with no device measurement or profile generation solely for prose changes |
+| UI or lifecycle behavior | Relevant device/emulator functional tests in addition to host contracts |
+| Rendering, command, history, or memory performance change | Before/after measurement of the affected representative workload, with separate correctness evidence |
+| Representation, storage format, or supported limit change | Relevant boundary/round-trip/corruption tests and latency or retained-memory evidence affected by that decision |
+| Baseline Profile update | Explicit generation and reproducibility verification under ADR 0010; ordinary builds verify the committed artifact |
+
+QLT-006 through QLT-009 remain mandatory. A trigger does not require rerunning unrelated historical
+candidate matrices. Existing mandatory tests MUST NOT be excluded or disconnected to save time.
+Moving measurement-only work out of `check` requires a separate accepted decision preserving its
+correctness contracts. Future serialization requirements apply when that behavior is implemented.
+
+The routine full-suite boundary is the Issue's final PR merge candidate, not a function, file,
+commit, candidate reversal, work report, or intermediate completed subtask. Keep unfinished work
+out of the merge-ready CI phase. Required CI must validate the current candidate against its current
+base under branch protection; changed head/base or invalid evidence requires a fresh applicable
+result before merging. An old successful SHA, skipped job, or narrow check is not a passing full gate.
+A local full run is optional only for a concrete integration diagnosis or CI-environment investigation;
+record why narrow checks cannot answer it. It does not replace required CI branch protection.
+
+An iteration completion unit is one reviewable behavior or contract slice: its implementation,
+affected consumers, regression contracts, and governing documentation when those must change
+together. It is not each edited function or file, and completing one such slice still triggers only
+its affected narrow checks. Conversely, unrelated Issues or behavior changes MUST NOT be combined
+into an oversized batch merely to defer verification. The full suite is triggered only after the
+focused Issue has one coherent, non-draft final PR candidate.
+
+### QLT-012 — Reuse verified work with explicit invalidation
+
+Normal verification MUST use the committed cache and daemon defaults. `clean`, `--rerun-tasks`,
+`--no-build-cache`, `--no-configuration-cache`, and `--no-daemon` MUST NOT be routine iteration flags.
+An exceptional run MUST record the concrete reason, affected tasks, and scope: cache diagnosis,
+independent clean-build proof, or a specific toolchain/protocol requirement. It MUST NOT silently
+become the default for later runs. Build-cache reuse is distinct from runtime compilation/warmup
+conditions; device protocol conditions MUST still be established.
+
+After successful verification, repeat only checks invalidated by a relevant input change, failure,
+or unresolved concern. The pre-merge gate still applies to final inputs. A later prose-only edit
+requires revalidation of those documents, not a new device result.
+
+Invalidation follows contracts, not file count. A producer contract change invalidates its affected
+consumer compile/contracts even when those consumers were not edited. An implementation-only change
+does not invalidate unrelated modules. Candidate withdrawal, a status report, handoff, or moving a
+PR between draft states does not by itself invalidate successful narrow checks; only changed inputs,
+behavior, or an unresolved result does.
+
+Evidence reuse MUST identify the original source revision, exact APK/test-APK hashes where applicable,
+build variant, toolchain/dependency/profile identity, harness/schema, device conditions, workload,
+and raw result location. Reuse is permitted only when affected inputs and measured behavior remain
+equivalent; document the comparison. Never relabel an old APK or result as built from a newer commit.
+Documentation commits MUST reference the immutable measured artifact instead of requiring a rebuild
+solely to change its revision label. If identity or equivalence cannot be established, evidence cannot
+be reused for the changed behavior.
+
+### QLT-013 — Diagnostics do not substitute for decision samples
+
+Before collecting performance data, fix the metric, population, percentile calculation, thresholds,
+warmups, sample count, comparison order, numeric diagnostic rejection boundary, decision batches,
+and allowed invalid-run recovery in the Issue and versioned protocol. Keep every collected result.
+Unspecified "margin" MUST NOT be a gate. Never rerun until green, drop slow samples, or select only
+the favorable batch. Aborting after a diagnostic failure does not erase its evidence.
+
+A small diagnostic batch is for detecting predeclared gross regressions, correctness failures, or
+invalid collection. Boundary results MUST be marked inconclusive for final acceptance and proceed
+to the predeclared decision batch when its validity prerequisites hold. Ten-sample nearest-rank p95
+is the maximum; it MUST NOT impose a zero-miss admission requirement for a final 50-sample p95 gate.
+A diagnostic pass alone MUST NOT close a performance Issue. Final numerical thresholds remain in
+the owning accepted protocol; this policy does not relax them or retroactively change any verdict.
+
+### QLT-014 — Measure operations and keep measurement lanes separate
+
+Define an operation's start, committed-result completion, reset, timeout, and exact frame association
+before collection. Collect all relevant frames of that operation. MUST NOT assume one frame per
+gesture unless a documented behavioral contract requires that cardinality. Report per-frame
+deadline overrun separately from input-to-committed-result presentation latency; never treat their
+thresholds or populations as interchangeable. Preview presentation alone does not prove committed
+result presentation. Ambiguous association is invalid evidence, not an application failure.
+
+Correctness, latency, retained memory, and intrusive trace attribution MUST remain separate lanes.
+Latency samples may check cheap outcomes/revisions/history/invalidation/identity. Full-document
+comparison, pixel scans, hashes, forced GC, and expensive correctness or memory probes MUST NOT
+run between timed latency samples. Put them in separate correctness runs or fixed batch-boundary
+checkpoints. Timing exclusions alone do not remove observer effects. Intrusive traces explain
+causes and MUST NOT replace an untraced acceptance population without an accepted protocol change.
+
+### QLT-015 — Experiments are bounded and protocols must agree
+
+Every performance experiment MUST state its hypothesis, expected affected cost, representative
+workload, exact candidate/baseline, run budget, and stopping/decision conditions before execution.
+Do not repeat an unchanged rejected candidate without new evidence and an explicitly revised plan.
+Once the budget is exhausted or results are inconclusive, report that outcome and update the plan
+before further collection. Do not start unrelated matrices as a precaution.
+
+The Issue, accepted protocol, and executable harness MUST agree before new acceptance collection.
+If they disagree, block that collection and scope the correction; ordinary development and applicable
+correctness checks may continue. Historical run instructions and one-off permissions are evidence,
+not authorization for a new run. Protocol revisions require a new identity and retain all previous
+FAIL/invalid results. No new framework, module, or competing measurement route is authorized here.
+
+### QLT-016 — Spend verification effort on demonstrated product risk
+
+Optimization proposals MUST distinguish measured bottlenecks from code-inspection hypotheses, state
+correctness risks, and preserve one canonical command/action/pixel implementation path. Workload
+selection MUST cover the affected realistic stress case, such as long repeated strokes at the
+supported canvas limit, rather than infer whole-editor performance from short taps alone.
+
+Prioritize data integrity, bounded resource use, deterministic history, relevant lifecycle behavior,
+and measured interaction delays. A drawing cache is disposable derived state, never a second owner
+of document semantics. Full-copy removal MUST preserve immutable ownership and rejection atomicity.
+Report verification wall time separately from measured operation latency, reused evidence and its
+identity, remaining uncertainty, and the next decision. Do not claim unmeasured speedups or automatic
+enforcement for review-only rules.
+
 ## Merge gate
 
 Once Git is initialized and CI exists, `main` must require:

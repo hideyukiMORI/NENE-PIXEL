@@ -45,6 +45,10 @@ Read the active GitHub Issue, relevant accepted ADRs, and active waivers after t
 - Do not introduce OpenAPI, HTTP, or MCP before the decision gate in `docs/API_STRATEGY.md` is satisfied.
 - Do not commit secrets, local SDK paths, signing materials, generated build output, IDE state, or private user assets.
 - Prefer the smallest change that fully follows the canonical path.
+- MUST follow QLT-011 through QLT-016 in `docs/QUALITY_GATES.md` when planning, running, and reporting verification. Record the change scope and applicable checks before execution.
+- MUST use narrow checks during iteration, handoff, and review preparation. The full canonical check/build is a pre-merge gate for the Issue's final PR candidate, not a per-edit or handoff requirement. A valid required CI result satisfies it without a duplicate local run. Follow QLT-011 for invalidation.
+- MUST NOT start device performance measurement, profile regeneration, or forced cold builds merely because a commit, documentation, or handoff changed. Apply the documented trigger and artifact-identity rules.
+- MUST NOT treat historical measurement recipes as current authorization. Reconcile the Issue, accepted protocol, and executable harness before collecting new acceptance evidence; preserve historical FAIL/invalid results.
 
 ## Required completion report
 

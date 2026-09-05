@@ -54,19 +54,52 @@ The verified fresh-clone transcript, including cold-launch and clean-tree eviden
 
 ## Run the canonical quality gate
 
-Run every required local check through one command:
+Execution frequency is mandatory under [QLT-011 through QLT-016](QUALITY_GATES.md#verification-execution-policy).
+During a core application iteration, for example, run:
 
 ```powershell
-.\gradlew.bat check
+.\gradlew.bat :core:application:test :core:application:ktlintCheck :core:application:detekt
 ```
 
-`check` is the only merge-gate authority. It compiles project-owned Kotlin with warnings as errors, verifies formatting, runs detekt and Android lint with warnings as errors, runs architecture-rule and build-logic unit tests, validates module dependencies and suppression waivers, validates documentation and baseline policy, and checks the committed dependency locks and SHA-256 verification metadata.
+For a prose edit, run `.\gradlew.bat validateDocumentation`. Handoff and review preparation need
+only affected narrow checks. At the final PR merge candidate, required CI runs the canonical command:
 
-When formatting is the only failure, apply the one authoritative formatter and then rerun the complete gate:
+```powershell
+.\gradlew.bat check :app:android:assembleDebug
+```
+
+The command above is the local equivalent for a specifically justified integration/CI diagnosis,
+not an additional mandatory local run. A valid full `quality` result for the merge candidate satisfies
+the pre-merge gate. Do not run it after each edit, subtask, commit, or handoff.
+
+One completion unit means a reviewable behavior or contract slice together with affected consumers,
+tests, and necessary governing documentation. During that unit, select the affected `--tests` filter
+or module compile/static/test tasks. Do not treat each function, file, candidate withdrawal, or report
+as a reason to run the full suite, and do not combine unrelated work merely to postpone checks.
+
+Use normal cache/daemon defaults. Do not append forced-rerun or cache-disabling flags without the
+specific recorded justification required by QLT-012. No device benchmark or profile regeneration
+is required solely because documentation changed. Historical measurement commands are not current
+run authorization; validate the owning Issue, protocol, and harness before new collection.
+
+CI runs the full command only from the non-draft merge-ready pull-request route described in
+[Development Workflow](DEVELOPMENT_WORKFLOW.md#continuous-integration). Draft events fail the
+required `quality` context before toolchain setup rather than reporting skipped success. No full run
+is triggered after merge to `main`, and CI cache access is read-only.
+
+`check` is the quality-policy authority, and the explicit Android assembly proves the supported
+artifact. Together they form the merge gate. `check` compiles project-owned Kotlin with warnings as
+errors, verifies formatting, runs detekt and Android lint with warnings as errors, runs architecture-rule
+and build-logic unit tests, validates module dependencies and suppression waivers, validates
+documentation and baseline policy, and checks the
+committed dependency locks and SHA-256 verification metadata.
+
+When formatting is the only failure, apply the authoritative formatter to the affected scope and
+rerun its affected formatting check. The following are available formatter tasks; do not run unrelated
+ones merely because they are listed:
 
 ```powershell
 .\gradlew.bat ktlintFormat :app:android:ktlintFormat :quality:architecture-rules:ktlintFormat :build-logic:ktlintFormat
-.\gradlew.bat check
 ```
 
 The following narrow commands are diagnostic tools, not substitutes for `check`:
