@@ -339,16 +339,28 @@ try {
         throw "speed-profile compilation did not report success."
     }
     $dexoptText = (Invoke-TargetAdb -Arguments @("shell", "dumpsys", "package", "dexopt")) -join "`n"
-    $packageDexopt = [regex]::Match(
-        $dexoptText,
-        "(?ms)^    \[$([regex]::Escape($packageName))\]\s*$.*?(?=^    \[|\z)"
-    )
-    if (-not $packageDexopt.Success -or $packageDexopt.Value -notmatch "\[status=speed-profile\]") {
+    $packageMarker = "[$packageName]"
+    $packageStart = $dexoptText.IndexOf($packageMarker, [StringComparison]::Ordinal)
+    $nextPackage =
+        if ($packageStart -ge 0) {
+            $dexoptText.IndexOf("`n  [", $packageStart + $packageMarker.Length, [StringComparison]::Ordinal)
+        } else {
+            -1
+        }
+    $packageDexopt =
+        if ($packageStart -lt 0) {
+            ""
+        } elseif ($nextPackage -lt 0) {
+            $dexoptText.Substring($packageStart)
+        } else {
+            $dexoptText.Substring($packageStart, $nextPackage - $packageStart)
+        }
+    if ($packageDexopt -notmatch "\[status=speed-profile\]") {
         throw "The installed package does not report the fixed speed-profile runtime state."
     }
     [System.IO.File]::WriteAllText(
         (Join-Path $resolvedOutput "compile-state.txt"),
-        $packageDexopt.Value,
+        $packageDexopt,
         [System.Text.UTF8Encoding]::new($false)
     )
     Invoke-TargetAdb -Arguments @("shell", "am", "force-stop", $packageName) | Out-Null
