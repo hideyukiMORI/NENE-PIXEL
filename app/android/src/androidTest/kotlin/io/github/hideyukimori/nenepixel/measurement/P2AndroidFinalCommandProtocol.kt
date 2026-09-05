@@ -6,7 +6,7 @@ internal object P2AndroidFinalCommandProtocol {
     const val WORKLOAD_COUNT: Int = 5
     const val RUN_INDEX: Int = 1
     const val PHYSICAL_PROFILE_ID: String = "NENE-P2-ALLDOCUBE-IPL80MP-A16-API36"
-    const val CLEAN_LATENCY_SCHEMA: String = "nene-pixel-p2-android-clean-command-latency-v1"
+    const val CLEAN_LATENCY_SCHEMA: String = "nene-pixel-p2-android-clean-command-latency-v2"
 
     fun resolve(identity: P2AndroidRunIdentity): P2AndroidFinalCommandPlan {
         require(identity.candidateId == FINAL_PLAN.candidateId) {
@@ -69,7 +69,7 @@ internal object P2AndroidFinalCommandProtocol {
         P2AndroidFinalCommandPlan(
             identity =
                 P2AndroidFinalCommandPlan.Identity(
-                    candidateId = "flat-packed-command-256-clean-latency-v6",
+                    candidateId = "flat-packed-command-256-lane-separated-v1",
                     runIndex = RUN_INDEX,
                 ),
             workload =
@@ -82,8 +82,8 @@ internal object P2AndroidFinalCommandProtocol {
                 ),
             output =
                 P2AndroidFinalCommandPlan.Output(
-                    outputIdentity = "device-clean-flat-packed-command-256-run-06",
-                    relativePath = "p2-measurements/p2-android-clean-flat-packed-command-256-run-06.csv",
+                    outputIdentity = "device-lane-separated-flat-packed-command-256-run-01",
+                    relativePath = "p2-measurements/p2-android-lane-separated-flat-packed-command-256-run-01.csv",
                     publicationPolicy = P2AndroidFinalCommandPlan.PublicationPolicy.FailIfExists,
                 ),
         )

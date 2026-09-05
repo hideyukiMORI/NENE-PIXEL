@@ -1,6 +1,18 @@
 package io.github.hideyukimori.nenepixel.measurement
 
 internal object P2AndroidFinalCommandContractValidator {
+    fun validateCorrectness(
+        plan: P2AndroidFinalCommandPlan,
+        correctness: List<CommandCorrectnessDescriptor>,
+    ) {
+        check(correctness.map(CommandCorrectnessDescriptor::spec) == plan.specs) {
+            "Final command correctness lane requires exactly one ordered execution per workload."
+        }
+        correctness.forEach { descriptor ->
+            validateOutcome(plan, descriptor.spec, descriptor.outcome)
+        }
+    }
+
     fun validateSamples(
         plan: P2AndroidFinalCommandPlan,
         samples: List<P2AndroidFinalCommandSample>,
@@ -23,7 +35,7 @@ internal object P2AndroidFinalCommandContractValidator {
         check(sample.localSampleIndex == expectedLocalIndex)
         check(sample.globalSampleIndex == zeroBasedIndex + 1)
         check(sample.latencyNanos >= 0L)
-        validateOutcome(plan, sample)
+        validateOutcome(plan, sample.spec, sample.outcome)
         validateDiagnostics(sample)
     }
 
@@ -61,11 +73,11 @@ internal object P2AndroidFinalCommandContractValidator {
 
     private fun validateOutcome(
         plan: P2AndroidFinalCommandPlan,
-        sample: P2AndroidFinalCommandSample,
+        spec: P2CommandWorkloadSpec,
+        outcome: CommandOutcomeDescriptor,
     ) {
-        val outcome = sample.outcome
-        val noOp = sample.spec.kind == P2CommandWorkloadKind.DenseNoOp
-        val undo = sample.spec.kind == P2CommandWorkloadKind.DenseUndo
+        val noOp = spec.kind == P2CommandWorkloadKind.DenseNoOp
+        val undo = spec.kind == P2CommandWorkloadKind.DenseUndo
         check(outcome.resultKind == if (noOp) "rejected_no_effective_change" else "applied")
         check(outcome.revision == if (undo || noOp) 0L else 1L)
         check(
@@ -85,7 +97,7 @@ internal object P2AndroidFinalCommandContractValidator {
             check(outcome.changeSetBeforeRevision == if (undo) 1L else 0L)
             check(outcome.changeSetAfterRevision == if (undo) 0L else 1L)
             val expectedRegion =
-                if (sample.spec.kind == P2CommandWorkloadKind.SparseApply) {
+                if (spec.kind == P2CommandWorkloadKind.SparseApply) {
                     plan.sparseRegion
                 } else {
                     plan.fullCanvasRegion

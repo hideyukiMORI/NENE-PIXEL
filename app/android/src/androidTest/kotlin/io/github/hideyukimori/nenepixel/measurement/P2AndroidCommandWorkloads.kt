@@ -73,14 +73,19 @@ internal object P2CommandWorkloadCatalog {
 
 internal data class CommandOutcomeDescriptor(
     val resultKind: String,
-    val documentHash: Int,
-    val snapshotHash: Int,
     val revision: Long,
     val history: String,
     val changeSetBeforeRevision: Long?,
     val changeSetAfterRevision: Long?,
     val renderInvalidation: P2CommandRegionDescriptor?,
     val unchangedStateIdentity: Boolean,
+)
+
+internal data class CommandCorrectnessDescriptor(
+    val spec: P2CommandWorkloadSpec,
+    val outcome: CommandOutcomeDescriptor,
+    val documentHash: Int,
+    val snapshotHash: Int,
 )
 
 internal data class P2CommandRegionDescriptor(
@@ -98,9 +103,11 @@ internal data class P2CommandResultDescriptor(
 )
 
 internal class PreparedCommandWorkload internal constructor(
+    val spec: P2CommandWorkloadSpec,
     private val gateway: CommandGateway,
     private var command: DocumentCommand?,
-    private var expectedState: DocumentState?,
+    private val expectedState: DocumentState?,
+    private val unchangedStateReference: DocumentState?,
     private val expectedResult: ExpectedCommandResult,
     private val expectedBeforeRevision: Long,
     private val expectedAfterRevision: Long,
@@ -108,17 +115,20 @@ internal class PreparedCommandWorkload internal constructor(
     private val expectedRenderInvalidation: PixelRegion?,
     private val expectSameStateInstance: Boolean,
 ) {
+    internal val correctnessOraclePrepared: Boolean = expectedState != null
+
+    internal var fullStateVerificationPerformed: Boolean = false
+        private set
+
     fun execute(): CommandResult {
         val nextCommand = requireNotNull(command) { "A measurement command may execute only once." }
         command = null
         return gateway.execute(nextCommand)
     }
 
-    fun verify(result: CommandResult): CommandOutcomeDescriptor {
-        val expectedDocument = requireNotNull(expectedState)
+    fun verifySample(result: CommandResult): CommandOutcomeDescriptor {
         val runtimeState = gateway.runtimeState
-        assertEquals(expectedDocument, runtimeState.documentState)
-        if (expectSameStateInstance) assertSame(expectedDocument, runtimeState.documentState)
+        if (expectSameStateInstance) assertSame(requireNotNull(unchangedStateReference), runtimeState.documentState)
         assertEquals(expectedAfterRevision, runtimeState.documentState.revision.value)
         assertEquals(expectedHistory, runtimeState.historyAvailability)
         val resultDescriptor =
@@ -130,28 +140,44 @@ internal class PreparedCommandWorkload internal constructor(
                     renderInvalidation = expectedRenderInvalidation,
                 ),
             )
-        expectedState = null
         return CommandOutcomeDescriptor(
             resultKind = resultDescriptor.resultKind,
-            documentHash = runtimeState.documentState.hashCode(),
-            snapshotHash = runtimeState.documentState.snapshot.hashCode(),
             revision = runtimeState.documentState.revision.value,
             history = runtimeState.historyAvailability.csvName(),
             changeSetBeforeRevision = resultDescriptor.changeSetBeforeRevision,
             changeSetAfterRevision = resultDescriptor.changeSetAfterRevision,
             renderInvalidation = resultDescriptor.renderInvalidation,
-            unchangedStateIdentity = runtimeState.documentState === expectedDocument,
+            unchangedStateIdentity = runtimeState.documentState === unchangedStateReference,
+        )
+    }
+
+    fun verifyCorrectness(result: CommandResult): CommandCorrectnessDescriptor {
+        val runtimeState = gateway.runtimeState
+        assertEquals(requireNotNull(expectedState), runtimeState.documentState)
+        fullStateVerificationPerformed = true
+        return CommandCorrectnessDescriptor(
+            spec = spec,
+            outcome = verifySample(result),
+            documentHash = runtimeState.documentState.hashCode(),
+            snapshotHash = runtimeState.documentState.snapshot.hashCode(),
         )
     }
 
     companion object {
-        fun create(spec: P2CommandWorkloadSpec): PreparedCommandWorkload =
+        fun createLatency(spec: P2CommandWorkloadSpec): PreparedCommandWorkload = create(spec, correctness = false)
+
+        fun createCorrectness(spec: P2CommandWorkloadSpec): PreparedCommandWorkload = create(spec, correctness = true)
+
+        private fun create(
+            spec: P2CommandWorkloadSpec,
+            correctness: Boolean,
+        ): PreparedCommandWorkload =
             when (spec.kind) {
-                P2CommandWorkloadKind.SparseApply -> WorkloadFactory.apply(spec, sparse = true)
-                P2CommandWorkloadKind.DenseApply -> WorkloadFactory.apply(spec, sparse = false)
-                P2CommandWorkloadKind.DenseNoOp -> WorkloadFactory.noOp(spec)
-                P2CommandWorkloadKind.DenseUndo -> WorkloadFactory.undo(spec)
-                P2CommandWorkloadKind.DenseRedo -> WorkloadFactory.redo(spec)
+                P2CommandWorkloadKind.SparseApply -> WorkloadFactory.apply(spec, sparse = true, correctness)
+                P2CommandWorkloadKind.DenseApply -> WorkloadFactory.apply(spec, sparse = false, correctness)
+                P2CommandWorkloadKind.DenseNoOp -> WorkloadFactory.noOp(spec, correctness)
+                P2CommandWorkloadKind.DenseUndo -> WorkloadFactory.undo(spec, correctness)
+                P2CommandWorkloadKind.DenseRedo -> WorkloadFactory.redo(spec, correctness)
             }
     }
 }
@@ -181,16 +207,24 @@ private object WorkloadFactory {
     fun apply(
         spec: P2CommandWorkloadSpec,
         sparse: Boolean,
+        correctness: Boolean,
     ): PreparedCommandWorkload {
         val values = CoreMeasurementValues(spec.canvasWidth, spec.canvasHeight)
         val initial = values.document(Revision.initial(), values.whitePixels())
         val path = if (sparse) values.diagonalPath() else values.densePath()
-        val expectedPixels = if (sparse) values.diagonalRedPixels() else values.redPixels()
         val gateway = CommandGateway.create(initial)
         return prepared(
+            spec = spec,
             gateway = gateway,
             command = values.applyCommand(initial, path),
-            expectedState = values.document(values.revision(1L), expectedPixels),
+            expectedState =
+                if (correctness) {
+                    val expectedPixels = if (sparse) values.diagonalRedPixels() else values.redPixels()
+                    values.document(values.revision(1L), expectedPixels)
+                } else {
+                    null
+                },
+            unchangedStateReference = null,
             expectedResult = ExpectedCommandResult.Applied,
             beforeRevision = 0L,
             afterRevision = 1L,
@@ -199,14 +233,19 @@ private object WorkloadFactory {
         )
     }
 
-    fun noOp(spec: P2CommandWorkloadSpec): PreparedCommandWorkload {
+    fun noOp(
+        spec: P2CommandWorkloadSpec,
+        correctness: Boolean,
+    ): PreparedCommandWorkload {
         val values = CoreMeasurementValues(spec.canvasWidth, spec.canvasHeight)
         val initial = values.document(Revision.initial(), values.redPixels())
         val gateway = CommandGateway.create(initial)
         return prepared(
+            spec = spec,
             gateway = gateway,
             command = values.applyCommand(initial, values.densePath()),
-            expectedState = initial,
+            expectedState = initial.takeIf { correctness },
+            unchangedStateReference = initial,
             expectedResult = ExpectedCommandResult.NoEffectiveChange,
             beforeRevision = 0L,
             afterRevision = 0L,
@@ -216,7 +255,10 @@ private object WorkloadFactory {
         )
     }
 
-    fun undo(spec: P2CommandWorkloadSpec): PreparedCommandWorkload {
+    fun undo(
+        spec: P2CommandWorkloadSpec,
+        correctness: Boolean,
+    ): PreparedCommandWorkload {
         val values = CoreMeasurementValues(spec.canvasWidth, spec.canvasHeight)
         val initial = values.document(Revision.initial(), values.whitePixels())
         val gateway = CommandGateway.create(initial)
@@ -225,9 +267,11 @@ private object WorkloadFactory {
             .requireApplied(P2ExpectedCommandTransition(0L, 1L, values.fullRegion()))
         val applied = gateway.runtimeState.documentState
         return prepared(
+            spec = spec,
             gateway = gateway,
             command = UndoCommand.create(applied.id, applied.revision),
-            expectedState = initial,
+            expectedState = initial.takeIf { correctness },
+            unchangedStateReference = null,
             expectedResult = ExpectedCommandResult.Applied,
             beforeRevision = 1L,
             afterRevision = 0L,
@@ -236,7 +280,10 @@ private object WorkloadFactory {
         )
     }
 
-    fun redo(spec: P2CommandWorkloadSpec): PreparedCommandWorkload {
+    fun redo(
+        spec: P2CommandWorkloadSpec,
+        correctness: Boolean,
+    ): PreparedCommandWorkload {
         val values = CoreMeasurementValues(spec.canvasWidth, spec.canvasHeight)
         val initial = values.document(Revision.initial(), values.whitePixels())
         val gateway = CommandGateway.create(initial)
@@ -249,9 +296,11 @@ private object WorkloadFactory {
             .requireApplied(P2ExpectedCommandTransition(1L, 0L, values.fullRegion()))
         val undone = gateway.runtimeState.documentState
         return prepared(
+            spec = spec,
             gateway = gateway,
             command = RedoCommand.create(undone.id, undone.revision),
-            expectedState = applied,
+            expectedState = applied.takeIf { correctness },
+            unchangedStateReference = null,
             expectedResult = ExpectedCommandResult.Applied,
             beforeRevision = 0L,
             afterRevision = 1L,
@@ -261,9 +310,11 @@ private object WorkloadFactory {
     }
 
     private fun prepared(
+        spec: P2CommandWorkloadSpec,
         gateway: CommandGateway,
         command: DocumentCommand,
-        expectedState: DocumentState,
+        expectedState: DocumentState?,
+        unchangedStateReference: DocumentState?,
         expectedResult: ExpectedCommandResult,
         beforeRevision: Long,
         afterRevision: Long,
@@ -272,9 +323,11 @@ private object WorkloadFactory {
         expectSameStateInstance: Boolean = false,
     ): PreparedCommandWorkload =
         PreparedCommandWorkload(
+            spec,
             gateway,
             command,
             expectedState,
+            unchangedStateReference,
             expectedResult,
             beforeRevision,
             afterRevision,

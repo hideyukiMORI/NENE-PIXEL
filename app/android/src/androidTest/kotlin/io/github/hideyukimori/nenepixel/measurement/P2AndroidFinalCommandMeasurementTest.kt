@@ -14,9 +14,17 @@ internal class P2AndroidFinalCommandMeasurementTest {
         val identity = P2AndroidRunIdentity.fromRunnerArguments()
         val plan = P2AndroidFinalCommandProtocol.resolve(environment, identity)
         val specs = plan.specs
+        val correctness = specs.map(P2AndroidCommandMeasurementRunner::verifyCorrectness)
         val expectedOutcomes =
             specs.associateWith { spec ->
-                P2AndroidCommandMeasurementRunner.warmUp(spec, plan.warmupIterations)
+                P2AndroidCommandMeasurementRunner
+                    .warmUp(spec, plan.warmupIterations)
+                    .also { outcome ->
+                        assertEquals(
+                            correctness.single { descriptor -> descriptor.spec == spec }.outcome,
+                            outcome,
+                        )
+                    }
             }
         val baselineMemory = PostGcMemorySnapshot.captureBaseline(environment)
         val display = P2AndroidPhysicalCheckpointCapture.defaultDisplay(environment.targetContext)
@@ -73,6 +81,7 @@ internal class P2AndroidFinalCommandMeasurementTest {
                     run = P2AndroidFinalCommandReportInput.Run(environment, identity),
                     observations =
                         P2AndroidFinalCommandReportInput.Observations(
+                            correctness = correctness,
                             baseline = baselineMemory,
                             checkpoints = checkpoints,
                             samples = samples,

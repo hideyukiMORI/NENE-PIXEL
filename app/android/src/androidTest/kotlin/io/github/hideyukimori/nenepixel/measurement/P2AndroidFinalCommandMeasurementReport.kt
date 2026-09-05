@@ -29,6 +29,9 @@ internal object P2AndroidFinalCommandMeasurementReport {
             sortedArtRuntimeStats().forEach { (name, value) ->
                 writer.appendLine(metadataRow("runtime_stat_end:$name", value))
             }
+            input.correctness.forEach { correctness ->
+                writer.appendLine(correctnessRow(input, correctness))
+            }
             writer.appendLine(baselineRow(input))
             input.checkpoints.forEach { checkpoint -> writer.appendLine(checkpointRow(input, checkpoint)) }
             input.samples.forEach { sample -> writer.appendLine(sampleRow(input, sample)) }
@@ -109,7 +112,8 @@ internal object P2AndroidFinalCommandMeasurementReport {
             metadataRow(
                 "measurement_boundary",
                 "one prepared CommandGateway.execute call only; fixture, ART snapshots, process memory, " +
-                    "correctness, checkpoints, and report writing excluded from direct latency",
+                    "correctness lane/oracle, checkpoints, and report writing excluded from direct latency; " +
+                    "latency fixture preparation does not construct an expected full DocumentState",
             ),
             metadataRow(
                 "art_runtime_boundary",
@@ -123,8 +127,10 @@ internal object P2AndroidFinalCommandMeasurementReport {
             ),
             metadataRow(
                 "correctness_boundary",
-                "outside timing: exact DocumentState and complete pixels, revision, history, result kind, public " +
-                    "ChangeSet revisions and render invalidation, or exact no-op rejection and unchanged state identity",
+                "one separate pre-warmup execution per workload: exact DocumentState and complete pixels " +
+                    "plus hashes; " +
+                    "latency samples retain only revision, history, result, ChangeSet, invalidation, " +
+                    "and no-op identity",
             ),
             metadataRow(
                 "validity_boundary",
@@ -135,6 +141,35 @@ internal object P2AndroidFinalCommandMeasurementReport {
                 "lower_level_boundary",
                 "private patch ordering, inverse records, and unaffected-pixel proofs remain in isolated canonical core tests",
             ),
+        )
+    }
+
+    private fun correctnessRow(
+        input: P2AndroidFinalCommandReportInput,
+        correctness: CommandCorrectnessDescriptor,
+    ): String {
+        val outcome = correctness.outcome
+        val invalidation = outcome.renderInvalidation
+        return rowByColumn(
+            "record_type" to "correctness",
+            "name" to correctness.spec.kind.metricName,
+            *identityValues(input).toTypedArray(),
+            "canvas_width" to correctness.spec.canvasWidth,
+            "canvas_height" to correctness.spec.canvasHeight,
+            "position_count" to correctness.spec.positionCount,
+            "result_kind" to outcome.resultKind,
+            "revision_after" to outcome.revision,
+            "history_after" to outcome.history,
+            "document_hash" to correctness.documentHash,
+            "snapshot_hash" to correctness.snapshotHash,
+            "change_set_before_revision" to outcome.changeSetBeforeRevision,
+            "change_set_after_revision" to outcome.changeSetAfterRevision,
+            "render_invalidation_origin_x" to invalidation?.originX,
+            "render_invalidation_origin_y" to invalidation?.originY,
+            "render_invalidation_width" to invalidation?.width,
+            "render_invalidation_height" to invalidation?.height,
+            "unchanged_state_identity" to outcome.unchangedStateIdentity,
+            "boundary" to CORRECTNESS_ASSERTION_BOUNDARY,
         )
     }
 
@@ -180,8 +215,6 @@ internal object P2AndroidFinalCommandMeasurementReport {
             "result_kind" to outcome.resultKind,
             "revision_after" to outcome.revision,
             "history_after" to outcome.history,
-            "document_hash" to outcome.documentHash,
-            "snapshot_hash" to outcome.snapshotHash,
             "change_set_before_revision" to outcome.changeSetBeforeRevision,
             "change_set_after_revision" to outcome.changeSetAfterRevision,
             "render_invalidation_origin_x" to invalidation?.originX,
@@ -228,6 +261,7 @@ internal object P2AndroidFinalCommandMeasurementReport {
 
     private fun validate(input: P2AndroidFinalCommandReportInput) {
         P2AndroidFinalCommandProtocol.validate(input.environment, input.identity, input.plan)
+        P2AndroidFinalCommandContractValidator.validateCorrectness(input.plan, input.correctness)
         P2AndroidFinalCommandContractValidator.validateMemory(input.baseline)
         P2AndroidFinalCommandContractValidator.validateSamples(input.plan, input.samples)
         P2AndroidFinalCommandContractValidator.validateCheckpoints(input.plan, input.checkpoints)
@@ -248,8 +282,10 @@ internal object P2AndroidFinalCommandMeasurementReport {
         values.joinToString(",") { value -> "\"${value.toString().replace("\"", "\"\"")}\"" }
 
     private const val SAMPLE_ASSERTION_BOUNDARY: String =
-        "exact state and complete pixels, revision, history, result, public ChangeSet revisions and invalidation, " +
-            "or exact no-op and unchanged identity asserted outside latency"
+        "cheap revision, history, result, public ChangeSet revisions and invalidation, or no-op unchanged identity " +
+            "asserted after direct latency; no full-state comparison or hash"
+    private const val CORRECTNESS_ASSERTION_BOUNDARY: String =
+        "separate pre-warmup full DocumentState and complete-pixel equality plus document and snapshot hashes"
     private val COLUMNS: List<String> =
         listOf(
             "record_type",
