@@ -6,7 +6,6 @@ import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.TaskAction
 import org.gradle.work.DisableCachingByDefault
-import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.io.path.extension
 import kotlin.io.path.name
@@ -19,7 +18,7 @@ public abstract class NoBaselineValidationTask : DefaultTask() {
     @TaskAction
     public fun validateNoBaselines() {
         val root = repositoryDirectory.get().asFile.toPath()
-        val baselines = Files.walk(root).use { paths -> paths.filter(::isBaseline).map(root::relativize).toList() }
+        val baselines = NoBaselineValidator(root).findBaselines()
 
         if (baselines.isNotEmpty()) {
             throw GradleException(
@@ -31,13 +30,22 @@ public abstract class NoBaselineValidationTask : DefaultTask() {
             )
         }
     }
+}
+
+internal class NoBaselineValidator(
+    private val repositoryRoot: Path,
+) {
+    fun findBaselines(): List<Path> =
+        RepositoryFileTraversal
+            .regularFiles(repositoryRoot)
+            .asSequence()
+            .filter(::isBaseline)
+            .map(repositoryRoot::relativize)
+            .sortedBy(Path::toString)
+            .toList()
 
     private fun isBaseline(path: Path): Boolean {
-        if (!Files.isRegularFile(path) || isIgnored(path)) return false
         val supportedExtension = path.extension.lowercase() in setOf("xml", "json", "sarif")
         return supportedExtension && "baseline" in path.name.lowercase()
     }
-
-    private fun isIgnored(path: Path): Boolean =
-        path.any { segment -> segment.toString() in setOf(".git", ".gradle", ".idea", ".kotlin", "build") }
 }
