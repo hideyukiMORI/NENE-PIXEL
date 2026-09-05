@@ -78,6 +78,7 @@ function Get-EnvironmentCheckpoint {
     $display = (Invoke-TargetAdb -Arguments @("shell", "dumpsys", "display")) -join "`n"
     $thermal = (Invoke-TargetAdb -Arguments @("shell", "dumpsys", "thermalservice")) -join "`n"
     $power = (Invoke-TargetAdb -Arguments @("shell", "dumpsys", "power")) -join "`n"
+    $windowPolicy = (Invoke-TargetAdb -Arguments @("shell", "dumpsys", "window", "policy")) -join "`n"
     $battery = (Invoke-TargetAdb -Arguments @("shell", "dumpsys", "battery")) -join "`n"
     $lowPower = (Invoke-TargetAdb -Arguments @("shell", "settings", "get", "global", "low_power") | Select-Object -First 1).Trim()
     if ($wm -notmatch "Physical size:\s*1200x1920") {
@@ -95,6 +96,9 @@ function Get-EnvironmentCheckpoint {
     }
     if ($lowPower -ne "0" -or $power -notmatch "mWakefulness=Awake" -or $battery -notmatch "USB powered:\s*true") {
         throw "Interactive USB-powered non-power-save state is required at $Name."
+    }
+    if ($windowPolicy -notmatch "mIsShowing=false") {
+        throw "The secure keyguard must be unlocked before attribution preflight."
     }
     return [pscustomobject]@{
         checkpoint = $Name
