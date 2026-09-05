@@ -11,7 +11,7 @@ $ErrorActionPreference = "Stop"
 
 . (Join-Path $PSScriptRoot "m2-perfetto-session.ps1")
 
-$schema = "nene-pixel-m2-commit-front-half-attribution-v2"
+$schema = "nene-pixel-m2-commit-front-half-attribution-v3"
 $sourceCommit = "efb8c36003a1c62e958da92cf4fb28c2b35dc261"
 $expectedApkSha256 = "359a8f5a6975afae6f29e8680a69ae14f28164db72d36b250225f03d8f3de959"
 $expectedApkBytes = 8410691L

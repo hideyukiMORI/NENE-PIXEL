@@ -9,7 +9,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-$schema = "nene-pixel-m2-commit-front-half-attribution-v2"
+$schema = "nene-pixel-m2-commit-front-half-attribution-v3"
 $packageName = "io.github.hideyukimori.nenepixel"
 $surfaceFlingerProcess = "/system/bin/surfaceflinger"
 $expectedTraceProcessorSha256 = "a881f3e2d4c6131493e85bfd1f36d1efe58e1478e2991825418d5d21614c1e48"
@@ -206,6 +206,7 @@ $integritySql = @"
 SELECT name,value,severity,source FROM stats
 WHERE severity IN ('data_loss','error') OR name GLOB '*loss*' OR name GLOB '*overrun*'
    OR name GLOB '*discard*' OR name GLOB '*wrap*' OR name GLOB '*flush*'
+   OR name GLOB 'frame_timeline_*' OR name GLOB '*overwritten*' OR name GLOB '*dropped*'
 ORDER BY name;
 "@
 
@@ -248,10 +249,17 @@ $integrity = @(Import-Csv -LiteralPath (Join-Path $resolvedOutput "commit-front-
 $invalidStats = @($integrity | Where-Object {
     [long]$_.value -ne 0 -and (
         $_.severity -in @("error", "data_loss") -or
-        $_.name -match "loss|overrun|wrap|parse.*error|flush.*fail" -or
+        $_.name -match "loss|overrun|wrap|parse.*error|unpaired|overwritten|dropped|flush.*fail" -or
         ($_.name -match "discard" -and $_.name -notin @("traced_chunks_discarded", "traced_patches_discarded"))
     )
 })
+foreach ($requiredStat in @("frame_timeline_event_parser_errors", "frame_timeline_unpaired_end_event",
+    "traced_buf_incremental_sequences_dropped", "traced_buf_sequence_packet_loss",
+    "traced_buf_trace_writer_packet_loss", "traced_final_flush_failed", "traced_final_flush_succeeded")) {
+    if (@($integrity | Where-Object name -eq $requiredStat).Count -ne 1) {
+        throw "Required integrity statistic is missing or ambiguous: $requiredStat."
+    }
+}
 if ($invalidStats.Count -gt 0 -or @($integrity | Where-Object { $_.name -eq "traced_final_flush_succeeded" -and [long]$_.value -eq 1 }).Count -ne 1) {
     throw "Trace integrity or final flush failed; attribution is invalid."
 }

@@ -1599,3 +1599,28 @@ runtime candidate or speedup is established. The next prerequisite is a device-f
 the complete collector orchestration, including real raw text and injected failures at each
 boundary; only a separately prospective, justified protocol could authorize another trace.
 Issue #54 remains FAIL/open and #44 stays blocked. Active waivers: none.
+
+### Prospective v3 after full host orchestration verification
+
+Issue #67 records hide's further continuation request and schema
+`nene-pixel-m2-commit-front-half-attribution-v3` before any v3 trace. The actual collector entry
+and analyzer now run through [the complete host fixture](validate-m2-attribution-orchestration.ps1),
+replacing native responses only in an isolated PowerShell process. Eight scenarios cover all ten
+operations and twenty frames, malformed/flagged raw, wrong committed UI, malformed start response,
+duplicate association, data loss and analyzer failure. Every started case finalizes once; partial
+frames and errors remain. All five generated SQL queries also execute with the real pinned processor
+against the saved v2 trace, establishing query compatibility, not diagnostic population validity.
+
+These checks address the observed raw-binding/composition failure. V3 fixes one new intrusive trace,
+ten operations, five warmups, unchanged 100/350 ms preview/commit waits and 1,200 ms Undo quiet,
+the same exact `efb8c36` APK/profile/physical conditions, 120-second hard timeout and 100-second host
+workload deadline. No candidate or acceptance batch is repeated. V1/v2 outcomes and consumed budgets
+remain immutable; there is no v3 replacement after start, even if it is invalid, has no late COMMIT,
+or cannot associate all frames. Required parser/pairing and per-buffer loss/drop/wrap/overwrite
+statistics and successful final flush must be present and valid before attribution.
+
+The question remains whether late COMMIT adds main/RenderThread CPU execution or runnable/sleeping
+delay and which emitted Compose/traversal/recording or scheduler interval accounts for it. Missing
+markers are unavailable, overlapping slices are not additive, and traced timing or synthetic host
+responses cannot prove a speedup. No runtime candidate, APK rebuild, profile generation, full suite,
+dependency, new renderer or threshold change is authorized by this diagnostic protocol.
