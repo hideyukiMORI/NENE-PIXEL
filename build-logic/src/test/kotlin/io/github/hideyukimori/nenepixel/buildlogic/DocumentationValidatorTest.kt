@@ -65,6 +65,16 @@ internal class DocumentationValidatorTest {
         assertViolationContains("active waiver expired on 2026-08-31")
     }
 
+    @Test
+    fun `markdown below ignored directories is not validation input`() {
+        ignoredDirectoryPaths.forEach { directory ->
+            write("$directory/broken.md", "[Missing](nowhere.md)\n")
+        }
+        write("docs/rules.md", "### KOT-001 — Rule\n")
+
+        assertNoViolations()
+    }
+
     private fun assertNoViolations() {
         val violations = validate()
         assertTrue(violations.isEmpty(), violations.joinToString(separator = "\n"))
@@ -137,4 +147,9 @@ internal class DocumentationValidatorTest {
         ## References
         References.
         """.trimIndent() + "\n"
+
+    private companion object {
+        val ignoredDirectoryPaths: List<String> =
+            listOf(".git", ".gradle", ".idea", ".kotlin", "build", "module/build")
+    }
 }

@@ -15,13 +15,13 @@ internal class SuppressionValidator(
 ) {
     fun validate(): List<ArchitectureViolation> {
         val activeWaivers = loadActiveWaivers()
-        return Files.walk(repositoryRoot).use { paths ->
-            paths
-                .filter(::isScannableFile)
-                .flatMap { path -> validateFile(path, activeWaivers).stream() }
-                .sorted()
-                .toList()
-        }
+        return RepositoryFileTraversal
+            .regularFiles(repositoryRoot)
+            .asSequence()
+            .filter(::isScannableFile)
+            .flatMap { path -> validateFile(path, activeWaivers).asSequence() }
+            .sorted()
+            .toList()
     }
 
     private fun validateFile(
@@ -157,10 +157,7 @@ internal class SuppressionValidator(
         }
     }
 
-    private fun isScannableFile(path: Path): Boolean =
-        Files.isRegularFile(path) &&
-            path.extension.lowercase() in scannableExtensions &&
-            path.none { segment -> segment.toString() in ignoredDirectories }
+    private fun isScannableFile(path: Path): Boolean = path.extension.lowercase() in scannableExtensions
 
     private fun relative(path: Path): String = repositoryRoot.relativize(path).toString().replace('\\', '/')
 
@@ -183,7 +180,6 @@ internal class SuppressionValidator(
 
     private companion object {
         val scannableExtensions = setOf("kt", "kts", "xml")
-        val ignoredDirectories = setOf(".git", ".gradle", ".idea", ".kotlin", "build")
         val kotlinSuppressionRegex = Regex("^\\s*@[\\w.]*?(file:)?(?:Suppress|SuppressLint)\\b")
         val noInspectionRegex = Regex("^\\s*//\\s*noinspection\\b")
         val xmlSuppressionRegex = Regex("\\btools:ignore\\s*=")

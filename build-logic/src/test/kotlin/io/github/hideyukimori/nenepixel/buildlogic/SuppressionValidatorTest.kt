@@ -65,6 +65,15 @@ internal class SuppressionValidatorTest {
         assertNoViolations()
     }
 
+    @Test
+    fun `suppression below ignored directories is not validation input`() {
+        ignoredDirectoryPaths.forEach { directory ->
+            write("$directory/Layer.kt", fixture("unwaived-suppression.fixture"))
+        }
+
+        assertNoViolations()
+    }
+
     private fun assertNoViolations() {
         val violations = validate()
         assertTrue(violations.isEmpty(), violations.joinToString(separator = "\n"))
@@ -104,4 +113,9 @@ internal class SuppressionValidatorTest {
         - Expires: 2026-09-02
         - Scope: `$scope`
         """.trimIndent() + "\n"
+
+    private companion object {
+        val ignoredDirectoryPaths: List<String> =
+            listOf(".git", ".gradle", ".idea", ".kotlin", "build", "module/build")
+    }
 }
