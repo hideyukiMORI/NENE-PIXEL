@@ -182,7 +182,7 @@ function Assert-CommittedUi {
 
 function Get-FrameRows {
     param(
-        [Parameter(Mandatory = $true)][string[]]$Text,
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string[]]$Text,
         [Parameter(Mandatory = $true)][int]$Sample,
         [Parameter(Mandatory = $true)][ValidateSet("preview", "commit")][string]$Phase
     )

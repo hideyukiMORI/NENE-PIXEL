@@ -1564,3 +1564,38 @@ reporting attribution. Service-global discarded chunks/patches remain informatio
 physical-present v2. The actual UI predicates, failure paths, lifecycle fixture, parser and
 documentation receive narrow host verification before collection. No production or threshold
 change is part of this correction; the previous invalid files and historical FAIL results remain.
+
+### V2 sole invocation result: invalid after start
+
+The sole v2 invocation used harness commit `0f2f0f4e9a176e48456eedb62c94d2a252b1c432` and
+the exact unchanged APK above. Signature v2/v3, embedded revision, profile installation,
+`speed-profile`, physical unlocked 90 Hz state, thermal status 1, initial clean UI, and five
+Pencil/Undo warmups passed. Total collector wall time was 29.984 seconds, not operation latency.
+
+The first DOWN produced one raw preview row, but PowerShell rejected blank lines in the
+mandatory `string[]` argument to `Get-FrameRows` before the parser body ran. No UP/commit or
+complete diagnostic operation followed. The host fixtures had covered UI and lifecycle but had
+missed binding of real blank-containing gfxinfo output. This is a harness failure, not evidence
+of a product defect or improvement. The fixed one-trace budget is consumed (1/1, operations
+0/10); v2 has no remaining collection authorization.
+
+The exception cleanup sent the exact stop trigger and retained the finalized 512,553-byte trace,
+SHA-256 `3f6a8e611be5e845105a09a06914f9b45b7c3dc914170bc456c2d0cf498333d9`, with equal
+device/local lengths. Offline audit found one app actual frame, final flush success 1, failure 0,
+and zero severity error/data-loss or frame-parser/pairing failures. Seven service-global discarded
+chunks remain informational. The raw preview, configuration, tool log, UI/environment/profile
+checks and invalid run state remain immutable in private
+`experiments/67/commit-front-half-attribution-v2-run-01/`. The app was stopped to cancel the
+unfinished gesture, and the named session is absent.
+
+`AllowEmptyString` fixes the actual frame-array binding without filtering raw rows. A regression
+first reproduced the same failure, then passed for blank-containing synthetic and retained raw
+input; flagged rows and inconsistent cardinality still fail. The saved run is not reclassified,
+and no new device collection, APK build, profile generation or full suite followed the repair.
+
+The COMMIT Running/Runnable/Sleeping comparison and a controllable production bottleneck remain
+unresolved. Existing cohort differences are associations, not a measured removable cost. No
+runtime candidate or speedup is established. The next prerequisite is a device-free replay of
+the complete collector orchestration, including real raw text and injected failures at each
+boundary; only a separately prospective, justified protocol could authorize another trace.
+Issue #54 remains FAIL/open and #44 stays blocked. Active waivers: none.
