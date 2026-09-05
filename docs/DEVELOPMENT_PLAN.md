@@ -54,16 +54,17 @@ Production-domain work starts only after P0-01 through P0-05 pass. P0-06 closes 
 | P2-05 | Implement viewport pan/zoom/grid mapping | P2-00, P1-05 | Density/transform/property tests; no document mutation |
 | P2-06 | Implement bounded multi-step history | P2-03, P2-04 | History limit, dirty-state, undo/redo replay tests |
 | P2-07 | Run core drawing acceptance and performance review | P2-03 through P2-06 | MVP drawing journey plus updated benchmarks |
+| P2-08 | Close the actual-app input-to-physical-present frame follow-up | P2-07 | Fixed physical protocol, exact FrameTimeline/SurfaceFlinger correlation, evidence-backed resolution |
 
 ## M3 work packages
 
 | ID | Work package | Depends on | Required evidence |
 | --- | --- | --- | --- |
-| P3-01 | Accept project-format, storage, and recovery ADR | P2-07 | Schema/migration/atomic-save/recovery decisions |
+| P3-01 | Accept project-format, storage, and recovery ADR | P2-08 | Schema/migration/atomic-save/recovery decisions |
 | P3-02 | Implement project-format v1 codec and fixtures | P3-01 | Deterministic golden/round-trip/version/corruption tests |
 | P3-03 | Implement Android save/load adapter | P3-02 | Document-boundary integration and failure normalization |
 | P3-04 | Implement safe autosave and recovery | P3-03 | Interruption and last-known-good recovery tests |
-| P3-05 | Implement exact PNG export | P2-07 | Golden pixel comparison and failure tests |
+| P3-05 | Implement exact PNG export | P2-08 | Golden pixel comparison and failure tests |
 | P3-06 | Complete durable MVP acceptance | P3-04, P3-05 | All `MVP_SCOPE.md` journeys and M3 exit evidence |
 
 ## Later work packages
@@ -81,8 +82,8 @@ The next-milestone planning Issue must:
 
 After M1 completion:
 
-1. P2-00 reads back M1 completion evidence and creates focused P2-01 through P2-07 Issues.
+1. P2-00 reads back M1 completion evidence and creates focused P2-01 through P2-07 Issues; P2-08 is created only if P2-07 retains an unresolved actual-app frame condition.
 2. P2-01 records physical Android, dense/tool-specific, and history-memory evidence and accepts ADR 0005's flat packed representation and conservative product limits.
 3. P2-02 and P2-04 begin only after the P2-01 ADR is accepted. P2-05 may proceed independently after P2-00 because it changes only workspace behavior.
-4. P2-03 follows the validated document flow and viewport pointer arbitration; P2-06 follows completed drawing and palette semantics; P2-07 reviews the complete M2 journey.
-5. Do not begin M3 project-format work before P2-07 satisfies the M2 exit criteria, and do not begin OpenAPI work before the M6 decision gate.
+4. P2-03 follows the validated document flow and viewport pointer arbitration; P2-06 follows completed drawing and palette semantics; P2-07 reviews the complete M2 journey. When that review retains an unresolved actual-app frame condition, P2-08 closes it with one fixed attribution and resolution path.
+5. Do not begin M3 project-format work before P2-08 satisfies the remaining M2 frame condition, and do not begin OpenAPI work before the M6 decision gate.

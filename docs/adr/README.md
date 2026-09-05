@@ -49,3 +49,4 @@ An ADR must include:
 | [0008](0008-bounded-tool-palette.md) | accepted | Bounded immutable tool palette and one indexed workspace-selection path |
 | [0009](0009-bounded-linear-history-clean-checkpoint.md) | accepted | Bounded linear history cursor, oldest-first eviction, and runtime-local clean-checkpoint identity |
 | [0011](0011-change-scoped-verification.md) | accepted | Change-scoped verification, immutable evidence reuse, and bounded prospective performance decisions |
+| [0012](0012-bounded-static-controls-color-tolerance.md) | accepted | Issue-#54-only one-step RGB tolerance for canonical static operation controls before the offscreen performance decision |
