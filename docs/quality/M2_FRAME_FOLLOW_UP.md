@@ -170,10 +170,9 @@ UP-input-to-committed-result p95 was 10.030615 ms. The full DOWN-to-commit journ
 
 The complete retained population localizes the miss distribution without claiming physical present.
 Preview frames had overrun p95 -1.382467 ms with one miss; commit frames had overrun p95 0.886609 ms
-with nine misses. The generated-profile architecture decision remains retained on the #62-dependent
-branch and is not an integrated or usable current-main build path. Its earlier apparent equal-hash
-reproducibility event used stale tracked output; fresh schema-v1 producer provenance is still pending
-and is not retroactively PASS. The unchanged performance result
+with nine misses. The generated-profile architecture remains the accepted canonical build path, but
+the earlier apparent equal-hash reproducibility event used stale tracked output; fresh schema-v1
+producer provenance is still pending and is not retroactively PASS. The unchanged performance result
 does not satisfy Issue #54. Per the predeclared stop rule, the baseline 50-operation slot is not run
 and the candidate decision is not retried. Historical schema-v5 and physical-present results remain
 unchanged.
@@ -1242,11 +1241,10 @@ The single run is retained at
 
 The generated profile does not advance to the 50-sample decision batch. Its platform overrun p95 is
 positive by 0.023368 ms, so it does not pass the independent total-frame condition, let alone with
-margin. No favorable rerun is permitted. The generated build path remains the intended profile
-source in the retained accepted decision, but it is not integrated or usable on current `main`; the
-old equal-hash event does not establish fresh producer reproducibility, and schema-v1 provenance
-remains pending independently of this performance FAIL. Issue #54 remains open pending both valid
-profile provenance and new operation-specific evidence.
+margin. No favorable rerun is permitted. The generated build path remains the canonical profile
+source by the accepted architectural decision, but the old equal-hash event does not establish fresh
+producer reproducibility; schema-v1 provenance remains pending independently of this performance
+FAIL. Issue #54 remains open pending both valid profile provenance and new operation-specific evidence.
 
 ## Next evidence: generated-profile scheduling attribution
 

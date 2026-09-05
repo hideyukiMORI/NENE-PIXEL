@@ -330,7 +330,8 @@ function Invoke-GenerationInvocation {
         [Parameter(Mandatory = $true)][string]$RepositoryRoot,
         [Parameter(Mandatory = $true)][string]$EvidenceRoot,
         [Parameter(Mandatory = $true)][string]$EvidenceIdentity,
-        [Parameter(Mandatory = $true)][int]$Ordinal
+        [Parameter(Mandatory = $true)][int]$Ordinal,
+        [Parameter(Mandatory = $true)][scriptblock]$GradleInvoker
     )
 
     $invocationDirectory = Join-Path $EvidenceRoot ("invocation-{0}" -f $Ordinal)
@@ -344,8 +345,16 @@ function Invoke-GenerationInvocation {
     $startedUtc = [datetime]::UtcNow
     $sourceRevision = (& git -C $RepositoryRoot rev-parse HEAD).Trim()
     $logPath = Join-Path $invocationDirectory 'gradle-output.log'
-    $gradle = Invoke-GradleCommand -RepositoryRoot $RepositoryRoot -LogPath $logPath `
-        -GradleArguments @(':app:android:generateBaselineProfile', '--console=plain')
+    $gradle = $null
+    $failure = $null
+    try {
+        $gradle = & $GradleInvoker -RepositoryRoot $RepositoryRoot -LogPath $logPath `
+            -GradleArguments @(':app:android:generateBaselineProfile', '--console=plain')
+    }
+    catch {
+        $failure = $_.Exception.Message
+        $_.Exception.ToString() | Set-Content -LiteralPath $logPath -Encoding utf8NoBOM
+    }
     $endedUtc = [datetime]::UtcNow
 
     Copy-AvailableEvidenceTree -Source $producerOutput -Destination (Join-Path $invocationDirectory 'producer-output')
@@ -359,22 +368,26 @@ function Invoke-GenerationInvocation {
         }
     }
 
-    $failure = $null
     $producer = $null
     $profile = $null
     $appApkSha256 = $null
     $testApkSha256 = $null
-    try {
-        $producer = Assert-FreshProducerOutput -ExitCode $gradle.ExitCode -OutputLines $gradle.OutputLines `
-            -StartedUtc $startedUtc -ProducerOutputDirectory $producerOutput
-        $profile = Assert-InvocationContent -ProducerResult $producer -MergedProfilePath $mergedPath `
-            -SourceProfilePath $sourcePath
-        $appApkSha256 = Get-FileSha256 -Path (Join-Path $RepositoryRoot $script:AppApkRelativePath)
-        $testApkSha256 = Get-FileSha256 -Path (Join-Path $RepositoryRoot $script:TestApkRelativePath)
+    if ($null -eq $failure) {
+        try {
+            $producer = Assert-FreshProducerOutput -ExitCode $gradle.ExitCode `
+                -OutputLines $gradle.OutputLines -StartedUtc $startedUtc `
+                -ProducerOutputDirectory $producerOutput
+            $profile = Assert-InvocationContent -ProducerResult $producer -MergedProfilePath $mergedPath `
+                -SourceProfilePath $sourcePath
+            $appApkSha256 = Get-FileSha256 -Path (Join-Path $RepositoryRoot $script:AppApkRelativePath)
+            $testApkSha256 = Get-FileSha256 -Path (Join-Path $RepositoryRoot $script:TestApkRelativePath)
+        }
+        catch {
+            $failure = $_.Exception.Message
+        }
     }
-    catch {
-        $failure = $_.Exception.Message
-    }
+
+    $gradleExitCode = if ($null -eq $gradle) { $null } else { $gradle.ExitCode }
 
     $manifest = [ordered]@{
         schema = $script:EvidenceSchema
@@ -385,8 +398,12 @@ function Invoke-GenerationInvocation {
         started_utc = $startedUtc.ToString('o')
         ended_utc = $endedUtc.ToString('o')
         source_revision = $sourceRevision
-        gradle_exit_code = $gradle.ExitCode
-        task_outcomes = Get-GradleTaskOutcomes -OutputLines $gradle.OutputLines
+        gradle_exit_code = $gradleExitCode
+        task_outcomes = if ($null -eq $gradle) {
+            [ordered]@{}
+        } else {
+            Get-GradleTaskOutcomes -OutputLines @($gradle.OutputLines)
+        }
         producer_profiles = if ($null -eq $producer) {
             $null
         } else {
@@ -415,10 +432,20 @@ function Invoke-GenerationInvocation {
 function Invoke-BaselineProfileEvidenceGeneration {
     param(
         [Parameter(Mandatory = $true)][string]$RepositoryRoot,
-        [Parameter(Mandatory = $true)][string]$EvidenceIdentity
+        [Parameter(Mandatory = $true)][string]$EvidenceIdentity,
+        [scriptblock]$GradleInvoker = {
+            param(
+                [Parameter(Mandatory = $true)][string]$RepositoryRoot,
+                [Parameter(Mandatory = $true)][string]$LogPath,
+                [Parameter(Mandatory = $true)][string[]]$GradleArguments
+            )
+
+            Invoke-GradleCommand -RepositoryRoot $RepositoryRoot -LogPath $LogPath `
+                -GradleArguments $GradleArguments
+        }
     )
 
-    if ((& git -C $RepositoryRoot status --porcelain).Count -ne 0) {
+    if (@(& git -C $RepositoryRoot status --porcelain).Count -ne 0) {
         throw 'Baseline Profile generation must start from a clean standalone clone.'
     }
     $evidenceRoot = Join-Path $RepositoryRoot "build/reports/baseline-profile-generation/$EvidenceIdentity"
@@ -442,9 +469,9 @@ function Invoke-BaselineProfileEvidenceGeneration {
 
     try {
         $first = Invoke-GenerationInvocation -RepositoryRoot $RepositoryRoot -EvidenceRoot $evidenceRoot `
-            -EvidenceIdentity $EvidenceIdentity -Ordinal 1
+            -EvidenceIdentity $EvidenceIdentity -Ordinal 1 -GradleInvoker $GradleInvoker
         $second = Invoke-GenerationInvocation -RepositoryRoot $RepositoryRoot -EvidenceRoot $evidenceRoot `
-            -EvidenceIdentity $EvidenceIdentity -Ordinal 2
+            -EvidenceIdentity $EvidenceIdentity -Ordinal 2 -GradleInvoker $GradleInvoker
 
         $pairFailure = $null
         try {
@@ -475,7 +502,7 @@ function Invoke-BaselineProfileEvidenceGeneration {
         Set-Content -LiteralPath $hashPath -Value $second.Profile.Source.CanonicalSha256 -Encoding ascii
 
         $validationLogPath = Join-Path $evidenceRoot 'validation-output.log'
-        $validation = Invoke-GradleCommand -RepositoryRoot $RepositoryRoot -LogPath $validationLogPath `
+        $validation = & $GradleInvoker -RepositoryRoot $RepositoryRoot -LogPath $validationLogPath `
             -GradleArguments @('validateBaselineProfile', '--console=plain')
         if ($validation.ExitCode -ne 0) {
             throw "validateBaselineProfile failed with exit code $($validation.ExitCode)."
