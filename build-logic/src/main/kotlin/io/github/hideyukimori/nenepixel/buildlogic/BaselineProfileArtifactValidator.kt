@@ -70,30 +70,48 @@ internal class BaselineProfileArtifactValidator(
     private fun canonicalProfileBytes(
         bytes: ByteArray,
         violations: MutableList<String>,
-    ): ByteArray? {
-        val text =
-            try {
-                StandardCharsets.UTF_8
-                    .newDecoder()
-                    .onMalformedInput(CodingErrorAction.REPORT)
-                    .onUnmappableCharacter(CodingErrorAction.REPORT)
-                    .decode(java.nio.ByteBuffer.wrap(bytes))
-                    .toString()
-            } catch (_: java.nio.charset.CharacterCodingException) {
-                violations.add("QLT-004 requires the generated Baseline Profile to be valid UTF-8.")
-                return null
-            }
-        if (text.startsWith(BYTE_ORDER_MARK)) {
-            violations.add("QLT-004 requires UTF-8 Baseline Profile source without a byte-order mark.")
-            return null
+    ): ByteArray? =
+        decodeProfile(bytes, violations)
+            ?.let { text -> normalizeLineEndings(text, violations) }
+            ?.removeSuffix(LINE_FEED_TEXT)
+            ?.toByteArray(StandardCharsets.UTF_8)
+
+    private fun decodeProfile(
+        bytes: ByteArray,
+        violations: MutableList<String>,
+    ): String? =
+        try {
+            StandardCharsets.UTF_8
+                .newDecoder()
+                .onMalformedInput(CodingErrorAction.REPORT)
+                .onUnmappableCharacter(CodingErrorAction.REPORT)
+                .decode(java.nio.ByteBuffer.wrap(bytes))
+                .toString()
+        } catch (_: java.nio.charset.CharacterCodingException) {
+            violations.add("QLT-004 requires the generated Baseline Profile to be valid UTF-8.")
+            null
         }
+
+    private fun normalizeLineEndings(
+        text: String,
+        violations: MutableList<String>,
+    ): String? {
         val normalized = text.replace(CARRIAGE_RETURN_LINE_FEED, LINE_FEED_TEXT)
-        if (normalized.contains(CARRIAGE_RETURN_TEXT)) {
-            violations.add("QLT-004 permits only LF or CRLF Baseline Profile line separators.")
-            return null
+        return when {
+            text.startsWith(BYTE_ORDER_MARK) -> {
+                violations.add("QLT-004 requires UTF-8 Baseline Profile source without a byte-order mark.")
+                null
+            }
+
+            normalized.contains(CARRIAGE_RETURN_TEXT) -> {
+                violations.add("QLT-004 permits only LF or CRLF Baseline Profile line separators.")
+                null
+            }
+
+            else -> {
+                normalized
+            }
         }
-        val withoutTerminalSeparator = normalized.removeSuffix(LINE_FEED_TEXT)
-        return withoutTerminalSeparator.toByteArray(StandardCharsets.UTF_8)
     }
 
     private fun validateRules(
