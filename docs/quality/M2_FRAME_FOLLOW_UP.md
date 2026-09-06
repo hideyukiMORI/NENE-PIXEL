@@ -1760,3 +1760,35 @@ analysis output directory using the strengthened analyzer and the immutable v3 t
 120/112/1,443 thread-state/scheduler/slice row counts. This is validation of the existing saved
 trace and analyzer guard only; it is not another device collection, performance sample, source-label
 attribution, or acceptance result.
+
+#### Issue #62 fresh Baseline Profile pair: reproducibility mismatch
+
+Issue #62 fixed one repaired physical generation operation before collection at source
+`57ae20d707d669a6da9f20f145dd1d312f8bcd2e`, evidence identity
+`issue-62-20260906-1515-57ae20d`. Both producer invocations completed fresh and valid. They record the
+same source revision, app APK SHA-256
+`eee2a3954a4ef5ad3dd2478dca2e587e8c90aa44c994dd885a4a1cb2787cfa45`, and test APK SHA-256
+`357e0fd027bc2d512fe578e23c3b62191ba69f37c6503d5644754f422fe00180`. The first invocation produced
+13,510 canonical rules with SHA-256
+`de1a637f6c9884b96ef242deaf0d56c5cd3864c83275e0850d766eb07be4130f`; the second produced 13,513
+rules with SHA-256 `acda80370b2428fdc1b8ac41e273d096936267f2931d8bdfc3ad337307a1624d`.
+
+The second invocation adds exactly three `SP` rules and removes or changes none:
+
+- `SPLandroidx/compose/runtime/snapshots/SnapshotStateList;->get(I)Ljava/lang/Object;`
+- `SPLandroidx/compose/runtime/snapshots/SnapshotStateList;->getSize()I`
+- `SPLandroidx/compose/runtime/snapshots/SnapshotStateList;->size()I`
+
+These methods belong to the locked AndroidX Compose Runtime 1.12.0 artifact. Project Kotlin source
+does not directly reference `SnapshotStateList` or `mutableStateListOf`. The earlier invalid
+`issue-62-20260906-1452-e7fdc974` invocation's retained 13,513-rule source is byte-for-byte and
+canonically identical to this second invocation, but remains invalid and cannot participate in the
+pair. The evidence proves that the fixed source, tested artifacts, and declared journey can yield
+both rule sets. It does not identify whether runtime scheduling, accessibility polling, Compose
+state timing, or another controlled-workload state caused the three methods to be observed.
+
+The pair manifest records `mismatch`. No final validation or acceptance manifest exists. The wrapper
+restored the pre-generation tracked profile/hash byte-for-byte, retained both invocation manifests,
+raw outputs, logs, and results, and stopped without a third invocation or retry. The generated
+artifact therefore remains unaccepted, Issue #62's fresh reproducibility criterion remains blocked,
+and this result authorizes no profile publication, performance collection, or gate relaxation.
