@@ -1,22 +1,22 @@
 # M2 Actual-app Frame Follow-up
 
-Status: schema-v7 tooling and historical results retained; new collection blocked pending prerequisites and a new evidence-backed candidate.
+Status: schema-v7 tooling and historical results retained; optimized shipping release accepted from the completed post-#77 frame-v3 experiment.
 
 ## Current-main integration boundary
 
-This document integrates the truthful frame protocol and historical result ledger onto current
-`main`. It does not integrate or recreate the generated Baseline Profile producer, profile artifact,
-or its build dependencies. The retained ADR 0010 profile decision and ADR 0013 custom-View experiment
-record remain on the preserved #62/#54 branch until that profile-dependent change is curated as one
-coherent follow-up. Issue #62's fresh schema-v1 producer provenance is still pending.
+This focused integration retains the single frame protocol and complete historical result ledger,
+maps the already accepted and integrated P62 producer evidence to exact post-#77 consumers under
+QLT-012, and accepts ADR 0013's official AGP shipping-release optimization path after its fixed
+correctness, artifact, and frame gates passed. It does not regenerate or relabel P62. The rejected
+post-#77 producer pairs, stable-five change, P70 candidate, custom-View candidate, earlier frame
+FAILs, and every invalid collection remain immutable historical evidence.
 
-The four scripts documented here have one retained canonical path. Their offline protocol and visual
-fixtures are usable without a device. Actual collection is not currently authorized or ready from
-`main`: it additionally requires an accepted and integrated profile prerequisite, an exact signed
-APK/profile/source identity, a live Issue whose protocol agrees with the harness, and a newly fixed
-candidate and budget under QLT-013 through QLT-015. Historical source, APK, trace, and local artifact
-paths below are evidence records only; they are not relabelled as current-main artifacts or permission
-to rerun a consumed experiment.
+The four scripts documented here retain one canonical path. The completed
+`issue76-optimized-release-v3-01` experiment consumed its entire max-one 120-operation budget and
+authorizes no retry or additional collection. Sections below that predate
+`Prospective optimized shipping release` are historical Issue #54 ledger entries, not current
+implementation state or execution permission. Any future measurement requires an owning focused Issue,
+fixed identity, agreeing protocol/harness, and prospective budget under QLT-013 through QLT-015.
 
 ## Scope
 
@@ -355,9 +355,11 @@ and dependent #44 remain open.
 
 ### Approved same-window custom-View canvas candidate
 
-The retained #54 decision record later numbered ADR 0013 records hide's 2026-09-06 01:11 JST
-approval for one new candidate, not its adoption. That profile-dependent ADR is deliberately not
-integrated by this tooling/ledger change.
+The retained #54 proposal was temporarily numbered ADR 0013 on its unintegrated branch and records
+hide's 2026-09-06 01:11 JST approval for one new candidate, not its adoption. That custom-View
+proposal was never integrated; the repository's canonical ADR 0013 now records the later optimized
+shipping-release decision. This paragraph preserves the earlier proposal's historical identity
+without treating it as a current ADR.
 `PixelCanvas` replaces only its Compose `Canvas` recording node with a private custom Android `View`
 hosted by `AndroidView`. It remains in the same Activity window, Compose root, HWUI root surface, and
 FrameTimeline population. `SurfaceView`, another surface, GL/Vulkan code, a new render thread,
@@ -413,8 +415,9 @@ from `HSP` to `SP`. A third generation was not run to search for a favorable res
 long-worktree pull failures produced no candidate profile and are not counted as successful
 reproducibility evidence.
 
-This is an admission FAIL under the retained ADR 0010 and ADR 0013 contracts. The candidate never
-acquired a final source/APK/profile identity, so exact visual admission and every
+This is an admission FAIL under retained ADR 0010 and the unintegrated custom-View proposal's fixed
+contract. The candidate never acquired a final source/APK/profile identity, so exact visual admission
+and every
 `nene-pixel-m2-same-window-view-canvas-v7-01` timing slot remain unexecuted. No performance inference
 is made. The production/profile candidate is focused-reverted; the protocol, implementation commit,
 producer diagnostics, and mismatched hashes remain historical evidence. Issue #54 and dependent
@@ -2156,3 +2159,308 @@ That immutable run state says `collected-pending-analysis`, an inherited stale l
 analyzer, post-trace environment/fatal checks, frame completeness check, and process all completed.
 The sole v4 writer now publishes future successful runs as `completed`; the retained result, measured
 source/APK, and hashes are unchanged. No second trace or profile generation is authorized.
+
+
+## Prospective optimized shipping release
+
+Issue #76 and ADR 0013 define one build-level candidate after the Issue #70 source candidate
+failed the unchanged absolute frame gate and Issue #73 observed no generic text-measure owner. At the
+start of this experiment, the unoptimized baseline left AGP 9.4 release optimization at its
+documented default `false`. The candidate changes only `app/android/build.gradle.kts` with one
+post-plugin role policy that sets
+`release=true`, `benchmarkRelease=true`, and `nonMinifiedRelease=false` through the canonical AGP
+Optimization API. No UI, state, renderer, dependency, plugin, module, toolchain, keep-rule exception,
+package scope, full-AOT mode, schema, or threshold changes.
+
+The first host-only source `b74421361757ab9b6af38c61925dab1049603882` showed that the release
+block alone also optimizes the plugin-generated `nonMinifiedRelease`. Its output changed from the
+retained 8,403,124-byte unobfuscated APK with no mapping to a 1,266,693-byte APK with a
+28,885,590-byte R8 mapping and obfuscated app classes. The Baseline Profile plugin clears its legacy
+minify/shrink properties, but AGP 9.4's separate `Optimization.enable=true` survives the copied build
+type. That attempt is a producer-invariance FAIL with zero device tests and zero measured operations.
+It is not a frame result and is never relabelled.
+
+The revised candidate replaces the standalone release block with one public
+`androidComponents.finalizeDsl` callback registered through
+`pluginManager.withPlugin("androidx.baselineprofile.apptarget")`, after the existing app-target plugin
+and its own finalizer registration. The pinned AGP registrar executes callbacks in FIFO order, the
+pinned plugin creates the synthetic types in its finalizer, and AGP copies rather than shares their
+Optimization objects. The callback requires all three types and distinct objects, sets
+`release=true`, `benchmarkRelease=true`, and `nonMinifiedRelease=false`, then checks those exact final
+values. Missing, shared, or ineffective state fails configuration. This is a targeted producer-
+isolation correction with a new source/artifact identity, not an unchanged-candidate retry or a new
+build type.
+
+The Baseline Profile producer and `nonMinifiedRelease` reference remain unoptimized. Accepted P62
+profile generation stays immutable: 13,514 ordered rules with canonical SHA-256
+`3be9f24e5c485364787c1319c3ec6bd2138ed589a30ff245100ce9a283c653ee`. Android documents that R8 can
+rewrite profiles generated from unobfuscated code for an optimized release, so producer regeneration
+is not triggered merely by the shipping build flag. The optimized APK receives a new source/container
+identity. Because the app has no release signing configuration, the canonical optimized shipping
+`release` artifact remains unsigned. The existing Baseline Profile plugin's optimized, profileable,
+debug-signed `benchmarkRelease` derivative is the device correctness/performance proxy and is never
+relabelled as the shipping APK. DEX, resources, and packaged-profile payloads must match between the
+shipping output and proxy; expected-only profileable, signature, and container metadata differences
+are enumerated. Both retain rewritten prof/profm hashes plus R8 mapping, configuration, usage, seeds,
+merged keep-rule inputs, mapping ID, and retrace tool identity. A controlled mapped-symbol retrace
+round trip is required; file presence alone is insufficient. The exact textual P62 profile input to
+R8 stays byte-identical and its historical generation SHA is not relabelled. The project-generated
+P62 text is consumed by B `benchmarkRelease` and C `release`/`benchmarkRelease`; C
+`nonMinifiedRelease` is the unoptimized producer-control and intentionally excludes that project
+profile while retaining its dependency profile input.
+
+The retained historical pre-#77 reference B is source `91cf17499be225dcf1bff8151aa9f3166e8c014e`, APK SHA-256
+`ac50568d6262a9dd6af4c8877b80866a06c4f35eceb2b1459777d551c485fe00`, 8,402,300 bytes. Its
+production and build inputs equal merged main `d210a0e8f2e1576f89031edd7ef515602cfa8765`; it is not
+relabelled as the candidate. Before performance work, the exact optimized release must pass package,
+source, signature state, profile, shipping/proxy payload equivalence, mapping/retrace, startup,
+canonical editor journey, UI state, and fatal/ANR checks. The correctness path is one exact-class
+UIAutomator class with three tests in the existing `:quality:baseline-profile` `benchmarkRelease`
+source set, without `BaselineProfileRule` and outside `src/main` and the non-minified target. It
+covers Pencil/Undo/Redo, one finite full-canvas diagonal through palette/Pencil/Eraser/two-entry
+history, and new-document state across one verified-and-restored orientation recreation. It does not
+claim raw-stroke-limit or multi-touch viewport coverage. Direct install and instrumentation records
+the distinct test APK, three tests with zero skipped, and exact benchmark proxy hash later used for
+frames. Debug or self-instrumenting evidence is reusable only for inputs unaffected by R8 and cannot
+prove the optimized proxy works.
+
+The first optimized-proxy functional batch at
+`C:\n76-functional\issue76-optimized-release-correctness-01` ran three tests against exact installed
+app/test APK hashes. Pencil/Undo/Redo passed; the other two tests failed, so performance remained
+stopped. Retained UI XML proves the palette click changed the accessibility projection to
+`checkable=true checked=true`, while the test incorrectly awaited `selected=true`. The new-document
+test timed out awaiting the 3x2 canvas before any orientation mutation; that run issued both field
+changes and Create without an intervening idle/exact-value readback, so its cause is not attributed
+to R8. A prospective test-only correction uses the actual palette-leaf and tool-ancestor
+checkable/checked contracts, requires each dimension value to commit before clicking the clickable
+Create ancestor, and requires the dialog to close before awaiting the new canvas. It receives a new
+test source/APK identity and requires separate review before any bounded device run. The failed
+raw remains immutable; it is neither a performance FAIL nor evidence against the R8 candidate.
+
+The corrected test-only batch at
+`C:\n76-functional\issue76-optimized-release-correctness-02` retained two passing journeys and one
+new-document failure. Pencil/Undo/Redo and the finite palette/Pencil/Eraser/two-entry-history journey
+passed. The new-document journey failed at the newly explicit width readback before height, Create,
+or rotation. Its failure-local hierarchy proves that `Document width` describes a non-editable
+`android.view.View` child while the containing `android.widget.EditText` remained at `16`. The test
+had assigned text to that described child, so the input did not leave the intended committed value.
+This is a proven test binding defect; the result remains immutable and still supplies no R8 or
+performance verdict.
+A second prospective test-only correction binds both mutation and readback to the enabled clickable
+app-package `EditText` ancestor containing the exact described child. The exact `3`/`2` readbacks,
+pair authentication, Create/dialog/canvas boundaries, rotation restoration, and failure watcher stay
+unchanged. It receives another test source/APK identity and requires review before device use.
+
+That second-corrected batch at
+`C:\n76-functional\issue76-optimized-release-correctness-03` passed the Pencil and finite palette/
+Pencil/Eraser/two-entry-history journeys again. New document passed the exact `3`/`2` readbacks,
+pair authentication, Create, dialog dismissal, and `3 by 2` clean-canvas checks. The rotation request
+then returned success, but an immediate display check after accessibility idle still observed
+rotation `0` instead of requested rotation `1`. The run is an exact orientation-check FAIL with
+unresolved asynchronous timing or environment behavior; it is not an R8 or performance verdict.
+Its app/test pullback hashes, failure-local hierarchy, restored rotation mode, and zero fatal/ANR
+result remain immutable. A prospective test-only correction uses UiAutomator's bounded condition
+wait for the exact requested display rotation after both mutation and restoration. It preserves the
+five-second timeout and fail-closed exact-value checks and adds no fixed sleep or pass fallback.
+
+The rotation-corrected batch at
+`C:\n76-functional\issue76-optimized-release-correctness-04` passed the same two non-lifecycle
+journeys. New document passed all input, Create, pre-rotation state, exact rotation, and post-rotation
+`3 by 2` canvas checks, then timed out awaiting the clean-status text. Its `finally` path restored the
+display and auto-rotation before the method-level failure watcher captured the hierarchy, so that
+portrait hierarchy cannot identify the failing landscape tree. The result is an immutable functional
+FAIL and remains neither an R8 nor a performance verdict. B and C have byte-identical production UI
+sources and no manifest orientation lock, but source equality alone does not prove equal optimized
+runtime behavior.
+
+A test-only diagnostic captured one fixed hierarchy immediately after a rotation-block failure and
+before restoration, preserving the original Throwable. The finite B-to-C control then ran the exact
+new-document method once against retained unoptimized B source
+`91cf17499be225dcf1bff8151aa9f3166e8c014e` / APK SHA-256
+`ac50568d6262a9dd6af4c8877b80866a06c4f35eceb2b1459777d551c485fe00`, followed by optimized C
+source `78ec5632d154a9b9ab1fc74644c6a4696fba456e` / APK SHA-256
+`2996db73bbb554472341796982546191ebf2b212450a89f5e4b0d814e1646125`. Both evidence-valid runs
+failed at the same post-rotation clean-status assertion and showed the same missing lower controls.
+This excluded an R8-only cause but left the correctness gate failed.
+
+Issue #77 then fixed the shared layout defect by removing the call-site `fillMaxWidth` constraint
+before the existing 3:2 `EditorCanvas` aspect ratio. It merged as
+`f9d81bdbbf7b9426a21ee5a889c3cd50fe98fd8e`. Its exact physical batch passed two fixed layout tests
+and the new-document/orientation journey. The change invalidates all earlier #76 app, correctness,
+and frame identities. It does not relabel or invalidate the separate, immutable accepted P62 source
+profile.
+
+Two post-#77 profile-generation diagnostics tested whether a new artifact could be accepted. The
+first kept the canonical internal `stableIterations=3`; the second changed only that value to five.
+Both outer pairs stopped at MISMATCH with two individually valid invocations and no acceptance
+manifest. Each invocation emitted 13,514 rules with identical descriptor order. The only differences
+were `SP` versus `HSP` on `LayoutNode.<init>(ZI)V` and
+`SemanticsConfiguration.getOrElseNullable(...)`; the direction reversed between the pairs. The
+stable-five source is not adopted, and no invocation that happened to equal P62 is promoted to an
+accepted generation result. The mismatches, raw files, and restored tracked profile remain immutable.
+
+QLT-011 requires a fresh accepted pair when the generated source artifact itself is updated. It does
+not require regeneration merely because an unchanged, accepted source profile is packaged into a new
+consumer. Under QLT-012 the next B/C comparison therefore fixes the accepted P62 profile at 1,408,130
+bytes / 13,514 ordered rules / SHA-256
+`3be9f24e5c485364787c1319c3ec6bd2138ed589a30ff245100ce9a283c653ee`. Its generation source
+`384af834c74189dcca9d79da1cf1ac90d0363082`, producer app SHA-256
+`f7390cf56f38a36e0ac2ed6e7dfb14c73f75292bef212a149a1648d2fbab3b79`, producer test SHA-256
+`fc0c57cffa3ac7b232f19638e372f33841d92f199f977b0eaf47fb87a41ed691`, pair-manifest SHA-256
+`d8f9279dc399fccd8de82bdc1d2c6ea80f8db9ea76b2fcccf5fd82aa319ea45b`, and acceptance-manifest
+SHA-256 `9781827af89116147b667db71d8f1fddf6897ed72c1f3527431ad9acfc85b2a5` remain historical P62
+identities and are never relabelled as post-#77 generation.
+
+The post-#77 call-site edit changed no method descriptor. All four rejected diagnostic invocations
+retained the exact P62 descriptor sequence, and two independently produced byte-identical P62 text;
+the latter observations prove compatibility but supply no acceptance. Host packaging must separately
+prove that the exact P62 bytes are the input to both new consumers, preserve compiler/profile
+warnings, and retain every new source/APK/prof/profm identity. The profile compiler may ignore
+unresolved profile entries, so packaging success alone is not treated as descriptor-resolution proof.
+
+The new unoptimized B and optimized C are both `benchmarkRelease` packages built after #77. They use
+the same production Kotlin/resources and exact P62 source profile but have distinct Git/config and
+APK identities; only C contains ADR-0013's optimization policy. C must also match its unsigned
+shipping `release` DEX/resources/profile payload and retain its mapping/retrace proof. The final
+three-journey correctness test is carried forward as a separate test-only input. Existing #77
+unoptimized correctness can be reused only where affected inputs match; the exact C proxy still needs
+its bounded optimized-runtime correctness batch before performance.
+
+If those gates pass, the existing frame-v3 writer runs one release-like four-slot ABBA sequence: B
+diagnostic 10, optimized C diagnostic 10, optimized C decision 50, and B decision 50. It does not add
+a debug performance batch. Each slot has five unmeasured warmups; the maximum is 120 measured
+operations. Diagnostic gross boundaries remain any frame overrun above 33.34 ms or operation latency
+above 100.0 ms; diagnostics never pass the candidate. Candidate decision uses all actual frames with
+nearest-rank p95 at `ceil(0.95 * Nframes)` and p99 at `ceil(0.99 * Nframes)`, plus operation p95 rank
+48 of 50. The absolute thresholds remain frame-overrun p95 <= 0 ms, p99 <= 16.67 ms, and
+committed-result p95 <= 33.33 ms. Any INVALID, gross B/C diagnostic, or candidate decision FAIL stops
+all later slots. There is no automatic replacement or retry; a corrected run requires a proven cause,
+new identity, and separate review. Existing FAIL/invalid evidence remains immutable, and no tolerance,
+row removal, cold-build substitution, or historical-value selection is allowed.
+
+The first build-config edit and its producer-invariance FAIL are retained above. The stable-five
+producer source is excluded from integration. Review of the corrected consumer mapping and revised
+role policy precedes host packaging. Exact optimized artifacts and correctness review precede any
+device performance budget. This preparation authorizes no device use, profile generation, frame slot,
+or full local suite. QLT-011 through QLT-016 and ADR-0011 govern verification and evidence reuse.
+Active waivers: none.
+
+### Prospective max-one frame-v3 attempt binding
+
+The post-#77 experiment stops after any INVALID result and authorizes no automatic replacement. The
+frame-v3 writer therefore uses its existing `maximum_attempts_per_slot` and `replacement_rule` fields
+as a real executable budget. Every new manifest records one attempt and replacement `none`, and the
+writer rejects `Attempt=2` before reading or publishing experiment state. It exposes no configurable
+max-two execution path. For compatibility, experiment-only validation recognizes the two historical
+v3 policy pairs: max one with replacement `none`, and max two with the original zero-DOWN replacement
+literal. A historical max-two manifest is read-only and cannot be resumed by the current writer;
+missing, out-of-range, or contradictory policy fields fail closed.
+
+This changes only `measure-m2-frame.ps1`, its protocol fixture, and this versioned protocol. Fixtures
+must cover new max-one publication, pre-output Attempt 2 rejection, a contradictory replacement value,
+and read-only validation of a retained max-two manifest. It creates no second writer or schema, changes no APK,
+profile, CUJ, metric, threshold, operation population, or historical evidence, and authorizes no frame
+collection by itself.
+
+### Post-#77 optimized consumer preflight and fixed frame identity
+
+The finite host package step passed with clean standalone baseline source
+`b8b0e6a43f4bc66a97895098c81337c2fec66e02` and candidate source
+`92c1f4e6ffe18a9c41d13215f21c237493628043`. Both measurement lanes are signed,
+profileable `benchmarkRelease` packages with the same post-#77 production Kotlin/resources and
+accepted P62 source-profile input. B is the 8,403,124-byte unoptimized APK with SHA-256
+`dfbbbb68888d19638bb877c844597b57cabe9287a2b6f876234a72c72871b763`; C is the
+1,266,693-byte optimized proxy with SHA-256
+`dadd1fb783678426ec92d8b425d698a89932a5275b460cc80ed6346348590452`. C's unsigned
+shipping `release` artifact is separately proven payload-equivalent to the proxy. C
+`nonMinifiedRelease` remains an unoptimized producer-control that excludes the project P62 input;
+it is not a measurement consumer.
+
+B packages prof/profm SHA-256
+`442fda9b5a533650f5dd2c3a81e44b46db8b6f33d2116e09549d2369747aaa4b` /
+`ea3952b961dfbacb383bd6089dec6c6a1950cc7e306a374463c7d52a40d983fe`; C packages
+`ccf1253d960014a83bf1825dad0f26b0dcd164e029074bb44fdab252f3c1d42a` /
+`6999514d7f1fec2951f976324e2a3766a75f892aa03f76a9aab5d7a0c4240ab6`. Both map to
+the immutable P62 acceptance manifest SHA-256
+`9781827af89116147b667db71d8f1fddf6897ed72c1f3527431ad9acfc85b2a5`, pair SHA-256
+`d8f9279dc399fccd8de82bdc1d2c6ea80f8db9ea76b2fcccf5fd82aa319ea45b`, and canonical
+profile SHA-256 `3be9f24e5c485364787c1319c3ec6bd2138ed589a30ff245100ce9a283c653ee`.
+The fixed reader and artifact-only checks passed for both roles without creating an experiment
+directory. The exact C proxy then passed all three bounded optimized-runtime journeys. Its retained
+functional ledger SHA-256 is
+`37b019423932c70523bdb776ed28d183130d9913d7748265dd6fad5977f27e6d`.
+
+The prospective experiment is `issue76-optimized-release-v3-01` at
+`C:\Users\info\.codex\tmp\nene-pixel-sol-20260905-180549\experiments\76\optimized-release-v3-01`.
+The directory remains absent before slot 1. Every slot invokes the same absolute collector produced
+by harness commit `8bd2184d2327ce9c085d43b6957208f67ca853c7`, file SHA-256
+`863e553840b9c32b4a8200f471398ae4ca1ade5007e3bae67491f266ab8d9663`; its fixed dexopt
+helper and profile reader SHA-256 values are respectively
+`ba9b232be6dc4b4a125c61c0d03a3e77fe8abc4a817f99a4089b10a288bf3259` and
+`02fce3f4e071b49c9247e548df7dd28b8a60ad24e49c30002d82267c5b1c8d31`.
+The collector's source guard runs from the clean B or C source clone so repository HEAD equals the
+corresponding APK's embedded revision; the single absolute collector is never copied or relabelled.
+
+The executable timing is the frame writer's 100 ms DOWN-preview window, 350 ms UP-commit window,
+and verified Undo clean checkpoint using a 150 ms polling interval with at most three taps. The
+1,200 ms quiet interval belongs to the separate source-attribution collector and is not imported into
+this frame experiment. Order, populations, thresholds, and maximum remain B10, C10, C50, B50; five
+warmups per slot; at most 120 measured operations; all-frame overrun p95 <=0 ms and p99 <=16.67 ms;
+and operation p95 <=33.33 ms. Any INVALID, gross diagnostic (>33.34 ms frame overrun or >100 ms
+operation), or candidate decision FAIL stops all later slots. The manifest records max one and
+replacement `none`; there is no retry. The prospective manifest snapshot is SHA-256
+`04ad474edce233ed892f68885f5056c42a274f1ad095866beb98caefa5db6c2f`; it is a host-only
+model, not the unpublished actual experiment manifest. No frame slot or device operation is
+authorized by this record.
+
+### Post-#77 optimized consumer frame-v3 result
+
+The fixed `issue76-optimized-release-v3-01` experiment completed all four slots once in exact B10,
+C10, C50, B50 order. The actual experiment manifest is byte-identical to the prospective snapshot,
+SHA-256 `04ad474edce233ed892f68885f5056c42a274f1ad095866beb98caefa5db6c2f`, with
+`maximum_attempts_per_slot=1` and `replacement_rule=none`. It retained 120/120 measured operations,
+240/240 valid app-issued `gfxinfo` FrameTimeline rows, 240 raw preview/commit phase files, and no
+attempt 2 or retry. Every slot used five unmeasured warmups, exact package-delimited
+`speed-profile`, the fixed physical profile, valid final UI state, and zero fatal/ANR matches. The
+environment stayed at 1200x1920, mode 1 at 90 Hz, thermal status 1, power-save off, interactive, and
+USB powered; battery was 82% in slots 1 through 3 and 81% in slot 4.
+
+| Slot | Role and kind | Operations / frames | Verdict | Frame overrun p95 / p99 | Operation p95 |
+| --- | --- | --- | --- | --- | --- |
+| 1 | B diagnostic | 10 / 20 | valid, non-gross, inconclusive | `2.015264 / 3.483246 ms` | `10.825539 ms` |
+| 2 | C diagnostic | 10 / 20 | valid, non-gross, inconclusive | `-0.906423 / 3.066794 ms` | `8.571269 ms` |
+| 3 | C decision | 50 / 100 | **PASS** | `-0.024291 / 1.482044 ms` | `9.670308 ms` |
+| 4 | B decision | 50 / 100 | **PASS** | `-0.183366 / 1.284123 ms` | `9.913846 ms` |
+
+The immutable raw root is
+`C:\Users\info\.codex\tmp\nene-pixel-sol-20260905-180549\experiments\76\optimized-release-v3-01`.
+Slot 1 run-state/metadata/frames/samples SHA-256 values are
+`1e5f12edbaa7e3d3f8a3b73ba289211d9f8fd2bb7733ffbeac4a18befd8bd59e`,
+`24bd7929b93b64b4870c9748b92f9c82a7277777f9078a4e643931bc1676b7c5`,
+`67c25d4b15789e2c6092ad911cf75093826f6ae05a573a618a228054347c9412`, and
+`680a58f1b303d65fbc8d7c4e0504b28207b8a761a8fd1d120a54041222b662c6`. Slot 2 values are
+`3b0cc57aeb0d5c7022e650714ef54b83b72032a9ab17ad3aecdc83a4aa0807f2`,
+`bcd2f01203d545905dcfc4a598d86c0930ddd201c81684688eeba248bb1a30e7`,
+`e803aba70449a6bf4a4f35dc8d63d9d01a6d13f8aa9fa041b58f99f42a16041a`, and
+`563f04ec9c3a176716edc8de1bfe29993241540da7143b8d7bc0553c9dacd6a1`. Slot 3 values are
+`97306b1d94f4affbce1e83c716244af5e35be971b89751ad98e82d53af7db208`,
+`33d3168b06f778a7a760b88f7d98fab8b71cc401a20ae96078eb7949b99018af`,
+`2e8e2e06239b618fef9f27ebb8e7e744bf11f87785945e744dc8c1d6d6afefee`, and
+`3fc3a880915b7a5353c348de2d9f91e3618a38be20a798a8fb42c2f6727a3f54`. Slot 4 values are
+`e5935525fd7a7bbb7f047c0ed1ce5cb9be23958807917f6c1a7b7c3595deceab`,
+`5df8e0387bace52571407b73c387eea8d68628eb9dccd52c8d5097887b9a84ac`,
+`4890c9460d3f694a698420cfad3d3f9fb6712e0c154cf0388647da3408877c70`, and
+`e6e423414ba9208acf97ae8992f418d08f38c4a1a34bcf4c02e5a9f5e20e9d32`. The private audit report
+SHA-256 is `4d3ff76eaca205b544e33b11fc015ce5fe6710c8cf65a0b60a7b68264a78671d`; the private key-ledger
+SHA-256 is `62e470ca10a08287187e3df20226e03215ab3dff1c6824a59468eb3335685be9` and records the environment,
+compile-state, UI, screenshot, and logcat artifact hashes. Read-only recalculation found zero identity,
+count, sequence, environment, or percentile mismatch.
+
+The exact optimized C proxy therefore passes the prospective absolute acceptance gate together with
+the already passed host packaging, shipping/proxy payload, mapping/retrace, accepted-P62 input, and
+three-journey optimized-runtime correctness gates. B also passes and has slightly lower decision
+frame p95/p99 than C. The result does not establish an R8-caused speedup or claim that C is faster;
+C's lower CPU p95 and operation p95 are descriptive only. C's p95 has `0.024291 ms` headroom to the
+zero-overrun threshold, the evidence is one device and one exhausted budget, and the writer does not
+provide strict SurfaceFlinger physical-present completion. ADR 0013 accepts the official optimized
+shipping path on the complete prospective gate, with those uncertainties retained.

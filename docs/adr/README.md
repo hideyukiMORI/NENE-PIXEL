@@ -51,3 +51,4 @@ An ADR must include:
 | [0010](0010-generated-critical-journey-baseline-profile.md) | accepted | One generated critical-journey Baseline Profile producer and verified source artifact |
 | [0011](0011-change-scoped-verification.md) | accepted | Change-scoped verification, immutable evidence reuse, and bounded prospective performance decisions |
 | [0012](0012-bounded-static-controls-color-tolerance.md) | accepted | Issue-#54-only one-step RGB tolerance for canonical static operation controls before the offscreen performance decision |
+| [0013](0013-optimized-shipping-release.md) | accepted | One role-aware AGP optimization policy and an immutable accepted-profile consumer comparison |
