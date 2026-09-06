@@ -202,6 +202,54 @@ function New-OrchestrationFixtureInvoker {
     return [pscustomobject]@{ State = $state; Invoker = $invoker }
 }
 
+function Assert-NativeTimeoutQuiescence {
+    $root = Join-Path $temporaryRoot 'native-timeout'
+    New-Item -ItemType Directory -Path $root | Out-Null
+    $wrapper = Join-Path $root 'gradlew.bat'
+    $lateWrite = Join-Path $root 'timeout-late-write.txt'
+    $log = Join-Path $root 'gradle-output.log'
+    $batch = @(
+        '@echo off',
+        'echo timeout-worker-started arguments=%*',
+        'ping.exe 127.0.0.1 -n 4 >NUL',
+        'echo late-write>timeout-late-write.txt'
+    ) -join "`r`n"
+    [System.IO.File]::WriteAllText($wrapper, $batch, [System.Text.Encoding]::ASCII)
+
+    Assert-Rejected {
+        Invoke-GradleCommand -RepositoryRoot $root -LogPath $log `
+            -GradleArguments @('fixtureTask', '--console=plain') -TimeoutSeconds 1
+    } 'timed out after 1 seconds'
+    Start-Sleep -Seconds 4
+    Assert-Equal $false (Test-Path -LiteralPath $lateWrite) `
+        'A stopped invocation-owned process tree must not mutate output after timeout restoration.'
+    $partialLog = Get-Content -LiteralPath $log -Raw
+    if (
+        $partialLog -notmatch 'timeout-worker-started' -or
+        $partialLog -notmatch '--no-daemon' -or
+        $partialLog -notmatch 'timed out after 1 seconds'
+    ) {
+        throw 'Timeout evidence must retain worker output, process identity, and the timeout failure.'
+    }
+
+    $successRoot = Join-Path $temporaryRoot 'native-success'
+    New-Item -ItemType Directory -Path $successRoot | Out-Null
+    $successWrapper = Join-Path $successRoot 'gradlew.bat'
+    [System.IO.File]::WriteAllText(
+        $successWrapper,
+        "@echo off`r`necho native-success arguments=%*`r`nexit /b 0`r`n",
+        [System.Text.Encoding]::ASCII
+    )
+    $successLog = Join-Path $successRoot 'gradle-output.log'
+    $success = Invoke-GradleCommand -RepositoryRoot $successRoot -LogPath $successLog `
+        -GradleArguments @('fixtureTask', '--console=plain') -TimeoutSeconds 5
+    Assert-Equal 0 $success.ExitCode 'A successful invocation-owned process must retain exit code zero.'
+    $successText = [string]::Join("`n", $success.OutputLines)
+    if ($successText -notmatch 'native-success' -or $successText -notmatch '--no-daemon') {
+        throw 'A successful native invocation must retain output and its no-daemon identity.'
+    }
+}
+
 function Assert-OrchestrationFailureRestored {
     param(
         [Parameter(Mandatory = $true)]$Repository,
@@ -220,6 +268,7 @@ function Assert-OrchestrationFailureRestored {
 
 try {
     New-Item -ItemType Directory -Path $temporaryRoot | Out-Null
+    Assert-NativeTimeoutQuiescence
     $lf = "HSPLexample/Canvas;->draw()V`nSPLexample/Undo;->run()V"
     $crlf = $lf.Replace("`n", "`r`n")
     $lfPath = Join-Path $temporaryRoot 'lf.txt'
@@ -368,8 +417,11 @@ try {
     $successEvidence = Join-Path $successRepository.Root 'build/reports/baseline-profile-generation/success'
     Assert-Equal $true (Test-Path -LiteralPath (Join-Path $successEvidence 'acceptance-manifest.json')) `
         'A valid identical fresh pair must write acceptance evidence.'
-    Assert-Equal 'valid' ((Get-Content -LiteralPath (Join-Path $successEvidence 'invocation-1/manifest.json') `
-            -Raw | ConvertFrom-Json).status) 'Invocation 1 must be valid.'
+    $firstSuccessManifest = Get-Content -LiteralPath (Join-Path $successEvidence `
+        'invocation-1/manifest.json') -Raw | ConvertFrom-Json
+    Assert-Equal 'valid' $firstSuccessManifest.status 'Invocation 1 must be valid.'
+    Assert-Equal $script:ProducerTimeoutSeconds $firstSuccessManifest.timeout_seconds `
+        'Invocation manifest must record its producer timeout.'
     Assert-Equal 'valid' ((Get-Content -LiteralPath (Join-Path $successEvidence 'invocation-2/manifest.json') `
             -Raw | ConvertFrom-Json).status) 'Invocation 2 must be valid.'
 
@@ -425,7 +477,8 @@ try {
 
     Write-Output 'BASELINE_PROFILE_EVIDENCE_VALIDATION=pass'
     Write-Output (
-        'CASES=lf-crlf,bare-cr,overwrite,preexisting-retention,failure-restore,failed-with-stale-source,' +
+        'CASES=native-timeout-quiescence,lf-crlf,bare-cr,overwrite,preexisting-retention,' +
+        'failure-restore,failed-with-stale-source,' +
         'stale,cached-producer,pull-failure,' +
         'fresh-match,stale-source,flag-drift,apk-drift,' +
         'orchestration-success,orchestration-mismatch,orchestration-launch-failure,' +

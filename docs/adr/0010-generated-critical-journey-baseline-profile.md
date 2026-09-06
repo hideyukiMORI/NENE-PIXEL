@@ -104,6 +104,15 @@ neither prove nor disprove fresh producer execution. Identical pre/post source h
 fresh producer evidence proves that the regenerated content is identical. A failed producer or
 pull followed by hashing an old source file is always rejected.
 
+Compilation and packaging keep the normal Gradle cache. The evidence wrapper gives each producer
+invocation at most 30 minutes and final validation at most five minutes. It uses an invocation-owned
+single-use Gradle process so a timeout can stop only that process tree and establish host quiescence
+before restoring the tracked source/hash; this is the recorded `QLT-012` reason for not reusing the
+shared daemon in this explicit evidence operation. The producer keeps the pinned tool's accepted
+15-iteration maximum and three stable-iteration requirement explicit. If the owned process tree
+cannot be confirmed stopped, the operation records invalid evidence and reports restoration blocked;
+it does not restore while a worker may still mutate the tracked source.
+
 The tracked source and hash are snapshotted before either invocation. They are replaced with the
 matched canonical result only for the final narrow artifact validation. A pair or validation failure
 restores the snapshot while retaining the failed evidence. Only successful final validation writes

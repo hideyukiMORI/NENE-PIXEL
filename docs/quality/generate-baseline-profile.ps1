@@ -9,6 +9,9 @@ $ErrorActionPreference = 'Stop'
 
 $script:EvidenceSchema = 'nene-pixel-baseline-profile-evidence-v1'
 $script:ProducerTask = ':quality:baseline-profile:connectedNonMinifiedReleaseAndroidTest'
+$script:ProducerTimeoutSeconds = 1800
+$script:ValidationTimeoutSeconds = 300
+$script:RestorationBlockedDataKey = 'NenePixelRestorationBlocked'
 $script:ProfileRelativePath = 'app/android/src/main/generated/baselineProfiles/baseline-prof.txt'
 $script:HashRelativePath = 'app/android/src/main/generated/baselineProfiles.sha256'
 $script:MergedRelativePath = 'app/android/build/intermediates/baselineprofiles/main/merged/baseline-prof.txt'
@@ -293,21 +296,85 @@ function Invoke-GradleCommand {
     param(
         [Parameter(Mandatory = $true)][string]$RepositoryRoot,
         [Parameter(Mandatory = $true)][string]$LogPath,
-        [Parameter(Mandatory = $true)][string[]]$GradleArguments
+        [Parameter(Mandatory = $true)][string[]]$GradleArguments,
+        [ValidateRange(1, 1800)][int]$TimeoutSeconds = $script:ProducerTimeoutSeconds
     )
 
-    $previousNativePreference = $PSNativeCommandUseErrorActionPreference
-    $PSNativeCommandUseErrorActionPreference = $false
-    Push-Location $RepositoryRoot
+    $gradleWrapper = Join-Path $RepositoryRoot 'gradlew.bat'
+    if (-not (Test-Path -LiteralPath $gradleWrapper -PathType Leaf)) {
+        throw "Gradle Wrapper is missing: $gradleWrapper"
+    }
+    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $env:ComSpec
+    $startInfo.WorkingDirectory = $RepositoryRoot
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    $startInfo.ArgumentList.Add('/d')
+    $startInfo.ArgumentList.Add('/s')
+    $startInfo.ArgumentList.Add('/c')
+    $startInfo.ArgumentList.Add($gradleWrapper)
+    foreach ($argument in @($GradleArguments) + @('--no-daemon')) {
+        $startInfo.ArgumentList.Add($argument)
+    }
+
+    $process = [System.Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
     try {
-        $output = @(& .\gradlew.bat @GradleArguments 2>&1)
-        $exitCode = $LASTEXITCODE
+        if (-not $process.Start()) {
+            throw 'Gradle Wrapper process did not start.'
+        }
+        $standardOutput = $process.StandardOutput.ReadToEndAsync()
+        $standardError = $process.StandardError.ReadToEndAsync()
+        if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
+            $terminationFailure = $null
+            try {
+                $process.Kill($true)
+            }
+            catch {
+                $terminationFailure = $_.Exception.Message
+            }
+            $quiescent = $process.HasExited -or $process.WaitForExit(10000)
+            if (-not $quiescent) {
+                $message = "Gradle invocation timed out after $TimeoutSeconds seconds, and its owned " +
+                    'process tree could not be confirmed stopped; tracked-file restoration is blocked.'
+                if ($null -ne $terminationFailure) {
+                    $message += " Termination failure: $terminationFailure"
+                }
+                $exception = [System.InvalidOperationException]::new($message)
+                $exception.Data[$script:RestorationBlockedDataKey] = $true
+                throw $exception
+            }
+            $outputLines = @(
+                @($standardOutput.GetAwaiter().GetResult() -split "`r?`n") |
+                    Where-Object { $_.Length -ne 0 }
+                @($standardError.GetAwaiter().GetResult() -split "`r?`n") |
+                    Where-Object { $_.Length -ne 0 }
+            )
+            $outputLines | Set-Content -LiteralPath $LogPath -Encoding utf8NoBOM
+            throw "Gradle invocation timed out after $TimeoutSeconds seconds; its owned process tree was stopped."
+        }
+        $process.WaitForExit()
+        $outputLines = @(
+            @($standardOutput.GetAwaiter().GetResult() -split "`r?`n") |
+                Where-Object { $_.Length -ne 0 }
+            @($standardError.GetAwaiter().GetResult() -split "`r?`n") |
+                Where-Object { $_.Length -ne 0 }
+        )
+        $exitCode = $process.ExitCode
+    }
+    catch {
+        if (Test-Path -LiteralPath $LogPath -PathType Leaf) {
+            $_.Exception.ToString() | Add-Content -LiteralPath $LogPath -Encoding utf8NoBOM
+        } else {
+            $_.Exception.ToString() | Set-Content -LiteralPath $LogPath -Encoding utf8NoBOM
+        }
+        throw
     }
     finally {
-        Pop-Location
-        $PSNativeCommandUseErrorActionPreference = $previousNativePreference
+        $process.Dispose()
     }
-    $outputLines = @($output | ForEach-Object { $_.ToString() })
     $outputLines | Set-Content -LiteralPath $LogPath -Encoding utf8NoBOM
     $outputLines | ForEach-Object { Write-Host $_ }
     return [pscustomobject]@{ ExitCode = $exitCode; OutputLines = $outputLines }
@@ -347,13 +414,17 @@ function Invoke-GenerationInvocation {
     $logPath = Join-Path $invocationDirectory 'gradle-output.log'
     $gradle = $null
     $failure = $null
+    $restorationBlocked = $false
     try {
         $gradle = & $GradleInvoker -RepositoryRoot $RepositoryRoot -LogPath $logPath `
             -GradleArguments @(':app:android:generateBaselineProfile', '--console=plain')
     }
     catch {
         $failure = $_.Exception.Message
-        $_.Exception.ToString() | Set-Content -LiteralPath $logPath -Encoding utf8NoBOM
+        $restorationBlocked = $_.Exception.Data[$script:RestorationBlockedDataKey] -eq $true
+        if (-not (Test-Path -LiteralPath $logPath -PathType Leaf)) {
+            $_.Exception.ToString() | Set-Content -LiteralPath $logPath -Encoding utf8NoBOM
+        }
     }
     $endedUtc = [datetime]::UtcNow
 
@@ -398,6 +469,8 @@ function Invoke-GenerationInvocation {
         started_utc = $startedUtc.ToString('o')
         ended_utc = $endedUtc.ToString('o')
         source_revision = $sourceRevision
+        timeout_seconds = $script:ProducerTimeoutSeconds
+        restoration_blocked = $restorationBlocked
         gradle_exit_code = $gradleExitCode
         task_outcomes = if ($null -eq $gradle) {
             [ordered]@{}
@@ -418,7 +491,13 @@ function Invoke-GenerationInvocation {
     $manifestPath = Join-Path $invocationDirectory 'manifest.json'
     Write-JsonFile -Value $manifest -Path $manifestPath
     if ($null -ne $failure) {
-        throw "Generation invocation $Ordinal is invalid: $failure"
+        $exception = [System.InvalidOperationException]::new(
+            "Generation invocation $Ordinal is invalid: $failure"
+        )
+        if ($restorationBlocked) {
+            $exception.Data[$script:RestorationBlockedDataKey] = $true
+        }
+        throw $exception
     }
     return [pscustomobject]@{
         SourceRevision = $sourceRevision
@@ -440,8 +519,13 @@ function Invoke-BaselineProfileEvidenceGeneration {
                 [Parameter(Mandatory = $true)][string[]]$GradleArguments
             )
 
+            $timeoutSeconds = if ($GradleArguments[0] -eq 'validateBaselineProfile') {
+                $script:ValidationTimeoutSeconds
+            } else {
+                $script:ProducerTimeoutSeconds
+            }
             Invoke-GradleCommand -RepositoryRoot $RepositoryRoot -LogPath $LogPath `
-                -GradleArguments $GradleArguments
+                -GradleArguments $GradleArguments -TimeoutSeconds $timeoutSeconds
         }
     )
 
@@ -490,6 +574,8 @@ function Invoke-BaselineProfileEvidenceGeneration {
             test_apk_sha256 = $first.TestApkSha256
             canonical_rule_count = $first.Profile.Source.RuleCount
             canonical_sha256 = $first.Profile.Source.CanonicalSha256
+            producer_timeout_seconds = $script:ProducerTimeoutSeconds
+            validation_timeout_seconds = $script:ValidationTimeoutSeconds
             invocation_manifest_sha256 = @($first.ManifestSha256, $second.ManifestSha256)
         }
         $pairManifestPath = Join-Path $evidenceRoot 'pair-manifest.json'
@@ -514,10 +600,15 @@ function Invoke-BaselineProfileEvidenceGeneration {
             pair_manifest_sha256 = Get-FileSha256 -Path $pairManifestPath
             validation_output_sha256 = Get-FileSha256 -Path $validationLogPath
             canonical_sha256 = $second.Profile.Source.CanonicalSha256
+            producer_timeout_seconds = $script:ProducerTimeoutSeconds
+            validation_timeout_seconds = $script:ValidationTimeoutSeconds
         }
         Write-JsonFile -Value $acceptanceManifest -Path (Join-Path $evidenceRoot 'acceptance-manifest.json')
     }
     catch {
+        if ($_.Exception.Data[$script:RestorationBlockedDataKey] -eq $true) {
+            throw
+        }
         Restore-FileState -Path $profilePath -State $originalProfile
         Restore-FileState -Path $hashPath -State $originalHash
         throw

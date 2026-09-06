@@ -69,9 +69,14 @@ next starts: Gradle output, fresh raw producer profile, merged/source profile, a
 instrumentation results/logs, task outcomes, source revision, APK/test-APK hashes, and manifest.
 Any producer output present before an invocation is moved into that invocation's evidence directory
 before Gradle starts; it cannot satisfy the fresh-output check and is not discarded.
-Compilation and packaging may use normal Gradle cache/daemon behavior. Acceptance requires actual
-connected producer execution and fresh pulled output; an unchanged final hash is expected when both
-fresh invocations generated the same content.
+Compilation and packaging keep the normal Gradle cache. This explicit evidence command uses one
+invocation-owned single-use Gradle process per producer run so it can enforce a 30-minute timeout and
+stop only that process tree before restoring tracked files. Final validation has a five-minute
+timeout. The producer allows at most 15 internal iterations and requires three stable iterations.
+Acceptance requires actual connected producer execution and fresh pulled output; an unchanged final
+hash is expected when both fresh invocations generated the same content. If an owned process tree
+cannot be confirmed stopped after timeout, the command retains the snapshot/evidence and reports
+restoration blocked instead of restoring while output may still change.
 
 The command compares every ordered rule and flag after canonical UTF-8/LF normalization with no
 terminal separator, refuses rule/flag drift, writes the accepted canonical source and lowercase

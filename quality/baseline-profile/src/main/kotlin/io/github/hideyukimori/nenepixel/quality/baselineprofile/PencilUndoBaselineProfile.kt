@@ -23,6 +23,8 @@ internal class PencilUndoBaselineProfile {
         requireUnlockedDevice()
         baselineProfileRule.collect(
             packageName = APPLICATION_PACKAGE,
+            maxIterations = MAX_ITERATIONS,
+            stableIterations = STABLE_ITERATIONS,
             includeInStartupProfile = false,
             strictStability = true,
         ) {
@@ -74,5 +76,7 @@ internal class PencilUndoBaselineProfile {
         const val CANVAS_WIDTH = 16
         const val CANVAS_HEIGHT = 16
         const val UI_TIMEOUT_MILLIS = 5_000L
+        const val MAX_ITERATIONS = 15
+        const val STABLE_ITERATIONS = 3
     }
 }
