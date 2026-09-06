@@ -59,7 +59,7 @@ internal fun EditorScreen(
                         renderState = renderState,
                         callbacks = callbacks,
                         onRenderStateChanged = onRenderStateChanged,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier,
                     )
                 }
             }
