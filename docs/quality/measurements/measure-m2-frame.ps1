@@ -281,6 +281,7 @@ function Assert-M2PackagedArtifact {
     return [pscustomobject]@{
         validation = "pass"
         candidate_role = $Role
+        resolved_apk_path = $resolvedApk
         apk_sha256 = $apkHash
         packaged_prof_sha256 = $packagedProfSha256
         packaged_profm_sha256 = $packagedProfmSha256
@@ -348,6 +349,7 @@ if (-not $ValidateExperimentOnly) {
         $artifactIdentity
         return
     }
+    $resolvedApk = $artifactIdentity.resolved_apk_path
 }
 $slotName = "slot-{0:D2}-{1}-{2}" -f $ComparisonSequenceIndex, $RunKind, $CandidateRole
 $resolvedOutput = Join-Path $resolvedExperiment "$slotName-attempt-$Attempt"

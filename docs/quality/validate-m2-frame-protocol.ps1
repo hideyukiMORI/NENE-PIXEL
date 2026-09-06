@@ -432,6 +432,101 @@ try {
         throw 'Artifact-only candidate validation must not create an experiment directory.'
     }
 
+    $preDeviceRepository = Join-Path $temporaryRoot 'pre-device-repository'
+    New-Item -ItemType Directory -Path $preDeviceRepository | Out-Null
+    & git -C $preDeviceRepository init --quiet
+    & git -C $preDeviceRepository config user.name 'NENE fixture'
+    & git -C $preDeviceRepository config user.email 'fixture@example.invalid'
+    & git -C $preDeviceRepository commit --allow-empty --quiet -m 'pre-device fixture'
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Unable to create the clean source repository for pre-device validation.'
+    }
+    $preDeviceSource = (& git -C $preDeviceRepository rev-parse HEAD).Trim()
+    $preDeviceApk = New-ApkFixture -Name 'pre-device-pass' -SourceCommit $preDeviceSource `
+        -ProfBytes $profBytes -ProfmBytes $profmBytes
+    $preDevice = $artifact.Clone()
+    $preDevice.Remove('ValidateArtifactOnly')
+    $preDevice.SourceCommit = $preDeviceSource
+    $preDevice.ApkPath = $preDeviceApk
+    $preDeviceApkSha256 = (Get-FileHash -Algorithm SHA256 $preDeviceApk).Hash.ToLowerInvariant()
+    $preDevice.ExperimentDirectory = Join-Path $temporaryRoot 'pre-device-experiment'
+    $preDevice.ExperimentId = 'pre-device-validation'
+    $preDevice.ComparisonSequenceIndex = 1
+    $preDevice.CandidateRole = 'baseline'
+    $preDevice.BaselineSourceCommit = $preDeviceSource
+    $preDevice.BaselineApkSha256 = $preDeviceApkSha256
+    $preDevice.CandidateApkSha256 = 'd' * 64
+    $preDevice.BaselinePackagedProfSha256 = $preDevice.CandidatePackagedProfSha256
+    $preDevice.BaselinePackagedProfmSha256 = $preDevice.CandidatePackagedProfmSha256
+    $global:neneExpectedPreDeviceApk = (Resolve-Path -LiteralPath $preDeviceApk).Path
+    $global:nenePreDeviceInstallSeen = $false
+    function global:adb {
+        param(
+            [string]$s,
+            [Parameter(ValueFromRemainingArguments = $true)][string[]]$AdbArguments
+        )
+
+        $command = $AdbArguments -join ' '
+        switch -Regex ($command) {
+            '^shell getprop ro\.kernel\.qemu$' { '0'; return }
+            '^shell getprop ro\.product\.manufacturer$' { 'ALLDOCUBE'; return }
+            '^shell getprop ro\.product\.model$' { 'iPlay80miniPro'; return }
+            '^shell getprop ro\.product\.name$' { 'iPlay80miniPro'; return }
+            '^shell getprop ro\.product\.device$' { 'T830'; return }
+            '^shell getprop ro\.build\.version\.sdk$' { '36'; return }
+            '^shell getprop ro\.build\.fingerprint$' { 'fixture/fingerprint'; return }
+            '^shell getprop ro\.build\.version\.security_patch$' { '2026-09-01'; return }
+            '^shell settings get global stay_on_while_plugged_in$' { '0'; return }
+            '^shell wm size$' { 'Physical size: 1200x1920'; return }
+            '^shell dumpsys display$' {
+                'DisplayDeviceInfo{fixture, 1200 x 1920, modeId 1, supportedModes [{id=1, width=1200, height=1920, fps=90.0}]}'
+                return
+            }
+            '^shell dumpsys thermalservice$' { 'Thermal Status: 0'; return }
+            '^shell settings get global low_power$' { '0'; return }
+            '^shell dumpsys power$' { 'mWakefulness=Awake'; return }
+            '^shell dumpsys battery$' { "USB powered: true`n  level: 100"; return }
+            '^install -r -d ' {
+                $actualPath = $AdbArguments[3]
+                if (-not [string]::Equals(
+                        $actualPath,
+                        $global:neneExpectedPreDeviceApk,
+                        [System.StringComparison]::OrdinalIgnoreCase
+                    )) {
+                    throw "Pre-device installation received the wrong APK path: $actualPath"
+                }
+                $global:nenePreDeviceInstallSeen = $true
+                throw 'pre-device fixture reached exact APK install'
+            }
+            default { return }
+        }
+    }
+    $preDeviceFailure = $null
+    Push-Location $preDeviceRepository
+    try {
+        & $collector @preDevice | Out-Null
+    }
+    catch {
+        $preDeviceFailure = $_.Exception.Message
+    }
+    finally {
+        Pop-Location
+        Remove-Item Function:\global:adb -ErrorAction SilentlyContinue
+    }
+    if (
+        -not $global:nenePreDeviceInstallSeen -or
+        $preDeviceFailure -ne 'pre-device fixture reached exact APK install'
+    ) {
+        throw "The real pre-device path did not carry the verified APK into install: $preDeviceFailure"
+    }
+    $preDeviceState = Get-Content -Raw -LiteralPath (
+        Join-Path $preDevice.ExperimentDirectory 'slot-01-diagnostic-baseline-attempt-1/run-state.json'
+    ) | ConvertFrom-Json
+    if ($preDeviceState.status -ne 'invalid-before-samples' -or [int]$preDeviceState.measured_down_count -ne 0) {
+        throw 'The bounded pre-device fixture did not fail closed before the first measured DOWN.'
+    }
+    Remove-Variable neneExpectedPreDeviceApk, nenePreDeviceInstallSeen -Scope Global -ErrorAction SilentlyContinue
+
     $wrongProf = $artifact.Clone()
     $wrongProf.CandidatePackagedProfSha256 = "0" * 64
     $wrongProf.ExperimentDirectory = Join-Path $temporaryRoot "wrong-prof-experiment"

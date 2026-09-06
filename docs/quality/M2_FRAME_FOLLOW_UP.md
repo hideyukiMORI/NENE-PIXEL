@@ -1941,8 +1941,27 @@ once on the clean-to-dirty transition regardless of stroke length, so adding a l
 this comparison would not exercise a distinct changed cost. The existing #58 result remains risk
 context and supports no whole-editor or #54 PASS claim.
 
-No profile generation, APK build, device work, frame collection, or performance budget is opened by
-this prospective section. Normal Gradle cache and daemon defaults apply to later host verification;
-`--no-configuration-cache` is not a routine flag. Active waivers: none.
+The first fixed packaging identities used harness source
+`4f3e50071f6b49e6fbaf35e19b45c8a8e95cbd6c`, candidate source
+`b20bc7321cdf0fa5e3e0f1d4c1cc24c2e89b26b0`, and APK SHA-256 values
+`b105bbb683a275d43afd43b788788ce128d0dab5721a6dc485d2d96bd1a1a5a9` /
+`6ffab90c0106268b0d41f5e2484c14c80c910bebe9700f2c9e9c9ae6462d37d6`. Experiment
+`issue70-natural-size-dirty-status-v3-01` opened baseline diagnostic attempt 1, then failed before
+APK installation because the verified resolved path remained local to `Assert-M2PackagedArtifact`
+while the device path referenced an unbound script variable. Its immutable `run-state.json` records
+`invalid-before-samples` and zero measured DOWN events. It contains no performance sample and does
+not permit either APK to be relabelled after the harness fix.
+
+The corrected harness carries the safe resolved APK path in the typed verified-artifact return and
+uses only that returned path for the device invocation. Its host fixture executes the real path from
+accepted-evidence and packaged-artifact checks through clean-source/slot setup and physical preflight
+to a bounded fake install boundary, proving the exact verified APK path is bound before any measured
+DOWN. The old attempt and experiment remain immutable; corrected standalone B/C packaging and a new
+experiment identity are required. The profile producer inputs and the Issue #70 functional-test inputs
+are unchanged, so QLT-012 permits their evidence reuse after the new packaging identities are mapped.
+
+No profile regeneration or performance sample is authorized by this correction. Normal Gradle cache
+and daemon defaults apply to host verification and repackaging; `--no-configuration-cache` is not a
+routine flag. Active waivers: none.
 
 Implementation paths are limited to the shared evidence reader and its generation/evidence fixtures, the existing generation wrapper, the sole frame harness/protocol fixture, the shared dexopt helper, the existing attribution collector/fixture, and this protocol document. The accepted P62 evidence is also exercised read-only; no profile generation is part of this change.
