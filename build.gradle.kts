@@ -6,6 +6,8 @@ plugins {
     alias(libs.plugins.kotlin.jvm) apply false
     alias(libs.plugins.android.application) apply false
     alias(libs.plugins.android.library) apply false
+    alias(libs.plugins.android.test) apply false
+    alias(libs.plugins.androidx.baselineprofile) apply false
     alias(libs.plugins.compose.compiler) apply false
     alias(libs.plugins.detekt) apply false
     alias(libs.plugins.ktlint)
@@ -46,6 +48,7 @@ tasks.named("check") {
     dependsOn(":core:domain:check")
     dependsOn(":core:pixel-engine:check")
     dependsOn(":quality:architecture-rules:check")
+    dependsOn(":quality:baseline-profile:check")
 }
 
 tasks.register("measureP2ViewportInteraction") {

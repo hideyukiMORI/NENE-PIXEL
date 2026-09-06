@@ -170,10 +170,9 @@ UP-input-to-committed-result p95 was 10.030615 ms. The full DOWN-to-commit journ
 
 The complete retained population localizes the miss distribution without claiming physical present.
 Preview frames had overrun p95 -1.382467 ms with one miss; commit frames had overrun p95 0.886609 ms
-with nine misses. The generated-profile architecture decision remains retained on the #62-dependent
-branch and is not an integrated or usable current-main build path. Its earlier apparent equal-hash
-reproducibility event used stale tracked output; fresh schema-v1 producer provenance is still pending
-and is not retroactively PASS. The unchanged performance result
+with nine misses. The generated-profile architecture remains the accepted canonical build path, but
+the earlier apparent equal-hash reproducibility event used stale tracked output; fresh schema-v1
+producer provenance is still pending and is not retroactively PASS. The unchanged performance result
 does not satisfy Issue #54. Per the predeclared stop rule, the baseline 50-operation slot is not run
 and the candidate decision is not retried. Historical schema-v5 and physical-present results remain
 unchanged.
@@ -1191,7 +1190,7 @@ about 0.236 ms. A prior two-rule manual profile candidate was a measured no-op, 
 packaged profile contains only 23 hot rules. These observations justify one operation-specific profile
 producer, not another renderer, UI combination, threshold change, or broad full-AOT rule.
 
-The retained #54 branch's ADR 0010 accepts a build-only `:quality:baseline-profile` module using the
+ADR 0010 accepts a build-only `:quality:baseline-profile` module using the
 AndroidX Baseline Profile plugin and `BaselineProfileRule`. It records the canonical Pencil/Undo
 journey through stable UI
 semantics, writes one generated main-source profile for `:app:android`, and removes the hand-written
@@ -1199,19 +1198,17 @@ wildcard profile. Ordinary builds do not invoke a device; the root gate verifies
 profile's cardinality and SHA-256 identity.
 
 Acceptance requires two isolated physical-device generation invocations to produce identical
-canonical ordered rule-and-flag content. The resulting signed release-like APK must contain the
+canonical ordered rule-and-flag content. The resulting signed release-like APK had to contain the
 exact source revision, valid v2/v3 signatures, both packaged profile assets, and a compiled profile
-below 1.5 MB. It then
-receives one five-warmup/ten-sample fixed schema-v5 `speed-profile` diagnostic. The candidate advances
-to the predeclared 50-sample decision batch only if the diagnostic passes the independent total-frame
-condition with margin; otherwise its result is recorded without a favorable rerun.
+below 1.5 MB before the historical schema-v5 `speed-profile` diagnostic. That diagnostic and its
+stopped 50-sample promotion are consumed evidence, not current run authorization. Future performance
+collection follows the prospective notice above and `QLT-011` through `QLT-016`.
 
 ## Generated critical-journey Baseline Profile validation
 
 Committed source `c4d63042bcabb3f3421441d851db73369c90e252` contains the 13,510-rule generated
-Pencil/Undo profile retained by that unmerged ADR 0010 decision. The original comparison recorded
-the 1,421,321-byte Windows CRLF SHA-256
-`2ab1ca1413a5f835b5e30810636d25649dd749034d5b76a9f81aecf09de5cb2a`, but a later audit found
+Pencil/Undo profile retained by ADR 0010. The original comparison recorded the 1,421,321-byte
+Windows CRLF SHA-256 `2ab1ca1413a5f835b5e30810636d25649dd749034d5b76a9f81aecf09de5cb2a`, but a later audit found
 that its equal hashes came from the pre-existing source after failed generation/pull attempts, not
 two proven fresh producer outputs. Issue #62 migrates the same ordered rule-and-flag content to
 canonical LF SHA-256 `de1a637f6c9884b96ef242deaf0d56c5cd3864c83275e0850d766eb07be4130f`
@@ -1243,11 +1240,10 @@ The single run is retained at
 
 The generated profile does not advance to the 50-sample decision batch. Its platform overrun p95 is
 positive by 0.023368 ms, so it does not pass the independent total-frame condition, let alone with
-margin. No favorable rerun is permitted. The generated build path remains the intended profile
-source in the retained accepted decision, but it is not integrated or usable on current `main`; the
-old equal-hash event does not establish fresh producer reproducibility, and schema-v1 provenance
-remains pending independently of this performance FAIL. Issue #54 remains open pending both valid
-profile provenance and new operation-specific evidence.
+margin. No favorable rerun is permitted. The generated build path remains the canonical profile
+source by the accepted architectural decision, but the old equal-hash event does not establish fresh
+producer reproducibility; schema-v1 provenance remains pending independently of this performance
+FAIL. Issue #54 remains open pending both valid profile provenance and new operation-specific evidence.
 
 ## Next evidence: generated-profile scheduling attribution
 
@@ -1764,3 +1760,72 @@ analysis output directory using the strengthened analyzer and the immutable v3 t
 120/112/1,443 thread-state/scheduler/slice row counts. This is validation of the existing saved
 trace and analyzer guard only; it is not another device collection, performance sample, source-label
 attribution, or acceptance result.
+
+#### Issue #62 fresh Baseline Profile pair: reproducibility mismatch
+
+Issue #62 fixed one repaired physical generation operation before collection at source
+`57ae20d707d669a6da9f20f145dd1d312f8bcd2e`, evidence identity
+`issue-62-20260906-1515-57ae20d`. Both producer invocations completed fresh and valid. They record the
+same source revision, app APK SHA-256
+`eee2a3954a4ef5ad3dd2478dca2e587e8c90aa44c994dd885a4a1cb2787cfa45`, and test APK SHA-256
+`357e0fd027bc2d512fe578e23c3b62191ba69f37c6503d5644754f422fe00180`. The first invocation produced
+13,510 canonical rules with SHA-256
+`de1a637f6c9884b96ef242deaf0d56c5cd3864c83275e0850d766eb07be4130f`; the second produced 13,513
+rules with SHA-256 `acda80370b2428fdc1b8ac41e273d096936267f2931d8bdfc3ad337307a1624d`.
+
+The second invocation adds exactly three `SP` rules and removes or changes none:
+
+- `SPLandroidx/compose/runtime/snapshots/SnapshotStateList;->get(I)Ljava/lang/Object;`
+- `SPLandroidx/compose/runtime/snapshots/SnapshotStateList;->getSize()I`
+- `SPLandroidx/compose/runtime/snapshots/SnapshotStateList;->size()I`
+
+These methods belong to the locked AndroidX Compose Runtime 1.12.0 artifact. Project Kotlin source
+does not directly reference `SnapshotStateList` or `mutableStateListOf`. The earlier invalid
+`issue-62-20260906-1452-e7fdc974` invocation's retained 13,513-rule source is byte-for-byte and
+canonically identical to this second invocation, but remains invalid and cannot participate in the
+pair. The evidence proves that the fixed source, tested artifacts, and declared journey can yield
+both rule sets. It does not identify whether runtime scheduling, accessibility polling, Compose
+state timing, or another controlled-workload state caused the three methods to be observed.
+
+The pair manifest records `mismatch`. No final validation or acceptance manifest exists. The wrapper
+restored the pre-generation tracked profile/hash byte-for-byte, retained both invocation manifests,
+raw outputs, logs, and results, and stopped without a third invocation or retry. The generated
+artifact therefore remains unaccepted, Issue #62's fresh reproducibility criterion remains blocked,
+and this result authorizes no profile publication, performance collection, or gate relaxation.
+
+#### Issue #62 fixed-duration Undo candidate: accepted fresh pair
+
+The later prospective candidate changed the Baseline Profile producer workload identity at source
+`384af834c74189dcca9d79da1cf1ac90d0363082`: Undo in the canonical collection journey uses a fixed
+100 ms pointer-down interval. This selected input condition tests a bounded variability-reduction
+hypothesis. It does not prove the cause of the earlier mismatch, guarantee a rendered frame, change
+product-wide Undo input, or change the Issue #54 measurement harness. Because the source and
+workload identity changed before collection, evidence identity
+`issue-62-20260906-1611-384af834` is a new prospective experiment rather than a third invocation or
+retry of the preserved mismatch identity.
+
+The one authorized wrapper execution produced exactly two fresh valid invocations. Both record the
+fixed source revision, app APK SHA-256
+`f7390cf56f38a36e0ac2ed6e7dfb14c73f75292bef212a149a1648d2fbab3b79`, test APK SHA-256
+`fc0c57cffa3ac7b232f19638e372f33841d92f199f977b0eaf47fb87a41ed691`, 13,514 ordered canonical
+rules, and canonical SHA-256
+`3be9f24e5c485364787c1319c3ec6bd2138ed589a30ff245100ce9a283c653ee`. The pair manifest records
+`matched`; its SHA-256 is
+`d8f9279dc399fccd8de82bdc1d2c6ea80f8db9ea76b2fcccf5fd82aa319ea45b`. The acceptance manifest
+records `accepted`; its file SHA-256 is
+`9781827af89116147b667db71d8f1fddf6897ed72c1f3527431ad9acfc85b2a5`. Final
+`validateBaselineProfile` completed successfully. The ignored evidence remains at
+`C:/n62-tap100/build/reports/baseline-profile-generation/issue-62-20260906-1611-384af834/`.
+
+Compared with the frozen 13,510-rule source, the accepted artifact adds exactly four `SP` rules and
+removes or changes none:
+
+- `SPLandroidx/compose/runtime/snapshots/SnapshotStateList;->get(I)Ljava/lang/Object;`
+- `SPLandroidx/compose/runtime/snapshots/SnapshotStateList;->getSize()I`
+- `SPLandroidx/compose/runtime/snapshots/SnapshotStateList;->size()I`
+- `SPLandroidx/compose/ui/platform/AndroidComposeView;->isPositionChanged(Landroid/view/MotionEvent;)Z`
+
+The canonical source and its hash manifest now contain the accepted result. The earlier invalid and
+mismatch evidence remain immutable and excluded from this pair. No third invocation, favorable
+subset, union/intersection, filtering, threshold change, or performance collection occurred. Issue
+#62 remains open until this focused source and artifact change merges. Active waivers: none.

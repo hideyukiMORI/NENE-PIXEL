@@ -1,0 +1,175 @@
+package io.github.hideyukimori.nenepixel.buildlogic
+
+import java.nio.charset.CodingErrorAction
+import java.nio.charset.StandardCharsets
+import java.nio.file.Files
+import java.nio.file.Path
+import java.security.MessageDigest
+import kotlin.io.path.extension
+
+internal class BaselineProfileArtifactValidator(
+    private val repositoryDirectory: Path,
+) {
+    fun validate(): List<String> =
+        buildList {
+            validateManualProfile(this)
+            validateGeneratedProfile(this)
+        }
+
+    private fun validateManualProfile(violations: MutableList<String>) {
+        val manualProfile = repositoryDirectory.resolve(MANUAL_PROFILE)
+        if (Files.exists(manualProfile)) {
+            violations.add("QLT-004 requires the hand-written Baseline Profile to be absent: $MANUAL_PROFILE")
+        }
+    }
+
+    private fun validateGeneratedProfile(violations: MutableList<String>) {
+        val generatedDirectory = repositoryDirectory.resolve(GENERATED_DIRECTORY)
+        val profiles =
+            if (Files.isDirectory(generatedDirectory)) {
+                Files.walk(generatedDirectory).use { paths ->
+                    paths
+                        .filter(Files::isRegularFile)
+                        .filter { path -> path.extension.equals("txt", ignoreCase = true) }
+                        .sorted()
+                        .toList()
+                }
+            } else {
+                emptyList()
+            }
+        if (profiles.size != EXPECTED_PROFILE_COUNT) {
+            violations.add(
+                "QLT-004 requires exactly one generated Baseline Profile under $GENERATED_DIRECTORY; " +
+                    "found ${profiles.size}.",
+            )
+        } else {
+            validateProfile(profiles.single(), violations)
+        }
+    }
+
+    private fun validateProfile(
+        profile: Path,
+        violations: MutableList<String>,
+    ) {
+        val bytes = Files.readAllBytes(profile)
+        if (bytes.isEmpty() || bytes.all(::isAsciiWhitespace)) {
+            violations.add("QLT-004 requires the generated Baseline Profile to be non-empty.")
+        }
+
+        val canonicalBytes = canonicalProfileBytes(bytes, violations) ?: return
+        validateRules(canonicalBytes, violations)
+
+        val hashPath = repositoryDirectory.resolve(HASH_FILE)
+        if (!Files.isRegularFile(hashPath)) {
+            violations.add("QLT-004 requires the generated Baseline Profile hash: $HASH_FILE")
+        } else {
+            validateHash(canonicalBytes, hashPath, violations)
+        }
+    }
+
+    private fun canonicalProfileBytes(
+        bytes: ByteArray,
+        violations: MutableList<String>,
+    ): ByteArray? =
+        decodeProfile(bytes, violations)
+            ?.let { text -> normalizeLineEndings(text, violations) }
+            ?.removeSuffix(LINE_FEED_TEXT)
+            ?.toByteArray(StandardCharsets.UTF_8)
+
+    private fun decodeProfile(
+        bytes: ByteArray,
+        violations: MutableList<String>,
+    ): String? =
+        try {
+            StandardCharsets.UTF_8
+                .newDecoder()
+                .onMalformedInput(CodingErrorAction.REPORT)
+                .onUnmappableCharacter(CodingErrorAction.REPORT)
+                .decode(java.nio.ByteBuffer.wrap(bytes))
+                .toString()
+        } catch (_: java.nio.charset.CharacterCodingException) {
+            violations.add("QLT-004 requires the generated Baseline Profile to be valid UTF-8.")
+            null
+        }
+
+    private fun normalizeLineEndings(
+        text: String,
+        violations: MutableList<String>,
+    ): String? {
+        val normalized = text.replace(CARRIAGE_RETURN_LINE_FEED, LINE_FEED_TEXT)
+        return when {
+            text.startsWith(BYTE_ORDER_MARK) -> {
+                violations.add("QLT-004 requires UTF-8 Baseline Profile source without a byte-order mark.")
+                null
+            }
+
+            normalized.contains(CARRIAGE_RETURN_TEXT) -> {
+                violations.add("QLT-004 permits only LF or CRLF Baseline Profile line separators.")
+                null
+            }
+
+            else -> {
+                normalized
+            }
+        }
+    }
+
+    private fun validateRules(
+        canonicalBytes: ByteArray,
+        violations: MutableList<String>,
+    ) {
+        val rules = canonicalBytes.toString(StandardCharsets.UTF_8).split(LINE_FEED_TEXT)
+        if (rules.any { it.isEmpty() }) {
+            violations.add("QLT-004 requires generated Baseline Profile rules without blank lines.")
+        }
+        if (rules.size != rules.distinct().size) {
+            violations.add("QLT-004 requires generated Baseline Profile rules without duplicates.")
+        }
+    }
+
+    private fun validateHash(
+        bytes: ByteArray,
+        hashPath: Path,
+        violations: MutableList<String>,
+    ) {
+        val recordedHash = Files.readString(hashPath).trim()
+        val actualHash = bytes.sha256()
+        when {
+            !HASH_PATTERN.matches(recordedHash) -> {
+                violations.add("QLT-004 requires $HASH_FILE to contain one lowercase SHA-256 value.")
+            }
+
+            recordedHash != actualHash -> {
+                violations.add(
+                    "QLT-004 detected generated Baseline Profile drift: " +
+                        "expected $recordedHash, found $actualHash.",
+                )
+            }
+        }
+    }
+
+    private fun isAsciiWhitespace(value: Byte): Boolean =
+        value == SPACE || value == TAB || value == LINE_FEED || value == CARRIAGE_RETURN
+
+    private fun ByteArray.sha256(): String =
+        MessageDigest
+            .getInstance("SHA-256")
+            .digest(this)
+            .joinToString(separator = "") { byte -> "%02x".format(byte) }
+
+    private companion object {
+        const val MANUAL_PROFILE = "app/android/src/main/baseline-prof.txt"
+        const val GENERATED_DIRECTORY = "app/android/src/main/generated/baselineProfiles"
+        const val HASH_FILE = "app/android/src/main/generated/baselineProfiles.sha256"
+        const val EXPECTED_PROFILE_COUNT = 1
+        val HASH_PATTERN = Regex("[0-9a-f]{64}")
+        const val SPACE: Byte = 32
+        const val TAB: Byte = 9
+        const val LINE_FEED: Byte = 10
+        const val CARRIAGE_RETURN: Byte = 13
+        const val BYTE_ORDER_MARK = "\uFEFF"
+        const val CARRIAGE_RETURN_LINE_FEED = "\r\n"
+        const val CARRIAGE_RETURN_TEXT = "\r"
+        const val LINE_FEED_TEXT = "\n"
+    }
+}

@@ -35,11 +35,14 @@ The module graph is part of the architecture. A package convention alone is not 
 
 :quality:architecture-rules
     Active custom detekt rules and their focused rule tests
+
+:quality:baseline-profile
+    Build-only Baseline Profile producer for the canonical Pencil/Undo journey
 ```
 
 Do not create empty future modules. The names above are reserved canonical destinations and are created only when their first concrete responsibility exists.
 
-The root `validateArchitecture` task reads the configured Gradle project graph and rejects unapproved module names, forbidden project dependencies, cycles, and platform dependencies in `:core:*`. The `:quality:architecture-rules` module is a build-only exception: application modules may load it through the `detektPlugins` configuration, but production code may not depend on it.
+The root `validateArchitecture` task reads the configured Gradle project graph and rejects unapproved module names, forbidden project dependencies, cycles, and platform dependencies in `:core:*`. The `:quality:architecture-rules` module is a build-only exception: application modules may load it through the `detektPlugins` configuration, but production code may not depend on it. `:quality:baseline-profile` is a separate build-only exception accepted by ADR 0010: `:app:android` references the producer only through `baselineProfile`, the producer references the target application only through the generated `testedApks` configuration, and no production or test source set may depend on either module through those edges.
 
 ## Allowed dependency graph
 
@@ -70,6 +73,10 @@ The root `validateArchitecture` task reads the configured Gradle project graph a
 
 :app:android
     -> all modules needed only for explicit composition
+    -[baselineProfile build edge]-> :quality:baseline-profile
+
+:quality:baseline-profile
+    -[testedApks build edge]-> :app:android
 ```
 
 Any dependency not listed is forbidden. In particular:
@@ -169,6 +176,14 @@ Is the composition root. It wires concrete adapters to ports, retains the one ac
 application `EditorRuntime` through an AndroidX `ViewModel`, and launches the UI. Android UUID
 generation implements the application `DocumentIdSource` port here, and the fixed MVP tool palette
 is supplied here as immutable configuration. Business rules in this module are prohibited.
+
+### `:quality:baseline-profile`
+
+Owns the single out-of-process Baseline Profile collection journey accepted by ADR 0010. It launches
+`:app:android`, locates the canonical editor through accessibility semantics, derives input from the
+reported canvas bounds, and exercises Pencil followed by Undo. It does not import core or
+presentation implementation, access document state directly, classify code for a startup profile,
+or ship in the application runtime.
 
 ## Source-set rules
 

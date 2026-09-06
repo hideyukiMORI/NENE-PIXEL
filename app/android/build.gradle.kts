@@ -1,5 +1,6 @@
 plugins {
     alias(libs.plugins.android.application)
+    alias(libs.plugins.androidx.baselineprofile)
     id("nene.android-compose")
 }
 
@@ -17,7 +18,14 @@ android {
     }
 }
 
+baselineProfile {
+    mergeIntoMain = true
+    saveInSrc = true
+    automaticGenerationDuringBuild = false
+}
+
 dependencies {
+    baselineProfile(project(":quality:baseline-profile"))
     implementation(project(":core:application"))
     implementation(project(":core:domain"))
     implementation(project(":presentation:compose"))

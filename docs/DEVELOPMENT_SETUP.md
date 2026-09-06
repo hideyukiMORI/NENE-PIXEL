@@ -52,6 +52,59 @@ The M0 reproducibility smoke profile is a Pixel 8 Pro AVD running API 35 / Andro
 
 The verified fresh-clone transcript, including cold-launch and clean-tree evidence, is recorded in [Fresh-clone and M0 Exit Proof](quality/FRESH_CLONE_PROOF.md).
 
+## Regenerate the Baseline Profile
+
+ADR 0010 defines one explicit generation path for the committed critical-journey profile. Connect
+exactly one unlocked physical Android device, keep it on USB power, use a clean short standalone
+clone whose exact Git revision can be embedded in later release-like artifacts, and run:
+
+```powershell
+.\docs\quality\generate-baseline-profile.ps1 -EvidenceId "issue-NNN-YYYYMMDD-HHMM"
+```
+
+The evidence identity is unique and caller-selected; the command refuses an existing directory.
+It runs the producer exactly twice and writes ignored, versioned evidence to
+`build/reports/baseline-profile-generation/<evidence-id>/`. Each invocation is preserved before the
+next starts: Gradle output, fresh raw producer profile, merged/source profile, available
+instrumentation results/logs, task outcomes, source revision, APK/test-APK hashes, and manifest.
+Blank lines in Gradle output remain in the raw log. A failure after the native invocation, including
+output binding, task parsing, freshness, profile decoding/content, or APK hashing, writes an invalid
+invocation manifest from the available partial evidence and stops before another invocation.
+Any producer output present before an invocation is moved into that invocation's evidence directory
+before Gradle starts; it cannot satisfy the fresh-output check and is not discarded.
+Compilation and packaging keep the normal Gradle cache. This explicit evidence command gates each
+single-use Gradle launcher until it belongs to its own kill-on-close Windows Job Object. It enforces
+a 30-minute producer timeout and requires that job to contain zero active processes before restoring
+tracked files. Final validation has a five-minute timeout. The producer allows at most 15 internal
+iterations and requires three stable iterations.
+Acceptance requires actual connected producer execution and fresh pulled output; an unchanged final
+hash is expected when both fresh invocations generated the same content. Any job-termination failure
+or failure to confirm zero active processes retains the snapshot/evidence and reports restoration
+blocked instead of restoring while output may still change.
+
+The Baseline Profile producer's canonical journey uses a fixed 100 ms pointer-down interval for
+Undo. This is the selected fixed input condition for this collection workload and tests a bounded
+variability-reduction hypothesis; it does not guarantee a rendered frame or establish the cause of
+earlier rule drift. The existing dirty-to-clean accessibility postconditions still verify the Undo
+result in every producer iteration. This duration does not change product-wide Undo input or the
+Issue #54 measurement harness.
+
+After the first evidence and manifest are durable, the command restores the pre-generation tracked
+profile and hash before starting the second invocation. This freezes both tested builds to the same
+profile inputs while leaving the first raw, merged, and source candidate in its invocation evidence.
+The pair comparison reads the two retained invocation records. It does not compare the restored
+working copy.
+
+The command compares every ordered rule and flag after canonical UTF-8/LF normalization with no
+terminal separator, refuses rule/flag drift, writes the accepted canonical source and lowercase
+SHA-256 manifest only after the pair matches, then runs the narrow `validateBaselineProfile` task.
+Only a successful validation writes the acceptance manifest. A failed pair or validation restores
+the pre-generation tracked source/hash; its evidence remains and is not retried under a new identity.
+The command does not hand-edit generated rules, filter framework code, build a signed measurement
+APK, or start a performance run.
+Ordinary builds and CI verify the committed canonical artifact and never start connected-device
+generation automatically.
+
 ## Run the canonical quality gate
 
 Execution frequency is mandatory under [QLT-011 through QLT-016](QUALITY_GATES.md#verification-execution-policy).
