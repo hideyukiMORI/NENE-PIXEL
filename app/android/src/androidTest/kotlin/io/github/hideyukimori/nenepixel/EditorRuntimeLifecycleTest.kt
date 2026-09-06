@@ -1,16 +1,22 @@
 package io.github.hideyukimori.nenepixel
 
+import android.os.Bundle
+import android.os.Process
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
 import androidx.lifecycle.ViewModelProvider
+import androidx.test.platform.app.InstrumentationRegistry
+import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryAvailability
+import io.github.hideyukimori.nenepixel.core.application.editor.DocumentDirtyState
 import io.github.hideyukimori.nenepixel.core.application.editor.EditorRuntime
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceState
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertSame
 import org.junit.Rule
 import org.junit.Test
@@ -18,6 +24,47 @@ import org.junit.Test
 internal class EditorRuntimeLifecycleTest {
     @get:Rule
     val composeRule = createAndroidComposeRule<MainActivity>()
+
+    @Test
+    fun processStageHasOneCanonicalInitialRuntimeAndWorkspaceOwner() {
+        val processId = Process.myPid()
+        check(processId > 0) { "Android reported a non-positive process ID: $processId" }
+        InstrumentationRegistry.getArguments().getString(PRIOR_PROCESS_ID_ARGUMENT)?.let { rawPriorProcessId ->
+            val priorProcessId =
+                requireNotNull(rawPriorProcessId.toIntOrNull()) {
+                    "$PRIOR_PROCESS_ID_ARGUMENT must be a decimal process ID: $rawPriorProcessId"
+                }
+            require(priorProcessId > 0) {
+                "$PRIOR_PROCESS_ID_ARGUMENT must be positive: $priorProcessId"
+            }
+            assertNotEquals(priorProcessId, processId)
+        }
+        InstrumentationRegistry.getInstrumentation().sendStatus(
+            PROCESS_ID_STATUS_CODE,
+            Bundle().apply { putInt(PROCESS_ID_STATUS_KEY, processId) },
+        )
+
+        composeRule.waitForIdle()
+        composeRule.activityRule.scenario.onActivity { activity ->
+            val first = activity.editorModel()
+            val second = activity.editorModel()
+            val state = first.runtime.state
+
+            assertSame(first, second)
+            assertSame(first.runtime, second.runtime)
+            assertSame(first.controller, second.controller)
+            assertSame(state.documentState, second.runtime.state.documentState)
+            assertSame(state.workspaceState, second.runtime.state.workspaceState)
+            assertEquals(16, state.documentState.size.width.value)
+            assertEquals(16, state.documentState.size.height.value)
+            assertEquals(0L, state.documentState.revision.value)
+            assertEquals(HistoryAvailability.None, state.historyAvailability)
+            assertEquals(DocumentDirtyState.Clean, state.dirtyState)
+            assertEquals(DrawingTool.Pencil, state.workspaceState.activeTool)
+            assertEquals(0, state.workspaceState.activePaletteIndex.value)
+        }
+        composeRule.onNodeWithContentDescription("16 by 16 pixel canvas").assertExists()
+    }
 
     @Test
     fun configurationRecreationRetainsTheOnlyDocumentAndWorkspaceOwners() {
@@ -88,6 +135,9 @@ internal class EditorRuntimeLifecycleTest {
         ViewModelProvider(this, EditorRuntimeViewModel.factory)[EditorRuntimeViewModel::class.java]
 
     private companion object {
+        const val PROCESS_ID_STATUS_CODE: Int = 2
+        const val PROCESS_ID_STATUS_KEY: String = "m2ProcessStagePid"
+        const val PRIOR_PROCESS_ID_ARGUMENT: String = "m2PriorProcessId"
         const val SECOND_PALETTE_DESCRIPTION: String = "Palette color 2, RGBA 0, 0, 0, 255"
     }
 }

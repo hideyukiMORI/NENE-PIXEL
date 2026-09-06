@@ -26,12 +26,14 @@ import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
+import java.util.concurrent.atomic.AtomicInteger
 
 internal enum class P2CommandWorkloadKind(
     val metricName: String,
 ) {
     SparseApply("sparse_apply_stroke"),
     DenseApply("dense_apply_stroke"),
+    DenseEraser("dense_eraser_stroke"),
     DenseNoOp("dense_same_color_no_op"),
     DenseUndo("dense_undo"),
     DenseRedo("dense_redo"),
@@ -53,6 +55,9 @@ internal data class P2CommandWorkloadSpec(
 
 internal object P2CommandWorkloadCatalog {
     private val CANVAS_EDGES: List<Int> = listOf(16, 64, 256)
+    val legacyKinds: List<P2CommandWorkloadKind> =
+        P2CommandWorkloadKind.entries.filterNot { kind -> kind == P2CommandWorkloadKind.DenseEraser }
+    val m2Kinds: List<P2CommandWorkloadKind> = P2CommandWorkloadKind.entries
 
     val specs: List<P2CommandWorkloadSpec> =
         CANVAS_EDGES.flatMap(::squareSpecs)
@@ -65,9 +70,10 @@ internal object P2CommandWorkloadCatalog {
     fun shapeSpecs(
         width: Int,
         height: Int,
+        kinds: List<P2CommandWorkloadKind> = legacyKinds,
     ): List<P2CommandWorkloadSpec> {
         require(width > 0 && height > 0) { "Workload width and height must be positive." }
-        return P2CommandWorkloadKind.entries.map { kind -> P2CommandWorkloadSpec(kind, width, height) }
+        return kinds.map { kind -> P2CommandWorkloadSpec(kind, width, height) }
     }
 }
 
@@ -101,6 +107,20 @@ internal data class P2CommandResultDescriptor(
     val changeSetAfterRevision: Long?,
     val renderInvalidation: P2CommandRegionDescriptor?,
 )
+
+internal object P2CommandOraclePreparationTracker {
+    private val eraserExpectedDocumentCount = AtomicInteger()
+
+    fun resetEraserExpectedDocumentCount() {
+        eraserExpectedDocumentCount.set(0)
+    }
+
+    fun recordEraserExpectedDocument() {
+        eraserExpectedDocumentCount.incrementAndGet()
+    }
+
+    fun eraserExpectedDocumentCount(): Int = eraserExpectedDocumentCount.get()
+}
 
 internal class PreparedCommandWorkload internal constructor(
     val spec: P2CommandWorkloadSpec,
@@ -175,6 +195,7 @@ internal class PreparedCommandWorkload internal constructor(
             when (spec.kind) {
                 P2CommandWorkloadKind.SparseApply -> WorkloadFactory.apply(spec, sparse = true, correctness)
                 P2CommandWorkloadKind.DenseApply -> WorkloadFactory.apply(spec, sparse = false, correctness)
+                P2CommandWorkloadKind.DenseEraser -> WorkloadFactory.erase(spec, correctness)
                 P2CommandWorkloadKind.DenseNoOp -> WorkloadFactory.noOp(spec, correctness)
                 P2CommandWorkloadKind.DenseUndo -> WorkloadFactory.undo(spec, correctness)
                 P2CommandWorkloadKind.DenseRedo -> WorkloadFactory.redo(spec, correctness)
@@ -230,6 +251,33 @@ private object WorkloadFactory {
             afterRevision = 1L,
             history = HistoryAvailability.UndoAvailable,
             renderInvalidation = if (sparse) values.diagonalRegion() else values.fullRegion(),
+        )
+    }
+
+    fun erase(
+        spec: P2CommandWorkloadSpec,
+        correctness: Boolean,
+    ): PreparedCommandWorkload {
+        val values = CoreMeasurementValues(spec.canvasWidth, spec.canvasHeight)
+        val initial = values.document(Revision.initial(), values.redPixels())
+        val gateway = CommandGateway.create(initial)
+        return prepared(
+            spec = spec,
+            gateway = gateway,
+            command = values.eraseCommand(initial, values.densePath()),
+            expectedState =
+                if (correctness) {
+                    P2CommandOraclePreparationTracker.recordEraserExpectedDocument()
+                    values.document(values.revision(1L), values.blankPixels())
+                } else {
+                    null
+                },
+            unchangedStateReference = null,
+            expectedResult = ExpectedCommandResult.Applied,
+            beforeRevision = 0L,
+            afterRevision = 1L,
+            history = HistoryAvailability.UndoAvailable,
+            renderInvalidation = values.fullRegion(),
         )
     }
 
@@ -354,6 +402,8 @@ private class CoreMeasurementValues(
 
     fun redPixels(): List<PixelColor> = List(canvas.pixelCount.toInt()) { red }
 
+    fun blankPixels(): List<PixelColor> = List(canvas.pixelCount.toInt()) { PixelColor.blank }
+
     fun diagonalRedPixels(): List<PixelColor> =
         List(canvas.pixelCount.toInt()) { index ->
             if (index % canvas.width.value == index / canvas.width.value) red else white
@@ -384,6 +434,16 @@ private class CoreMeasurementValues(
             state.id,
             state.revision,
             Stroke.create(canvas, path, StrokeEffect.Paint(red)).requiredValue(),
+        )
+
+    fun eraseCommand(
+        state: DocumentState,
+        path: List<PixelPosition>,
+    ): ApplyStrokeCommand =
+        ApplyStrokeCommand.create(
+            state.id,
+            state.revision,
+            Stroke.create(canvas, path, StrokeEffect.Erase).requiredValue(),
         )
 
     fun revision(value: Long): Revision = Revision.create(value).requiredValue()

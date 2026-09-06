@@ -1,6 +1,8 @@
 package io.github.hideyukimori.nenepixel.measurement
 
 import android.app.ActivityManager
+import android.os.Bundle
+import android.os.Process
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.github.hideyukimori.nenepixel.core.application.document.command.ApplyStrokeCommand
@@ -38,6 +40,7 @@ internal class P2ProductionHistoryRetentionMeasurementTest {
     fun measureProductionHistoryAtAcceptedRetentionCaps() {
         val environment = P2AndroidMeasurementEnvironment.fromRunnerArguments()
         val runIndex = requiredRunIndex()
+        reportProcessIdentity(runIndex, environment)
         assertPhysicalEnvironment(environment)
         val values = ProductionHistoryValues()
         val gateway = CommandGateway.create(values.initialDocument())
@@ -46,12 +49,44 @@ internal class P2ProductionHistoryRetentionMeasurementTest {
         values.populateAtBothCaps(gateway)
         values.assertExactRoundTrip(gateway)
         val retained = PostGcMemorySnapshot.captureRetainedMemory(gateway)
-        assertRetainedMemoryPolicy(environment, baseline, retained)
 
         values.exerciseUndoRedoCycles(gateway)
         val afterCycles = PostGcMemorySnapshot.captureRetainedMemory(gateway)
+        val reportText = report(runIndex, environment, baseline, retained, afterCycles)
+        println(reportText)
+        InstrumentationRegistry.getInstrumentation().sendStatus(
+            HISTORY_REPORT_STATUS_CODE,
+            Bundle().apply { putString(HISTORY_REPORT_BUNDLE_KEY, reportText) },
+        )
+        assertRetainedMemoryPolicy(environment, baseline, retained)
         assertPostGcChurnPolicy(retained, afterCycles)
-        println(report(runIndex, environment, baseline, retained, afterCycles))
+    }
+
+    private fun reportProcessIdentity(
+        runIndex: Int,
+        environment: P2AndroidMeasurementEnvironment,
+    ) {
+        val processId = Process.myPid()
+        val processStartElapsedRealtime = Process.getStartElapsedRealtime()
+        val runtimeMaxMemoryBytes = Runtime.getRuntime().maxMemory()
+        val memoryClassMebibytes =
+            environment.targetContext
+                .getSystemService(ActivityManager::class.java)
+                .memoryClass
+        check(processId > 0)
+        check(processStartElapsedRealtime > 0L)
+        check(runtimeMaxMemoryBytes > 0L)
+        check(memoryClassMebibytes > 0)
+        InstrumentationRegistry.getInstrumentation().sendStatus(
+            PROCESS_IDENTITY_STATUS_CODE,
+            Bundle().apply {
+                putInt("m2HistoryRunIndex", runIndex)
+                putInt("m2HistoryProcessId", processId)
+                putLong("m2HistoryProcessStartElapsedRealtimeMillis", processStartElapsedRealtime)
+                putLong("m2HistoryRuntimeMaxMemoryBytes", runtimeMaxMemoryBytes)
+                putInt("m2HistoryMemoryClassMebibytes", memoryClassMebibytes)
+            },
+        )
     }
 
     private fun requiredRunIndex(): Int {
@@ -116,6 +151,9 @@ internal class P2ProductionHistoryRetentionMeasurementTest {
 
     private companion object {
         const val RUN_INDEX_ARGUMENT: String = "nene.p2.historyRunIndex"
+        const val PROCESS_IDENTITY_STATUS_CODE: Int = 3
+        const val HISTORY_REPORT_STATUS_CODE: Int = 4
+        const val HISTORY_REPORT_BUNDLE_KEY: String = "m2HistoryReport"
         const val STEADY_HEAP_PERCENT: Long = 50L
         const val INDIVIDUAL_PSS_PERCENT: Long = 60L
         const val PERCENT_DENOMINATOR: Long = 100L

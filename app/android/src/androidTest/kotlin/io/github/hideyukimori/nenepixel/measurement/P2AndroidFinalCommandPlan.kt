@@ -16,6 +16,7 @@ internal data class P2AndroidFinalCommandPlan(
         val warmupIterations: Int,
         val samplesPerWorkload: Int,
         val schema: String,
+        val kinds: List<P2CommandWorkloadKind>,
     )
 
     data class Output(
@@ -60,7 +61,7 @@ internal data class P2AndroidFinalCommandPlan(
         get() = workload.schema
 
     val specs: List<P2CommandWorkloadSpec>
-        get() = P2CommandWorkloadCatalog.shapeSpecs(canvasWidth, canvasHeight)
+        get() = P2CommandWorkloadCatalog.shapeSpecs(canvasWidth, canvasHeight, workload.kinds)
 
     val workloadNames: List<String>
         get() = specs.map { spec -> spec.kind.metricName }
