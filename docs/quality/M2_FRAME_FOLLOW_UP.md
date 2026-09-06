@@ -1480,3 +1480,248 @@ and severity-marked loss/error values are zero. Service-global `traced_chunks_di
 `traced_patches_discarded=0` are retained as predeclared informational counters. The raw trace,
 per-frame and per-sample correlations, scheduler and workload rows, clock snapshots, integrity rows,
 UI evidence, logcat, and tool/config manifests are retained locally without a second v2 collection.
+
+## Commit front-half attribution v1
+
+Historical preflight-only protocol: superseded by v2 below before any trace was started. Both
+retained v1 attempts remain `invalid-before-trace-start`; v1 permits no further collection.
+
+Issue #67 records one new attribution question after an offline all-frame review of the retained
+generated-profile and offscreen decision batches. In the generated-profile batch, all 100
+preview/commit rows join uniquely to their raw `gfxinfo` row by sample, phase, and FrameTimeline
+vsync ID. The nine late commits have median `AnimationStart` to `PerformTraversalsStart` of
+2.1165 ms, compared with 0.9931 ms for the 41 on-time commits, while median
+`IssueDrawCommandsStart` to `SwapBuffers` is 4.6157 versus 4.5947 ms. The offscreen batch shows the
+same association. This does not prove causation, the medians are not additive, and neither old APK
+is relabelled as current `main` evidence.
+
+The retained generated-profile scheduling run 1 cannot resolve the question: continuing Undo
+ripple frames overlap later Pencil events and prevent unique phase association. Its run 2 and the
+source-attribution-v1 trace are retained zero-byte invalid artifacts with exhausted budgets. Schema
+`nene-pixel-m2-commit-front-half-attribution-v1` therefore permits exactly one distinct intrusive
+trace of the fixed generated-profile source
+`efb8c36003a1c62e958da92cf4fb28c2b35dc261` and APK SHA-256
+`359a8f5a6975afae6f29e8680a69ae14f28164db72d36b250225f03d8f3de959` (8,410,691 bytes).
+The APK's embedded revision, v2/v3 signature, packaged profile assets, and installed
+`speed-profile` state must be verified. This known artifact is valid for diagnosis of its own
+configuration even though ADR-0010 provenance remains pending and it cannot be shipped or used as
+current-`main` acceptance evidence.
+
+The fixed workload uses the physical
+`NENE-P2-ALLDOCUBE-IPL80MP-A16-API36` profile at 1200 x 1920 and 90 Hz. It installs the exact APK
+without clearing application data, requires the canonical clean 16 x 16 editor state, installs the
+packaged profile, compiles `speed-profile`, and completes five Pencil/Undo warmups before tracing.
+The sole trace then contains exactly 20 isolated operations. Each operation retains every frame from
+separate 100 ms DOWN-preview and 350 ms UP-commit `gfxinfo` windows, verifies the committed state,
+performs Undo, verifies the clean state, and waits 1,200 ms before the next DOWN so a continuing
+button ripple cannot overlap the next Pencil phase.
+
+Perfetto has a hard 120-second session timeout and records FrameTimeline, scheduling and wakeups,
+CPU frequency/idle, input/view/gfx/HWUI app slices, and process statistics. The canonical collector
+is [collect-m2-commit-front-half-attribution.ps1](measurements/collect-m2-commit-front-half-attribution.ps1);
+its shared lifecycle is covered by
+[validate-m2-perfetto-session.ps1](validate-m2-perfetto-session.ps1), and the only analyzer is
+[analyze-m2-commit-front-half-attribution.ps1](measurements/analyze-m2-commit-front-half-attribution.ps1).
+The collector uses a unique named STOP_TRACING session. After the workload it sends one stop trigger, waits at
+most 30 seconds for that exact session to disappear, then requires a positive finalized remote byte
+count before pull and an identical positive local byte count after pull. The invocation directory,
+manifest, config, tool log, raw frame rows, and trace are never overwritten. A failure after the
+trace starts consumes the sole invocation and remains invalid evidence; no replacement collection
+or automatic late-frame search is allowed.
+
+Analysis includes every associated preview and commit frame and separates late from on-time using
+the unchanged `frame_overrun_ms > 0` diagnostic classification. For the app main thread and
+RenderThread it reports Running, Runnable, Sleeping, and other thread-state overlaps and scheduled
+CPU/core intervals. It also retains overlapping Choreographer, Compose/recompose/applyChanges,
+traversal/recording, queue/sync/issue, GPU/post, and SurfaceFlinger fields where the platform emits
+them. Overlapping slices are not added together, sleep is not called GPU work, and an absent trace
+marker is reported as missing data rather than zero cost. If the 20 operations contain no late
+commit or any required frame association is ambiguous, the result is inconclusive and the budget
+still stops.
+
+This schema is attribution-only. It changes no v7 population, percentile, threshold, historical
+FAIL, product behavior, ownership, renderer, dependency, or profile acceptance rule. It may support
+one later prospective implementation plan only if a controllable operation is identified; it is
+never a performance PASS or a substitute for an untraced v7 decision population.
+
+### Prospective v2 correction before collection
+
+Issue #67 supersedes v1 with `nene-pixel-m2-commit-front-half-attribution-v2` before the first
+trace. Read-only preflight measured one UiAutomator dump at 2.251 seconds: 40 dumps plus the
+20 fixed 1.650-second waits require 123.04 seconds even before adb/frame overhead. V2 therefore
+fixes ten operations, five warmups, one trace total, the same 120-second hard timeout, and a
+100-second host workload deadline reserving time for finalization. Fewer samples may produce no
+late commit; that is inconclusive with no replacement run. This is not a 20-operation acceptance
+population. All v1 source/APK/profile, device, preview/commit waits, quiet reset, all-frame
+association and diagnostic-only conditions above remain unchanged.
+
+The initial clean checkpoint requires disabled Undo and Redo; the clean checkpoint restored by
+Undo requires disabled Undo and enabled Redo. The collector retains partial raw/frame evidence
+and the original error, and attempts the exact session's stop/finalized pull once on failure.
+Starting the native producer consumes the invocation even if its acknowledgement is malformed.
+Analysis rejects trace error/data-loss/parser/loss/wrap and failed or missing final flush before
+reporting attribution. Service-global discarded chunks/patches remain informational as in
+physical-present v2. The actual UI predicates, failure paths, lifecycle fixture, parser and
+documentation receive narrow host verification before collection. No production or threshold
+change is part of this correction; the previous invalid files and historical FAIL results remain.
+
+### V2 sole invocation result: invalid after start
+
+The sole v2 invocation used harness commit `0f2f0f4e9a176e48456eedb62c94d2a252b1c432` and
+the exact unchanged APK above. Signature v2/v3, embedded revision, profile installation,
+`speed-profile`, physical unlocked 90 Hz state, thermal status 1, initial clean UI, and five
+Pencil/Undo warmups passed. Total collector wall time was 29.984 seconds, not operation latency.
+
+The first DOWN produced one raw preview row, but PowerShell rejected blank lines in the
+mandatory `string[]` argument to `Get-FrameRows` before the parser body ran. No UP/commit or
+complete diagnostic operation followed. The host fixtures had covered UI and lifecycle but had
+missed binding of real blank-containing gfxinfo output. This is a harness failure, not evidence
+of a product defect or improvement. The fixed one-trace budget is consumed (1/1, operations
+0/10); v2 has no remaining collection authorization.
+
+The exception cleanup sent the exact stop trigger and retained the finalized 512,553-byte trace,
+SHA-256 `3f6a8e611be5e845105a09a06914f9b45b7c3dc914170bc456c2d0cf498333d9`, with equal
+device/local lengths. Offline audit found one app actual frame, final flush success 1, failure 0,
+and zero severity error/data-loss or frame-parser/pairing failures. Seven service-global discarded
+chunks remain informational. The raw preview, configuration, tool log, UI/environment/profile
+checks and invalid run state remain immutable in private
+`experiments/67/commit-front-half-attribution-v2-run-01/`. The app was stopped to cancel the
+unfinished gesture, and the named session is absent.
+
+`AllowEmptyString` fixes the actual frame-array binding without filtering raw rows. A regression
+first reproduced the same failure, then passed for blank-containing synthetic and retained raw
+input; flagged rows and inconsistent cardinality still fail. The saved run is not reclassified,
+and no new device collection, APK build, profile generation or full suite followed the repair.
+
+The COMMIT Running/Runnable/Sleeping comparison and a controllable production bottleneck remain
+unresolved. Existing cohort differences are associations, not a measured removable cost. No
+runtime candidate or speedup is established. The next prerequisite is a device-free replay of
+the complete collector orchestration, including real raw text and injected failures at each
+boundary; only a separately prospective, justified protocol could authorize another trace.
+Issue #54 remains FAIL/open and #44 stays blocked. Active waivers: none.
+
+### Prospective v3 after full host orchestration verification
+
+Issue #67 records hide's further continuation request and schema
+`nene-pixel-m2-commit-front-half-attribution-v3` before any v3 trace. The actual collector entry
+and analyzer now run through [the complete host fixture](validate-m2-attribution-orchestration.ps1),
+replacing native responses only in an isolated PowerShell process. Eight scenarios cover all ten
+operations and twenty frames, malformed/flagged raw, wrong committed UI, malformed start response,
+duplicate association, data loss and analyzer failure. Every started case finalizes once; partial
+frames and errors remain. All five generated SQL queries also execute with the real pinned processor
+against the saved v2 trace, establishing query compatibility, not diagnostic population validity.
+
+These checks address the observed raw-binding/composition failure. V3 fixes one new intrusive trace,
+ten operations, five warmups, unchanged 100/350 ms preview/commit waits and 1,200 ms Undo quiet,
+the same exact `efb8c36` APK/profile/physical conditions, 120-second hard timeout and 100-second host
+workload deadline. No candidate or acceptance batch is repeated. V1/v2 outcomes and consumed budgets
+remain immutable; there is no v3 replacement after start, even if it is invalid, has no late COMMIT,
+or cannot associate all frames. Required parser/pairing and per-buffer loss/drop/wrap/overwrite
+statistics and successful final flush must be present and valid before attribution.
+
+The question remains whether late COMMIT adds main/RenderThread CPU execution or runnable/sleeping
+delay and which emitted Compose/traversal/recording or scheduler interval accounts for it. Missing
+markers are unavailable, overlapping slices are not additive, and traced timing or synthetic host
+responses cannot prove a speedup. No runtime candidate, APK rebuild, profile generation, full suite,
+dependency, new renderer or threshold change is authorized by this diagnostic protocol.
+
+### V3 result: complete attribution, not performance acceptance
+
+The sole v3 invocation used harness `edacaa99838d73f883fce19ba74bb9700a444924` with the unchanged
+exact `efb8c36` APK. It completed all ten operations and retained twenty unique frames (ten preview,
+ten COMMIT), each with exactly one app actual/expected association and one SurfaceFlinger actual
+association. All recorded UI checkpoints and three 90 Hz, unlocked, USB-powered, thermal-status-1
+environment checks passed; the fatal/ANR scan passed. This does not add an independent pixel oracle.
+
+The trace spans 71.433673 seconds, below the 120-second cap. Collector wall time including host SQL
+analysis was 186.007 seconds. Finalized device/local trace sizes are both 32,941,642 bytes, SHA-256
+`5ff13add98b54ae69e02c9e0ee677ddcb431b32cb0563700ccad7b605d23916e`. Final flush succeeded once;
+all fifteen flushes succeeded, required integrity counters are present, and all error/data-loss,
+parser/pairing and per-buffer loss/drop/wrap/overwrite failures are zero. Eight service-global
+discarded chunks are informational. All twenty associated SurfaceFlinger frames finished on time.
+
+All ten previews were within the raw app-frame deadline; nine COMMIT frames exceeded it. The
+maximum was sample 7 at +2.909252 ms; sample 10 was the only on-time COMMIT at -0.519955 ms.
+These are intrusive, old-artifact diagnostic observations, not v7 decision percentiles or current
+main acceptance. V3 consumed its one invocation, with no replacement or acceptance collection.
+
+Offline interval analysis used Perfetto's monotonic conversion with a stable clock offset for all
+twenty rows. Expected-frame versus raw intended-vsync alignment residuals were at most 693 ns.
+Thread-state intervals cover all forty animation-to-traversal and draw-to-queue windows exactly.
+Thirty-eight windows contain only CPU Running; sample 1's COMMIT animation window includes
+0.124615 ms Runnable and sample 7's COMMIT draw window includes 0.177384 ms Runnable. None contains
+Sleeping. All ten COMMIT `Recomposer:recompose` and `TextStringSimpleNode::measure` slices consist
+entirely of Running. The additional front-half work is therefore observed CPU execution, not an
+unidentified main-thread sleep. This does not establish which app call caused every CPU instruction.
+
+| Observed COMMIT quantity (ms) | Sample 7, largest overrun | Sample 10, only on-time |
+| --- | ---: | ---: |
+| Main Running over the full app frame | 5.819233 | 2.977461 |
+| Animation-to-traversal plus draw-to-queue Running | 4.803732 | 2.150500 |
+| Recomposer recompose slice | 2.139577 | 0.755269 |
+| Compose recompose child slice | 1.412116 | 0.486539 |
+| Text measurement slice | 1.032538 | 0.400962 |
+| AndroidOwner measure/layout slice | 1.645154 | 0.540308 |
+| AndroidOwner draw slice | 0.670769 | 0.552885 |
+
+Rows overlap hierarchically and MUST NOT be added. Sample 7 ran the front half across CPUs 4/6
+with duration-weighted observed frequency about 1.121 GHz; sample 10 used CPU 7 at 1.536 GHz.
+Frequency changes within each running interval are included. Samples 2-6 and 8-9 used CPU 6 at
+1.2288 GHz in these windows. This is scheduling/frequency context, not a controlled causal effect,
+not proof that frequency alone explains the tail, and not permission to pin CPUs or force frequency.
+
+The separate RenderThread `QueueSubmit` slice also has material waiting: late COMMIT median
+Running/Runnable/Sleeping is 0.203577/0.347384/3.468769 ms, versus
+0.184114/0.063886/3.381269 ms in the sole on-time COMMIT. Sleeping does not prove GPU saturation.
+The largest-overrun sample's QueueSubmit is shorter than several other COMMIT samples. A backend
+replacement or revival of the rejected offscreen candidate is not supported by this trace.
+
+#### Improvement recommendation and limits
+
+Prioritize elimination of repeated COMMIT presentation CPU work, with text measurement and
+recomposition as the measured regions. In the retained UI checkpoints, the only changed string is
+the document dirty-status label; `HistoryControls.kt` changes that string while Undo/Redo enabled
+states also change. Source inspection and the sole text-measure slice are consistent with that label,
+but no source-specific marker uniquely identifies it. `HistoryControls.kt` and `EditorScreen.kt`
+are byte-equivalent between the measured source and this main-based worktree.
+
+A concrete optimization hypothesis is bounded reuse of the two dirty-status text layouts with
+proper invalidation for density, font scale, style/font resolution and constraints, preserving
+current label geometry, semantics and dirty/history ownership. This is not a newly selected candidate:
+the earlier `c86133c` premeasured-label implementation already attempted this direction and was
+reverted after its old +0.381973 ms ten-sample result. The new trace establishes where CPU is spent
+but does not prove that restoring that implementation meets the current gate. The prior leaf-state
+and precomposed-label changes likewise remain rejected. No speedup or additive saving is claimed.
+
+The next implementation decision must isolate the concrete label/control operation and explain a
+meaningful difference from those rejected implementations, or prospectively justify revisiting one
+using this new CPU evidence and a valid comparison. Required checks would cover dirty/Undo/Redo
+semantics, exact text/canvas geometry and pixels, font/density/constraint invalidation and a separately
+fixed untraced decision comparison. No production edit, architecture/API change, additional trace,
+profile generation or APK rebuild followed this diagnostic. #54 remains open with its historical
+FAIL, #44 remains blocked, and #62's profile-provenance gap is unchanged. Active waivers: none.
+
+All raw files, SQL, thread/slice/core/frequency rows, clock checks, integrity logs and summary remain
+under private `experiments/67/commit-front-half-attribution-v3-run-01/`; the additional interval
+queries are in `offline-cause-analysis-02/`. The earlier offline attempt and its CSV-header/clock
+alignment assertion failure are retained separately; it collected no device data and changed no
+run verdict. Interpretation follows the [Perfetto scheduling documentation](https://perfetto.dev/docs/data-sources/cpu-scheduling)
+and [FrameTimeline definitions](https://perfetto.dev/docs/data-sources/frametimeline).
+
+#### Integration-review strengthening
+
+Post-collection review commit `d09a253cb8092cb4fe13bd8a4f4b7ff258a94fb5` closes two fail-closed
+harness gaps without changing or relabelling the collected artifact. The analyzer now rejects a
+requested frame unless its SurfaceFlinger actual association is unique as well as both app
+associations. The dexopt preflight now delimits the exact target package block by its own header
+indentation, so an unindented following package cannot supply a misleading `speed-profile` value.
+The collected v3 harness identity remains `edacaa99838d73f883fce19ba74bb9700a444924`.
+
+The complete device-free fixture now passes eleven scenarios. It checks app actual, app expected,
+and SurfaceFlinger actual duplication independently and adds a target-package/decoy-package profile
+mismatch to the prior eight. A fresh offline
+analysis output directory using the strengthened analyzer and the immutable v3 trace again reports
+`attribution-complete`, twenty requested frames, nine late COMMIT frames, and the unchanged
+120/112/1,443 thread-state/scheduler/slice row counts. This is validation of the existing saved
+trace and analyzer guard only; it is not another device collection, performance sample, source-label
+attribution, or acceptance result.
