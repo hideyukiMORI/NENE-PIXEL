@@ -23,6 +23,100 @@ $script:AppApkRelativePath = 'app/android/build/outputs/apk/nonMinifiedRelease/a
 $script:TestApkRelativePath =
     'quality/baseline-profile/build/outputs/apk/nonMinifiedRelease/baseline-profile-nonMinifiedRelease.apk'
 
+if ($null -eq ('NenePixelBaselineProfile.JobNativeMethods' -as [type])) {
+    Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+
+namespace NenePixelBaselineProfile {
+    [StructLayout(LayoutKind.Sequential)]
+    public struct IoCounters {
+        public ulong ReadOperationCount;
+        public ulong WriteOperationCount;
+        public ulong OtherOperationCount;
+        public ulong ReadTransferCount;
+        public ulong WriteTransferCount;
+        public ulong OtherTransferCount;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct BasicLimitInformation {
+        public long PerProcessUserTimeLimit;
+        public long PerJobUserTimeLimit;
+        public uint LimitFlags;
+        public UIntPtr MinimumWorkingSetSize;
+        public UIntPtr MaximumWorkingSetSize;
+        public uint ActiveProcessLimit;
+        public UIntPtr Affinity;
+        public uint PriorityClass;
+        public uint SchedulingClass;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ExtendedLimitInformation {
+        public BasicLimitInformation BasicLimitInformation;
+        public IoCounters IoInfo;
+        public UIntPtr ProcessMemoryLimit;
+        public UIntPtr JobMemoryLimit;
+        public UIntPtr PeakProcessMemoryUsed;
+        public UIntPtr PeakJobMemoryUsed;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct BasicAccountingInformation {
+        public long TotalUserTime;
+        public long TotalKernelTime;
+        public long ThisPeriodTotalUserTime;
+        public long ThisPeriodTotalKernelTime;
+        public uint TotalPageFaultCount;
+        public uint TotalProcesses;
+        public uint ActiveProcesses;
+        public uint TotalTerminatedProcesses;
+    }
+
+    public static class JobNativeMethods {
+        public const uint JobObjectLimitKillOnJobClose = 0x00002000;
+        public const int JobObjectBasicAccountingInformation = 1;
+        public const int JobObjectExtendedLimitInformation = 9;
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        public static extern IntPtr CreateJobObject(IntPtr jobAttributes, string name);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool SetInformationJobObject(
+            IntPtr job,
+            int informationClass,
+            ref ExtendedLimitInformation information,
+            uint informationLength
+        );
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool QueryInformationJobObject(
+            IntPtr job,
+            int informationClass,
+            ref BasicAccountingInformation information,
+            uint informationLength,
+            out uint returnLength
+        );
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool AssignProcessToJobObject(IntPtr job, IntPtr process);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool TerminateJobObject(IntPtr job, uint exitCode);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool CloseHandle(IntPtr handle);
+    }
+}
+'@
+}
+
 function Get-Sha256Hex {
     param([Parameter(Mandatory = $true)][byte[]]$Bytes)
 
@@ -292,53 +386,187 @@ function Get-RetainedFileRecords {
     )
 }
 
+function New-InvocationJob {
+    $job = [NenePixelBaselineProfile.JobNativeMethods]::CreateJobObject([IntPtr]::Zero, $null)
+    if ($job -eq [IntPtr]::Zero) {
+        throw "CreateJobObject failed with Win32 error $([Runtime.InteropServices.Marshal]::GetLastWin32Error())."
+    }
+    $limits = [NenePixelBaselineProfile.ExtendedLimitInformation]::new()
+    $limits.BasicLimitInformation.LimitFlags =
+        [NenePixelBaselineProfile.JobNativeMethods]::JobObjectLimitKillOnJobClose
+    $size = [Runtime.InteropServices.Marshal]::SizeOf($limits)
+    if (-not [NenePixelBaselineProfile.JobNativeMethods]::SetInformationJobObject(
+            $job,
+            [NenePixelBaselineProfile.JobNativeMethods]::JobObjectExtendedLimitInformation,
+            [ref]$limits,
+            $size
+        )) {
+        $errorCode = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
+        [NenePixelBaselineProfile.JobNativeMethods]::CloseHandle($job) | Out-Null
+        throw "SetInformationJobObject failed with Win32 error $errorCode."
+    }
+    return $job
+}
+
+function Get-InvocationJobActiveProcessCount {
+    param([Parameter(Mandatory = $true)][IntPtr]$Job)
+
+    $accounting = [NenePixelBaselineProfile.BasicAccountingInformation]::new()
+    $returnLength = [uint32]0
+    $size = [Runtime.InteropServices.Marshal]::SizeOf($accounting)
+    if (-not [NenePixelBaselineProfile.JobNativeMethods]::QueryInformationJobObject(
+            $Job,
+            [NenePixelBaselineProfile.JobNativeMethods]::JobObjectBasicAccountingInformation,
+            [ref]$accounting,
+            $size,
+            [ref]$returnLength
+        )) {
+        throw "QueryInformationJobObject failed with Win32 error " +
+            "$([Runtime.InteropServices.Marshal]::GetLastWin32Error())."
+    }
+    return [int]$accounting.ActiveProcesses
+}
+
+function Wait-InvocationJobEmpty {
+    param(
+        [Parameter(Mandatory = $true)][IntPtr]$Job,
+        [Parameter(Mandatory = $true)][datetime]$DeadlineUtc
+    )
+
+    do {
+        if ((Get-InvocationJobActiveProcessCount -Job $Job) -eq 0) {
+            return $true
+        }
+        Start-Sleep -Milliseconds 100
+    } while ([datetime]::UtcNow -lt $DeadlineUtc)
+    return (Get-InvocationJobActiveProcessCount -Job $Job) -eq 0
+}
+
 function Invoke-GradleCommand {
     param(
         [Parameter(Mandatory = $true)][string]$RepositoryRoot,
         [Parameter(Mandatory = $true)][string]$LogPath,
         [Parameter(Mandatory = $true)][string[]]$GradleArguments,
-        [ValidateRange(1, 1800)][int]$TimeoutSeconds = $script:ProducerTimeoutSeconds
+        [ValidateRange(1, 1800)][int]$TimeoutSeconds = $script:ProducerTimeoutSeconds,
+        [scriptblock]$JobTerminator = {
+            param([Parameter(Mandatory = $true)][IntPtr]$Job)
+
+            if (-not [NenePixelBaselineProfile.JobNativeMethods]::TerminateJobObject($Job, 124)) {
+                throw "TerminateJobObject failed with Win32 error " +
+                    "$([Runtime.InteropServices.Marshal]::GetLastWin32Error())."
+            }
+        }
     )
 
     $gradleWrapper = Join-Path $RepositoryRoot 'gradlew.bat'
     if (-not (Test-Path -LiteralPath $gradleWrapper -PathType Leaf)) {
         throw "Gradle Wrapper is missing: $gradleWrapper"
     }
-    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
-    $startInfo.FileName = $env:ComSpec
-    $startInfo.WorkingDirectory = $RepositoryRoot
-    $startInfo.UseShellExecute = $false
-    $startInfo.CreateNoWindow = $true
-    $startInfo.RedirectStandardOutput = $true
-    $startInfo.RedirectStandardError = $true
-    $startInfo.ArgumentList.Add('/d')
-    $startInfo.ArgumentList.Add('/s')
-    $startInfo.ArgumentList.Add('/c')
-    $startInfo.ArgumentList.Add($gradleWrapper)
-    foreach ($argument in @($GradleArguments) + @('--no-daemon')) {
-        $startInfo.ArgumentList.Add($argument)
+    $launcherPath = "$LogPath.launcher.ps1"
+    $launcher = @'
+param(
+    [Parameter(Mandatory = $true)][string]$GateName,
+    [Parameter(Mandatory = $true)][string]$RepositoryRoot,
+    [Parameter(Mandatory = $true)][string]$LogPath,
+    [Parameter(ValueFromRemainingArguments = $true)][string[]]$GradleArguments
+)
+$ErrorActionPreference = 'Stop'
+$gate = $null
+try {
+    $gate = [Threading.EventWaitHandle]::OpenExisting($GateName)
+    if (-not $gate.WaitOne(30000)) {
+        throw 'Timed out waiting for the parent-owned job assignment gate.'
     }
-
-    $process = [System.Diagnostics.Process]::new()
-    $process.StartInfo = $startInfo
+    Push-Location $RepositoryRoot
     try {
-        if (-not $process.Start()) {
-            throw 'Gradle Wrapper process did not start.'
+        & (Join-Path $RepositoryRoot 'gradlew.bat') @GradleArguments *> $LogPath
+        exit $LASTEXITCODE
+    }
+    finally {
+        Pop-Location
+    }
+}
+catch {
+    if (Test-Path -LiteralPath $LogPath -PathType Leaf) {
+        $_.Exception.ToString() | Add-Content -LiteralPath $LogPath -Encoding utf8NoBOM
+    } else {
+        $_.Exception.ToString() | Set-Content -LiteralPath $LogPath -Encoding utf8NoBOM
+    }
+    exit 125
+}
+finally {
+    if ($null -ne $gate) {
+        $gate.Dispose()
+    }
+}
+'@
+    [System.IO.File]::WriteAllText($launcherPath, $launcher, [System.Text.UTF8Encoding]::new($false))
+    $gateName = "Local\NenePixelBaselineProfile-$([guid]::NewGuid().ToString('N'))"
+    $gateCreated = $false
+    $gate = [Threading.EventWaitHandle]::new(
+        $false,
+        [Threading.EventResetMode]::ManualReset,
+        $gateName,
+        [ref]$gateCreated
+    )
+    if (-not $gateCreated) {
+        $gate.Dispose()
+        throw 'Failed to create the unique invocation assignment gate.'
+    }
+    $job = [IntPtr]::Zero
+    $process = [System.Diagnostics.Process]::new()
+    $started = $false
+    $assigned = $false
+    $jobConfirmedEmpty = $false
+    try {
+        $job = New-InvocationJob
+        $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+        $startInfo.FileName = Join-Path $PSHOME 'pwsh.exe'
+        $startInfo.WorkingDirectory = $RepositoryRoot
+        $startInfo.UseShellExecute = $false
+        $startInfo.CreateNoWindow = $true
+        foreach ($argument in @(
+                '-NoProfile',
+                '-File',
+                $launcherPath,
+                '-GateName',
+                $gateName,
+                '-RepositoryRoot',
+                $RepositoryRoot,
+                '-LogPath',
+                $LogPath
+            ) + @($GradleArguments) + @('--no-daemon')) {
+            $startInfo.ArgumentList.Add($argument)
         }
-        $standardOutput = $process.StandardOutput.ReadToEndAsync()
-        $standardError = $process.StandardError.ReadToEndAsync()
-        if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
+        $process.StartInfo = $startInfo
+        if (-not $process.Start()) {
+            throw 'Gradle launcher process did not start.'
+        }
+        $started = $true
+        if (-not [NenePixelBaselineProfile.JobNativeMethods]::AssignProcessToJobObject(
+                $job,
+                $process.Handle
+            )) {
+            throw "AssignProcessToJobObject failed with Win32 error " +
+                "$([Runtime.InteropServices.Marshal]::GetLastWin32Error())."
+        }
+        $assigned = $true
+        $gate.Set() | Out-Null
+        $deadline = [datetime]::UtcNow.AddSeconds($TimeoutSeconds)
+        $completed = Wait-InvocationJobEmpty -Job $job -DeadlineUtc $deadline
+        if (-not $completed) {
             $terminationFailure = $null
             try {
-                $process.Kill($true)
+                & $JobTerminator -Job $job
             }
             catch {
                 $terminationFailure = $_.Exception.Message
             }
-            $quiescent = $process.HasExited -or $process.WaitForExit(10000)
-            if (-not $quiescent) {
-                $message = "Gradle invocation timed out after $TimeoutSeconds seconds, and its owned " +
-                    'process tree could not be confirmed stopped; tracked-file restoration is blocked.'
+            $quiescent = Wait-InvocationJobEmpty -Job $job -DeadlineUtc ([datetime]::UtcNow.AddSeconds(10))
+            $jobConfirmedEmpty = $quiescent
+            if ($null -ne $terminationFailure -or -not $quiescent) {
+                $message = "Gradle invocation timed out after $TimeoutSeconds seconds, and its job " +
+                    'could not be confirmed terminated; tracked-file restoration is blocked.'
                 if ($null -ne $terminationFailure) {
                     $message += " Termination failure: $terminationFailure"
                 }
@@ -346,38 +574,75 @@ function Invoke-GradleCommand {
                 $exception.Data[$script:RestorationBlockedDataKey] = $true
                 throw $exception
             }
-            $outputLines = @(
-                @($standardOutput.GetAwaiter().GetResult() -split "`r?`n") |
-                    Where-Object { $_.Length -ne 0 }
-                @($standardError.GetAwaiter().GetResult() -split "`r?`n") |
-                    Where-Object { $_.Length -ne 0 }
-            )
-            $outputLines | Set-Content -LiteralPath $LogPath -Encoding utf8NoBOM
-            throw "Gradle invocation timed out after $TimeoutSeconds seconds; its owned process tree was stopped."
+            throw "Gradle invocation timed out after $TimeoutSeconds seconds; its job reached zero active processes."
         }
+        $jobConfirmedEmpty = $true
         $process.WaitForExit()
-        $outputLines = @(
-            @($standardOutput.GetAwaiter().GetResult() -split "`r?`n") |
-                Where-Object { $_.Length -ne 0 }
-            @($standardError.GetAwaiter().GetResult() -split "`r?`n") |
-                Where-Object { $_.Length -ne 0 }
-        )
         $exitCode = $process.ExitCode
+        $outputLines = if (Test-Path -LiteralPath $LogPath -PathType Leaf) {
+            @(Get-Content -LiteralPath $LogPath)
+        } else {
+            @()
+        }
+        $outputLines | ForEach-Object { Write-Host $_ }
+        return [pscustomobject]@{ ExitCode = $exitCode; OutputLines = $outputLines }
     }
     catch {
-        if (Test-Path -LiteralPath $LogPath -PathType Leaf) {
-            $_.Exception.ToString() | Add-Content -LiteralPath $LogPath -Encoding utf8NoBOM
-        } else {
-            $_.Exception.ToString() | Set-Content -LiteralPath $LogPath -Encoding utf8NoBOM
+        $originalException = $_.Exception
+        if (
+            $assigned -and
+            -not $jobConfirmedEmpty -and
+            $originalException.Data[$script:RestorationBlockedDataKey] -ne $true
+        ) {
+            $terminationFailure = $null
+            try {
+                & $JobTerminator -Job $job
+            }
+            catch {
+                $terminationFailure = $_.Exception.Message
+            }
+            $quiescent = $false
+            try {
+                $quiescent = Wait-InvocationJobEmpty -Job $job `
+                    -DeadlineUtc ([datetime]::UtcNow.AddSeconds(10))
+            }
+            catch {
+                $terminationFailure = if ($null -eq $terminationFailure) {
+                    $_.Exception.Message
+                } else {
+                    "$terminationFailure; $($_.Exception.Message)"
+                }
+            }
+            $jobConfirmedEmpty = $quiescent
+            if ($null -ne $terminationFailure -or -not $quiescent) {
+                $message = 'Gradle job failure could not be followed by confirmed job termination; ' +
+                    "tracked-file restoration is blocked. Original failure: $($originalException.Message)"
+                if ($null -ne $terminationFailure) {
+                    $message += " Termination failure: $terminationFailure"
+                }
+                $blockedException = [System.InvalidOperationException]::new($message, $originalException)
+                $blockedException.Data[$script:RestorationBlockedDataKey] = $true
+                $originalException = $blockedException
+            }
         }
-        throw
+        if ($started -and -not $assigned -and -not $process.HasExited) {
+            $process.Kill()
+            $process.WaitForExit(10000) | Out-Null
+        }
+        if (Test-Path -LiteralPath $LogPath -PathType Leaf) {
+            $originalException.ToString() | Add-Content -LiteralPath $LogPath -Encoding utf8NoBOM
+        } else {
+            $originalException.ToString() | Set-Content -LiteralPath $LogPath -Encoding utf8NoBOM
+        }
+        throw $originalException
     }
     finally {
+        $gate.Dispose()
         $process.Dispose()
+        if ($job -ne [IntPtr]::Zero) {
+            [NenePixelBaselineProfile.JobNativeMethods]::CloseHandle($job) | Out-Null
+        }
     }
-    $outputLines | Set-Content -LiteralPath $LogPath -Encoding utf8NoBOM
-    $outputLines | ForEach-Object { Write-Host $_ }
-    return [pscustomobject]@{ ExitCode = $exitCode; OutputLines = $outputLines }
 }
 
 function Get-ManifestProfileRecord {

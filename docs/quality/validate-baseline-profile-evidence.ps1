@@ -211,8 +211,8 @@ function Assert-NativeTimeoutQuiescence {
     $batch = @(
         '@echo off',
         'echo timeout-worker-started arguments=%*',
-        'ping.exe 127.0.0.1 -n 4 >NUL',
-        'echo late-write>timeout-late-write.txt'
+        'start "" /b cmd.exe /d /c "ping.exe 127.0.0.1 -n 4 >NUL & echo late-write>timeout-late-write.txt"',
+        'exit /b 0'
     ) -join "`r`n"
     [System.IO.File]::WriteAllText($wrapper, $batch, [System.Text.Encoding]::ASCII)
 
@@ -231,6 +231,36 @@ function Assert-NativeTimeoutQuiescence {
     ) {
         throw 'Timeout evidence must retain worker output, process identity, and the timeout failure.'
     }
+
+    $failedTerminationRoot = Join-Path $temporaryRoot 'native-termination-failure'
+    New-Item -ItemType Directory -Path $failedTerminationRoot | Out-Null
+    $failedTerminationWrapper = Join-Path $failedTerminationRoot 'gradlew.bat'
+    $failedTerminationLateWrite = Join-Path $failedTerminationRoot 'timeout-late-write.txt'
+    [System.IO.File]::WriteAllText($failedTerminationWrapper, $batch, [System.Text.Encoding]::ASCII)
+    $failedTerminationLog = Join-Path $failedTerminationRoot 'gradle-output.log'
+    $syntheticFailedTerminator = {
+        param([Parameter(Mandatory = $true)][IntPtr]$Job)
+
+        [NenePixelBaselineProfile.JobNativeMethods]::TerminateJobObject($Job, 124) | Out-Null
+        throw 'synthetic termination failure after terminating the fixture job'
+    }
+    $restorationBlocked = $false
+    try {
+        Invoke-GradleCommand -RepositoryRoot $failedTerminationRoot -LogPath $failedTerminationLog `
+            -GradleArguments @('fixtureTask', '--console=plain') -TimeoutSeconds 1 `
+            -JobTerminator $syntheticFailedTerminator
+    }
+    catch {
+        if ($_.Exception.Message -notmatch 'synthetic termination failure') {
+            throw
+        }
+        $restorationBlocked = $_.Exception.Data[$script:RestorationBlockedDataKey] -eq $true
+    }
+    Assert-Equal $true $restorationBlocked `
+        'Any job-termination failure must block tracked-file restoration.'
+    Start-Sleep -Seconds 4
+    Assert-Equal $false (Test-Path -LiteralPath $failedTerminationLateWrite) `
+        'The fixture terminator must leave no process leak while testing restoration blocking.'
 
     $successRoot = Join-Path $temporaryRoot 'native-success'
     New-Item -ItemType Directory -Path $successRoot | Out-Null
@@ -477,7 +507,8 @@ try {
 
     Write-Output 'BASELINE_PROFILE_EVIDENCE_VALIDATION=pass'
     Write-Output (
-        'CASES=native-timeout-quiescence,lf-crlf,bare-cr,overwrite,preexisting-retention,' +
+        'CASES=root-exited-child-job-timeout,termination-failure-restoration-block,' +
+        'native-success,lf-crlf,bare-cr,overwrite,preexisting-retention,' +
         'failure-restore,failed-with-stale-source,' +
         'stale,cached-producer,pull-failure,' +
         'fresh-match,stale-source,flag-drift,apk-drift,' +

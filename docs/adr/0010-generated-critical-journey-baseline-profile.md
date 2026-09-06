@@ -105,13 +105,15 @@ fresh producer evidence proves that the regenerated content is identical. A fail
 pull followed by hashing an old source file is always rejected.
 
 Compilation and packaging keep the normal Gradle cache. The evidence wrapper gives each producer
-invocation at most 30 minutes and final validation at most five minutes. It uses an invocation-owned
-single-use Gradle process so a timeout can stop only that process tree and establish host quiescence
-before restoring the tracked source/hash; this is the recorded `QLT-012` reason for not reusing the
-shared daemon in this explicit evidence operation. The producer keeps the pinned tool's accepted
-15-iteration maximum and three stable-iteration requirement explicit. If the owned process tree
-cannot be confirmed stopped, the operation records invalid evidence and reports restoration blocked;
-it does not restore while a worker may still mutate the tracked source.
+invocation at most 30 minutes and final validation at most five minutes. It gates the launcher until
+assigning it to an invocation-owned Windows Job Object whose children cannot escape and which has
+kill-on-close enabled. The wrapper requires that job to report zero active processes before restoring
+the tracked source/hash; this is the recorded `QLT-012` reason for not reusing the shared daemon in
+this explicit evidence operation. Output is spooled directly to the evidence log rather than held by
+an unbounded redirected pipe. The producer keeps the pinned tool's accepted 15-iteration maximum and
+three stable-iteration requirement explicit. Any termination failure or failure to confirm an empty
+job records invalid evidence and reports restoration blocked; it does not restore while a worker may
+still mutate the tracked source.
 
 The tracked source and hash are snapshotted before either invocation. They are replaced with the
 matched canonical result only for the final narrow artifact validation. A pair or validation failure
