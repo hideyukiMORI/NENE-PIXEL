@@ -120,10 +120,13 @@ source revision embedded in the signed release-like APK remains a later packagin
 acceptance check; the generation manifest records the Git source revision and exact tested APK
 hashes without creating a second revision authority.
 
-The signed release-like APK must retain the exact source revision, valid v2/v3 signatures, and the
-two expected packaged profile assets. Its compiled baseline profile must remain below Android's
-1.5 MB recommendation. The existing fixed schema-v5 physical diagnostic is run once after packaging;
-the established thresholds and 50-sample promotion condition do not change.
+Any signed release-like APK used as later evidence must retain the exact source revision, valid v2/v3
+signatures, and the two expected packaged profile assets. Its compiled baseline profile must remain
+below Android's 1.5 MB recommendation. The fixed schema-v5 physical diagnostic after the original
+packaging is a historical, consumed #54 event; its thresholds, stopped 50-sample promotion, and FAIL
+remain unchanged. This ADR does not authorize another schema-v5 run. Any prospective performance
+collection requires a live owning Issue, an agreeing versioned protocol and executable harness, an
+exact artifact identity, and a finite budget under `QLT-011` through `QLT-016`.
 
 ## Rejected alternatives
 

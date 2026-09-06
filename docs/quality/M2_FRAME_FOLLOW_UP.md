@@ -1190,7 +1190,7 @@ about 0.236 ms. A prior two-rule manual profile candidate was a measured no-op, 
 packaged profile contains only 23 hot rules. These observations justify one operation-specific profile
 producer, not another renderer, UI combination, threshold change, or broad full-AOT rule.
 
-The retained #54 branch's ADR 0010 accepts a build-only `:quality:baseline-profile` module using the
+ADR 0010 accepts a build-only `:quality:baseline-profile` module using the
 AndroidX Baseline Profile plugin and `BaselineProfileRule`. It records the canonical Pencil/Undo
 journey through stable UI
 semantics, writes one generated main-source profile for `:app:android`, and removes the hand-written
@@ -1198,12 +1198,11 @@ wildcard profile. Ordinary builds do not invoke a device; the root gate verifies
 profile's cardinality and SHA-256 identity.
 
 Acceptance requires two isolated physical-device generation invocations to produce identical
-canonical ordered rule-and-flag content. The resulting signed release-like APK must contain the
+canonical ordered rule-and-flag content. The resulting signed release-like APK had to contain the
 exact source revision, valid v2/v3 signatures, both packaged profile assets, and a compiled profile
-below 1.5 MB. It then
-receives one five-warmup/ten-sample fixed schema-v5 `speed-profile` diagnostic. The candidate advances
-to the predeclared 50-sample decision batch only if the diagnostic passes the independent total-frame
-condition with margin; otherwise its result is recorded without a favorable rerun.
+below 1.5 MB before the historical schema-v5 `speed-profile` diagnostic. That diagnostic and its
+stopped 50-sample promotion are consumed evidence, not current run authorization. Future performance
+collection follows the prospective notice above and `QLT-011` through `QLT-016`.
 
 ## Generated critical-journey Baseline Profile validation
 
