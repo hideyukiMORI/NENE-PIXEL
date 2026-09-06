@@ -205,6 +205,51 @@ if ($physicalPresentEnabled) {
 if ($Variant -ne "release-like" -or $CompilationMode -ne "speed-profile") {
     throw "The v3 comparison requires release-like and speed-profile for every slot."
 }
+if ($Attempt -ne 1) {
+    throw "The current v3 writer permits only attempt 1; any invalid result stops the experiment."
+}
+
+$maximumAttemptsPerSlot = 1
+$replacementRule = "none"
+$historicalMaximumAttemptsPerSlot = 2
+$historicalReplacementRule = "attempt 2 only after attempt 1 is invalid before the first measured DOWN"
+
+function Assert-M2ExperimentAttemptPolicy {
+    param(
+        [Parameter(Mandatory = $true)]
+        [object]$Manifest
+    )
+
+    $propertyNames = @($Manifest.PSObject.Properties.Name)
+    if (
+        "maximum_attempts_per_slot" -notin $propertyNames -or
+        "replacement_rule" -notin $propertyNames
+    ) {
+        throw "The v3 experiment manifest is missing its attempt policy."
+    }
+    $rawMaximum = $Manifest.maximum_attempts_per_slot
+    if ($rawMaximum -isnot [int] -and $rawMaximum -isnot [long]) {
+        throw "The v3 experiment manifest attempt maximum must be an integer."
+    }
+    $maximum = [int]$rawMaximum
+    $expectedReplacement =
+        if ($maximum -eq $maximumAttemptsPerSlot) {
+            $replacementRule
+        }
+        elseif ($maximum -eq $historicalMaximumAttemptsPerSlot) {
+            $historicalReplacementRule
+        }
+        else {
+            throw "The v3 experiment manifest attempt maximum must be 1 or historical value 2."
+        }
+    if ($Manifest.replacement_rule -isnot [string] -or $Manifest.replacement_rule -cne $expectedReplacement) {
+        throw "The v3 experiment manifest replacement rule contradicts its attempt maximum."
+    }
+    return [pscustomobject]@{
+        maximum_attempts_per_slot = $maximum
+        replacement_rule = $expectedReplacement
+    }
+}
 
 function Get-M2ZipEntrySha256 {
     param([Parameter(Mandatory = $true)][System.IO.Compression.ZipArchiveEntry]$Entry)
@@ -400,9 +445,21 @@ $experimentManifest =
         stop_conditions = $StopConditions
         comparison_order = $comparisonOrder
         slot_budget = 4
-        maximum_attempts_per_slot = 2
-        replacement_rule = "attempt 2 only after attempt 1 is invalid before the first measured DOWN"
+        maximum_attempts_per_slot = $maximumAttemptsPerSlot
+        replacement_rule = $replacementRule
     }
+$existingManifest = $null
+if (Test-Path -LiteralPath $experimentManifestPath -PathType Leaf) {
+    $existingManifest = Get-Content -Raw -LiteralPath $experimentManifestPath | ConvertFrom-Json
+    $existingAttemptPolicy = Assert-M2ExperimentAttemptPolicy -Manifest $existingManifest
+    if ($existingAttemptPolicy.maximum_attempts_per_slot -eq $historicalMaximumAttemptsPerSlot) {
+        if (-not $ValidateExperimentOnly) {
+            throw "Historical max-two v3 experiments are read-only; the current writer cannot execute them."
+        }
+        $experimentManifest.maximum_attempts_per_slot = $historicalMaximumAttemptsPerSlot
+        $experimentManifest.replacement_rule = $historicalReplacementRule
+    }
+}
 $expectedManifestText = $experimentManifest | ConvertTo-Json -Depth 4
 if ($ComparisonSequenceIndex -eq 1 -and $Attempt -eq 1) {
     if (-not (Test-Path -LiteralPath $resolvedExperiment)) {
@@ -417,8 +474,7 @@ if ($ComparisonSequenceIndex -eq 1 -and $Attempt -eq 1) {
         throw "An existing experiment directory must contain its fixed manifest."
     }
     else {
-        $actualManifestText = Get-Content -Raw -LiteralPath $experimentManifestPath
-        if (($actualManifestText | ConvertFrom-Json | ConvertTo-Json -Depth 4) -cne $expectedManifestText) {
+        if (($existingManifest | ConvertTo-Json -Depth 4) -cne $expectedManifestText) {
             throw "The invocation does not match the fixed experiment manifest."
         }
     }
@@ -427,8 +483,7 @@ elseif (-not (Test-Path -LiteralPath $experimentManifestPath -PathType Leaf)) {
     throw "The fixed experiment manifest is missing: $experimentManifestPath"
 }
 else {
-    $actualManifestText = Get-Content -Raw -LiteralPath $experimentManifestPath
-    if (($actualManifestText | ConvertFrom-Json | ConvertTo-Json -Depth 4) -cne $expectedManifestText) {
+    if (($existingManifest | ConvertTo-Json -Depth 4) -cne $expectedManifestText) {
         throw "The invocation does not match the fixed experiment manifest."
     }
 }
@@ -494,10 +549,6 @@ if ($ComparisonSequenceIndex -gt 1) {
     $previousSlot = "slot-{0:D2}-{1}-{2}" -f ($ComparisonSequenceIndex - 1), $previousIdentity[0], $previousIdentity[1]
     $previousAttempt = 1
     $previousState = Get-RunState -Directory (Join-Path $resolvedExperiment "$previousSlot-attempt-1")
-    if ($null -ne $previousState -and $previousState.status -eq "invalid-before-samples") {
-        $previousAttempt = 2
-        $previousState = Get-RunState -Directory (Join-Path $resolvedExperiment "$previousSlot-attempt-2")
-    }
     $requiredPreviousVerdict = if ($ComparisonSequenceIndex -eq 4) { "pass" } else { "inconclusive" }
     if (
         -not (Test-RunStateIdentity -State $previousState -SequenceIndex ($ComparisonSequenceIndex - 1) -ExpectedAttempt $previousAttempt) -or
@@ -505,16 +556,6 @@ if ($ComparisonSequenceIndex -gt 1) {
         $previousState.verdict -ne $requiredPreviousVerdict
     ) {
         throw "Sequence slot $ComparisonSequenceIndex requires completed slot $($ComparisonSequenceIndex - 1) verdict '$requiredPreviousVerdict'."
-    }
-}
-if ($Attempt -eq 2) {
-    $firstAttemptState = Get-RunState -Directory (Join-Path $resolvedExperiment "$slotName-attempt-1")
-    if (
-        -not (Test-RunStateIdentity -State $firstAttemptState -SequenceIndex $ComparisonSequenceIndex -ExpectedAttempt 1) -or
-        $firstAttemptState.status -ne "invalid-before-samples" -or
-        [int]$firstAttemptState.measured_down_count -ne 0
-    ) {
-        throw "Attempt 2 requires attempt 1 to be proven invalid before the first measured DOWN."
     }
 }
 if ($RunKind -eq "decision" -and ($Variant -ne "release-like" -or $CompilationMode -ne "speed-profile")) {

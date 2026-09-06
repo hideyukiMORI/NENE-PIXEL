@@ -395,6 +395,63 @@ try {
     ) {
         throw "The shared operation model did not exclude the intentional preview dwell from committed-result latency."
     }
+    $freshManifestPath = Join-Path $experimentRoot "experiment.json"
+    $freshManifest = Get-Content -Raw -LiteralPath $freshManifestPath | ConvertFrom-Json
+    if (
+        [int]$freshManifest.maximum_attempts_per_slot -ne 1 -or
+        $freshManifest.replacement_rule -cne "none"
+    ) {
+        throw "A new v3 experiment did not publish the fixed max-one attempt policy."
+    }
+
+    $historicalRoot = Join-Path $temporaryRoot "historical-max-two"
+    New-Item -ItemType Directory -Path $historicalRoot | Out-Null
+    $historicalManifestPath = Join-Path $historicalRoot "experiment.json"
+    $historicalManifest = Get-Content -Raw -LiteralPath $freshManifestPath | ConvertFrom-Json
+    $historicalManifest.maximum_attempts_per_slot = 2
+    $historicalManifest.replacement_rule =
+        "attempt 2 only after attempt 1 is invalid before the first measured DOWN"
+    Write-FixtureJson $historicalManifest $historicalManifestPath
+    $historicalManifestHash =
+        (Get-FileHash -LiteralPath $historicalManifestPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $historicalRead = $slot1.Clone()
+    $historicalRead.ExperimentDirectory = $historicalRoot
+    Invoke-ExpectedPass -Arguments $historicalRead
+    if (
+        (Get-FileHash -LiteralPath $historicalManifestPath -Algorithm SHA256).Hash.ToLowerInvariant() -cne
+            $historicalManifestHash -or
+        @(Get-ChildItem -LiteralPath $historicalRoot).Count -ne 1
+    ) {
+        throw "Read-only validation changed the retained historical max-two experiment."
+    }
+
+    foreach ($contradictoryPolicy in @(
+            [ordered]@{
+                maximum_attempts_per_slot = 1
+                replacement_rule =
+                    "attempt 2 only after attempt 1 is invalid before the first measured DOWN"
+            },
+            [ordered]@{
+                maximum_attempts_per_slot = 2
+                replacement_rule = "none"
+            },
+            [ordered]@{
+                maximum_attempts_per_slot = 3
+                replacement_rule = "none"
+            }
+        )) {
+        $contradictoryRoot = Join-Path $temporaryRoot (
+            "contradictory-attempt-policy-" + [guid]::NewGuid().ToString("N")
+        )
+        New-Item -ItemType Directory -Path $contradictoryRoot | Out-Null
+        $contradictoryManifest = Get-Content -Raw -LiteralPath $freshManifestPath | ConvertFrom-Json
+        $contradictoryManifest.maximum_attempts_per_slot = $contradictoryPolicy.maximum_attempts_per_slot
+        $contradictoryManifest.replacement_rule = $contradictoryPolicy.replacement_rule
+        Write-FixtureJson $contradictoryManifest (Join-Path $contradictoryRoot "experiment.json")
+        $contradictoryRead = $slot1.Clone()
+        $contradictoryRead.ExperimentDirectory = $contradictoryRoot
+        Invoke-ExpectedFailure -Arguments $contradictoryRead
+    }
 
     $wrongVariant = $slot1.Clone()
     $wrongVariant.Variant = "debug"
@@ -730,8 +787,11 @@ try {
     $slot2Attempt2.Attempt = 2
     Invoke-ExpectedFailure -Arguments $slot2Attempt2
     Write-State -Slot "slot-02-diagnostic-candidate" -Attempt 1 -Status "invalid-before-samples" -Verdict "invalid" -MeasuredDownCount 0
-    Invoke-ExpectedPass -Arguments $slot2Attempt2
-    Write-State -Slot "slot-02-diagnostic-candidate" -Attempt 2 -Status "completed" -Verdict "inconclusive" -MeasuredDownCount 10
+    Invoke-ExpectedFailure -Arguments $slot2Attempt2
+    if (Test-Path -LiteralPath (Join-Path $experimentRoot "slot-02-diagnostic-candidate-attempt-2")) {
+        throw "The max-one writer created attempt 2 output after rejecting the invocation."
+    }
+    Write-State -Slot "slot-02-diagnostic-candidate" -Attempt 1 -Status "completed" -Verdict "inconclusive" -MeasuredDownCount 10
 
     $slot3 = $common.Clone()
     $slot3 += @{

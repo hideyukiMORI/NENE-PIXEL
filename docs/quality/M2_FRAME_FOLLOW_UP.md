@@ -2340,3 +2340,20 @@ role policy precedes host packaging. Exact optimized artifacts and correctness r
 device performance budget. This preparation authorizes no device use, profile generation, frame slot,
 or full local suite. QLT-011 through QLT-016 and ADR-0011 govern verification and evidence reuse.
 Active waivers: none.
+
+### Prospective max-one frame-v3 attempt binding
+
+The post-#77 experiment stops after any INVALID result and authorizes no automatic replacement. The
+frame-v3 writer therefore uses its existing `maximum_attempts_per_slot` and `replacement_rule` fields
+as a real executable budget. Every new manifest records one attempt and replacement `none`, and the
+writer rejects `Attempt=2` before reading or publishing experiment state. It exposes no configurable
+max-two execution path. For compatibility, experiment-only validation recognizes the two historical
+v3 policy pairs: max one with replacement `none`, and max two with the original zero-DOWN replacement
+literal. A historical max-two manifest is read-only and cannot be resumed by the current writer;
+missing, out-of-range, or contradictory policy fields fail closed.
+
+This changes only `measure-m2-frame.ps1`, its protocol fixture, and this versioned protocol. Fixtures
+must cover new max-one publication, pre-output Attempt 2 rejection, a contradictory replacement value,
+and read-only validation of a retained max-two manifest. It creates no second writer or schema, changes no APK,
+profile, CUJ, metric, threshold, operation population, or historical evidence, and authorizes no frame
+collection by itself.
