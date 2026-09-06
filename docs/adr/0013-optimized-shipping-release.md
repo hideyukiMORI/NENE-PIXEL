@@ -175,8 +175,10 @@ and the [Android Baseline Profiles overview](https://developer.android.com/topic
 After this proposed ADR and the protocol are reviewed, add the single post-app-target role policy and
 the variant-scoped correctness test. Package B from post-#77 main without the policy and C from the
 same production Kotlin/resources plus the policy, both with the exact accepted P62 profile input.
-The producer/non-minified variant must show no R8 mapping, expected unobfuscated classes, and the same
-profile input; this consumer reuse does not run or publish a new producer pair.
+The producer/non-minified control must show no R8 mapping and expected unobfuscated classes. It
+intentionally excludes the project-generated P62 text while retaining dependency profile input; the
+P62 consumers are B `benchmarkRelease` plus C `release` and `benchmarkRelease`. This consumer reuse
+does not run or publish a new producer pair.
 
 If host packaging, shipping/proxy payload equivalence, mapping/retrace, optimized-runtime correctness,
 a gross diagnostic, or the absolute candidate decision fails, remove the focused role policy and

@@ -2200,7 +2200,10 @@ shipping output and proxy; expected-only profileable, signature, and container m
 are enumerated. Both retain rewritten prof/profm hashes plus R8 mapping, configuration, usage, seeds,
 merged keep-rule inputs, mapping ID, and retrace tool identity. A controlled mapped-symbol retrace
 round trip is required; file presence alone is insufficient. The exact textual P62 profile input to
-R8 stays byte-identical and its historical generation SHA is not relabelled.
+R8 stays byte-identical and its historical generation SHA is not relabelled. The project-generated
+P62 text is consumed by B `benchmarkRelease` and C `release`/`benchmarkRelease`; C
+`nonMinifiedRelease` is the unoptimized producer-control and intentionally excludes that project
+profile while retaining its dependency profile input.
 
 The retained historical pre-#77 reference B is source `91cf17499be225dcf1bff8151aa9f3166e8c014e`, APK SHA-256
 `ac50568d6262a9dd6af4c8877b80866a06c4f35eceb2b1459777d551c485fe00`, 8,402,300 bytes. Its
