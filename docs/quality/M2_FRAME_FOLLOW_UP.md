@@ -1976,6 +1976,14 @@ The two failed experiments remain immutable; any future comparison requires anot
 packaging and experiment identity. The profile producer inputs and Issue #70 functional-test inputs
 are unchanged, so QLT-012 permits their evidence reuse after those identities are mapped.
 
+The next prospective identity is `issue70-natural-size-dirty-status-v3-03`. It keeps the same Issue
+#70 production candidate, accepted P62/P70 profile evidence, release-like `speed-profile` workload,
+numeric thresholds, four-slot ABBA order and maximum 120 measured operations. It changes the common
+harness source only by the reviewed complete caller-scope correction above. No timing or frame value
+from either invalid experiment is an input to candidate selection, thresholds, stopping rules or the
+new comparison. Slot 1 remains blocked until new standalone B/C source, signed APK and packaged
+prof/profm identities pass static checks and receive explicit review.
+
 No profile regeneration or further performance sample is authorized by this correction. Normal Gradle cache
 and daemon defaults apply to host verification and repackaging; `--no-configuration-cache` is not a
 routine flag. Active waivers: none.
