@@ -73,7 +73,10 @@ function adb {
         }
         'shell perfetto --query --long' { if ($global:NeneAttributionFixtureState.TraceActive) { return "unique_session_name: $($global:NeneAttributionFixtureState.SessionName)" }; return }
         'logcat -c' { return }
-        'logcat -d -v threadtime' { return 'fixture: no app fatal events' }
+        'logcat -d -v threadtime' {
+            if ($global:NeneAttributionFixtureState.Mode -eq 'fatal-logcat') { return 'FATAL EXCEPTION: fixture-main' }
+            return 'fixture: no app fatal events'
+        }
     }
     if ($command -like 'install *' -or $command -like 'shell cmd package compile *') { return 'Success' }
     if ($command -like 'shell am broadcast *') { return 'Broadcast completed: result=1' }
@@ -132,6 +135,12 @@ function adb {
 $nativeQuery = {
     $a = @($args)
     $global:LASTEXITCODE = 0
+    if ($a.Count -eq 1 -and $a[0] -eq '--version') {
+        return @(
+            'Perfetto v49.0-33a4fd078 (33a4fd07897a9a648664926ea27769278a19ff13)',
+            'Trace Processor RPC API version: 14'
+        )
+    }
     if ($a.Count -ne 3 -or $a[0] -ne '--query-file') { throw 'Unexpected processor command.' }
     $global:NeneAttributionFixtureState.Queries.Add($a[1])
     if ($global:NeneAttributionFixtureState.Mode -eq 'analyzer-failure') { $global:LASTEXITCODE = 7; return }
@@ -143,6 +152,27 @@ $nativeQuery = {
             'traced_buf_incremental_sequences_dropped,0,data_loss,trace', 'traced_buf_sequence_packet_loss,0,data_loss,trace',
             'traced_buf_trace_writer_packet_loss,0,data_loss,trace', 'traced_final_flush_failed,0,data_loss,trace',
             ('fixture_loss,' + $(if ($global:NeneAttributionFixtureState.Mode -eq 'data-loss') { '1' } else { '0' }) + ',data_loss,trace'))
+    }
+    if ($name -eq 'commit-front-half-source-markers.sql') {
+        $output = [Collections.Generic.List[string]]::new()
+        $output.Add('slice_id,slice_start,slice_duration_ns,marker_name,utid,tid,thread_name,is_main_thread')
+        foreach ($sample in 1..10) {
+            $duration = if ($global:NeneAttributionFixtureState.Mode -eq 'unfinished-marker' -and $sample -eq 1) { -1 } else { 50 }
+            $output.Add("$sample,$($sample*1000),$duration,NP.dirty-status.measure,1,10,fixture-main,1")
+            if ($global:NeneAttributionFixtureState.Mode -ne 'none-observed' -and -not (
+                    $global:NeneAttributionFixtureState.Mode -eq 'unowned-text' -and $sample -eq 1
+                )) {
+                $owner = if ($global:NeneAttributionFixtureState.Mode -eq 'multiple-owners' -and $sample -gt 5) { 'NP.text.redo.measure' } else { 'NP.text.undo.measure' }
+                $output.Add("$(100+$sample),$(($sample*1000)+100),40,$owner,1,10,fixture-main,1")
+                if ($global:NeneAttributionFixtureState.Mode -eq 'duplicate-text-owner' -and $sample -eq 1) {
+                    $output.Add('999,1110,40,NP.text.redo.measure,1,10,fixture-main,1')
+                }
+            }
+        }
+        if ($global:NeneAttributionFixtureState.Mode -eq 'unknown-marker') {
+            $output.Add('90,90000,50,NP.text.unknown.measure,1,10,fixture-main,1')
+        }
+        return $output.ToArray()
     }
     foreach ($token in 1001..1020) {
         if ($sql -notmatch "\b$token surface_frame_token\b") { throw "Actual analyzer SQL omitted token $token." }
@@ -164,11 +194,60 @@ $nativeQuery = {
     if ($name -eq 'commit-front-half-thread-states.sql') { return @('sample_index,phase,state,overlap_duration_ns', '1,preview,Running,1') }
     if ($name -eq 'commit-front-half-sched.sql') { return @('sample_index,phase,cpu,running_duration_ns', '1,preview,0,1') }
     if ($name -eq 'commit-front-half-slices.sql') { return @('sample_index,phase,slice_name,overlap_duration_ns', '1,preview,fixture,1') }
+    if ($name -eq 'commit-front-half-text-owners.sql') {
+        foreach ($requiredSql in @(
+                'o.ts>=w.window_start',
+                'o.ts+o.dur<=w.window_end',
+                'owner_frame_association_count'
+            )) {
+            if (-not $sql.Contains($requiredSql, [StringComparison]::Ordinal)) {
+                throw "Text-owner SQL omitted same-frame owner boundary: $requiredSql"
+            }
+        }
+        $output = [Collections.Generic.List[string]]::new()
+        $output.Add('sample_index,row_index,surface_frame_token,text_slice_id,text_start,text_duration_ns,frame_association_count,owner_count,owner_name,owner_frame_association_count')
+        if ($global:NeneAttributionFixtureState.Mode -eq 'none-observed') { return $output.ToArray() }
+        foreach ($sample in 1..10) {
+            $duration = if ($global:NeneAttributionFixtureState.Mode -eq 'unfinished-generic' -and $sample -eq 1) { -1 } else { 40 }
+            $frameCount = if ($global:NeneAttributionFixtureState.Mode -eq 'ambiguous-text-frame' -and $sample -eq 1) { 2 } else { 1 }
+            $ownerCount = if ($global:NeneAttributionFixtureState.Mode -eq 'unowned-text' -and $sample -eq 1) { 0 } elseif ($global:NeneAttributionFixtureState.Mode -eq 'duplicate-text-owner' -and $sample -eq 1) { 2 } else { 1 }
+            $ownerFrameCount = if ($ownerCount -eq 0) { 0 } elseif ($global:NeneAttributionFixtureState.Mode -eq 'ambiguous-owner-frame' -and $sample -eq 1) { 2 } else { 1 }
+            $owner = if ($global:NeneAttributionFixtureState.Mode -eq 'multiple-owners' -and $sample -gt 5) { 'NP.text.redo.measure' } else { 'NP.text.undo.measure' }
+            if ($ownerCount -eq 0) { $owner = '' }
+            $output.Add("$sample,1,$(1000+($sample*2)),$(100+$sample),$($sample*1000),$duration,$frameCount,$ownerCount,$owner,$ownerFrameCount")
+        }
+        return $output.ToArray()
+    }
+    if ($name -eq 'commit-front-half-dirty-anchors.sql') {
+        $output = [Collections.Generic.List[string]]::new()
+        $output.Add('sample_index,operation_start,operation_end,dirty_anchor_count')
+        foreach ($sample in 1..10) {
+            $count = if ($global:NeneAttributionFixtureState.Mode -eq 'missing-dirty-anchor' -and $sample -eq 1) { 0 } else { 1 }
+            $output.Add("$sample,$($sample*1000),$(($sample*1000)+500),$count")
+        }
+        return $output.ToArray()
+    }
     throw "Unexpected processor query: $name"
 }
 Set-Item -LiteralPath ('Function:\' + $processor) -Value $nativeQuery
 
-$scenarioModes = @('success','malformed-frame','flagged-frame','wrong-ui','wrong-dexopt','prefix-decoy-dexopt','duplicate-target-dexopt','missing-target-dexopt','malformed-start','duplicate-app-actual-correlation','duplicate-app-expected-correlation','duplicate-sf-correlation','data-loss','analyzer-failure')
+$scenarioModes = @(
+    'success','none-observed','multiple-owners','unowned-text','duplicate-text-owner','missing-dirty-anchor',
+    'unfinished-generic','unfinished-marker','unknown-marker','ambiguous-text-frame','ambiguous-owner-frame',
+    'malformed-frame','flagged-frame','wrong-ui','wrong-dexopt','prefix-decoy-dexopt','duplicate-target-dexopt',
+    'missing-target-dexopt','malformed-start','duplicate-app-actual-correlation','duplicate-app-expected-correlation',
+    'duplicate-sf-correlation','fatal-logcat','data-loss','analyzer-failure'
+)
+$validOwnershipModes = @('success','none-observed','multiple-owners','unowned-text','duplicate-text-owner','missing-dirty-anchor','ambiguous-owner-frame')
+$expectedOwnership = @{
+    'success' = 'single-owner'
+    'none-observed' = 'none-observed'
+    'multiple-owners' = 'multiple-owners'
+    'unowned-text' = 'ownership-inconclusive'
+    'duplicate-text-owner' = 'ownership-inconclusive'
+    'missing-dirty-anchor' = 'ownership-inconclusive'
+    'ambiguous-owner-frame' = 'ownership-inconclusive'
+}
 foreach ($mode in $scenarioModes) {
     $output = Join-Path $fixtureRoot $mode
     $global:NeneAttributionFixtureState = @{
@@ -197,14 +276,27 @@ foreach ($mode in $scenarioModes) {
         }
     } elseif ($global:NeneAttributionFixtureState.Starts -ne 1 -or $global:NeneAttributionFixtureState.Stops -ne 1 -or $global:NeneAttributionFixtureState.TraceActive) {
         throw "$mode did not finalize exactly one producer: $failure"
-    } elseif ($mode -eq 'success') {
+    } elseif ($mode -in $validOwnershipModes) {
         if ($null -ne $failure -or $state.completed_operations -ne 10 -or $state.status -ne 'collected-pending-analysis') { throw "Full collector failed: $failure" }
         $expectedMotion = (1..10 | ForEach-Object { 'DOWN'; 'UP' }) -join ','
-        if (($global:NeneAttributionFixtureState.Motion -join ',') -ne $expectedMotion -or $global:NeneAttributionFixtureState.Queries.Count -ne 5) { throw 'Full workload/analyzer order changed.' }
+        if (($global:NeneAttributionFixtureState.Motion -join ',') -ne $expectedMotion -or $global:NeneAttributionFixtureState.Queries.Count -ne 8) { throw 'Full workload/analyzer order changed.' }
         if (@(Import-Csv (Join-Path $output 'frames.csv')).Count -ne 20) { throw 'Full frame population was not preserved.' }
+        $analysisMetadata = Get-Content -LiteralPath (Join-Path $output 'commit-front-half-analysis-metadata.txt')
+        if (
+            "trace_integrity_status=valid" -notin $analysisMetadata -or
+            "ownership_status=$($expectedOwnership[$mode])" -notin $analysisMetadata
+        ) {
+            throw "$mode did not retain its exact trace/ownership outcome."
+        }
     } else {
         if ($null -eq $failure -or $state.status -ne 'invalid-after-trace-start' -or -not $state.trace_started) { throw "$mode was not preserved as invalid-after-start." }
         if ($mode -in @('malformed-frame','flagged-frame') -and ($state.completed_operations -ne 1 -or @(Import-Csv (Join-Path $output 'frames.csv')).Count -ne 2)) { throw "$mode lost completed operation evidence." }
+        if ($mode -eq 'fatal-logcat') {
+            $analysisMetadata = Get-Content -LiteralPath (Join-Path $output 'commit-front-half-analysis-metadata.txt')
+            if ('trace_integrity_status=valid' -notin $analysisMetadata) {
+                throw 'Fatal post-trace evidence did not retain the distinct trace-integrity result.'
+            }
+        }
     }
     $global:NeneAttributionFixtureState.Commands | Set-Content -LiteralPath (Join-Path $output 'fixture-native-commands.txt') -Encoding utf8NoBOM
     $results.Add([pscustomobject]@{case=$mode;result='PASS';status=$state.status;operations=$state.completed_operations;error=$failure})

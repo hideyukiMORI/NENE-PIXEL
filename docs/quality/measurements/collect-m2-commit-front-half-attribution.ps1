@@ -12,11 +12,15 @@ $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "m2-perfetto-session.ps1")
 . (Join-Path $PSScriptRoot "m2-package-dexopt.ps1")
 
-$schema = "nene-pixel-m2-commit-front-half-attribution-v3"
-$sourceCommit = "efb8c36003a1c62e958da92cf4fb28c2b35dc261"
-$expectedApkSha256 = "359a8f5a6975afae6f29e8680a69ae14f28164db72d36b250225f03d8f3de959"
-$expectedApkBytes = 8410691L
+$schema = "nene-pixel-m2-commit-front-half-attribution-v4"
+$sourceCommit = "4eb7aea64dc49ffc8268e02b1c04a05fff2c9469"
+$expectedApkSha256 = "0b99e56e19321716486ddd1c8aebd660ae34b11bdca1e953ec827fd8f791db91"
+$expectedApkBytes = 8402300L
+$expectedPackagedProfSha256 = "f4a0f8059a7005e573197739f23bf3a39d47c56f75629b2b197f7abc9ef9ef35"
+$expectedPackagedProfmSha256 = "6dba2e6bef8677e95ff689371c9cfbcc2acc0bc11e0389b26402cce7b9d3c51a"
 $expectedTraceProcessorSha256 = "a881f3e2d4c6131493e85bfd1f36d1efe58e1478e2991825418d5d21614c1e48"
+$expectedTraceProcessorBytes = 10479616L
+$expectedTraceProcessorVersion = "Perfetto v49.0-33a4fd078 (33a4fd07897a9a648664926ea27769278a19ff13)"
 $physicalProfileId = "NENE-P2-ALLDOCUBE-IPL80MP-A16-API36"
 $packageName = "io.github.hideyukimori.nenepixel"
 $activityName = "$packageName/.MainActivity"
@@ -274,16 +278,38 @@ $apkHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $resolvedApk).Hash.ToLow
 if ($apkItem.Length -ne $expectedApkBytes -or $apkHash -ne $expectedApkSha256) {
     throw "The APK does not match the fixed attribution identity."
 }
+$traceProcessorItem = Get-Item -LiteralPath $resolvedTraceProcessor
 $traceProcessorHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $resolvedTraceProcessor).Hash.ToLowerInvariant()
-if ($traceProcessorHash -ne $expectedTraceProcessorSha256) {
+if ($traceProcessorItem.Length -ne $expectedTraceProcessorBytes -or $traceProcessorHash -ne $expectedTraceProcessorSha256) {
     throw "The attribution analysis requires the pinned Trace Processor v49.0 binary."
+}
+$traceProcessorVersion = @(& $resolvedTraceProcessor --version 2>&1)
+if ($LASTEXITCODE -ne 0 -or $traceProcessorVersion.Count -lt 1 -or $traceProcessorVersion[0].ToString() -cne $expectedTraceProcessorVersion) {
+    throw "The attribution analysis requires the exact pinned Trace Processor v49.0 version."
 }
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $archive = [System.IO.Compression.ZipFile]::OpenRead($resolvedApk)
 try {
-    foreach ($entryName in @("assets/dexopt/baseline.prof", "assets/dexopt/baseline.profm")) {
-        if ($null -eq $archive.GetEntry($entryName)) {
+    $expectedProfileEntries = [ordered]@{
+        "assets/dexopt/baseline.prof" = $expectedPackagedProfSha256
+        "assets/dexopt/baseline.profm" = $expectedPackagedProfmSha256
+    }
+    foreach ($entryName in $expectedProfileEntries.Keys) {
+        $entry = $archive.GetEntry($entryName)
+        if ($null -eq $entry) {
             throw "The fixed APK is missing $entryName."
+        }
+        $entryStream = $entry.Open()
+        $hasher = [System.Security.Cryptography.SHA256]::Create()
+        try {
+            $entryHash = [Convert]::ToHexString($hasher.ComputeHash($entryStream)).ToLowerInvariant()
+        }
+        finally {
+            $hasher.Dispose()
+            $entryStream.Dispose()
+        }
+        if ($entryHash -cne $expectedProfileEntries[$entryName]) {
+            throw "The fixed APK has a mismatched $entryName identity."
         }
     }
     $revisionEntry = $archive.GetEntry("META-INF/version-control-info.textproto")
@@ -305,11 +331,19 @@ $invocation = New-NeneAttributionInvocation `
     -Manifest ([ordered]@{
         schema = $schema
         parent_issue = 54
-        focused_issue = 67
+        focused_issue = 73
         source_commit = $sourceCommit
         apk_sha256 = $expectedApkSha256
         apk_bytes = $expectedApkBytes
+        packaged_prof_sha256 = $expectedPackagedProfSha256
+        packaged_profm_sha256 = $expectedPackagedProfmSha256
+        profile_evidence_id = "issue-70-20260906-1640-374ad211"
+        profile_generation_source = "374ad2111ed61d012bc20ba18229973b982e7df2"
+        profile_canonical_sha256 = "ca83f66917fdda19ade75bfe31861dbd33a6615c0c8feda7a5b774b55ce2f62d"
+        profile_acceptance_manifest_sha256 = "7fade8dcb677633a1200373100d05c56ebf627622b4eb554d15a4df27893b2b7"
         trace_processor_sha256 = $expectedTraceProcessorSha256
+        trace_processor_bytes = $expectedTraceProcessorBytes
+        trace_processor_version = $expectedTraceProcessorVersion
         physical_profile_id = $physicalProfileId
         compile_mode = "speed-profile"
         warmup_count = $warmupCount
@@ -320,9 +354,15 @@ $invocation = New-NeneAttributionInvocation `
         trace_timeout_ms = $traceTimeoutMilliseconds
         maximum_trace_invocations = 1
         invalid_recovery = "none after trace start"
-        classification = "frame_overrun_ms > 0 means late; attribution only"
-        hypothesis = "late commits contain additional main-thread CPU execution or scheduler delay before/during traversal"
-        stop = "one trace; no late commit or ambiguous association is inconclusive; no retry"
+        marker_names = @(
+            "NP.text.title.measure", "NP.text.active-color.measure", "NP.text.new-document.measure",
+            "NP.text.undo.measure", "NP.text.redo.measure", "NP.text.palette.measure",
+            "NP.text.pencil.measure", "NP.text.eraser.measure", "NP.dirty-status.measure"
+        )
+        classification = "COMMIT generic text slices use strict same-frame source-marker containment; preview is context"
+        hypothesis = "current-C generic text measure, if observed, can be assigned structurally to mounted app Text owners"
+        interpretation = "single-owner, multiple-owners, none-observed, or ownership-inconclusive; trace validity is separate; marker durations are not performance evidence"
+        stop = "one trace; any invalid or ownership-inconclusive result stops without candidate selection; no retry after trace start"
     })
 New-Item -ItemType Directory -Path (Join-Path $resolvedOutput "raw") | Out-Null
 Write-RunState -Status "preflight" -CompletedOperations 0

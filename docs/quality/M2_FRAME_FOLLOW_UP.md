@@ -2033,3 +2033,80 @@ and daemon defaults apply to host verification and repackaging; `--no-configurat
 routine flag. Active waivers: none.
 
 Implementation paths are limited to the shared evidence reader and its generation/evidence fixtures, the existing generation wrapper, the sole frame harness/protocol fixture, the shared dexopt helper, the existing attribution collector/fixture, and this protocol document. The accepted P62 evidence is also exercised read-only; no profile generation is part of this change.
+
+## Current-C text-owner attribution diagnostic
+
+Issue #73 owns one finite diagnostic follow-up to the Issue #70 absolute FAIL. The saved current-C
+frame result contains no CPU trace, while the valid older Issue #67 trace contains a generic
+`TextStringSimpleNode::measure` slice in every COMMIT frame without a source label. Static source
+excludes the current custom dirty-status node from that generic Compose node, but it cannot identify
+which mounted ordinary `Text` owns a future observed slice.
+
+The sole attribution collector and analyzer advance from schema v3 to v4. Historical v3 evidence is
+immutable. The diagnostic source adds one internal transparent `LayoutModifierNode` to the fixed
+mounted title, active-color, New Document, Undo, Redo, Palette, Pencil, and Eraser text owners, plus
+an outer dirty-status anchor. The fixed section names are:
+
+- `NP.text.title.measure`
+- `NP.text.active-color.measure`
+- `NP.text.new-document.measure`
+- `NP.text.undo.measure`
+- `NP.text.redo.measure`
+- `NP.text.palette.measure`
+- `NP.text.pencil.measure`
+- `NP.text.eraser.measure`
+- `NP.dirty-status.measure`
+
+The marker measures with the unchanged constraints, returns the child's exact size, places it at
+`0,0`, preserves standard alignment-line propagation, delegates all four intrinsic queries, and adds
+no semantics, drawing, clipping, padding, or input behavior. Every trace begin has a `finally`-paired
+end. Marker durations are observer-affected and are used only for strict containment.
+
+Android Trace capture is a static preflight. The existing config enables `linux.ftrace` and fixes
+`atrace_apps: "io.github.hideyukimori.nenepixel"`; Perfetto defines SDK `android.os.Trace` sections as
+app ATrace events selected by that exact package field. The accepted release-like APK's merged
+manifest is non-debuggable and contains `<profileable android:enabled="true" android:shell="true"/>`.
+Android S and later removed the old app-tracing permission gate, so the fixed API-36 device needs no
+new permission, manifest entry, tracing library, or probe invocation. Final packaging repeats the
+package, non-debuggable/profileable, config, source, signature, APK, and packaged profile checks.
+The actual trace must still contain a dirty anchor in every operation's aggregated COMMIT window or
+the one-shot result is inconclusive.
+
+V4 retains every actual correlated frame for ten preview and ten COMMIT operation groups; frame
+count is variable. Ownership decisions use COMMIT only. A matching generic or marker slice with
+nonpositive or unfinished duration is invalid before filtering. Every generic slice must associate
+with exactly one app actual FrameTimeline interval and is owned only when exactly one fixed,
+main-thread marker fully contains it inside that same frame. Unknown fixed-prefix names, loss,
+parser/final-flush failure, or ambiguous frame joins invalidate the trace.
+
+`trace_integrity_status` and `ownership_status` are analyzer fields; final evidence validity belongs only to the collector run state. Valid ownership is `single-owner`,
+`multiple-owners`, `none-observed`, or `ownership-inconclusive`. Multiple distinct owners remain a
+valid fully attributed result and publish distinct generic slice counts per owner. `none-observed`
+means only that this instrumented COMMIT population contained no generic measure. Unowned or
+multiply contained slices and a missing operation-level dirty anchor are ownership-inconclusive.
+The analyzer may retain `trace_integrity_status=valid` before the collector completes its post-trace
+environment, full-population, fatal/ANR, and UI checks. A later failure leaves that intermediate
+integrity result intact but records the sole final authority, `run-state.json`, as invalid; analyzer
+metadata never declares final evidence validity.
+
+The bounded plan is five unmeasured warmups and ten measured operations in one trace invocation,
+using 100 ms DOWN preview, 350 ms UP/COMMIT, verified Undo, and 1,200 ms quiet time. The maximum is
+ten measured operations, one 64 MiB trace, a 100-second workload deadline, and a 120-second trigger
+timeout. Any failure after trace start consumes the entire budget; there is no retry, second APK,
+candidate comparison, threshold, or performance verdict.
+
+The diagnostic APK has a new source and container identity and cannot be relabelled as current-C
+source `624ba29bb56e0c02cca47599a2c5af9450fa5127` or as Issue #70 acceptance evidence. It packages
+the accepted P70 profile only as fixed diagnostic context; no new profile is generated and the
+profile is not fresh evidence for marker code. Debug app/test APK identities for the focused marker,
+dirty-status 4-case, and Undo/Redo 9-case functional checks remain separate from the signed
+release-like diagnostic APK. Exact source and affected production/resource/toolchain equivalence
+must be recorded before QLT-012 maps those correctness results.
+
+The host-only v4 orchestration fixture covers 25 scenarios, including single/multiple/no owner,
+unowned and duplicate containment, unfinished generic/marker slices, unknown markers, missing dirty
+anchors, ambiguous frame association, loss/parser/finalization paths, and post-trace fatal evidence.
+Synthetic fixture timing is never device or performance evidence. Exact source/APK/profile/tool
+identities and the one invocation command require review together before any device or trace budget
+opens. This diagnostic is governed by ARC-001, ARC-004, ARC-009, QLT-011 through QLT-016, ADR-0011,
+and ADR-0012. Active waivers: none.
