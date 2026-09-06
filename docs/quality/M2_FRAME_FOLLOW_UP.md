@@ -41,6 +41,45 @@ platform route rather than adding a benchmark module or changing the accepted te
 - [Capture Macrobenchmark metrics](https://developer.android.com/topic/performance/benchmarking/macrobenchmark-metrics)
 - [Slow rendering](https://developer.android.com/topic/performance/vitals/render)
 
+## Long-stroke host diagnostic — 2026-09-05
+
+Issue #58 fixed one host/JDK 21 diagnostic before collection for the existing `ToolGesture` path.
+It covers 65,536-position continuous Pencil and Eraser gestures and 262,144-position repeated
+Pencil and Eraser gestures. Enumeration uses 5 warmups and 20 samples; `prepareStroke` uses 3
+warmups and 10 samples. Fixture creation is outside timing, and count, order digest, position count,
+and full first/last `Stroke` equality are checked only after both timing batches. The test requires
+the explicit `nene.longStrokeMeasurement=true` system property so ordinary quality gates do not
+silently spend the finite measurement budget.
+
+Run 01 is invalid: its timing wrapper invoked `Stroke.hashCode()` after every preparation sample,
+which performed a full packed-path scan between samples. The generated values remain historical
+diagnostic output and support no decision. Issue #58 authorized exactly one corrected run 02 after
+that observer was removed; no additional collection is authorized.
+
+Run 02 completed from base source `46cbf6dae61f50f11932027fef1e2a3157178d35` plus the local
+Issue #58 test source. The exact measurement source and generated JUnit XML are retained outside the
+tracked repository in the coordination directory with SHA-256 identities
+`0A0E2C2E09D4913C3669E662B2B92511D3395EF3D60024F7D42E0DDA2BED509B` and
+`1173A0286DFC7D0F15CEE7799141B605DB02D30D5B2C41AC13E413C6DE6915B9` respectively.
+
+| Workload | Positions | Operation | p50 | p95 | Maximum |
+| --- | ---: | --- | ---: | ---: | ---: |
+| continuous Pencil | 65,536 | enumeration | 0.458 ms | 1.279 ms | 1.713 ms |
+| continuous Pencil | 65,536 | prepare stroke | 0.889 ms | 2.766 ms | 2.766 ms |
+| continuous Eraser | 65,536 | enumeration | 0.693 ms | 1.095 ms | 1.301 ms |
+| continuous Eraser | 65,536 | prepare stroke | 1.010 ms | 1.085 ms | 1.085 ms |
+| repeated Pencil | 262,144 | enumeration | 2.040 ms | 3.574 ms | 4.109 ms |
+| repeated Pencil | 262,144 | prepare stroke | 5.308 ms | 6.951 ms | 6.951 ms |
+| repeated Eraser | 262,144 | enumeration | 1.883 ms | 3.662 ms | 18.992 ms |
+| repeated Eraser | 262,144 | prepare stroke | 4.653 ms | 19.106 ms | 19.106 ms |
+
+This is a host-only component diagnostic, not editor-frame or physical-presentation acceptance. It
+does not include `PixelCanvas.drawPreview`, and the isolated Eraser maxima do not identify a stable
+production cause. A disposable incremental preview cache would also require an exact visual oracle
+for ordered repeated translucent overlap and a predeclared physical before/after workload. Those
+conditions are not yet satisfied, so no production optimization, limit change, immutable snapshot
+change, or committed-Bitmap reuse is selected from this run.
+
 ## Prospective schema v7 protocol
 
 Issue #54 adopts `nene-pixel-m2-actual-app-frame-v7` as the only prospective acceptance schema.
