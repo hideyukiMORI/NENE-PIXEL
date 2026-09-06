@@ -205,7 +205,11 @@ function Get-CanonicalProfileRecord {
 }
 
 function Get-GradleTaskOutcomes {
-    param([Parameter(Mandatory = $true)][string[]]$OutputLines)
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
+        [string[]]$OutputLines
+    )
 
     $outcomes = [ordered]@{}
     foreach ($line in $OutputLines) {
@@ -241,7 +245,9 @@ function Test-CanonicalProfileEquality {
 function Assert-FreshProducerOutput {
     param(
         [Parameter(Mandatory = $true)][int]$ExitCode,
-        [Parameter(Mandatory = $true)][string[]]$OutputLines,
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
+        [string[]]$OutputLines,
         [Parameter(Mandatory = $true)][datetime]$StartedUtc,
         [Parameter(Mandatory = $true)][string]$ProducerOutputDirectory
     )
@@ -629,10 +635,28 @@ finally {
             $process.Kill()
             $process.WaitForExit(10000) | Out-Null
         }
-        if (Test-Path -LiteralPath $LogPath -PathType Leaf) {
-            $originalException.ToString() | Add-Content -LiteralPath $LogPath -Encoding utf8NoBOM
-        } else {
-            $originalException.ToString() | Set-Content -LiteralPath $LogPath -Encoding utf8NoBOM
+        if ($started -and $assigned -and $jobConfirmedEmpty -and -not $process.WaitForExit(10000)) {
+            $message = 'The invocation job reached zero active processes, but its launcher exit was not ' +
+                "confirmed within 10 seconds; tracked-file restoration is blocked. Original failure: " +
+                $originalException.Message
+            $blockedException = [System.InvalidOperationException]::new($message, $originalException)
+            $blockedException.Data[$script:RestorationBlockedDataKey] = $true
+            $originalException = $blockedException
+        }
+        try {
+            if (Test-Path -LiteralPath $LogPath -PathType Leaf) {
+                $originalException.ToString() | Add-Content -LiteralPath $LogPath -Encoding utf8NoBOM
+            } else {
+                $originalException.ToString() | Set-Content -LiteralPath $LogPath -Encoding utf8NoBOM
+            }
+        }
+        catch {
+            $message = 'The invocation failure log could not be finalized after bounded launcher ' +
+                "termination; tracked-file restoration is blocked. Original failure: " +
+                $originalException.Message + " Log failure: " + $_.Exception.Message
+            $blockedException = [System.InvalidOperationException]::new($message, $originalException)
+            $blockedException.Data[$script:RestorationBlockedDataKey] = $true
+            $originalException = $blockedException
         }
         throw $originalException
     }
@@ -668,62 +692,139 @@ function Invoke-GenerationInvocation {
 
     $invocationDirectory = Join-Path $EvidenceRoot ("invocation-{0}" -f $Ordinal)
     New-ExclusiveEvidenceDirectory -Path $invocationDirectory
-    $producerOutput = Join-Path $RepositoryRoot $script:ProducerOutputRelativePath
-    $producerResults = Join-Path $RepositoryRoot $script:ProducerResultsRelativePath
-    Move-PreexistingEvidenceTree -Source $producerOutput `
-        -Destination (Join-Path $invocationDirectory 'preexisting-producer-output')
-    Move-PreexistingEvidenceTree -Source $producerResults `
-        -Destination (Join-Path $invocationDirectory 'preexisting-producer-results')
     $startedUtc = [datetime]::UtcNow
-    $sourceRevision = (& git -C $RepositoryRoot rev-parse HEAD).Trim()
+    $endedUtc = $startedUtc
+    $failures = [System.Collections.Generic.List[string]]::new()
+    $sourceRevision = $null
     $logPath = Join-Path $invocationDirectory 'gradle-output.log'
     $gradle = $null
-    $failure = $null
+    $gradleExitCode = $null
+    $gradleOutputLines = $null
+    $taskOutcomes = [ordered]@{}
     $restorationBlocked = $false
-    try {
-        $gradle = & $GradleInvoker -RepositoryRoot $RepositoryRoot -LogPath $logPath `
-            -GradleArguments @(':app:android:generateBaselineProfile', '--console=plain')
-    }
-    catch {
-        $failure = $_.Exception.Message
-        $restorationBlocked = $_.Exception.Data[$script:RestorationBlockedDataKey] -eq $true
-        if (-not (Test-Path -LiteralPath $logPath -PathType Leaf)) {
-            $_.Exception.ToString() | Set-Content -LiteralPath $logPath -Encoding utf8NoBOM
-        }
-    }
-    $endedUtc = [datetime]::UtcNow
-
-    Copy-AvailableEvidenceTree -Source $producerOutput -Destination (Join-Path $invocationDirectory 'producer-output')
-    Copy-AvailableEvidenceTree -Source $producerResults -Destination (Join-Path $invocationDirectory 'producer-results')
-
+    $producerOutput = Join-Path $RepositoryRoot $script:ProducerOutputRelativePath
+    $producerResults = Join-Path $RepositoryRoot $script:ProducerResultsRelativePath
     $mergedPath = Join-Path $RepositoryRoot $script:MergedRelativePath
     $sourcePath = Join-Path $RepositoryRoot $script:ProfileRelativePath
-    foreach ($entry in @(@($mergedPath, 'merged-profile.txt'), @($sourcePath, 'source-profile.txt'))) {
-        if (Test-Path -LiteralPath $entry[0] -PathType Leaf) {
-            Copy-Item -LiteralPath $entry[0] -Destination (Join-Path $invocationDirectory $entry[1])
-        }
-    }
-
     $producer = $null
     $profile = $null
     $appApkSha256 = $null
     $testApkSha256 = $null
-    if ($null -eq $failure) {
+
+    try {
+        $sourceRevision = (& git -C $RepositoryRoot rev-parse HEAD).Trim()
+    }
+    catch {
+        $failures.Add("source revision: $($_.Exception.Message)")
+    }
+    if ($failures.Count -eq 0) {
         try {
-            $producer = Assert-FreshProducerOutput -ExitCode $gradle.ExitCode `
-                -OutputLines $gradle.OutputLines -StartedUtc $startedUtc `
-                -ProducerOutputDirectory $producerOutput
-            $profile = Assert-InvocationContent -ProducerResult $producer -MergedProfilePath $mergedPath `
-                -SourceProfilePath $sourcePath
-            $appApkSha256 = Get-FileSha256 -Path (Join-Path $RepositoryRoot $script:AppApkRelativePath)
-            $testApkSha256 = Get-FileSha256 -Path (Join-Path $RepositoryRoot $script:TestApkRelativePath)
+            Move-PreexistingEvidenceTree -Source $producerOutput `
+                -Destination (Join-Path $invocationDirectory 'preexisting-producer-output')
+            Move-PreexistingEvidenceTree -Source $producerResults `
+                -Destination (Join-Path $invocationDirectory 'preexisting-producer-results')
         }
         catch {
-            $failure = $_.Exception.Message
+            $failures.Add("preexisting evidence retention: $($_.Exception.Message)")
+        }
+    }
+    if ($failures.Count -eq 0) {
+        try {
+            $gradle = & $GradleInvoker -RepositoryRoot $RepositoryRoot -LogPath $logPath `
+                -GradleArguments @(':app:android:generateBaselineProfile', '--console=plain')
+        }
+        catch {
+            $failures.Add("native invocation: $($_.Exception.Message)")
+            $restorationBlocked = $_.Exception.Data[$script:RestorationBlockedDataKey] -eq $true
+            if (-not (Test-Path -LiteralPath $logPath -PathType Leaf)) {
+                $_.Exception.ToString() | Set-Content -LiteralPath $logPath -Encoding utf8NoBOM
+            }
+        }
+    }
+    $endedUtc = [datetime]::UtcNow
+
+    if (-not $restorationBlocked) {
+        foreach ($tree in @(
+                @($producerOutput, 'producer-output'),
+                @($producerResults, 'producer-results')
+            )) {
+            try {
+                Copy-AvailableEvidenceTree -Source $tree[0] `
+                    -Destination (Join-Path $invocationDirectory $tree[1])
+            }
+            catch {
+                $failures.Add("$($tree[1]) retention: $($_.Exception.Message)")
+            }
+        }
+        foreach ($entry in @(@($mergedPath, 'merged-profile.txt'), @($sourcePath, 'source-profile.txt'))) {
+            try {
+                if (Test-Path -LiteralPath $entry[0] -PathType Leaf) {
+                    Copy-Item -LiteralPath $entry[0] -Destination (Join-Path $invocationDirectory $entry[1])
+                }
+            }
+            catch {
+                $failures.Add("$($entry[1]) retention: $($_.Exception.Message)")
+            }
         }
     }
 
-    $gradleExitCode = if ($null -eq $gradle) { $null } else { $gradle.ExitCode }
+    if ($null -ne $gradle -and -not $restorationBlocked) {
+        try {
+            $gradleExitCode = [int]$gradle.ExitCode
+            $gradleOutputLines = [string[]]@($gradle.OutputLines)
+        }
+        catch {
+            $failures.Add("native output binding: $($_.Exception.Message)")
+        }
+    }
+    if ($null -ne $gradleOutputLines) {
+        try {
+            $taskOutcomes = Get-GradleTaskOutcomes -OutputLines $gradleOutputLines
+        }
+        catch {
+            $failures.Add("task outcome parsing: $($_.Exception.Message)")
+        }
+        try {
+            $producer = Assert-FreshProducerOutput -ExitCode $gradleExitCode `
+                -OutputLines $gradleOutputLines -StartedUtc $startedUtc `
+                -ProducerOutputDirectory $producerOutput
+        }
+        catch {
+            $failures.Add("producer freshness: $($_.Exception.Message)")
+        }
+    }
+    if ($null -ne $producer) {
+        try {
+            $profile = Assert-InvocationContent -ProducerResult $producer -MergedProfilePath $mergedPath `
+                -SourceProfilePath $sourcePath
+        }
+        catch {
+            $failures.Add("profile content: $($_.Exception.Message)")
+        }
+    }
+    if ($null -ne $gradle -and -not $restorationBlocked) {
+        try {
+            $appApkSha256 = Get-FileSha256 -Path (Join-Path $RepositoryRoot $script:AppApkRelativePath)
+        }
+        catch {
+            $failures.Add("app APK identity: $($_.Exception.Message)")
+        }
+        try {
+            $testApkSha256 = Get-FileSha256 -Path (Join-Path $RepositoryRoot $script:TestApkRelativePath)
+        }
+        catch {
+            $failures.Add("test APK identity: $($_.Exception.Message)")
+        }
+    }
+
+    $retainedFiles = @()
+    try {
+        $retainedFiles = Get-RetainedFileRecords -EvidenceDirectory $invocationDirectory
+    }
+    catch {
+        $failures.Add("retained evidence hashing: $($_.Exception.Message)")
+    }
+    $failure = if ($failures.Count -eq 0) { $null } else { [string]::Join(' | ', $failures) }
 
     $manifest = [ordered]@{
         schema = $script:EvidenceSchema
@@ -737,11 +838,7 @@ function Invoke-GenerationInvocation {
         timeout_seconds = $script:ProducerTimeoutSeconds
         restoration_blocked = $restorationBlocked
         gradle_exit_code = $gradleExitCode
-        task_outcomes = if ($null -eq $gradle) {
-            [ordered]@{}
-        } else {
-            Get-GradleTaskOutcomes -OutputLines @($gradle.OutputLines)
-        }
+        task_outcomes = $taskOutcomes
         producer_profiles = if ($null -eq $producer) {
             $null
         } else {
@@ -751,7 +848,7 @@ function Invoke-GenerationInvocation {
         source_profile = if ($null -eq $profile) { $null } else { Get-ManifestProfileRecord $profile.Source }
         app_apk_sha256 = $appApkSha256
         test_apk_sha256 = $testApkSha256
-        retained_files = Get-RetainedFileRecords -EvidenceDirectory $invocationDirectory
+        retained_files = $retainedFiles
     }
     $manifestPath = Join-Path $invocationDirectory 'manifest.json'
     Write-JsonFile -Value $manifest -Path $manifestPath
@@ -819,6 +916,8 @@ function Invoke-BaselineProfileEvidenceGeneration {
     try {
         $first = Invoke-GenerationInvocation -RepositoryRoot $RepositoryRoot -EvidenceRoot $evidenceRoot `
             -EvidenceIdentity $EvidenceIdentity -Ordinal 1 -GradleInvoker $GradleInvoker
+        Restore-FileState -Path $profilePath -State $originalProfile
+        Restore-FileState -Path $hashPath -State $originalHash
         $second = Invoke-GenerationInvocation -RepositoryRoot $RepositoryRoot -EvidenceRoot $evidenceRoot `
             -EvidenceIdentity $EvidenceIdentity -Ordinal 2 -GradleInvoker $GradleInvoker
 

@@ -1,5 +1,7 @@
 [CmdletBinding()]
-param()
+param(
+    [string]$RetainedGradleLogPath = ''
+)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -133,18 +135,26 @@ function New-OrchestrationFixtureInvoker {
         [Parameter(Mandatory = $true)][string]$EvidenceIdentity,
         [Parameter(Mandatory = $true)][string]$Mode,
         [Parameter(Mandatory = $true)][string]$FirstContent,
-        [Parameter(Mandatory = $true)][string]$SecondContent
+        [Parameter(Mandatory = $true)][string]$SecondContent,
+        [string]$RetainedLogPath = ''
     )
 
     $state = [pscustomobject]@{
         GenerationCount = 0
         ValidationCount = 0
         FirstManifestSeenBeforeSecond = $false
+        FrozenInputsSeenBeforeSecond = $false
+        FirstOutputDifferedFromFrozenInput = $false
     }
     $producerOutputRelativePath = $script:ProducerOutputRelativePath
     $mergedRelativePath = $script:MergedRelativePath
     $profileRelativePath = $script:ProfileRelativePath
+    $appApkRelativePath = $script:AppApkRelativePath
     $producerTask = $script:ProducerTask
+    $retainedLogPathForInvoker = $RetainedLogPath
+    $originalProfileHash = (& git -C $RepositoryRoot hash-object -- $profileRelativePath).Trim()
+    $originalHashFileHash = (& git -C $RepositoryRoot hash-object -- $script:HashRelativePath).Trim()
+    $hashRelativePath = $script:HashRelativePath
     $invoker = {
         param(
             [Parameter(Mandatory = $true)][string]$RepositoryRoot,
@@ -161,6 +171,14 @@ function New-OrchestrationFixtureInvoker {
                 if (-not $state.FirstManifestSeenBeforeSecond) {
                     throw 'Invocation 1 manifest was not preserved before invocation 2.'
                 }
+                $currentProfileHash = (& git -C $RepositoryRoot hash-object -- $profileRelativePath).Trim()
+                $currentHashFileHash = (& git -C $RepositoryRoot hash-object -- $hashRelativePath).Trim()
+                $state.FrozenInputsSeenBeforeSecond =
+                    $currentProfileHash -ceq $originalProfileHash -and
+                    $currentHashFileHash -ceq $originalHashFileHash
+                if (-not $state.FrozenInputsSeenBeforeSecond) {
+                    throw 'Frozen tracked profile inputs were not restored before invocation 2.'
+                }
             }
             if ($Mode -eq 'launch-failure' -and $state.GenerationCount -eq 1) {
                 throw [System.ComponentModel.Win32Exception]::new('synthetic native process start failure')
@@ -170,22 +188,53 @@ function New-OrchestrationFixtureInvoker {
             $writtenUtc = [datetime]::UtcNow.AddSeconds(1)
             $producerPath = Join-Path (Join-Path $RepositoryRoot $producerOutputRelativePath) `
                 'journey-baseline-prof.txt'
-            foreach ($path in @(
-                    $producerPath,
-                    (Join-Path $RepositoryRoot $mergedRelativePath),
-                    (Join-Path $RepositoryRoot $profileRelativePath)
-                )) {
+            $profilePaths = @(
+                (Join-Path $RepositoryRoot $mergedRelativePath),
+                (Join-Path $RepositoryRoot $profileRelativePath)
+            )
+            if ($Mode -ne 'missing-output') {
+                $profilePaths = @($producerPath) + $profilePaths
+            }
+            foreach ($path in $profilePaths) {
                 New-Item -ItemType Directory -Path (Split-Path -Parent $path) -Force | Out-Null
-                [System.IO.File]::WriteAllText($path, $content, [System.Text.UTF8Encoding]::new($false))
+                if ($Mode -eq 'invalid-utf8' -and $path -eq $producerPath) {
+                    [System.IO.File]::WriteAllBytes($path, [byte[]]@(0xff, 0xfe, 0x00, 0x80))
+                } else {
+                    [System.IO.File]::WriteAllText(
+                        $path,
+                        $content,
+                        [System.Text.UTF8Encoding]::new($false)
+                    )
+                }
                 [System.IO.File]::SetLastWriteTimeUtc($path, $writtenUtc)
+            }
+            if ($state.GenerationCount -eq 1) {
+                $firstOutputHash = (& git -C $RepositoryRoot hash-object -- $profileRelativePath).Trim()
+                $state.FirstOutputDifferedFromFrozenInput = $firstOutputHash -cne $originalProfileHash
+            }
+            if ($Mode -eq 'missing-apk') {
+                Remove-Item -LiteralPath (Join-Path $RepositoryRoot $appApkRelativePath) -Force
+            }
+            if ($Mode -eq 'retained-log-success') {
+                [System.IO.File]::WriteAllBytes(
+                    $LogPath,
+                    [System.IO.File]::ReadAllBytes($retainedLogPathForInvoker)
+                )
+                $lines = @(Get-Content -LiteralPath $LogPath)
+                return [pscustomobject]@{ ExitCode = 0; OutputLines = $lines }
             }
             $lines = @(
                 '> Task :app:android:compileNonMinifiedReleaseKotlin FROM-CACHE',
+                '',
                 "> Task $producerTask",
                 '> Task :app:android:mergeBaselineProfile UP-TO-DATE'
             )
+            if ($Mode -eq 'pull-failure') {
+                $lines += 'Failed to pull producer output.'
+            }
+            $exitCode = if ($Mode -eq 'nonzero-exit') { 1 } else { 0 }
             $lines | Set-Content -LiteralPath $LogPath -Encoding utf8NoBOM
-            return [pscustomobject]@{ ExitCode = 0; OutputLines = $lines }
+            return [pscustomobject]@{ ExitCode = $exitCode; OutputLines = $lines }
         }
 
         if ($GradleArguments[0] -eq 'validateBaselineProfile') {
@@ -267,7 +316,7 @@ function Assert-NativeTimeoutQuiescence {
     $successWrapper = Join-Path $successRoot 'gradlew.bat'
     [System.IO.File]::WriteAllText(
         $successWrapper,
-        "@echo off`r`necho native-success arguments=%*`r`nexit /b 0`r`n",
+        "@echo off`r`necho native-success arguments=%*`r`necho.`r`nexit /b 0`r`n",
         [System.Text.Encoding]::ASCII
     )
     $successLog = Join-Path $successRoot 'gradle-output.log'
@@ -278,6 +327,8 @@ function Assert-NativeTimeoutQuiescence {
     if ($successText -notmatch 'native-success' -or $successText -notmatch '--no-daemon') {
         throw 'A successful native invocation must retain output and its no-daemon identity.'
     }
+    Assert-Equal 1 @($success.OutputLines | Where-Object { $_ -eq '' }).Count `
+        'Native output binding must preserve an empty output line.'
 }
 
 function Assert-OrchestrationFailureRestored {
@@ -294,6 +345,41 @@ function Assert-OrchestrationFailureRestored {
         "build/reports/baseline-profile-generation/$EvidenceIdentity/acceptance-manifest.json"
     Assert-Equal $false (Test-Path -LiteralPath $acceptance) `
         'Failed orchestration must not write acceptance evidence.'
+}
+
+function Assert-InvalidInvocationManifest {
+    param(
+        [Parameter(Mandatory = $true)]$Repository,
+        [Parameter(Mandatory = $true)]$Invoker,
+        [Parameter(Mandatory = $true)][string]$EvidenceIdentity,
+        [Parameter(Mandatory = $true)][string]$ExpectedFailure
+    )
+
+    Assert-Rejected {
+        Invoke-BaselineProfileEvidenceGeneration -RepositoryRoot $Repository.Root `
+            -EvidenceIdentity $EvidenceIdentity -GradleInvoker $Invoker.Invoker
+    } $ExpectedFailure
+    Assert-Equal 1 $Invoker.State.GenerationCount `
+        "$EvidenceIdentity must stop before a second producer invocation."
+    $evidenceRoot = Join-Path $Repository.Root `
+        "build/reports/baseline-profile-generation/$EvidenceIdentity"
+    $manifestPath = Join-Path $evidenceRoot 'invocation-1/manifest.json'
+    Assert-Equal $true (Test-Path -LiteralPath $manifestPath -PathType Leaf) `
+        "$EvidenceIdentity must fail closed with an invocation manifest."
+    $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+    Assert-Equal 'invalid' $manifest.status "$EvidenceIdentity must be recorded as invalid."
+    if ($manifest.failure -notlike "*$ExpectedFailure*") {
+        throw "$EvidenceIdentity manifest did not retain failure '$ExpectedFailure': $($manifest.failure)"
+    }
+    foreach ($relativePath in @(
+            'invocation-2',
+            'pair-manifest.json',
+            'acceptance-manifest.json'
+        )) {
+        Assert-Equal $false (Test-Path -LiteralPath (Join-Path $evidenceRoot $relativePath)) `
+            "$EvidenceIdentity must not advance after an invalid first invocation."
+    }
+    Assert-OrchestrationFailureRestored -Repository $Repository -EvidenceIdentity $EvidenceIdentity
 }
 
 try {
@@ -444,6 +530,10 @@ try {
     Assert-Equal 1 $successInvoker.State.ValidationCount 'Successful orchestration must run final validation.'
     Assert-Equal $true $successInvoker.State.FirstManifestSeenBeforeSecond `
         'Invocation 1 manifest must exist before invocation 2 starts.'
+    Assert-Equal $true $successInvoker.State.FrozenInputsSeenBeforeSecond `
+        'Frozen tracked profile inputs must be restored before invocation 2 starts.'
+    Assert-Equal $true $successInvoker.State.FirstOutputDifferedFromFrozenInput `
+        'The ordering fixture must first replace the frozen source with a different candidate.'
     $successEvidence = Join-Path $successRepository.Root 'build/reports/baseline-profile-generation/success'
     Assert-Equal $true (Test-Path -LiteralPath (Join-Path $successEvidence 'acceptance-manifest.json')) `
         'A valid identical fresh pair must write acceptance evidence.'
@@ -454,6 +544,75 @@ try {
         'Invocation manifest must record its producer timeout.'
     Assert-Equal 'valid' ((Get-Content -LiteralPath (Join-Path $successEvidence 'invocation-2/manifest.json') `
             -Raw | ConvertFrom-Json).status) 'Invocation 2 must be valid.'
+
+    if (-not [string]::IsNullOrWhiteSpace($RetainedGradleLogPath)) {
+        $resolvedRetainedLog = (Resolve-Path -LiteralPath $RetainedGradleLogPath).Path
+        $retainedLines = @(Get-Content -LiteralPath $resolvedRetainedLog)
+        if (@($retainedLines | Where-Object { $_ -eq '' }).Count -eq 0) {
+            throw 'The retained Gradle regression log must contain at least one empty line.'
+        }
+        $retainedRepository = New-OrchestrationFixtureRepository -Name 'retained-log-success'
+        $retainedInvoker = New-OrchestrationFixtureInvoker -RepositoryRoot $retainedRepository.Root `
+            -EvidenceIdentity 'retained-log-success' -Mode 'retained-log-success' `
+            -FirstContent $orchestrationContent -SecondContent $orchestrationContent `
+            -RetainedLogPath $resolvedRetainedLog
+        Invoke-BaselineProfileEvidenceGeneration -RepositoryRoot $retainedRepository.Root `
+            -EvidenceIdentity 'retained-log-success' -GradleInvoker $retainedInvoker.Invoker | Out-Null
+        Assert-Equal 2 $retainedInvoker.State.GenerationCount `
+            'The retained-log regression must complete exactly two fixture producer invocations.'
+        Assert-Equal $true $retainedInvoker.State.FrozenInputsSeenBeforeSecond `
+            'The retained-log pair must restore frozen tracked profile inputs before invocation 2.'
+        Assert-Equal $true $retainedInvoker.State.FirstOutputDifferedFromFrozenInput `
+            'The retained-log ordering proof must be nonvacuous.'
+        $retainedBytes = [System.Convert]::ToBase64String(
+            [System.IO.File]::ReadAllBytes($resolvedRetainedLog)
+        )
+        foreach ($ordinal in 1..2) {
+            $copiedLog = Join-Path $retainedRepository.Root `
+                "build/reports/baseline-profile-generation/retained-log-success/invocation-$ordinal/gradle-output.log"
+            Assert-Equal $retainedBytes ([System.Convert]::ToBase64String(
+                    [System.IO.File]::ReadAllBytes($copiedLog)
+                )) "Invocation $ordinal must retain the exact Gradle log bytes including empty lines."
+            $retainedManifest = Get-Content -LiteralPath (Join-Path $retainedRepository.Root `
+                    "build/reports/baseline-profile-generation/retained-log-success/invocation-$ordinal/manifest.json") `
+                -Raw | ConvertFrom-Json
+            Assert-Equal 'valid' $retainedManifest.status `
+                "Invocation $ordinal must accept the retained blank-line Gradle output."
+            Assert-Equal 'EXECUTED' $retainedManifest.task_outcomes.PSObject.Properties[$script:ProducerTask].Value `
+                "Invocation $ordinal must parse the executed producer task from the retained log."
+        }
+    }
+
+    foreach ($invalidCase in @(
+            @('invalid-utf8', 'producer freshness:'),
+            @('missing-output', 'producer freshness:'),
+            @('pull-failure', 'producer freshness:'),
+            @('nonzero-exit', 'producer freshness:'),
+            @('missing-apk', 'app APK identity:'),
+            @('task-parsing-failure', 'task outcome parsing:')
+        )) {
+        $caseName = $invalidCase[0]
+        $invalidRepository = New-OrchestrationFixtureRepository -Name $caseName
+        $invalidInvoker = New-OrchestrationFixtureInvoker -RepositoryRoot $invalidRepository.Root `
+            -EvidenceIdentity $caseName -Mode $caseName -FirstContent $orchestrationContent `
+            -SecondContent $orchestrationContent
+        if ($caseName -eq 'task-parsing-failure') {
+            $originalTaskParser = (Get-Item Function:Get-GradleTaskOutcomes).ScriptBlock
+            Set-Item Function:Get-GradleTaskOutcomes -Value {
+                throw 'synthetic task parser exception'
+            }
+            try {
+                Assert-InvalidInvocationManifest -Repository $invalidRepository -Invoker $invalidInvoker `
+                    -EvidenceIdentity $caseName -ExpectedFailure $invalidCase[1]
+            }
+            finally {
+                Set-Item Function:Get-GradleTaskOutcomes -Value $originalTaskParser
+            }
+        } else {
+            Assert-InvalidInvocationManifest -Repository $invalidRepository -Invoker $invalidInvoker `
+                -EvidenceIdentity $caseName -ExpectedFailure $invalidCase[1]
+        }
+    }
 
     $mismatchRepository = New-OrchestrationFixtureRepository -Name 'mismatch'
     $mismatchInvoker = New-OrchestrationFixtureInvoker -RepositoryRoot $mismatchRepository.Root `
@@ -512,6 +671,10 @@ try {
         'failure-restore,failed-with-stale-source,' +
         'stale,cached-producer,pull-failure,' +
         'fresh-match,stale-source,flag-drift,apk-drift,' +
+        'blank-output-binding,retained-raw-log-pair,' +
+        'invalid-manifest-utf8,invalid-manifest-missing-output,' +
+        'invalid-manifest-pull,invalid-manifest-nonzero,' +
+        'invalid-manifest-apk-hash,invalid-manifest-task-parsing,' +
         'orchestration-success,orchestration-mismatch,orchestration-launch-failure,' +
         'orchestration-final-validation-failure,manifest-before-next-run,no-acceptance-after-failure'
     )

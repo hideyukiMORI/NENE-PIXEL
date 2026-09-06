@@ -67,6 +67,9 @@ It runs the producer exactly twice and writes ignored, versioned evidence to
 `build/reports/baseline-profile-generation/<evidence-id>/`. Each invocation is preserved before the
 next starts: Gradle output, fresh raw producer profile, merged/source profile, available
 instrumentation results/logs, task outcomes, source revision, APK/test-APK hashes, and manifest.
+Blank lines in Gradle output remain in the raw log. A failure after the native invocation, including
+output binding, task parsing, freshness, profile decoding/content, or APK hashing, writes an invalid
+invocation manifest from the available partial evidence and stops before another invocation.
 Any producer output present before an invocation is moved into that invocation's evidence directory
 before Gradle starts; it cannot satisfy the fresh-output check and is not discarded.
 Compilation and packaging keep the normal Gradle cache. This explicit evidence command gates each
@@ -78,6 +81,12 @@ Acceptance requires actual connected producer execution and fresh pulled output;
 hash is expected when both fresh invocations generated the same content. Any job-termination failure
 or failure to confirm zero active processes retains the snapshot/evidence and reports restoration
 blocked instead of restoring while output may still change.
+
+After the first evidence and manifest are durable, the command restores the pre-generation tracked
+profile and hash before starting the second invocation. This freezes both tested builds to the same
+profile inputs while leaving the first raw, merged, and source candidate in its invocation evidence.
+The pair comparison reads the two retained invocation records. It does not compare the restored
+working copy.
 
 The command compares every ordered rule and flag after canonical UTF-8/LF normalization with no
 terminal separator, refuses rule/flag drift, writes the accepted canonical source and lowercase

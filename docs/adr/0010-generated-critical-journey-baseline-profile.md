@@ -91,11 +91,13 @@ rule is excluded from this comparison.
 The one documented generation command runs exactly two producer invocations. Before starting the
 second invocation it stores the first invocation's fresh raw producer output, merged/source output,
 available instrumentation results and logs, task outcomes, source revision, tested APK hashes, and
-a manifest under a caller-supplied evidence identity. It does the same for the second invocation
-before comparing them. Producer output that predates an invocation is first moved into that
-invocation's evidence directory, so it cannot qualify as fresh and is not discarded. Evidence schema
-`nene-pixel-baseline-profile-evidence-v1` refuses an existing identity or invocation directory
-instead of overwriting it.
+a manifest under a caller-supplied evidence identity. It then restores the frozen pre-generation
+tracked profile and hash before launching the second invocation, so the first candidate cannot alter
+the second tested APK's build inputs. The first invocation evidence remains unchanged. It preserves
+the second invocation before comparing the two retained invocation records. Producer output that
+predates an invocation is first moved into that invocation's evidence directory, so it cannot qualify
+as fresh and is not discarded. Evidence schema `nene-pixel-baseline-profile-evidence-v1` refuses an
+existing identity or invocation directory instead of overwriting it.
 
 An invocation is fresh only when Gradle succeeds, the connected producer task actually executes,
 the output pull reports no failure, and a newly written producer profile is present. Compilation,
@@ -110,10 +112,13 @@ assigning it to an invocation-owned Windows Job Object whose children cannot esc
 kill-on-close enabled. The wrapper requires that job to report zero active processes before restoring
 the tracked source/hash; this is the recorded `QLT-012` reason for not reusing the shared daemon in
 this explicit evidence operation. Output is spooled directly to the evidence log rather than held by
-an unbounded redirected pipe. The producer keeps the pinned tool's accepted 15-iteration maximum and
-three stable-iteration requirement explicit. Any termination failure or failure to confirm an empty
-job records invalid evidence and reports restoration blocked; it does not restore while a worker may
-still mutate the tracked source.
+an unbounded redirected pipe, and blank output lines remain part of that raw log. After a native
+invocation returns, a launch, output-binding, task-parsing, freshness, content, or artifact-identity
+failure writes an invalid invocation manifest with all available partial evidence before the wrapper
+stops. The producer keeps the pinned tool's accepted 15-iteration maximum and three stable-iteration
+requirement explicit. Any termination failure or failure to confirm an empty job records invalid
+evidence and reports restoration blocked; it does not restore while a worker may still mutate the
+tracked source.
 
 The tracked source and hash are snapshotted before either invocation. They are replaced with the
 matched canonical result only for the final narrow artifact validation. A pair or validation failure
