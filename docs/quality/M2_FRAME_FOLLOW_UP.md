@@ -2202,7 +2202,7 @@ merged keep-rule inputs, mapping ID, and retrace tool identity. A controlled map
 round trip is required; file presence alone is insufficient. The exact textual P62 profile input to
 R8 stays byte-identical and its historical generation SHA is not relabelled.
 
-The retained reference B is source `91cf17499be225dcf1bff8151aa9f3166e8c014e`, APK SHA-256
+The retained historical pre-#77 reference B is source `91cf17499be225dcf1bff8151aa9f3166e8c014e`, APK SHA-256
 `ac50568d6262a9dd6af4c8877b80866a06c4f35eceb2b1459777d551c485fe00`, 8,402,300 bytes. Its
 production and build inputs equal merged main `d210a0e8f2e1576f89031edd7ef515602cfa8765`; it is not
 relabelled as the candidate. Before performance work, the exact optimized release must pass package,
