@@ -7,11 +7,11 @@
 
 ## Context
 
-NENE-PIXEL's application module does not configure release optimization. The pinned Android Gradle
-Plugin 9.4 `ApplicationBuildType.optimization` DSL defines `enable` as the application switch for R8
-code shrinking and resource optimization and defaults it to `false`. The current shipping release is
-therefore unoptimized. This official production path remains untested after the source-level Compose
-candidates evaluated for Issue #54 failed its unchanged absolute frame gate.
+Before Issue #76, NENE-PIXEL's application module did not configure release optimization. The pinned
+Android Gradle Plugin 9.4 `ApplicationBuildType.optimization` DSL defines `enable` as the application
+switch for R8 code shrinking and resource optimization and defaults it to `false`. The shipping
+release was therefore unoptimized, and this official production path had not been tested after the
+source-level Compose candidates evaluated for Issue #54 failed its unchanged absolute frame gate.
 
 Baseline Profile generation and profile consumption have separate identities. The accepted P62
 artifact records a completed two-process generation pair at source
@@ -210,12 +210,13 @@ intentionally excludes the project-generated P62 text while retaining dependency
 P62 consumers are B `benchmarkRelease` plus C `release` and `benchmarkRelease`. This consumer reuse
 did not run or publish a new producer pair.
 
-If host packaging, shipping/proxy payload equivalence, mapping/retrace, optimized-runtime correctness,
-a gross diagnostic, or the absolute candidate decision fails, remove the focused role policy and
-retain the failed artifacts without a runtime toggle or second shipping path. If the candidate passes
-every gate, update this ADR to accepted in the same focused change and keep optimized `release` as the
-sole shipping path. Future keep-rule or package-scope changes require a separate evidence-backed Issue
-and ADR update.
+The prospective rollback condition did not occur: host packaging, shipping/proxy payload equivalence,
+mapping/retrace, optimized-runtime correctness, both diagnostics, and the absolute candidate decision
+all passed. Optimized `release` remains the sole shipping path. If a future regression requires
+rollback, a focused Issue and ADR decision must remove the role policy and its coupled implementation
+in the same change, preserve this experiment as historical evidence, and retain one shipping path
+without a runtime toggle. Future keep-rule or package-scope changes require a separate evidence-backed
+Issue and ADR update.
 
 ## Related
 
@@ -223,6 +224,6 @@ and ADR update.
 - Parent: [#54](https://github.com/hideyukiMORI/NENE-PIXEL/issues/54)
 - [ADR 0011](0011-change-scoped-verification.md)
 - [M2 frame follow-up](../quality/M2_FRAME_FOLLOW_UP.md)
-- PR: pending
+- PR: tracked by Issue #76
 - Supersedes: none
 - Superseded by: none
