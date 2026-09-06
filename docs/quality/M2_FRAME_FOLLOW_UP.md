@@ -1707,3 +1707,20 @@ queries are in `offline-cause-analysis-02/`. The earlier offline attempt and its
 alignment assertion failure are retained separately; it collected no device data and changed no
 run verdict. Interpretation follows the [Perfetto scheduling documentation](https://perfetto.dev/docs/data-sources/cpu-scheduling)
 and [FrameTimeline definitions](https://perfetto.dev/docs/data-sources/frametimeline).
+
+#### Integration-review strengthening
+
+Post-collection review commit `d09a253cb8092cb4fe13bd8a4f4b7ff258a94fb5` closes two fail-closed
+harness gaps without changing or relabelling the collected artifact. The analyzer now rejects a
+requested frame unless its SurfaceFlinger actual association is unique as well as both app
+associations. The dexopt preflight now delimits the exact target package block by its own header
+indentation, so an unindented following package cannot supply a misleading `speed-profile` value.
+The collected v3 harness identity remains `edacaa99838d73f883fce19ba74bb9700a444924`.
+
+The complete device-free fixture now passes ten scenarios, adding duplicate SurfaceFlinger
+association and a target-package/decoy-package profile mismatch to the prior eight. A fresh offline
+analysis output directory using the strengthened analyzer and the immutable v3 trace again reports
+`attribution-complete`, twenty requested frames, nine late COMMIT frames, and the unchanged
+120/112/1,443 thread-state/scheduler/slice row counts. This is validation of the existing saved
+trace and analyzer guard only; it is not another device collection, performance sample, source-label
+attribution, or acceptance result.
