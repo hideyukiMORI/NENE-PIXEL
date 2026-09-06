@@ -330,6 +330,7 @@ $invocation = New-NeneAttributionInvocation `
     -OutputDirectory $resolvedOutput `
     -Manifest ([ordered]@{
         schema = $schema
+        evidence_id = Split-Path -Leaf $resolvedOutput
         parent_issue = 54
         focused_issue = 73
         source_commit = $sourceCommit
@@ -341,6 +342,13 @@ $invocation = New-NeneAttributionInvocation `
         profile_generation_source = "374ad2111ed61d012bc20ba18229973b982e7df2"
         profile_canonical_sha256 = "ca83f66917fdda19ade75bfe31861dbd33a6615c0c8feda7a5b774b55ce2f62d"
         profile_acceptance_manifest_sha256 = "7fade8dcb677633a1200373100d05c56ebf627622b4eb554d15a4df27893b2b7"
+        profile_fresh_for_marker_source = $false
+        functional_test_source = $sourceCommit
+        functional_test_apk_sha256 = "f71932c9bcb957070c43c2eb9d7d7c985805372cef2ac48a3cec1bf8cece9386"
+        functional_test_apk_bytes = 12667375L
+        functional_test_count = 15
+        functional_test_result = "pass"
+        functional_evidence_summary_sha256 = "791c98e89a472ca32cd54af1bf44f171b27177af10602f6b0397e2087fa039a9"
         trace_processor_sha256 = $expectedTraceProcessorSha256
         trace_processor_bytes = $expectedTraceProcessorBytes
         trace_processor_version = $expectedTraceProcessorVersion

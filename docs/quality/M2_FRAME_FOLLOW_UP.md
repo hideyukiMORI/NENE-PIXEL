@@ -2110,3 +2110,19 @@ Synthetic fixture timing is never device or performance evidence. Exact source/A
 identities and the one invocation command require review together before any device or trace budget
 opens. This diagnostic is governed by ARC-001, ARC-004, ARC-009, QLT-011 through QLT-016, ADR-0011,
 and ADR-0012. Active waivers: none.
+
+The fixed marker source is `4eb7aea64dc49ffc8268e02b1c04a05fff2c9469`. Its signed release-like
+APK is 8,402,300 bytes with SHA-256
+`0b99e56e19321716486ddd1c8aebd660ae34b11bdca1e953ec827fd8f791db91`, embedded source `4eb7aea...`,
+v2/v3 signatures, the accepted P70 profile, packaged prof SHA-256
+`f4a0f8059a7005e573197739f23bf3a39d47c56f75629b2b197f7abc9ef9ef35`, and profm SHA-256
+`6dba2e6bef8677e95ff689371c9cfbcc2acc0bc11e0389b26402cce7b9d3c51a`. The profile remains
+diagnostic context rather than fresh marker-source evidence.
+
+The self-instrumenting presentation AndroidTest APK is 12,667,375 bytes with SHA-256
+`f71932c9bcb957070c43c2eb9d7d7c985805372cef2ac48a3cec1bf8cece9386`. One direct fixed-class
+instrumentation batch on `T830128GB26321131293` passed 15/15 tests in 21.849 seconds: two marker
+reference tests, four dirty-status cases, and nine Undo/Redo editor journeys. Install and
+instrumentation native exits were zero. Retained summary SHA-256 is
+`791c98e89a472ca32cd54af1bf44f171b27177af10602f6b0397e2087fa039a9`. This is correctness evidence,
+not trace or performance evidence. The one-trace and ten-operation budget remains unopened.
