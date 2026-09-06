@@ -20,9 +20,21 @@ android {
 
 pluginManager.withPlugin("androidx.baselineprofile.apptarget") {
     androidComponents.finalizeDsl { extension ->
-        val releaseOptimization = extension.buildTypes.named("release").get().optimization
-        val benchmarkOptimization = extension.buildTypes.named("benchmarkRelease").get().optimization
-        val producerOptimization = extension.buildTypes.named("nonMinifiedRelease").get().optimization
+        val releaseOptimization =
+            extension.buildTypes
+                .named("release")
+                .get()
+                .optimization
+        val benchmarkOptimization =
+            extension.buildTypes
+                .named("benchmarkRelease")
+                .get()
+                .optimization
+        val producerOptimization =
+            extension.buildTypes
+                .named("nonMinifiedRelease")
+                .get()
+                .optimization
 
         check(releaseOptimization !== benchmarkOptimization)
         check(releaseOptimization !== producerOptimization)
