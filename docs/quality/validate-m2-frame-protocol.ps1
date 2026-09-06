@@ -449,6 +449,7 @@ try {
     $preDevice.SourceCommit = $preDeviceSource
     $preDevice.ApkPath = $preDeviceApk
     $preDeviceApkSha256 = (Get-FileHash -Algorithm SHA256 $preDeviceApk).Hash.ToLowerInvariant()
+    $preDeviceApkBytes = (Get-Item -LiteralPath $preDeviceApk).Length
     $preDevice.ExperimentDirectory = Join-Path $temporaryRoot 'pre-device-experiment'
     $preDevice.ExperimentId = 'pre-device-validation'
     $preDevice.ComparisonSequenceIndex = 1
@@ -458,14 +459,38 @@ try {
     $preDevice.CandidateApkSha256 = 'd' * 64
     $preDevice.BaselinePackagedProfSha256 = $preDevice.CandidatePackagedProfSha256
     $preDevice.BaselinePackagedProfmSha256 = $preDevice.CandidatePackagedProfmSha256
-    $global:neneExpectedPreDeviceApk = (Resolve-Path -LiteralPath $preDeviceApk).Path
-    $global:nenePreDeviceInstallSeen = $false
+    $global:neneFrameFixtureState = [pscustomobject]@{
+        ExpectedApk = (Resolve-Path -LiteralPath $preDeviceApk).Path
+        InstallSeen = $false
+        Committed = $false
+        Frame = 0
+    }
+    function global:Start-Sleep {
+        param([int]$Milliseconds, [int]$Seconds)
+    }
+    function global:Get-NeneFrameFixtureUi {
+        $dirty = if ($global:neneFrameFixtureState.Committed) { 'Unsaved changes' } else { 'No unsaved changes' }
+        $undo = $global:neneFrameFixtureState.Committed.ToString().ToLowerInvariant()
+        return @"
+<hierarchy><node>
+<node content-desc="Document dirty status" text="$dirty" />
+<node enabled="$undo" bounds="[200,0][300,100]"><node text="Undo" /></node>
+<node enabled="false"><node text="Redo" /></node>
+<node checked="true"><node content-desc="Pencil tool" /></node>
+<node content-desc="16 by 16 pixel canvas" bounds="[0,0][160,160]" />
+</node></hierarchy>
+"@
+    }
     function global:adb {
         param(
             [string]$s,
             [Parameter(ValueFromRemainingArguments = $true)][string[]]$AdbArguments
         )
 
+        $global:LASTEXITCODE = 0
+        if ($s -ne 'offline-validation') {
+            throw 'The end-to-end fixture received an unexpected device route.'
+        }
         $command = $AdbArguments -join ' '
         switch -Regex ($command) {
             '^shell getprop ro\.kernel\.qemu$' { '0'; return }
@@ -490,42 +515,156 @@ try {
                 $actualPath = $AdbArguments[3]
                 if (-not [string]::Equals(
                         $actualPath,
-                        $global:neneExpectedPreDeviceApk,
+                        $global:neneFrameFixtureState.ExpectedApk,
                         [System.StringComparison]::OrdinalIgnoreCase
                     )) {
                     throw "Pre-device installation received the wrong APK path: $actualPath"
                 }
-                $global:nenePreDeviceInstallSeen = $true
-                throw 'pre-device fixture reached exact APK install'
+                $global:neneFrameFixtureState.InstallSeen = $true
+                return 'Success'
             }
-            default { return }
+            '^shell pm clear ' {
+                $global:neneFrameFixtureState.Committed = $false
+                return 'Success'
+            }
+            '^shell am broadcast ' { 'Broadcast completed: result=1'; return }
+            '^shell cmd package compile ' { 'Success'; return }
+            '^shell dumpsys package dexopt$' {
+                "[io.github.hideyukimori.nenepixel]`n    arm64: [status=speed-profile]`n[example.decoy]`n    arm64: [status=verify]"
+                return
+            }
+            '^shell svc power stayon usb$' { return }
+            '^shell cmd input keyevent WAKEUP$' { return }
+            '^shell am force-stop ' { return }
+            '^shell am start ' { return }
+            '^shell cmd input tap ' {
+                if ([int]$AdbArguments[4] -eq 5) {
+                    $global:neneFrameFixtureState.Committed = $true
+                }
+                elseif ([int]$AdbArguments[4] -eq 250) {
+                    $global:neneFrameFixtureState.Committed = $false
+                }
+                else {
+                    throw "The end-to-end fixture received an unexpected tap: $command"
+                }
+                return
+            }
+            '^shell cmd input motionevent ' {
+                if ($AdbArguments[4] -eq 'UP') {
+                    $global:neneFrameFixtureState.Committed = $true
+                }
+                return
+            }
+            '^shell uiautomator dump ' { 'UI dumped'; return }
+            '^shell cat ' { Get-NeneFrameFixtureUi; return }
+            '^shell dumpsys gfxinfo .* reset$' { 'reset'; return }
+            '^shell dumpsys gfxinfo .* framestats$' {
+                $global:neneFrameFixtureState.Frame += 1
+                $frame = [long]$global:neneFrameFixtureState.Frame
+                $base = $frame * 100000000L
+                $header = 'Flags,FrameTimelineVsyncId,IntendedVsync,FrameStartTime,HandleInputStart,AnimationStart,PerformTraversalsStart,DrawStart,SyncQueued,SyncStart,IssueDrawCommandsStart,SwapBuffers,SwapBuffersCompleted,FrameDeadline,FrameCompleted,DisplayPresentTime'
+                $row = @(
+                    0,
+                    $frame,
+                    $base,
+                    ($base + 1000000L),
+                    ($base + 2000000L),
+                    ($base + 3000000L),
+                    ($base + 4000000L),
+                    ($base + 5000000L),
+                    ($base + 6000000L),
+                    ($base + 6500000L),
+                    ($base + 7000000L),
+                    ($base + 8000000L),
+                    ($base + 9000000L),
+                    ($base + 16666667L),
+                    ($base + 10000000L),
+                    ($base + 12000000L)
+                ) -join ','
+                return @(
+                    'Applications Graphics Acceleration Info:',
+                    'Total frames rendered: 1',
+                    'Janky frames: 0',
+                    'Number Frame deadline missed: 0',
+                    '---PROFILEDATA---',
+                    $header,
+                    $row,
+                    '---PROFILEDATA---',
+                    ''
+                )
+            }
+            '^pull ' {
+                $localPath = $AdbArguments[2]
+                if ($localPath.EndsWith('.xml')) {
+                    [System.IO.File]::WriteAllText(
+                        $localPath,
+                        (Get-NeneFrameFixtureUi),
+                        [System.Text.UTF8Encoding]::new($false)
+                    )
+                }
+                elseif ($localPath.EndsWith('.png')) {
+                    [System.IO.File]::WriteAllBytes($localPath, [byte[]]@(1, 2, 3, 4))
+                }
+                else {
+                    throw "The end-to-end fixture received an unexpected pull: $command"
+                }
+                return 'pulled'
+            }
+            '^logcat -c$' { return }
+            '^logcat -d -v threadtime$' { 'fixture: no app fatal events'; return }
+            '^shell screencap -p ' { return }
+            '^shell settings put global stay_on_while_plugged_in ' { return }
+            '^shell rm -f ' { return }
+            default { throw "The host end-to-end fixture received an unexpected adb command: $command" }
         }
     }
-    $preDeviceFailure = $null
+    $endToEndOutput = @()
     Push-Location $preDeviceRepository
     try {
-        & $collector @preDevice | Out-Null
-    }
-    catch {
-        $preDeviceFailure = $_.Exception.Message
+        $endToEndOutput = @(& $collector @preDevice)
     }
     finally {
         Pop-Location
         Remove-Item Function:\global:adb -ErrorAction SilentlyContinue
+        Remove-Item Function:\global:Start-Sleep -ErrorAction SilentlyContinue
+        Remove-Item Function:\global:Get-NeneFrameFixtureUi -ErrorAction SilentlyContinue
     }
     if (
-        -not $global:nenePreDeviceInstallSeen -or
-        $preDeviceFailure -ne 'pre-device fixture reached exact APK install'
+        -not $global:neneFrameFixtureState.InstallSeen -or
+        $global:neneFrameFixtureState.Frame -ne 20
     ) {
-        throw "The real pre-device path did not carry the verified APK into install: $preDeviceFailure"
+        throw 'The end-to-end path did not install the exact verified APK or retain twenty phase frames.'
     }
     $preDeviceState = Get-Content -Raw -LiteralPath (
         Join-Path $preDevice.ExperimentDirectory 'slot-01-diagnostic-baseline-attempt-1/run-state.json'
     ) | ConvertFrom-Json
-    if ($preDeviceState.status -ne 'invalid-before-samples' -or [int]$preDeviceState.measured_down_count -ne 0) {
-        throw 'The bounded pre-device fixture did not fail closed before the first measured DOWN.'
+    $preDeviceMetadata = Get-Content -LiteralPath (
+        Join-Path $preDevice.ExperimentDirectory 'slot-01-diagnostic-baseline-attempt-1/metadata.txt'
+    )
+    $preDeviceFrames = @(Import-Csv -LiteralPath (
+        Join-Path $preDevice.ExperimentDirectory 'slot-01-diagnostic-baseline-attempt-1/frames.csv'
+    ))
+    $preDeviceSamples = @(Import-Csv -LiteralPath (
+        Join-Path $preDevice.ExperimentDirectory 'slot-01-diagnostic-baseline-attempt-1/samples.csv'
+    ))
+    if (
+        $preDeviceState.status -ne 'completed' -or
+        $preDeviceState.verdict -ne 'inconclusive' -or
+        [int]$preDeviceState.measured_down_count -ne 10 -or
+        "apk_embedded_source_commit=$preDeviceSource" -notin $preDeviceMetadata -or
+        "apk_bytes=$preDeviceApkBytes" -notin $preDeviceMetadata -or
+        "apk_sha256=$preDeviceApkSha256" -notin $preDeviceMetadata -or
+        "packaged_prof_sha256=$($preDevice.BaselinePackagedProfSha256)" -notin $preDeviceMetadata -or
+        "packaged_profm_sha256=$($preDevice.BaselinePackagedProfmSha256)" -notin $preDeviceMetadata -or
+        'sample_count=10' -notin $preDeviceMetadata -or
+        'raw_frame_rows=20' -notin $preDeviceMetadata -or
+        $preDeviceFrames.Count -ne 20 -or
+        $preDeviceSamples.Count -ne 10 -or
+        'status=inconclusive' -notin $endToEndOutput
+    ) {
+        throw 'The host end-to-end fixture did not publish the typed artifact identity and final diagnostic verdict.'
     }
-    Remove-Variable neneExpectedPreDeviceApk, nenePreDeviceInstallSeen -Scope Global -ErrorAction SilentlyContinue
+    Remove-Variable neneFrameFixtureState -Scope Global -ErrorAction SilentlyContinue
 
     $wrongProf = $artifact.Clone()
     $wrongProf.CandidatePackagedProfSha256 = "0" * 64

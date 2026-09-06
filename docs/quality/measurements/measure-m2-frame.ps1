@@ -282,6 +282,8 @@ function Assert-M2PackagedArtifact {
         validation = "pass"
         candidate_role = $Role
         resolved_apk_path = $resolvedApk
+        embedded_source_commit = $embeddedSourceCommit
+        apk_byte_count = (Get-Item -LiteralPath $resolvedApk).Length
         apk_sha256 = $apkHash
         packaged_prof_sha256 = $packagedProfSha256
         packaged_profm_sha256 = $packagedProfmSha256
@@ -349,7 +351,6 @@ if (-not $ValidateExperimentOnly) {
         $artifactIdentity
         return
     }
-    $resolvedApk = $artifactIdentity.resolved_apk_path
 }
 $slotName = "slot-{0:D2}-{1}-{2}" -f $ComparisonSequenceIndex, $RunKind, $CandidateRole
 $resolvedOutput = Join-Path $resolvedExperiment "$slotName-attempt-$Attempt"
@@ -1225,7 +1226,7 @@ try {
     Invoke-TargetAdb -AdbArguments @("shell", "cmd", "input", "keyevent", "WAKEUP") | Out-Null
     Start-Sleep -Milliseconds 250
     $environmentRows.Add((Get-PhysicalCheckpoint -Name "before_warmups"))
-    Invoke-TargetAdb -AdbArguments @("install", "-r", "-d", $resolvedApk) | Out-Null
+    Invoke-TargetAdb -AdbArguments @("install", "-r", "-d", $artifactIdentity.resolved_apk_path) | Out-Null
     Invoke-TargetAdb -AdbArguments @("shell", "pm", "clear", $packageName) | Out-Null
     Invoke-TargetAdb -AdbArguments @("shell", "cmd", "package", "compile", "--reset", $packageName) | Out-Null
     $profileInstallResult = "not-requested"
@@ -1474,9 +1475,9 @@ try {
         "device_api_level=$($deviceIdentity.api_level)",
         "device_build_fingerprint=$($deviceIdentity.build_fingerprint)",
         "device_security_patch=$($deviceIdentity.security_patch)",
-        "apk_embedded_source_commit=$(if ($null -eq $embeddedSourceCommit) { 'unavailable' } else { $embeddedSourceCommit })",
-        "apk_bytes=$((Get-Item -LiteralPath $resolvedApk).Length)",
-        "apk_sha256=$apkHash",
+        "apk_embedded_source_commit=$($artifactIdentity.embedded_source_commit)",
+        "apk_bytes=$($artifactIdentity.apk_byte_count)",
+        "apk_sha256=$($artifactIdentity.apk_sha256)",
         "profile_acceptance_reader_sha256=$profileAcceptanceReaderSha256",
         "profile_generation_source_commit=$(if ($CandidateRole -eq 'baseline') { $BaselineProfileGenerationSourceCommit } else { $CandidateProfileGenerationSourceCommit })",
         "profile_generation_app_apk_sha256=$(if ($CandidateRole -eq 'baseline') { $BaselineProfileGenerationAppApkSha256 } else { $CandidateProfileGenerationAppApkSha256 })",
@@ -1484,8 +1485,8 @@ try {
         "profile_acceptance_manifest_sha256=$(if ($CandidateRole -eq 'baseline') { $BaselineProfileAcceptanceManifestSha256 } else { $CandidateProfileAcceptanceManifestSha256 })",
         "profile_pair_manifest_sha256=$(if ($CandidateRole -eq 'baseline') { $BaselineProfilePairManifestSha256 } else { $CandidateProfilePairManifestSha256 })",
         "canonical_profile_sha256=$(if ($CandidateRole -eq 'baseline') { $BaselineCanonicalProfileSha256 } else { $CandidateCanonicalProfileSha256 })",
-        "packaged_prof_sha256=$packagedProfSha256",
-        "packaged_profm_sha256=$packagedProfmSha256",
+        "packaged_prof_sha256=$($artifactIdentity.packaged_prof_sha256)",
+        "packaged_profm_sha256=$($artifactIdentity.packaged_profm_sha256)",
         "compile_mode=$CompilationMode",
         "packaged_profile_install=$profileInstallResult",
         "warmup_cycles=$warmupCount",

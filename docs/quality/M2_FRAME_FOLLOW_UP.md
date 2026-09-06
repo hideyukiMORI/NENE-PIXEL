@@ -1952,15 +1952,31 @@ while the device path referenced an unbound script variable. Its immutable `run-
 `invalid-before-samples` and zero measured DOWN events. It contains no performance sample and does
 not permit either APK to be relabelled after the harness fix.
 
-The corrected harness carries the safe resolved APK path in the typed verified-artifact return and
-uses only that returned path for the device invocation. Its host fixture executes the real path from
-accepted-evidence and packaged-artifact checks through clean-source/slot setup and physical preflight
-to a bounded fake install boundary, proving the exact verified APK path is bound before any measured
-DOWN. The old attempt and experiment remain immutable; corrected standalone B/C packaging and a new
-experiment identity are required. The profile producer inputs and the Issue #70 functional-test inputs
-are unchanged, so QLT-012 permits their evidence reuse after the new packaging identities are mapped.
+The first correction carried the safe resolved APK path in the typed verified-artifact return and
+used only that returned path for the device invocation. Its replacement packaging used harness
+source `7dd8acf259bb0fb3957033835fefa77894a9a58e`, candidate source
+`410799469e504cad7f4b0f9f6576cd6cd2efa81f`, and APK SHA-256 values
+`4e87fb3ac595d843fe0005b95809226a6d9c3d73abfbec1600d7d61dd7e9c92d` /
+`849e0b62b9583f9fff1d8c1514ad7ba1345de95a9d9746b99d57b1838b9755e9`.
+Experiment `issue70-natural-size-dirty-status-v3-02` completed ten baseline measured DOWN events and
+published its raw phase files, `frames.csv`, `samples.csv`, final UI/screenshot, logcat, and environment.
+Metadata construction then found a second scope defect: embedded source, APK hash and packaged
+prof/profm values were also function-local. The immutable run state is `invalid-after-samples` with
+ten measured DOWN events; metadata, completed state and numeric verdict were never published. Slot 2
+and attempt 2 were not run. The invalid raw data is not interpreted as performance evidence.
 
-No profile regeneration or performance sample is authorized by this correction. Normal Gradle cache
+The complete correction audits all caller uses of `Assert-M2PackagedArtifact` locals. The typed return
+now owns resolved path, embedded source, APK byte count/hash and packaged prof/profm hashes; install
+and metadata read those values only through that object. One host-only end-to-end diagnostic fixture
+uses an exact-revision APK and a clean temporary Git repository, traverses both profile evidence
+graphs, artifact validation, manifest/slot setup, physical preflight, install, warmups, ten operations,
+final correctness, CSV aggregation, metadata and final verdict. It asserts the exact source/APK bytes
+and hashes in metadata, 20 frame rows, ten operation rows and a completed inconclusive run state.
+The two failed experiments remain immutable; any future comparison requires another reviewed source,
+packaging and experiment identity. The profile producer inputs and Issue #70 functional-test inputs
+are unchanged, so QLT-012 permits their evidence reuse after those identities are mapped.
+
+No profile regeneration or further performance sample is authorized by this correction. Normal Gradle cache
 and daemon defaults apply to host verification and repackaging; `--no-configuration-cache` is not a
 routine flag. Active waivers: none.
 
