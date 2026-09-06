@@ -1,6 +1,13 @@
 [CmdletBinding()]
 param(
-    [string]$RetainedGradleLogPath = ''
+    [string]$RetainedGradleLogPath = '',
+    [string]$RetainedAcceptedEvidencePath = '',
+    [string]$RetainedAcceptanceManifestSha256 = '',
+    [string]$RetainedSourceRevision = '',
+    [string]$RetainedAppApkSha256 = '',
+    [string]$RetainedTestApkSha256 = '',
+    [string]$RetainedPairManifestSha256 = '',
+    [string]$RetainedCanonicalSha256 = ''
 )
 
 Set-StrictMode -Version Latest
@@ -40,6 +47,30 @@ function Assert-Rejected {
         return
     }
     throw "Expected rejection containing: $ExpectedMessage"
+}
+
+function Update-FixtureAcceptanceChain {
+    param(
+        [Parameter(Mandatory = $true)][string]$EvidenceRoot,
+        [Parameter(Mandatory = $true)][ValidateRange(1, 2)][int]$Invocation
+    )
+
+    $invocationPath = Join-Path $EvidenceRoot "invocation-$Invocation/manifest.json"
+    $pairPath = Join-Path $EvidenceRoot 'pair-manifest.json'
+    $pair = Get-Content -LiteralPath $pairPath -Raw | ConvertFrom-Json
+    $pair.invocation_manifest_sha256[$Invocation - 1] = Get-FileSha256 $invocationPath
+    Write-JsonFile $pair $pairPath
+    $acceptancePath = Join-Path $EvidenceRoot 'acceptance-manifest.json'
+    $acceptance = Get-Content -LiteralPath $acceptancePath -Raw | ConvertFrom-Json
+    $acceptance.pair_manifest_sha256 = Get-FileSha256 $pairPath
+    Write-JsonFile $acceptance $acceptancePath
+    return [pscustomobject]@{
+        AcceptancePath = $acceptancePath
+        AcceptanceSha256 = Get-FileSha256 $acceptancePath
+        PairSha256 = Get-FileSha256 $pairPath
+        Pair = $pair
+        Acceptance = $acceptance
+    }
 }
 
 function Write-FixtureProfile {
@@ -147,6 +178,7 @@ function New-OrchestrationFixtureInvoker {
         FirstOutputDifferedFromFrozenInput = $false
     }
     $producerOutputRelativePath = $script:ProducerOutputRelativePath
+    $producerResultsRelativePath = $script:ProducerResultsRelativePath
     $mergedRelativePath = $script:MergedRelativePath
     $profileRelativePath = $script:ProfileRelativePath
     $appApkRelativePath = $script:AppApkRelativePath
@@ -208,6 +240,10 @@ function New-OrchestrationFixtureInvoker {
                 }
                 [System.IO.File]::SetLastWriteTimeUtc($path, $writtenUtc)
             }
+            $testExitPath = Join-Path (Join-Path $RepositoryRoot $producerResultsRelativePath) `
+                'test-result-exit-code.txt'
+            New-Item -ItemType Directory -Path (Split-Path -Parent $testExitPath) -Force | Out-Null
+            [System.IO.File]::WriteAllText($testExitPath, '0', [System.Text.Encoding]::ASCII)
             if ($state.GenerationCount -eq 1) {
                 $firstOutputHash = (& git -C $RepositoryRoot hash-object -- $profileRelativePath).Trim()
                 $state.FirstOutputDifferedFromFrozenInput = $firstOutputHash -cne $originalProfileHash
@@ -520,6 +556,31 @@ try {
     Assert-Rejected { Assert-GenerationPair -First $first -Second $changedApk } 'APK identities differ'
 
     $orchestrationContent = "HSPLexample/Canvas;->draw()V`nSPLexample/Undo;->run()V"
+    $readerFailureRepository = New-OrchestrationFixtureRepository -Name 'reader-failure'
+    $readerFailureInvoker = New-OrchestrationFixtureInvoker -RepositoryRoot $readerFailureRepository.Root `
+        -EvidenceIdentity 'reader-failure' -Mode 'success' -FirstContent $orchestrationContent `
+        -SecondContent $orchestrationContent
+    $originalReader = (Get-Item Function:Read-BaselineProfileAcceptanceEvidence).ScriptBlock
+    Set-Item Function:Read-BaselineProfileAcceptanceEvidence -Value {
+        throw 'synthetic acceptance graph failure before publication'
+    }
+    try {
+        Assert-Rejected {
+            Invoke-BaselineProfileEvidenceGeneration -RepositoryRoot $readerFailureRepository.Root `
+                -EvidenceIdentity 'reader-failure' -GradleInvoker $readerFailureInvoker.Invoker
+        } 'synthetic acceptance graph failure before publication'
+    }
+    finally {
+        Set-Item Function:Read-BaselineProfileAcceptanceEvidence -Value $originalReader
+    }
+    Assert-OrchestrationFailureRestored -Repository $readerFailureRepository `
+        -EvidenceIdentity 'reader-failure'
+    $readerFailureEvidence = Join-Path $readerFailureRepository.Root `
+        'build/reports/baseline-profile-generation/reader-failure'
+    Assert-Equal $true (Test-Path -LiteralPath (Join-Path $readerFailureEvidence `
+                'acceptance-manifest.pending.json') -PathType Leaf) `
+        'A failed graph check must retain its provisional evidence without publishing acceptance.'
+
     $successRepository = New-OrchestrationFixtureRepository -Name 'success'
     $successInvoker = New-OrchestrationFixtureInvoker -RepositoryRoot $successRepository.Root `
         -EvidenceIdentity 'success' -Mode 'success' -FirstContent $orchestrationContent `
@@ -544,6 +605,137 @@ try {
         'Invocation manifest must record its producer timeout.'
     Assert-Equal 'valid' ((Get-Content -LiteralPath (Join-Path $successEvidence 'invocation-2/manifest.json') `
             -Raw | ConvertFrom-Json).status) 'Invocation 2 must be valid.'
+
+    $corruptRetainedEvidence = Join-Path $temporaryRoot 'corrupt-retained-evidence'
+    Copy-Item -LiteralPath $successEvidence -Destination $corruptRetainedEvidence -Recurse
+    Add-Content -LiteralPath (Join-Path $corruptRetainedEvidence 'invocation-2/source-profile.txt') `
+        -Value 'SPLexample/Injected;->drift()V' -Encoding utf8NoBOM
+    $successAcceptancePath = Join-Path $successEvidence 'acceptance-manifest.json'
+    $successAcceptance = Get-Content -LiteralPath $successAcceptancePath -Raw | ConvertFrom-Json
+    $successPair = Get-Content -LiteralPath (Join-Path $successEvidence 'pair-manifest.json') `
+        -Raw | ConvertFrom-Json
+    Assert-Rejected {
+        Read-BaselineProfileAcceptanceEvidence `
+            -AcceptanceManifestPath (Join-Path $corruptRetainedEvidence 'acceptance-manifest.json') `
+            -ExpectedAcceptanceManifestSha256 (Get-FileSha256 $successAcceptancePath) `
+            -ExpectedSourceRevision $successPair.source_revision `
+            -ExpectedAppApkSha256 $successPair.app_apk_sha256 `
+            -ExpectedTestApkSha256 $successPair.test_apk_sha256 `
+            -ExpectedPairManifestSha256 $successAcceptance.pair_manifest_sha256 `
+            -ExpectedCanonicalSha256 $successAcceptance.canonical_sha256
+    } 'Retained evidence byte count for source-profile.txt differs'
+
+    $invalidInvocationEvidence = Join-Path $temporaryRoot 'invalid-invocation-evidence'
+    Copy-Item -LiteralPath $successEvidence -Destination $invalidInvocationEvidence -Recurse
+    $invalidInvocationPath = Join-Path $invalidInvocationEvidence 'invocation-2/manifest.json'
+    $invalidInvocation = Get-Content -LiteralPath $invalidInvocationPath -Raw | ConvertFrom-Json
+    $invalidInvocation.status = 'invalid'
+    $invalidInvocation.failure = 'synthetic retained invalid invocation'
+    Write-JsonFile $invalidInvocation $invalidInvocationPath
+    $invalidPairPath = Join-Path $invalidInvocationEvidence 'pair-manifest.json'
+    $invalidPair = Get-Content -LiteralPath $invalidPairPath -Raw | ConvertFrom-Json
+    $invalidPair.invocation_manifest_sha256[1] = Get-FileSha256 $invalidInvocationPath
+    Write-JsonFile $invalidPair $invalidPairPath
+    $invalidAcceptancePath = Join-Path $invalidInvocationEvidence 'acceptance-manifest.json'
+    $invalidAcceptance = Get-Content -LiteralPath $invalidAcceptancePath -Raw | ConvertFrom-Json
+    $invalidAcceptance.pair_manifest_sha256 = Get-FileSha256 $invalidPairPath
+    Write-JsonFile $invalidAcceptance $invalidAcceptancePath
+    Assert-Rejected {
+        Read-BaselineProfileAcceptanceEvidence `
+            -AcceptanceManifestPath $invalidAcceptancePath `
+            -ExpectedAcceptanceManifestSha256 (Get-FileSha256 $invalidAcceptancePath) `
+            -ExpectedSourceRevision $invalidPair.source_revision `
+            -ExpectedAppApkSha256 $invalidPair.app_apk_sha256 `
+            -ExpectedTestApkSha256 $invalidPair.test_apk_sha256 `
+            -ExpectedPairManifestSha256 (Get-FileSha256 $invalidPairPath) `
+            -ExpectedCanonicalSha256 $invalidAcceptance.canonical_sha256
+    } 'Invocation 2 status differs'
+
+    $escapePathEvidence = Join-Path $temporaryRoot 'escape-path-evidence'
+    Copy-Item -LiteralPath $successEvidence -Destination $escapePathEvidence -Recurse
+    $escapeInvocationPath = Join-Path $escapePathEvidence 'invocation-1/manifest.json'
+    $escapeInvocation = Get-Content -LiteralPath $escapeInvocationPath -Raw | ConvertFrom-Json
+    $escapeInvocation.retained_files += [pscustomobject]@{
+        path = '../outside-evidence.txt'
+        byte_count = 1
+        sha256 = '0' * 64
+    }
+    Write-JsonFile $escapeInvocation $escapeInvocationPath
+    $escapeChain = Update-FixtureAcceptanceChain $escapePathEvidence 1
+    Assert-Rejected {
+        Read-BaselineProfileAcceptanceEvidence `
+            -AcceptanceManifestPath $escapeChain.AcceptancePath `
+            -ExpectedAcceptanceManifestSha256 $escapeChain.AcceptanceSha256 `
+            -ExpectedSourceRevision $escapeChain.Pair.source_revision `
+            -ExpectedAppApkSha256 $escapeChain.Pair.app_apk_sha256 `
+            -ExpectedTestApkSha256 $escapeChain.Pair.test_apk_sha256 `
+            -ExpectedPairManifestSha256 $escapeChain.PairSha256 `
+            -ExpectedCanonicalSha256 $escapeChain.Acceptance.canonical_sha256
+    } 'escapes its invocation directory'
+
+    $exitCodeEvidence = Join-Path $temporaryRoot 'exit-code-evidence'
+    Copy-Item -LiteralPath $successEvidence -Destination $exitCodeEvidence -Recurse
+    $exitCodeRelativePath = 'producer-results/test-result-exit-code.txt'
+    $exitCodePath = Join-Path (Join-Path $exitCodeEvidence 'invocation-1') $exitCodeRelativePath
+    [System.IO.File]::WriteAllBytes($exitCodePath, [byte[]]@([byte][char]'1'))
+    $exitInvocationPath = Join-Path $exitCodeEvidence 'invocation-1/manifest.json'
+    $exitInvocation = Get-Content -LiteralPath $exitInvocationPath -Raw | ConvertFrom-Json
+    $exitRecord = @($exitInvocation.retained_files | Where-Object { $_.path -eq $exitCodeRelativePath })[0]
+    $exitRecord.byte_count = 1
+    $exitRecord.sha256 = Get-FileSha256 $exitCodePath
+    Write-JsonFile $exitInvocation $exitInvocationPath
+    $exitChain = Update-FixtureAcceptanceChain $exitCodeEvidence 1
+    Assert-Rejected {
+        Read-BaselineProfileAcceptanceEvidence `
+            -AcceptanceManifestPath $exitChain.AcceptancePath `
+            -ExpectedAcceptanceManifestSha256 $exitChain.AcceptanceSha256 `
+            -ExpectedSourceRevision $exitChain.Pair.source_revision `
+            -ExpectedAppApkSha256 $exitChain.Pair.app_apk_sha256 `
+            -ExpectedTestApkSha256 $exitChain.Pair.test_apk_sha256 `
+            -ExpectedPairManifestSha256 $exitChain.PairSha256 `
+            -ExpectedCanonicalSha256 $exitChain.Acceptance.canonical_sha256
+    } 'producer test exit code must be exact one-byte ASCII 0'
+
+    $timeoutRangeEvidence = Join-Path $temporaryRoot 'timeout-range-evidence'
+    Copy-Item -LiteralPath $successEvidence -Destination $timeoutRangeEvidence -Recurse
+    $timeoutRangeAcceptancePath = Join-Path $timeoutRangeEvidence 'acceptance-manifest.json'
+    $timeoutRangeAcceptance = Get-Content -LiteralPath $timeoutRangeAcceptancePath -Raw | ConvertFrom-Json
+    $timeoutRangeAcceptance.producer_timeout_seconds = 1801
+    Write-JsonFile $timeoutRangeAcceptance $timeoutRangeAcceptancePath
+    $timeoutRangePair = Get-Content -LiteralPath (Join-Path $timeoutRangeEvidence 'pair-manifest.json') `
+        -Raw | ConvertFrom-Json
+    Assert-Rejected {
+        Read-BaselineProfileAcceptanceEvidence `
+            -AcceptanceManifestPath $timeoutRangeAcceptancePath `
+            -ExpectedAcceptanceManifestSha256 (Get-FileSha256 $timeoutRangeAcceptancePath) `
+            -ExpectedSourceRevision $timeoutRangePair.source_revision `
+            -ExpectedAppApkSha256 $timeoutRangePair.app_apk_sha256 `
+            -ExpectedTestApkSha256 $timeoutRangePair.test_apk_sha256 `
+            -ExpectedPairManifestSha256 (Get-FileSha256 (Join-Path $timeoutRangeEvidence `
+                        'pair-manifest.json')) `
+            -ExpectedCanonicalSha256 $timeoutRangeAcceptance.canonical_sha256
+    } 'must be positive and no greater than 1800 seconds'
+
+    $timeoutMismatchEvidence = Join-Path $temporaryRoot 'timeout-mismatch-evidence'
+    Copy-Item -LiteralPath $successEvidence -Destination $timeoutMismatchEvidence -Recurse
+    $timeoutMismatchPairPath = Join-Path $timeoutMismatchEvidence 'pair-manifest.json'
+    $timeoutMismatchPair = Get-Content -LiteralPath $timeoutMismatchPairPath -Raw | ConvertFrom-Json
+    $timeoutMismatchPair.producer_timeout_seconds = 1799
+    Write-JsonFile $timeoutMismatchPair $timeoutMismatchPairPath
+    $timeoutMismatchAcceptancePath = Join-Path $timeoutMismatchEvidence 'acceptance-manifest.json'
+    $timeoutMismatchAcceptance = Get-Content -LiteralPath $timeoutMismatchAcceptancePath -Raw | ConvertFrom-Json
+    $timeoutMismatchAcceptance.pair_manifest_sha256 = Get-FileSha256 $timeoutMismatchPairPath
+    Write-JsonFile $timeoutMismatchAcceptance $timeoutMismatchAcceptancePath
+    Assert-Rejected {
+        Read-BaselineProfileAcceptanceEvidence `
+            -AcceptanceManifestPath $timeoutMismatchAcceptancePath `
+            -ExpectedAcceptanceManifestSha256 (Get-FileSha256 $timeoutMismatchAcceptancePath) `
+            -ExpectedSourceRevision $timeoutMismatchPair.source_revision `
+            -ExpectedAppApkSha256 $timeoutMismatchPair.app_apk_sha256 `
+            -ExpectedTestApkSha256 $timeoutMismatchPair.test_apk_sha256 `
+            -ExpectedPairManifestSha256 (Get-FileSha256 $timeoutMismatchPairPath) `
+            -ExpectedCanonicalSha256 $timeoutMismatchAcceptance.canonical_sha256
+    } 'Pair producer timeout differs'
 
     if (-not [string]::IsNullOrWhiteSpace($RetainedGradleLogPath)) {
         $resolvedRetainedLog = (Resolve-Path -LiteralPath $RetainedGradleLogPath).Path
@@ -664,6 +856,29 @@ try {
     Assert-OrchestrationFailureRestored -Repository $validationRepository `
         -EvidenceIdentity 'validation-failure'
 
+    if (-not [string]::IsNullOrWhiteSpace($RetainedAcceptedEvidencePath)) {
+        foreach ($required in @(
+                $RetainedAcceptanceManifestSha256,
+                $RetainedSourceRevision,
+                $RetainedAppApkSha256,
+                $RetainedTestApkSha256,
+                $RetainedPairManifestSha256,
+                $RetainedCanonicalSha256
+            )) {
+            if ([string]::IsNullOrWhiteSpace($required)) {
+                throw 'All retained accepted-evidence identities are required together.'
+            }
+        }
+        Read-BaselineProfileAcceptanceEvidence `
+            -AcceptanceManifestPath (Join-Path $RetainedAcceptedEvidencePath 'acceptance-manifest.json') `
+            -ExpectedAcceptanceManifestSha256 $RetainedAcceptanceManifestSha256 `
+            -ExpectedSourceRevision $RetainedSourceRevision `
+            -ExpectedAppApkSha256 $RetainedAppApkSha256 `
+            -ExpectedTestApkSha256 $RetainedTestApkSha256 `
+            -ExpectedPairManifestSha256 $RetainedPairManifestSha256 `
+            -ExpectedCanonicalSha256 $RetainedCanonicalSha256 | Out-Null
+    }
+
     Write-Output 'BASELINE_PROFILE_EVIDENCE_VALIDATION=pass'
     Write-Output (
         'CASES=root-exited-child-job-timeout,termination-failure-restoration-block,' +
@@ -676,7 +891,11 @@ try {
         'invalid-manifest-pull,invalid-manifest-nonzero,' +
         'invalid-manifest-apk-hash,invalid-manifest-task-parsing,' +
         'orchestration-success,orchestration-mismatch,orchestration-launch-failure,' +
-        'orchestration-final-validation-failure,manifest-before-next-run,no-acceptance-after-failure'
+        'orchestration-final-validation-failure,reader-before-acceptance-publication,' +
+        'retained-file-tamper,retained-path-escape,retained-exit-code,' +
+        'timeout-range,timeout-record-mismatch,' +
+        'retained-accepted-evidence,manifest-before-next-run,' +
+        'no-acceptance-after-failure'
     )
 }
 finally {

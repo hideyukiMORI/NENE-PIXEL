@@ -38,6 +38,76 @@ param(
     [string]$CandidateApkSha256,
 
     [Parameter(Mandatory = $true)]
+    [ValidatePattern("^[0-9a-f]{40}$")]
+    [string]$BaselineProfileGenerationSourceCommit,
+
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern("^[0-9a-f]{40}$")]
+    [string]$CandidateProfileGenerationSourceCommit,
+
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern("^[0-9a-f]{64}$")]
+    [string]$BaselineProfileGenerationAppApkSha256,
+
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern("^[0-9a-f]{64}$")]
+    [string]$CandidateProfileGenerationAppApkSha256,
+
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern("^[0-9a-f]{64}$")]
+    [string]$BaselineProfileGenerationTestApkSha256,
+
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern("^[0-9a-f]{64}$")]
+    [string]$CandidateProfileGenerationTestApkSha256,
+
+    [Parameter(Mandatory = $true)]
+    [string]$BaselineProfileAcceptanceManifestPath,
+
+    [Parameter(Mandatory = $true)]
+    [string]$CandidateProfileAcceptanceManifestPath,
+
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern("^[0-9a-f]{64}$")]
+    [string]$BaselineProfileAcceptanceManifestSha256,
+
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern("^[0-9a-f]{64}$")]
+    [string]$CandidateProfileAcceptanceManifestSha256,
+
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern("^[0-9a-f]{64}$")]
+    [string]$BaselineProfilePairManifestSha256,
+
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern("^[0-9a-f]{64}$")]
+    [string]$CandidateProfilePairManifestSha256,
+
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern("^[0-9a-f]{64}$")]
+    [string]$BaselineCanonicalProfileSha256,
+
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern("^[0-9a-f]{64}$")]
+    [string]$CandidateCanonicalProfileSha256,
+
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern("^[0-9a-f]{64}$")]
+    [string]$BaselinePackagedProfSha256,
+
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern("^[0-9a-f]{64}$")]
+    [string]$CandidatePackagedProfSha256,
+
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern("^[0-9a-f]{64}$")]
+    [string]$BaselinePackagedProfmSha256,
+
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern("^[0-9a-f]{64}$")]
+    [string]$CandidatePackagedProfmSha256,
+
+    [Parameter(Mandatory = $true)]
     [ValidateNotNullOrEmpty()]
     [string]$CandidateHypothesis,
 
@@ -78,11 +148,16 @@ param(
 
     [switch]$ValidateExperimentOnly,
 
+    [switch]$ValidateArtifactOnly,
+
     [string]$PhysicalPresentTraceProcessorPath
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+
+. (Join-Path $PSScriptRoot "m2-package-dexopt.ps1")
+. (Join-Path $PSScriptRoot "../baseline-profile-evidence.ps1")
 
 if (-not $PSBoundParameters.ContainsKey("CompilationMode")) {
     $CompilationMode = if ($Variant -eq "release-like") { "speed-profile" } else { "speed" }
@@ -119,7 +194,7 @@ $resolvedExperiment =
 $physicalPresentEnabled = $PSBoundParameters.ContainsKey("PhysicalPresentTraceProcessorPath")
 $physicalPresentSchema = "nene-pixel-m2-physical-present-v2"
 $frameSchema = "nene-pixel-m2-actual-app-frame-v7"
-$experimentSchema = "nene-pixel-m2-frame-experiment-v2"
+$experimentSchema = "nene-pixel-m2-frame-experiment-v3"
 $physicalPresentAnalyzer = Join-Path $PSScriptRoot "analyze-m2-physical-present.ps1"
 $physicalTraceState = $null
 $physicalAnalysis = $null
@@ -127,6 +202,112 @@ $physicalAnalysis = $null
 if ($physicalPresentEnabled) {
     throw "$physicalPresentSchema collection is exhausted and retained for historical analysis only."
 }
+if ($Variant -ne "release-like" -or $CompilationMode -ne "speed-profile") {
+    throw "The v3 comparison requires release-like and speed-profile for every slot."
+}
+
+function Get-M2ZipEntrySha256 {
+    param([Parameter(Mandatory = $true)][System.IO.Compression.ZipArchiveEntry]$Entry)
+
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    $stream = $Entry.Open()
+    try {
+        return [System.BitConverter]::ToString($sha256.ComputeHash($stream)).Replace("-", "").ToLowerInvariant()
+    }
+    finally {
+        $stream.Dispose()
+        $sha256.Dispose()
+    }
+}
+
+function Assert-M2PackagedArtifact {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$ExpectedSourceCommit,
+        [Parameter(Mandatory = $true)][string]$ExpectedApkSha256,
+        [Parameter(Mandatory = $true)][string]$ExpectedProfSha256,
+        [Parameter(Mandatory = $true)][string]$ExpectedProfmSha256,
+        [Parameter(Mandatory = $true)][string]$Role
+    )
+
+    $resolvedApk = (Resolve-Path -LiteralPath $Path).Path
+    $requiredProfileEntries = @("assets/dexopt/baseline.prof", "assets/dexopt/baseline.profm")
+    $embeddedSourceCommit = $null
+    $packagedProfSha256 = $null
+    $packagedProfmSha256 = $null
+    $apkArchive = [System.IO.Compression.ZipFile]::OpenRead($resolvedApk)
+    try {
+        $apkEntryNames = @($apkArchive.Entries | ForEach-Object { $_.FullName })
+        $profEntry = $apkArchive.GetEntry("assets/dexopt/baseline.prof")
+        $profmEntry = $apkArchive.GetEntry("assets/dexopt/baseline.profm")
+        if ($null -ne $profEntry) {
+            $packagedProfSha256 = Get-M2ZipEntrySha256 -Entry $profEntry
+        }
+        if ($null -ne $profmEntry) {
+            $packagedProfmSha256 = Get-M2ZipEntrySha256 -Entry $profmEntry
+        }
+        $versionControlEntry = $apkArchive.GetEntry("META-INF/version-control-info.textproto")
+        if ($null -ne $versionControlEntry) {
+            $versionControlReader = [System.IO.StreamReader]::new($versionControlEntry.Open())
+            try {
+                $versionControlText = $versionControlReader.ReadToEnd()
+            }
+            finally {
+                $versionControlReader.Dispose()
+            }
+            $revisionMatch = [regex]::Match($versionControlText, '(?m)^\s*revision:\s*"([0-9a-f]{40})"\s*$')
+            if ($revisionMatch.Success) {
+                $embeddedSourceCommit = $revisionMatch.Groups[1].Value
+            }
+        }
+    }
+    finally {
+        $apkArchive.Dispose()
+    }
+    if ($null -eq $embeddedSourceCommit -or $embeddedSourceCommit -ne $ExpectedSourceCommit) {
+        throw "The release-like APK Git revision does not match the supplied source commit."
+    }
+    $missingProfileEntries = @($requiredProfileEntries | Where-Object { $_ -notin $apkEntryNames })
+    if ($missingProfileEntries.Count -gt 0) {
+        throw "speed-profile requires packaged APK entries: $($missingProfileEntries -join ', ')."
+    }
+    if ($packagedProfSha256 -cne $ExpectedProfSha256 -or $packagedProfmSha256 -cne $ExpectedProfmSha256) {
+        throw "The packaged Baseline Profile assets do not match the fixed $Role identities."
+    }
+    $apkHash = Get-FileSha256 -Path $resolvedApk
+    if ($apkHash -cne $ExpectedApkSha256) {
+        throw "The APK does not match the fixed $Role SHA-256 identity."
+    }
+    return [pscustomobject]@{
+        validation = "pass"
+        candidate_role = $Role
+        apk_sha256 = $apkHash
+        packaged_prof_sha256 = $packagedProfSha256
+        packaged_profm_sha256 = $packagedProfmSha256
+    }
+}
+
+$profileAcceptanceReaderPath = Join-Path $PSScriptRoot "../baseline-profile-evidence.ps1"
+$profileAcceptanceReaderSha256 = Get-FileSha256 -Path $profileAcceptanceReaderPath
+$baselineAcceptance = Read-BaselineProfileAcceptanceEvidence `
+    -AcceptanceManifestPath $BaselineProfileAcceptanceManifestPath `
+    -ExpectedAcceptanceManifestSha256 $BaselineProfileAcceptanceManifestSha256 `
+    -ExpectedSourceRevision $BaselineProfileGenerationSourceCommit `
+    -ExpectedAppApkSha256 $BaselineProfileGenerationAppApkSha256 `
+    -ExpectedTestApkSha256 $BaselineProfileGenerationTestApkSha256 `
+    -ExpectedPairManifestSha256 $BaselineProfilePairManifestSha256 `
+    -ExpectedCanonicalSha256 $BaselineCanonicalProfileSha256
+$candidateAcceptance = Read-BaselineProfileAcceptanceEvidence `
+    -AcceptanceManifestPath $CandidateProfileAcceptanceManifestPath `
+    -ExpectedAcceptanceManifestSha256 $CandidateProfileAcceptanceManifestSha256 `
+    -ExpectedSourceRevision $CandidateProfileGenerationSourceCommit `
+    -ExpectedAppApkSha256 $CandidateProfileGenerationAppApkSha256 `
+    -ExpectedTestApkSha256 $CandidateProfileGenerationTestApkSha256 `
+    -ExpectedPairManifestSha256 $CandidateProfilePairManifestSha256 `
+    -ExpectedCanonicalSha256 $CandidateCanonicalProfileSha256
+$resolvedBaselineAcceptanceManifest = $baselineAcceptance.AcceptanceManifestPath
+$resolvedCandidateAcceptanceManifest = $candidateAcceptance.AcceptanceManifestPath
+
 $expectedSampleCount = if ($RunKind -eq "diagnostic") { 10 } else { 50 }
 if ($SampleCount -ne $expectedSampleCount) {
     throw "$RunKind collection requires exactly $expectedSampleCount operation samples."
@@ -146,8 +327,27 @@ if ($BaselineSourceCommit -eq $CandidateSourceCommit -or $BaselineApkSha256 -eq 
 }
 $expectedSourceCommit = if ($CandidateRole -eq "baseline") { $BaselineSourceCommit } else { $CandidateSourceCommit }
 $expectedApkSha256 = if ($CandidateRole -eq "baseline") { $BaselineApkSha256 } else { $CandidateApkSha256 }
+$expectedPackagedProfSha256 =
+    if ($CandidateRole -eq "baseline") { $BaselinePackagedProfSha256 } else { $CandidatePackagedProfSha256 }
+$expectedPackagedProfmSha256 =
+    if ($CandidateRole -eq "baseline") { $BaselinePackagedProfmSha256 } else { $CandidatePackagedProfmSha256 }
 if ($SourceCommit -ne $expectedSourceCommit) {
     throw "The supplied source commit does not match the fixed $CandidateRole source identity."
+}
+if ($ValidateArtifactOnly -and $ValidateExperimentOnly) {
+    throw "Artifact-only and experiment-only validation are mutually exclusive."
+}
+if (-not $ValidateExperimentOnly) {
+    $artifactIdentity = Assert-M2PackagedArtifact -Path $ApkPath `
+        -ExpectedSourceCommit $expectedSourceCommit `
+        -ExpectedApkSha256 $expectedApkSha256 `
+        -ExpectedProfSha256 $expectedPackagedProfSha256 `
+        -ExpectedProfmSha256 $expectedPackagedProfmSha256 `
+        -Role $CandidateRole
+    if ($ValidateArtifactOnly) {
+        $artifactIdentity
+        return
+    }
 }
 $slotName = "slot-{0:D2}-{1}-{2}" -f $ComparisonSequenceIndex, $RunKind, $CandidateRole
 $resolvedOutput = Join-Path $resolvedExperiment "$slotName-attempt-$Attempt"
@@ -160,6 +360,37 @@ $experimentManifest =
         candidate_source_commit = $CandidateSourceCommit
         baseline_apk_sha256 = $BaselineApkSha256
         candidate_apk_sha256 = $CandidateApkSha256
+        variant = "release-like"
+        compilation_mode = "speed-profile"
+        profile_acceptance_reader_sha256 = $profileAcceptanceReaderSha256
+        baseline_profile = [ordered]@{
+            evidence_id = $baselineAcceptance.EvidenceId
+            generation_source_commit = $BaselineProfileGenerationSourceCommit
+            generation_app_apk_sha256 = $BaselineProfileGenerationAppApkSha256
+            generation_test_apk_sha256 = $BaselineProfileGenerationTestApkSha256
+            acceptance_manifest_path = $resolvedBaselineAcceptanceManifest
+            acceptance_manifest_sha256 = $BaselineProfileAcceptanceManifestSha256
+            pair_manifest_sha256 = $BaselineProfilePairManifestSha256
+            invocation_manifest_sha256 = @($baselineAcceptance.InvocationManifestSha256)
+            validation_output_sha256 = $baselineAcceptance.ValidationOutputSha256
+            canonical_sha256 = $BaselineCanonicalProfileSha256
+            packaged_prof_sha256 = $BaselinePackagedProfSha256
+            packaged_profm_sha256 = $BaselinePackagedProfmSha256
+        }
+        candidate_profile = [ordered]@{
+            evidence_id = $candidateAcceptance.EvidenceId
+            generation_source_commit = $CandidateProfileGenerationSourceCommit
+            generation_app_apk_sha256 = $CandidateProfileGenerationAppApkSha256
+            generation_test_apk_sha256 = $CandidateProfileGenerationTestApkSha256
+            acceptance_manifest_path = $resolvedCandidateAcceptanceManifest
+            acceptance_manifest_sha256 = $CandidateProfileAcceptanceManifestSha256
+            pair_manifest_sha256 = $CandidateProfilePairManifestSha256
+            invocation_manifest_sha256 = @($candidateAcceptance.InvocationManifestSha256)
+            validation_output_sha256 = $candidateAcceptance.ValidationOutputSha256
+            canonical_sha256 = $CandidateCanonicalProfileSha256
+            packaged_prof_sha256 = $CandidatePackagedProfSha256
+            packaged_profm_sha256 = $CandidatePackagedProfmSha256
+        }
         candidate_hypothesis = $CandidateHypothesis
         expected_affected_cost = $ExpectedAffectedCost
         correctness_risk = $CorrectnessRisk
@@ -313,30 +544,6 @@ if ($ValidateExperimentOnly) {
     return
 }
 
-$resolvedApk = (Resolve-Path -LiteralPath $ApkPath).Path
-$requiredProfileEntries = @("assets/dexopt/baseline.prof", "assets/dexopt/baseline.profm")
-$embeddedSourceCommit = $null
-$apkArchive = [System.IO.Compression.ZipFile]::OpenRead($resolvedApk)
-try {
-    $apkEntryNames = @($apkArchive.Entries | ForEach-Object { $_.FullName })
-    $versionControlEntry = $apkArchive.GetEntry("META-INF/version-control-info.textproto")
-    if ($null -ne $versionControlEntry) {
-        $versionControlReader = [System.IO.StreamReader]::new($versionControlEntry.Open())
-        try {
-            $versionControlText = $versionControlReader.ReadToEnd()
-        }
-        finally {
-            $versionControlReader.Dispose()
-        }
-        $revisionMatch = [regex]::Match($versionControlText, '(?m)^\s*revision:\s*"([0-9a-f]{40})"\s*$')
-        if ($revisionMatch.Success) {
-            $embeddedSourceCommit = $revisionMatch.Groups[1].Value
-        }
-    }
-}
-finally {
-    $apkArchive.Dispose()
-}
 $trackedStatus = @(& git status --porcelain --untracked-files=no 2>&1)
 if ($LASTEXITCODE -ne 0) {
     throw "Unable to verify the repository worktree before frame collection."
@@ -347,22 +554,6 @@ if ($trackedStatus.Count -gt 0) {
 $repositoryHead = (& git rev-parse HEAD 2>&1 | Select-Object -First 1).Trim()
 if ($LASTEXITCODE -ne 0 -or $repositoryHead -ne $SourceCommit) {
     throw "The supplied source commit does not match the repository HEAD."
-}
-if ($Variant -eq "release-like") {
-    if ($null -eq $embeddedSourceCommit) {
-        throw "The release-like APK has no readable embedded Git revision."
-    }
-    if ($embeddedSourceCommit -ne $SourceCommit) {
-        throw "The release-like APK Git revision does not match the supplied source commit."
-    }
-}
-$missingProfileEntries = @($requiredProfileEntries | Where-Object { $_ -notin $apkEntryNames })
-if ($CompilationMode -eq "speed-profile" -and $missingProfileEntries.Count -gt 0) {
-    throw "speed-profile requires packaged APK entries: $($missingProfileEntries -join ', ')."
-}
-$apkHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $resolvedApk).Hash.ToLowerInvariant()
-if ($apkHash -cne $expectedApkSha256) {
-    throw "The APK does not match the fixed $CandidateRole SHA-256 identity."
 }
 
 if (Test-Path -LiteralPath $resolvedOutput) {
@@ -1059,6 +1250,13 @@ try {
     if (($compileResult -join "`n") -notmatch "Success") {
         throw "$CompilationMode compilation did not report success."
     }
+    $dexoptText = (Invoke-TargetAdb -AdbArguments @("shell", "dumpsys", "package", "dexopt")) -join "`n"
+    $packageDexopt = Assert-M2PackageSpeedProfile -DexoptText $dexoptText -PackageName $packageName
+    [System.IO.File]::WriteAllText(
+        (Join-Path $resolvedOutput "compile-state.txt"),
+        $packageDexopt,
+        [System.Text.UTF8Encoding]::new($false)
+    )
 
     Invoke-TargetAdb -AdbArguments @("shell", "am", "force-stop", $packageName) | Out-Null
     Invoke-TargetAdb -AdbArguments @("shell", "am", "start", "-W", "-n", $activityName) | Out-Null
@@ -1277,6 +1475,15 @@ try {
         "apk_embedded_source_commit=$(if ($null -eq $embeddedSourceCommit) { 'unavailable' } else { $embeddedSourceCommit })",
         "apk_bytes=$((Get-Item -LiteralPath $resolvedApk).Length)",
         "apk_sha256=$apkHash",
+        "profile_acceptance_reader_sha256=$profileAcceptanceReaderSha256",
+        "profile_generation_source_commit=$(if ($CandidateRole -eq 'baseline') { $BaselineProfileGenerationSourceCommit } else { $CandidateProfileGenerationSourceCommit })",
+        "profile_generation_app_apk_sha256=$(if ($CandidateRole -eq 'baseline') { $BaselineProfileGenerationAppApkSha256 } else { $CandidateProfileGenerationAppApkSha256 })",
+        "profile_generation_test_apk_sha256=$(if ($CandidateRole -eq 'baseline') { $BaselineProfileGenerationTestApkSha256 } else { $CandidateProfileGenerationTestApkSha256 })",
+        "profile_acceptance_manifest_sha256=$(if ($CandidateRole -eq 'baseline') { $BaselineProfileAcceptanceManifestSha256 } else { $CandidateProfileAcceptanceManifestSha256 })",
+        "profile_pair_manifest_sha256=$(if ($CandidateRole -eq 'baseline') { $BaselineProfilePairManifestSha256 } else { $CandidateProfilePairManifestSha256 })",
+        "canonical_profile_sha256=$(if ($CandidateRole -eq 'baseline') { $BaselineCanonicalProfileSha256 } else { $CandidateCanonicalProfileSha256 })",
+        "packaged_prof_sha256=$packagedProfSha256",
+        "packaged_profm_sha256=$packagedProfmSha256",
         "compile_mode=$CompilationMode",
         "packaged_profile_install=$profileInstallResult",
         "warmup_cycles=$warmupCount",
