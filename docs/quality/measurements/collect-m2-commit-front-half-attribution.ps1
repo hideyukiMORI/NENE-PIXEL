@@ -346,14 +346,21 @@ try {
         throw "speed-profile compilation did not report success."
     }
     $dexoptText = (Invoke-TargetAdb -Arguments @("shell", "dumpsys", "package", "dexopt")) -join "`n"
-    $packageMarker = "[$packageName]"
-    $packageStart = $dexoptText.IndexOf($packageMarker, [StringComparison]::Ordinal)
-    $nextPackage =
-        if ($packageStart -ge 0) {
-            $dexoptText.IndexOf("`n  [", $packageStart + $packageMarker.Length, [StringComparison]::Ordinal)
-        } else {
-            -1
+    $packagePattern = "(?m)^(?<indent>[ `t]*)\[" + [regex]::Escape($packageName) + "\][ `t]*`r?$"
+    $packageMatches = [regex]::Matches($dexoptText, $packagePattern)
+    $packageStart = if ($packageMatches.Count -eq 1) { $packageMatches[0].Index } else { -1 }
+    $nextPackage = -1
+    if ($packageStart -ge 0) {
+        $packageIndent = [regex]::Escape($packageMatches[0].Groups["indent"].Value)
+        $nextPackageRegex = [regex]::new("(?m)^$packageIndent\[[^]=`r`n]+\][ `t]*`r?$")
+        $nextPackageMatch = $nextPackageRegex.Match(
+            $dexoptText,
+            $packageMatches[0].Index + $packageMatches[0].Length
+        )
+        if ($nextPackageMatch.Success) {
+            $nextPackage = $nextPackageMatch.Index
         }
+    }
     $packageDexopt =
         if ($packageStart -lt 0) {
             ""

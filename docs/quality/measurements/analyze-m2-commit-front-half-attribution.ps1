@@ -265,9 +265,13 @@ if ($invalidStats.Count -gt 0 -or @($integrity | Where-Object { $_.name -eq "tra
 }
 if (
     $correlations.Count -ne $requests.Count -or
-    @($correlations | Where-Object { [int]$_.app_actual_count -ne 1 -or [int]$_.app_expected_count -ne 1 }).Count -gt 0
+    @($correlations | Where-Object {
+        [int]$_.app_actual_count -ne 1 -or
+        [int]$_.app_expected_count -ne 1 -or
+        [int]$_.sf_actual_count -ne 1
+    }).Count -gt 0
 ) {
-    throw "Every requested frame must join exactly one app actual and expected FrameTimeline row."
+    throw "Every requested frame must join exactly one app actual, app expected, and SurfaceFlinger actual FrameTimeline row."
 }
 $lateCommits = @($correlations | Where-Object { $_.phase -eq "commit" -and [int]$_.late -eq 1 }).Count
 $status = if ($lateCommits -eq 0) { "inconclusive-no-late-commit" } else { "attribution-complete" }

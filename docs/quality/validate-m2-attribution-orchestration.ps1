@@ -54,7 +54,12 @@ function adb {
         'shell dumpsys window policy' { return 'mIsShowing=false' }
         'shell dumpsys battery' { return 'USB powered: true' }
         'shell settings get global low_power' { return '0' }
-        'shell dumpsys package dexopt' { return "[io.github.hideyukimori.nenepixel]`n    [status=speed-profile]" }
+        'shell dumpsys package dexopt' {
+            if ($global:NeneAttributionFixtureState.Mode -eq 'wrong-dexopt') {
+                return "[io.github.hideyukimori.nenepixel]`n    arm64: [status=verify]`n[example.decoy]`n    arm64: [status=speed-profile]"
+            }
+            return "[io.github.hideyukimori.nenepixel]`n    arm64: [status=speed-profile]`n[example.decoy]`n    arm64: [status=verify]"
+        }
         'shell perfetto --query --long' { if ($global:NeneAttributionFixtureState.TraceActive) { return "unique_session_name: $($global:NeneAttributionFixtureState.SessionName)" }; return }
         'logcat -c' { return }
         'logcat -d -v threadtime' { return 'fixture: no app fatal events' }
@@ -133,12 +138,13 @@ $nativeQuery = {
     }
     if ($name -eq 'commit-front-half-correlation.sql') {
         $output = [Collections.Generic.List[string]]::new()
-        $output.Add('sample_index,phase,row_index,late,surface_frame_token,app_actual_count,app_expected_count')
+        $output.Add('sample_index,phase,row_index,late,surface_frame_token,app_actual_count,app_expected_count,sf_actual_count')
         foreach ($sample in 1..10) {
             foreach ($phase in @('preview','commit')) {
                 $token = 1000 + (($sample-1)*2) + $(if ($phase -eq 'preview') { 1 } else { 2 })
                 $count = if ($global:NeneAttributionFixtureState.Mode -eq 'duplicate-correlation' -and $sample -eq 1) { 2 } else { 1 }
-                $output.Add("$sample,$phase,1,1,$token,$count,1")
+                $sfCount = if ($global:NeneAttributionFixtureState.Mode -eq 'duplicate-sf-correlation' -and $sample -eq 1) { 2 } else { 1 }
+                $output.Add("$sample,$phase,1,1,$token,$count,1,$sfCount")
             }
         }
         return $output.ToArray()
@@ -150,7 +156,7 @@ $nativeQuery = {
 }
 Set-Item -LiteralPath ('Function:\' + $processor) -Value $nativeQuery
 
-foreach ($mode in @('success','malformed-frame','flagged-frame','wrong-ui','malformed-start','duplicate-correlation','data-loss','analyzer-failure')) {
+foreach ($mode in @('success','malformed-frame','flagged-frame','wrong-ui','wrong-dexopt','malformed-start','duplicate-correlation','duplicate-sf-correlation','data-loss','analyzer-failure')) {
     $output = Join-Path $fixtureRoot $mode
     $global:NeneAttributionFixtureState = @{
         Mode=$mode; Output=$output; Committed=$false; Undone=$false; TraceActive=$false;
@@ -162,8 +168,20 @@ foreach ($mode in @('success','malformed-frame','flagged-frame','wrong-ui','malf
     try { & $collector -DeviceSerial 'fixture-device' -ApkPath $ApkPath -TraceProcessorPath $processor -OutputDirectory $output | Out-Null }
     catch { $failure = $_.Exception.Message }
     $state = Get-Content -Raw -LiteralPath (Join-Path $output 'run-state.json') | ConvertFrom-Json
-    if ($global:NeneAttributionFixtureState.Starts -ne 1 -or $global:NeneAttributionFixtureState.Stops -ne 1 -or $global:NeneAttributionFixtureState.TraceActive) { throw "$mode did not finalize exactly one producer: $failure" }
-    if ($mode -eq 'success') {
+    if ($mode -eq 'wrong-dexopt') {
+        if (
+            $null -eq $failure -or
+            $failure -notlike '*fixed speed-profile runtime state*' -or
+            $state.status -ne 'invalid-before-trace-start' -or
+            $state.trace_started -or
+            $global:NeneAttributionFixtureState.Starts -ne 0 -or
+            $global:NeneAttributionFixtureState.Stops -ne 0
+        ) {
+            throw "A decoy package profile was accepted or started tracing: $failure"
+        }
+    } elseif ($global:NeneAttributionFixtureState.Starts -ne 1 -or $global:NeneAttributionFixtureState.Stops -ne 1 -or $global:NeneAttributionFixtureState.TraceActive) {
+        throw "$mode did not finalize exactly one producer: $failure"
+    } elseif ($mode -eq 'success') {
         if ($null -ne $failure -or $state.completed_operations -ne 10 -or $state.status -ne 'collected-pending-analysis') { throw "Full collector failed: $failure" }
         $expectedMotion = (1..10 | ForEach-Object { 'DOWN'; 'UP' }) -join ','
         if (($global:NeneAttributionFixtureState.Motion -join ',') -ne $expectedMotion -or $global:NeneAttributionFixtureState.Queries.Count -ne 5) { throw 'Full workload/analyzer order changed.' }
@@ -177,4 +195,4 @@ foreach ($mode in @('success','malformed-frame','flagged-frame','wrong-ui','malf
 }
 $results | Export-Csv -LiteralPath (Join-Path $fixtureRoot 'fixture-results.csv') -NoTypeInformation -Encoding utf8
 $results | Format-Table -AutoSize
-Write-Output 'Full collector/analyzer orchestration: PASS (8 scenarios; zero device calls; synthetic timing is not performance evidence)'
+Write-Output 'Full collector/analyzer orchestration: PASS (10 scenarios; zero device calls; synthetic timing is not performance evidence)'
