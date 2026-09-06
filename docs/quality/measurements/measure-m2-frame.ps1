@@ -1529,7 +1529,11 @@ try {
         $metadata.Add("limitation=strict physical-present correlation retained for this ten-sample attribution population; does not replace the fifty-sample decision lane")
     }
     else {
-        $metadata.Add("limitation=app-issued gfxinfo FrameTimeline only; no strict SurfaceFlinger physical-present correlation; diagnostic results are never acceptance PASS")
+        $limitation = "app-issued gfxinfo FrameTimeline only; no strict SurfaceFlinger physical-present correlation"
+        if ($RunKind -eq "diagnostic") {
+            $limitation += "; diagnostic results are never acceptance PASS"
+        }
+        $metadata.Add("limitation=$limitation")
     }
     [System.IO.File]::WriteAllLines((Join-Path $resolvedOutput "metadata.txt"), $metadata)
     Write-RunState -Status "completed" -Verdict $status

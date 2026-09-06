@@ -658,6 +658,7 @@ try {
         "packaged_profm_sha256=$($preDevice.BaselinePackagedProfmSha256)" -notin $preDeviceMetadata -or
         'sample_count=10' -notin $preDeviceMetadata -or
         'raw_frame_rows=20' -notin $preDeviceMetadata -or
+        'limitation=app-issued gfxinfo FrameTimeline only; no strict SurfaceFlinger physical-present correlation; diagnostic results are never acceptance PASS' -notin $preDeviceMetadata -or
         $preDeviceFrames.Count -ne 20 -or
         $preDeviceSamples.Count -ne 10 -or
         'status=inconclusive' -notin $endToEndOutput

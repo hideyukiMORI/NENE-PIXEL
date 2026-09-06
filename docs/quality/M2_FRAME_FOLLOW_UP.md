@@ -2021,9 +2021,12 @@ Retained slot 3 SHA-256 identities are: run state
 `4d7c1ad3cc6c3386221ef9e53450db8860720f829d355a2e543e3b0c9eb51973`, samples
 `f36a4b9447cd798d5948020c0227fc7a6689bd82e8a2ab4221285e24e16c829a`, and environment
 `71c40e5d98b58387512039a040e402666c013eacbaa020180bd27424cbfc8fe3`.
-The retained metadata limitation text says diagnostics never produce acceptance PASS even though this
-record is a decision lane; `acceptance_lane=decision`, `threshold_status=fail`, `status=fail`, and the
-completed run-state verdict are correct. This wording defect does not change the numeric verdict.
+The retained raw slot-3 metadata predates the final wording correction and says diagnostics never
+produce acceptance PASS even though this record is a decision lane. Its
+`acceptance_lane=decision`, `threshold_status=fail`, `status=fail`, and completed run-state verdict
+are correct, so the immutable result remains unambiguous. Future decision metadata omits that
+diagnostic-only sentence while retaining the app-issued-gfxinfo and missing-strict-SurfaceFlinger
+limitations; the metric, gate, and schema are unchanged.
 
 No profile regeneration or further performance sample is authorized by this correction. Normal Gradle cache
 and daemon defaults apply to host verification and repackaging; `--no-configuration-cache` is not a
