@@ -1,6 +1,6 @@
 # ADR 0013: Optimized shipping release
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-09-06
 - Issue: #76
 - Affected rules: `ARC-001`, `ARC-004`, `ARC-009`, `QLT-011`, `QLT-012`, `QLT-013`, `QLT-014`, `QLT-015`, `QLT-016`
@@ -49,10 +49,10 @@ performance result. Zero device tests and zero performance operations ran.
 
 ## Decision
 
-If the prospective correctness and performance experiment passes, one role policy registered after
-the existing app-target plugin's synthetic-build-type callback becomes the canonical application
-optimization configuration. It sets shipping `release` and device proxy `benchmarkRelease` to
-optimized and keeps Baseline Profile producer `nonMinifiedRelease` unoptimized:
+One role policy registered after the existing app-target plugin's synthetic-build-type callback is
+the canonical application optimization configuration. It sets shipping `release` and device proxy
+`benchmarkRelease` to optimized and keeps Baseline Profile producer `nonMinifiedRelease`
+unoptimized:
 
 ```kotlin
 pluginManager.withPlugin("androidx.baselineprofile.apptarget") {
@@ -170,15 +170,45 @@ The supporting sources are the [AGP 9.4 Optimization API](https://developer.andr
 the [AGP 9.4 ApplicationBuildType API](https://developer.android.com/reference/tools/gradle-api/9.4/com/android/build/api/dsl/ApplicationBuildType),
 and the [Android Baseline Profiles overview](https://developer.android.com/topic/performance/baselineprofiles/overview).
 
+## Experiment result
+
+The fixed post-#77 experiment `issue76-optimized-release-v3-01` completed all four max-one slots in
+the predeclared B diagnostic 10, C diagnostic 10, C decision 50, B decision 50 order. All 120
+measured operations and 240 app-issued `gfxinfo` FrameTimeline rows were retained; no replacement,
+retry, row removal, new profile generation, or additional frame collection occurred. Both diagnostic
+slots were valid and non-gross. The optimized C decision passed with all-frame overrun p95
+`-0.024291 ms`, p99 `1.482044 ms`, and operation p95 `9.670308 ms`. The unoptimized B decision also
+passed, with p95 `-0.183366 ms`, p99 `1.284123 ms`, and operation p95 `9.913846 ms`.
+
+B source `b8b0e6a43f4bc66a97895098c81337c2fec66e02` used APK SHA-256
+`dfbbbb68888d19638bb877c844597b57cabe9287a2b6f876234a72c72871b763`; C source
+`92c1f4e6ffe18a9c41d13215f21c237493628043` used optimized proxy SHA-256
+`dadd1fb783678426ec92d8b425d698a89932a5275b460cc80ed6346348590452`. Both consumed exact accepted
+P62 SHA-256 `3be9f24e5c485364787c1319c3ec6bd2138ed589a30ff245100ce9a283c653ee` under the separately
+authenticated producer identity. Static packaging, shipping/proxy payload equivalence,
+mapping/retrace, the exact optimized-runtime three-journey correctness batch, `speed-profile`, all
+environment gates, and fatal/ANR checks passed. The immutable raw experiment root is
+`C:\Users\info\.codex\tmp\nene-pixel-sol-20260905-180549\experiments\76\optimized-release-v3-01`;
+its experiment manifest SHA-256 is
+`04ad474edce233ed892f68885f5056c42a274f1ad095866beb98caefa5db6c2f`.
+
+This result accepts the one official shipping optimization path because C passed every prospective
+correctness, artifact, and absolute performance gate. It does not show that R8 caused the historical
+frame gap to close or that C is faster: B's decision frame p95 and p99 were slightly lower, while
+C's lower CPU p95 and operation p95 are descriptive observations from one device and one exhausted
+budget. C's frame p95 passed with only `0.024291 ms` headroom. The writer records app-issued
+FrameTimeline completion and does not provide strict SurfaceFlinger physical-present completion, so
+that limitation remains explicit.
+
 ## Migration and rollback
 
-After this proposed ADR and the protocol are reviewed, add the single post-app-target role policy and
-the variant-scoped correctness test. Package B from post-#77 main without the policy and C from the
-same production Kotlin/resources plus the policy, both with the exact accepted P62 profile input.
-The producer/non-minified control must show no R8 mapping and expected unobfuscated classes. It
+The accepted implementation keeps the single post-app-target role policy and the variant-scoped
+correctness test. B was packaged from post-#77 main without the policy and C from the same production
+Kotlin/resources plus the policy, both with the exact accepted P62 profile input. The
+producer/non-minified control has no R8 mapping and retains expected unobfuscated classes. It
 intentionally excludes the project-generated P62 text while retaining dependency profile input; the
 P62 consumers are B `benchmarkRelease` plus C `release` and `benchmarkRelease`. This consumer reuse
-does not run or publish a new producer pair.
+did not run or publish a new producer pair.
 
 If host packaging, shipping/proxy payload equivalence, mapping/retrace, optimized-runtime correctness,
 a gross diagnostic, or the absolute candidate decision fails, remove the focused role policy and

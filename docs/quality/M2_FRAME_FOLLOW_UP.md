@@ -1,22 +1,22 @@
 # M2 Actual-app Frame Follow-up
 
-Status: schema-v7 tooling and historical results retained; new collection blocked pending prerequisites and a new evidence-backed candidate.
+Status: schema-v7 tooling and historical results retained; optimized shipping release accepted from the completed post-#77 frame-v3 experiment.
 
 ## Current-main integration boundary
 
-This document integrates the truthful frame protocol and historical result ledger onto current
-`main`. It does not integrate or recreate the generated Baseline Profile producer, profile artifact,
-or its build dependencies. The retained ADR 0010 profile decision and ADR 0013 custom-View experiment
-record remain on the preserved #62/#54 branch until that profile-dependent change is curated as one
-coherent follow-up. Issue #62's fresh schema-v1 producer provenance is still pending.
+This focused integration retains the single frame protocol and complete historical result ledger,
+maps the already accepted and integrated P62 producer evidence to exact post-#77 consumers under
+QLT-012, and accepts ADR 0013's official AGP shipping-release optimization path after its fixed
+correctness, artifact, and frame gates passed. It does not regenerate or relabel P62. The rejected
+post-#77 producer pairs, stable-five change, P70 candidate, custom-View candidate, earlier frame
+FAILs, and every invalid collection remain immutable historical evidence.
 
-The four scripts documented here have one retained canonical path. Their offline protocol and visual
-fixtures are usable without a device. Actual collection is not currently authorized or ready from
-`main`: it additionally requires an accepted and integrated profile prerequisite, an exact signed
-APK/profile/source identity, a live Issue whose protocol agrees with the harness, and a newly fixed
-candidate and budget under QLT-013 through QLT-015. Historical source, APK, trace, and local artifact
-paths below are evidence records only; they are not relabelled as current-main artifacts or permission
-to rerun a consumed experiment.
+The four scripts documented here retain one canonical path. The completed
+`issue76-optimized-release-v3-01` experiment consumed its entire max-one 120-operation budget and
+authorizes no retry or additional collection. Sections below that predate
+`Prospective optimized shipping release` are historical Issue #54 ledger entries, not current
+implementation state or execution permission. Any future measurement requires an owning focused Issue,
+fixed identity, agreeing protocol/harness, and prospective budget under QLT-013 through QLT-015.
 
 ## Scope
 
@@ -355,9 +355,11 @@ and dependent #44 remain open.
 
 ### Approved same-window custom-View canvas candidate
 
-The retained #54 decision record later numbered ADR 0013 records hide's 2026-09-06 01:11 JST
-approval for one new candidate, not its adoption. That profile-dependent ADR is deliberately not
-integrated by this tooling/ledger change.
+The retained #54 proposal was temporarily numbered ADR 0013 on its unintegrated branch and records
+hide's 2026-09-06 01:11 JST approval for one new candidate, not its adoption. That custom-View
+proposal was never integrated; the repository's canonical ADR 0013 now records the later optimized
+shipping-release decision. This paragraph preserves the earlier proposal's historical identity
+without treating it as a current ADR.
 `PixelCanvas` replaces only its Compose `Canvas` recording node with a private custom Android `View`
 hosted by `AndroidView`. It remains in the same Activity window, Compose root, HWUI root surface, and
 FrameTimeline population. `SurfaceView`, another surface, GL/Vulkan code, a new render thread,
@@ -413,8 +415,9 @@ from `HSP` to `SP`. A third generation was not run to search for a favorable res
 long-worktree pull failures produced no candidate profile and are not counted as successful
 reproducibility evidence.
 
-This is an admission FAIL under the retained ADR 0010 and ADR 0013 contracts. The candidate never
-acquired a final source/APK/profile identity, so exact visual admission and every
+This is an admission FAIL under retained ADR 0010 and the unintegrated custom-View proposal's fixed
+contract. The candidate never acquired a final source/APK/profile identity, so exact visual admission
+and every
 `nene-pixel-m2-same-window-view-canvas-v7-01` timing slot remain unexecuted. No performance inference
 is made. The production/profile candidate is focused-reverted; the protocol, implementation commit,
 producer diagnostics, and mismatched hashes remain historical evidence. Issue #54 and dependent
@@ -2160,10 +2163,11 @@ source/APK, and hashes are unchanged. No second trace or profile generation is a
 
 ## Prospective optimized shipping release
 
-Issue #76 and proposed ADR 0013 define one build-level candidate after the Issue #70 source candidate
-failed the unchanged absolute frame gate and Issue #73 observed no generic text-measure owner. The
-application currently leaves AGP 9.4 release optimization at its documented default `false`. The
-candidate changes only `app/android/build.gradle.kts` with one post-plugin role policy that sets
+Issue #76 and ADR 0013 define one build-level candidate after the Issue #70 source candidate
+failed the unchanged absolute frame gate and Issue #73 observed no generic text-measure owner. At the
+start of this experiment, the unoptimized baseline left AGP 9.4 release optimization at its
+documented default `false`. The candidate changes only `app/android/build.gradle.kts` with one
+post-plugin role policy that sets
 `release=true`, `benchmarkRelease=true`, and `nonMinifiedRelease=false` through the canonical AGP
 Optimization API. No UI, state, renderer, dependency, plugin, module, toolchain, keep-rule exception,
 package scope, full-AOT mode, schema, or threshold changes.
@@ -2408,3 +2412,55 @@ replacement `none`; there is no retry. The prospective manifest snapshot is SHA-
 `04ad474edce233ed892f68885f5056c42a274f1ad095866beb98caefa5db6c2f`; it is a host-only
 model, not the unpublished actual experiment manifest. No frame slot or device operation is
 authorized by this record.
+
+### Post-#77 optimized consumer frame-v3 result
+
+The fixed `issue76-optimized-release-v3-01` experiment completed all four slots once in exact B10,
+C10, C50, B50 order. The actual experiment manifest is byte-identical to the prospective snapshot,
+SHA-256 `04ad474edce233ed892f68885f5056c42a274f1ad095866beb98caefa5db6c2f`, with
+`maximum_attempts_per_slot=1` and `replacement_rule=none`. It retained 120/120 measured operations,
+240/240 valid app-issued `gfxinfo` FrameTimeline rows, 240 raw preview/commit phase files, and no
+attempt 2 or retry. Every slot used five unmeasured warmups, exact package-delimited
+`speed-profile`, the fixed physical profile, valid final UI state, and zero fatal/ANR matches. The
+environment stayed at 1200x1920, mode 1 at 90 Hz, thermal status 1, power-save off, interactive, and
+USB powered; battery was 82% in slots 1 through 3 and 81% in slot 4.
+
+| Slot | Role and kind | Operations / frames | Verdict | Frame overrun p95 / p99 | Operation p95 |
+| --- | --- | --- | --- | --- | --- |
+| 1 | B diagnostic | 10 / 20 | valid, non-gross, inconclusive | `2.015264 / 3.483246 ms` | `10.825539 ms` |
+| 2 | C diagnostic | 10 / 20 | valid, non-gross, inconclusive | `-0.906423 / 3.066794 ms` | `8.571269 ms` |
+| 3 | C decision | 50 / 100 | **PASS** | `-0.024291 / 1.482044 ms` | `9.670308 ms` |
+| 4 | B decision | 50 / 100 | **PASS** | `-0.183366 / 1.284123 ms` | `9.913846 ms` |
+
+The immutable raw root is
+`C:\Users\info\.codex\tmp\nene-pixel-sol-20260905-180549\experiments\76\optimized-release-v3-01`.
+Slot 1 run-state/metadata/frames/samples SHA-256 values are
+`1e5f12edbaa7e3d3f8a3b73ba289211d9f8fd2bb7733ffbeac4a18befd8bd59e`,
+`24bd7929b93b64b4870c9748b92f9c82a7277777f9078a4e643931bc1676b7c5`,
+`67c25d4b15789e2c6092ad911cf75093826f6ae05a573a618a228054347c9412`, and
+`680a58f1b303d65fbc8d7c4e0504b28207b8a761a8fd1d120a54041222b662c6`. Slot 2 values are
+`3b0cc57aeb0d5c7022e650714ef54b83b72032a9ab17ad3aecdc83a4aa0807f2`,
+`bcd2f01203d545905dcfc4a598d86c0930ddd201c81684688eeba248bb1a30e7`,
+`e803aba70449a6bf4a4f35dc8d63d9d01a6d13f8aa9fa041b58f99f42a16041a`, and
+`563f04ec9c3a176716edc8de1bfe29993241540da7143b8d7bc0553c9dacd6a1`. Slot 3 values are
+`97306b1d94f4affbce1e83c716244af5e35be971b89751ad98e82d53af7db208`,
+`33d3168b06f778a7a760b88f7d98fab8b71cc401a20ae96078eb7949b99018af`,
+`2e8e2e06239b618fef9f27ebb8e7e744bf11f87785945e744dc8c1d6d6afefee`, and
+`3fc3a880915b7a5353c348de2d9f91e3618a38be20a798a8fb42c2f6727a3f54`. Slot 4 values are
+`e5935525fd7a7bbb7f047c0ed1ce5cb9be23958807917f6c1a7b7c3595deceab`,
+`5df8e0387bace52571407b73c387eea8d68628eb9dccd52c8d5097887b9a84ac`,
+`4890c9460d3f694a698420cfad3d3f9fb6712e0c154cf0388647da3408877c70`, and
+`e6e423414ba9208acf97ae8992f418d08f38c4a1a34bcf4c02e5a9f5e20e9d32`. The private audit report
+SHA-256 is `4d3ff76eaca205b544e33b11fc015ce5fe6710c8cf65a0b60a7b68264a78671d`; the private key-ledger
+SHA-256 is `62e470ca10a08287187e3df20226e03215ab3dff1c6824a59468eb3335685be9` and records the environment,
+compile-state, UI, screenshot, and logcat artifact hashes. Read-only recalculation found zero identity,
+count, sequence, environment, or percentile mismatch.
+
+The exact optimized C proxy therefore passes the prospective absolute acceptance gate together with
+the already passed host packaging, shipping/proxy payload, mapping/retrace, accepted-P62 input, and
+three-journey optimized-runtime correctness gates. B also passes and has slightly lower decision
+frame p95/p99 than C. The result does not establish an R8-caused speedup or claim that C is faster;
+C's lower CPU p95 and operation p95 are descriptive only. C's p95 has `0.024291 ms` headroom to the
+zero-overrun threshold, the evidence is one device and one exhausted budget, and the writer does not
+provide strict SurfaceFlinger physical-present completion. ADR 0013 accepts the official optimized
+shipping path on the complete prospective gate, with those uncertainties retained.
