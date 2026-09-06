@@ -44,7 +44,7 @@ internal class PencilUndoBaselineProfile {
             check(device.click(x, y)) { "Pencil input was not accepted at ($x, $y)." }
 
             device.awaitObject(By.text(DIRTY_LABEL))
-            device.awaitObject(undoButton(enabled = true)).click()
+            device.awaitObject(undoButton(enabled = true)).click(CANONICAL_UNDO_TAP_DURATION_MILLIS)
             device.awaitObject(By.text(CLEAN_LABEL))
             device.awaitObject(undoButton(enabled = false))
         }
@@ -76,6 +76,7 @@ internal class PencilUndoBaselineProfile {
         const val CANVAS_WIDTH = 16
         const val CANVAS_HEIGHT = 16
         const val UI_TIMEOUT_MILLIS = 5_000L
+        const val CANONICAL_UNDO_TAP_DURATION_MILLIS = 100L
         const val MAX_ITERATIONS = 15
         const val STABLE_ITERATIONS = 3
     }

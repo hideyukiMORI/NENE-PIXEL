@@ -82,6 +82,13 @@ hash is expected when both fresh invocations generated the same content. Any job
 or failure to confirm zero active processes retains the snapshot/evidence and reports restoration
 blocked instead of restoring while output may still change.
 
+The Baseline Profile producer's canonical journey uses a fixed 100 ms pointer-down interval for
+Undo. This is the selected fixed input condition for this collection workload and tests a bounded
+variability-reduction hypothesis; it does not guarantee a rendered frame or establish the cause of
+earlier rule drift. The existing dirty-to-clean accessibility postconditions still verify the Undo
+result in every producer iteration. This duration does not change product-wide Undo input or the
+Issue #54 measurement harness.
+
 After the first evidence and manifest are durable, the command restores the pre-generation tracked
 profile and hash before starting the second invocation. This freezes both tested builds to the same
 profile inputs while leaving the first raw, merged, and source candidate in its invocation evidence.

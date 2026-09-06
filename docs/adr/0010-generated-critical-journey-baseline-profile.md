@@ -70,6 +70,13 @@ performs the Pencil mutation, verifies the dirty state, performs Undo, and verif
 Those actions exercise the one production UI-to-command path. Fixed screen coordinates and direct
 state access are prohibited.
 
+The Baseline Profile producer's canonical journey uses UiAutomator's duration overload for Undo
+with a fixed 100 ms pointer-down interval. This is the selected fixed input condition for this
+collection workload and tests a bounded variability-reduction hypothesis. It does not guarantee a
+rendered frame or establish the cause of earlier rule drift. The Undo action and its dirty-to-clean
+accessibility postconditions remain unchanged. This duration does not change product-wide Undo
+input or the Issue #54 measurement harness.
+
 The producer sets `includeInStartupProfile = false`; startup-profile classification and startup
 benchmarking are out of scope. The consumer merges into `main`, saves the generated output in
 source, and disables automatic generation during ordinary builds. Profile generation is an explicit
