@@ -1792,3 +1792,40 @@ restored the pre-generation tracked profile/hash byte-for-byte, retained both in
 raw outputs, logs, and results, and stopped without a third invocation or retry. The generated
 artifact therefore remains unaccepted, Issue #62's fresh reproducibility criterion remains blocked,
 and this result authorizes no profile publication, performance collection, or gate relaxation.
+
+#### Issue #62 fixed-duration Undo candidate: accepted fresh pair
+
+The later prospective candidate changed the Baseline Profile producer workload identity at source
+`384af834c74189dcca9d79da1cf1ac90d0363082`: Undo in the canonical collection journey uses a fixed
+100 ms pointer-down interval. This selected input condition tests a bounded variability-reduction
+hypothesis. It does not prove the cause of the earlier mismatch, guarantee a rendered frame, change
+product-wide Undo input, or change the Issue #54 measurement harness. Because the source and
+workload identity changed before collection, evidence identity
+`issue-62-20260906-1611-384af834` is a new prospective experiment rather than a third invocation or
+retry of the preserved mismatch identity.
+
+The one authorized wrapper execution produced exactly two fresh valid invocations. Both record the
+fixed source revision, app APK SHA-256
+`f7390cf56f38a36e0ac2ed6e7dfb14c73f75292bef212a149a1648d2fbab3b79`, test APK SHA-256
+`fc0c57cffa3ac7b232f19638e372f33841d92f199f977b0eaf47fb87a41ed691`, 13,514 ordered canonical
+rules, and canonical SHA-256
+`3be9f24e5c485364787c1319c3ec6bd2138ed589a30ff245100ce9a283c653ee`. The pair manifest records
+`matched`; its SHA-256 is
+`d8f9279dc399fccd8de82bdc1d2c6ea80f8db9ea76b2fcccf5fd82aa319ea45b`. The acceptance manifest
+records `accepted`; its file SHA-256 is
+`9781827af89116147b667db71d8f1fddf6897ed72c1f3527431ad9acfc85b2a5`. Final
+`validateBaselineProfile` completed successfully. The ignored evidence remains at
+`C:/n62-tap100/build/reports/baseline-profile-generation/issue-62-20260906-1611-384af834/`.
+
+Compared with the frozen 13,510-rule source, the accepted artifact adds exactly four `SP` rules and
+removes or changes none:
+
+- `SPLandroidx/compose/runtime/snapshots/SnapshotStateList;->get(I)Ljava/lang/Object;`
+- `SPLandroidx/compose/runtime/snapshots/SnapshotStateList;->getSize()I`
+- `SPLandroidx/compose/runtime/snapshots/SnapshotStateList;->size()I`
+- `SPLandroidx/compose/ui/platform/AndroidComposeView;->isPositionChanged(Landroid/view/MotionEvent;)Z`
+
+The canonical source and its hash manifest now contain the accepted result. The earlier invalid and
+mismatch evidence remain immutable and excluded from this pair. No third invocation, favorable
+subset, union/intersection, filtering, threshold change, or performance collection occurred. Issue
+#62 remains open until this focused source and artifact change merges. Active waivers: none.

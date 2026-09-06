@@ -4686,9 +4686,12 @@ SPLandroidx/compose/runtime/snapshots/SnapshotStateList;-><clinit>()V
 SPLandroidx/compose/runtime/snapshots/SnapshotStateList;-><init>()V
 SPLandroidx/compose/runtime/snapshots/SnapshotStateList;-><init>(Landroidx/compose/runtime/external/kotlinx/collections/immutable/PersistentList;)V
 SPLandroidx/compose/runtime/snapshots/SnapshotStateList;->add(Ljava/lang/Object;)Z
+SPLandroidx/compose/runtime/snapshots/SnapshotStateList;->get(I)Ljava/lang/Object;
 SPLandroidx/compose/runtime/snapshots/SnapshotStateList;->getFirstStateRecord()Landroidx/compose/runtime/snapshots/StateRecord;
+SPLandroidx/compose/runtime/snapshots/SnapshotStateList;->getSize()I
 SPLandroidx/compose/runtime/snapshots/SnapshotStateList;->isEmpty()Z
 SPLandroidx/compose/runtime/snapshots/SnapshotStateList;->remove(Ljava/lang/Object;)Z
+SPLandroidx/compose/runtime/snapshots/SnapshotStateList;->size()I
 SPLandroidx/compose/runtime/snapshots/SnapshotStateList;->toList()Ljava/util/List;
 Landroidx/compose/runtime/snapshots/SnapshotStateList$Companion;
 SPLandroidx/compose/runtime/snapshots/SnapshotStateList$Companion;-><init>()V
@@ -7669,6 +7672,7 @@ SPLandroidx/compose/ui/platform/AndroidComposeView;->isArrEnabled$ui()Z
 SPLandroidx/compose/ui/platform/AndroidComposeView;->isAttached()Z
 SPLandroidx/compose/ui/platform/AndroidComposeView;->isBadMotionEvent(Landroid/view/MotionEvent;)Z
 SPLandroidx/compose/ui/platform/AndroidComposeView;->isInBounds(Landroid/view/MotionEvent;)Z
+SPLandroidx/compose/ui/platform/AndroidComposeView;->isPositionChanged(Landroid/view/MotionEvent;)Z
 SPLandroidx/compose/ui/platform/AndroidComposeView;->layoutChildViewsIfNeeded$lambda$0(Landroidx/compose/ui/platform/AndroidComposeView;)Lkotlin/Unit;
 SPLandroidx/compose/ui/platform/AndroidComposeView;->localToScreen-MK-Hz9U(J)J
 SPLandroidx/compose/ui/platform/AndroidComposeView;->localeList_delegate$lambda$0(Landroidx/compose/ui/platform/AndroidComposeView;)Landroidx/compose/ui/text/intl/LocaleList;
