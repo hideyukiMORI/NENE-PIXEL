@@ -1717,8 +1717,9 @@ associations. The dexopt preflight now delimits the exact target package block b
 indentation, so an unindented following package cannot supply a misleading `speed-profile` value.
 The collected v3 harness identity remains `edacaa99838d73f883fce19ba74bb9700a444924`.
 
-The complete device-free fixture now passes ten scenarios, adding duplicate SurfaceFlinger
-association and a target-package/decoy-package profile mismatch to the prior eight. A fresh offline
+The complete device-free fixture now passes eleven scenarios. It checks app actual, app expected,
+and SurfaceFlinger actual duplication independently and adds a target-package/decoy-package profile
+mismatch to the prior eight. A fresh offline
 analysis output directory using the strengthened analyzer and the immutable v3 trace again reports
 `attribution-complete`, twenty requested frames, nine late COMMIT frames, and the unchanged
 120/112/1,443 thread-state/scheduler/slice row counts. This is validation of the existing saved

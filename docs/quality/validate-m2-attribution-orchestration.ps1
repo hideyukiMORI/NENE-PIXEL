@@ -142,9 +142,10 @@ $nativeQuery = {
         foreach ($sample in 1..10) {
             foreach ($phase in @('preview','commit')) {
                 $token = 1000 + (($sample-1)*2) + $(if ($phase -eq 'preview') { 1 } else { 2 })
-                $count = if ($global:NeneAttributionFixtureState.Mode -eq 'duplicate-correlation' -and $sample -eq 1) { 2 } else { 1 }
+                $appActualCount = if ($global:NeneAttributionFixtureState.Mode -eq 'duplicate-app-actual-correlation' -and $sample -eq 1) { 2 } else { 1 }
+                $appExpectedCount = if ($global:NeneAttributionFixtureState.Mode -eq 'duplicate-app-expected-correlation' -and $sample -eq 1) { 2 } else { 1 }
                 $sfCount = if ($global:NeneAttributionFixtureState.Mode -eq 'duplicate-sf-correlation' -and $sample -eq 1) { 2 } else { 1 }
-                $output.Add("$sample,$phase,1,1,$token,$count,1,$sfCount")
+                $output.Add("$sample,$phase,1,1,$token,$appActualCount,$appExpectedCount,$sfCount")
             }
         }
         return $output.ToArray()
@@ -156,7 +157,7 @@ $nativeQuery = {
 }
 Set-Item -LiteralPath ('Function:\' + $processor) -Value $nativeQuery
 
-foreach ($mode in @('success','malformed-frame','flagged-frame','wrong-ui','wrong-dexopt','malformed-start','duplicate-correlation','duplicate-sf-correlation','data-loss','analyzer-failure')) {
+foreach ($mode in @('success','malformed-frame','flagged-frame','wrong-ui','wrong-dexopt','malformed-start','duplicate-app-actual-correlation','duplicate-app-expected-correlation','duplicate-sf-correlation','data-loss','analyzer-failure')) {
     $output = Join-Path $fixtureRoot $mode
     $global:NeneAttributionFixtureState = @{
         Mode=$mode; Output=$output; Committed=$false; Undone=$false; TraceActive=$false;
@@ -195,4 +196,4 @@ foreach ($mode in @('success','malformed-frame','flagged-frame','wrong-ui','wron
 }
 $results | Export-Csv -LiteralPath (Join-Path $fixtureRoot 'fixture-results.csv') -NoTypeInformation -Encoding utf8
 $results | Format-Table -AutoSize
-Write-Output 'Full collector/analyzer orchestration: PASS (10 scenarios; zero device calls; synthetic timing is not performance evidence)'
+Write-Output 'Full collector/analyzer orchestration: PASS (11 scenarios; zero device calls; synthetic timing is not performance evidence)'
