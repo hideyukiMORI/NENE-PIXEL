@@ -1984,6 +1984,47 @@ from either invalid experiment is an input to candidate selection, thresholds, s
 new comparison. Slot 1 remains blocked until new standalone B/C source, signed APK and packaged
 prof/profm identities pass static checks and receive explicit review.
 
+### Manifest-v3-03 result — natural-size dirty-status candidate
+
+The reviewed standalone packaging used baseline source
+`91cf17499be225dcf1bff8151aa9f3166e8c014e` / APK SHA-256
+`ac50568d6262a9dd6af4c8877b80866a06c4f35eceb2b1459777d551c485fe00` and candidate source
+`624ba29bb56e0c02cca47599a2c5af9450fa5127` / APK SHA-256
+`47d4c4753532726bf31c5508e8aad5ff52280a21e135960d1898a01e45f0df6b`. Both APKs contained their
+exact embedded revision, v2/v3 signatures, and the predeclared packaged prof/profm hashes. Artifact-only
+validation passed both retained P62/P70 evidence graphs without creating an experiment directory.
+
+Baseline diagnostic slot 1 and candidate diagnostic slot 2 each completed ten operations and 20 / 20
+valid frames with exact correctness, environment, profile and fatal/ANR checks. Both are inconclusive
+and non-gross, as required. Baseline all-frame overrun p95/p99 was 2.931503 / 3.153534 ms and
+UP-to-committed-result p95 was 11.712885 ms. Candidate diagnostic all-frame overrun p95/p99 was
+2.920431 / 3.172749 ms and UP-to-committed-result p95 was 11.212154 ms. These diagnostics are not an
+admission zero-miss gate and do not establish acceptance or a speedup.
+
+Candidate decision slot 3 completed 50 operations and 100 / 100 valid frames with eight environment
+checkpoints, the exact committed pixel/dirty/Undo/Redo/canvas state, successful packaged-profile
+installation and `speed-profile` compilation, and zero fatal/ANR matches. It is **FAIL** at the unchanged
+acceptance: all-frame overrun p95 is 0.677286 ms (> 0 ms). All-frame p99 is 2.827032 ms and
+UP-to-committed-result p95 is 10.108653 ms, both within their 16.67 / 33.33 ms limits. Preview has
+3 / 50 positive overruns with p95 0.097638 ms; commit has 30 / 50 with p95 0.777667 ms. The maximum
+frame overrun is 3.824223 ms and maximum operation latency is 11.409154 ms.
+
+The candidate FAIL stopped the sequence before baseline decision slot 4. There is no retry, baseline-50
+result, favorable row removal, threshold change, physical-present claim, or reinterpretation of either
+earlier invalid experiment. The generic text slice from Issue #67 remains supporting diagnostic context,
+not unique proof that this label owns the cost. The natural-size label implementation remains
+correctness-green but is not accepted or merged; Issue #54 and its M2 exit dependency remain open.
+
+Retained slot 3 SHA-256 identities are: run state
+`200eb670f311dca994e6318e9ca4eb6de613929c86e48f35d3db74f50019010b`, metadata
+`55ed7ea543ded0d0cc4fb0ea25386f6fd066692119261fa1cd7a6ce8b5071ee7`, frames
+`4d7c1ad3cc6c3386221ef9e53450db8860720f829d355a2e543e3b0c9eb51973`, samples
+`f36a4b9447cd798d5948020c0227fc7a6689bd82e8a2ab4221285e24e16c829a`, and environment
+`71c40e5d98b58387512039a040e402666c013eacbaa020180bd27424cbfc8fe3`.
+The retained metadata limitation text says diagnostics never produce acceptance PASS even though this
+record is a decision lane; `acceptance_lane=decision`, `threshold_status=fail`, `status=fail`, and the
+completed run-state verdict are correct. This wording defect does not change the numeric verdict.
+
 No profile regeneration or further performance sample is authorized by this correction. Normal Gradle cache
 and daemon defaults apply to host verification and repackaging; `--no-configuration-cache` is not a
 routine flag. Active waivers: none.
