@@ -277,7 +277,7 @@ foreach ($mode in $scenarioModes) {
     } elseif ($global:NeneAttributionFixtureState.Starts -ne 1 -or $global:NeneAttributionFixtureState.Stops -ne 1 -or $global:NeneAttributionFixtureState.TraceActive) {
         throw "$mode did not finalize exactly one producer: $failure"
     } elseif ($mode -in $validOwnershipModes) {
-        if ($null -ne $failure -or $state.completed_operations -ne 10 -or $state.status -ne 'collected-pending-analysis') { throw "Full collector failed: $failure" }
+        if ($null -ne $failure -or $state.completed_operations -ne 10 -or $state.status -ne 'completed') { throw "Full collector failed: $failure" }
         $expectedMotion = (1..10 | ForEach-Object { 'DOWN'; 'UP' }) -join ','
         if (($global:NeneAttributionFixtureState.Motion -join ',') -ne $expectedMotion -or $global:NeneAttributionFixtureState.Queries.Count -ne 8) { throw 'Full workload/analyzer order changed.' }
         if (@(Import-Csv (Join-Path $output 'frames.csv')).Count -ne 20) { throw 'Full frame population was not preserved.' }

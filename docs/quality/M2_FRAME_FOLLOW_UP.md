@@ -2125,4 +2125,34 @@ instrumentation batch on `T830128GB26321131293` passed 15/15 tests in 21.849 sec
 reference tests, four dirty-status cases, and nine Undo/Redo editor journeys. Install and
 instrumentation native exits were zero. Retained summary SHA-256 is
 `791c98e89a472ca32cd54af1bf44f171b27177af10602f6b0397e2087fa039a9`. This is correctness evidence,
-not trace or performance evidence. The one-trace and ten-operation budget remains unopened.
+not trace or performance evidence.
+
+The sole invocation `issue73-current-c-text-owner-v4-01` then completed and consumed the one-trace,
+ten-operation budget. It retained 20 actual frame rows, split into ten preview and ten COMMIT rows,
+with 20 unique FrameTimeline IDs. Analyzer status is `attribution-complete`, trace integrity is valid,
+the post-trace environment is unchanged, compilation is exact `speed-profile`, and logcat contains
+no fatal/ANR match.
+
+The trace contains 20 fixed source-marker slices, all main-thread `NP.dirty-status.measure` anchors.
+Each of the ten COMMIT operation groups contains one anchor. It contains zero COMMIT
+`TextStringSimpleNode::measure` slices, zero uniquely owned generic slices, and an empty owner set.
+The valid finite outcome is `none-observed`: this instrumented COMMIT population did not execute the
+generic node. It does not negate an uninstrumented current-C owner, estimate marker-free duration,
+prove a speedup, or justify an owner-targeted production change.
+
+The immutable output is `C:/n73-diagnostic/issue73-current-c-text-owner-v4-01`. SHA-256 values are:
+
+- trace: `3cf782cbab6bb4dd241cd528827b40d7c427e54c944eced82a9d0bce12360df1`;
+- manifest: `8acf135bf46822fb4fc1607325cc3469d7ec570dde79ccafeceb33c0bdb9f9fe`;
+- frames: `54283dc83c0985c06e9d434b0ce4af5733b329f5006b841ddbd122b54f44fd56`;
+- analysis metadata: `818c54d13248f68bb317e22b1a0b83fbbd0f5db319586e1cfd044623dd18f976`;
+- source markers: `528c89cbbf9911222a37fd1df09ea895a9c9abb82142cbb39a17572f77f6f103`;
+- text owners: `1c7dbc52dbe31e2678237f578278dafeb9fe4ea30fbeb17c3269807bd290cb2f`;
+- dirty anchors: `813666619093a66afda4aebd0e857754782c1d24a67f5190f90b36a7af502d26`;
+- environment: `e31515f28d59706eb554abea95aaab5863b49a9b0b7559e01e0264566a30275d`;
+- run state: `dde1b4bb667d3146213e09591b820a114ef7caa7ec4c46f9a76c724e51d4deb2`.
+
+That immutable run state says `collected-pending-analysis`, an inherited stale label even though the
+analyzer, post-trace environment/fatal checks, frame completeness check, and process all completed.
+The sole v4 writer now publishes future successful runs as `completed`; the retained result, measured
+source/APK, and hashes are unchanged. No second trace or profile generation is authorized.

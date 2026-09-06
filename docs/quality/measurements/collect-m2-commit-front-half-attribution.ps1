@@ -509,7 +509,7 @@ trigger_config { trigger_mode: STOP_TRACING trigger_timeout_ms: $traceTimeoutMil
     ) {
         throw "The attribution population is incomplete or ambiguously associated."
     }
-    Write-RunState -Status "collected-pending-analysis" -CompletedOperations $completedOperations
+    Write-RunState -Status "completed" -CompletedOperations $completedOperations
     Write-Output "commit-front-half-attribution-collected:$resolvedOutput"
 }
 catch {
