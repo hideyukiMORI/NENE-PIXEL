@@ -2357,3 +2357,54 @@ must cover new max-one publication, pre-output Attempt 2 rejection, a contradict
 and read-only validation of a retained max-two manifest. It creates no second writer or schema, changes no APK,
 profile, CUJ, metric, threshold, operation population, or historical evidence, and authorizes no frame
 collection by itself.
+
+### Post-#77 optimized consumer preflight and fixed frame identity
+
+The finite host package step passed with clean standalone baseline source
+`b8b0e6a43f4bc66a97895098c81337c2fec66e02` and candidate source
+`92c1f4e6ffe18a9c41d13215f21c237493628043`. Both measurement lanes are signed,
+profileable `benchmarkRelease` packages with the same post-#77 production Kotlin/resources and
+accepted P62 source-profile input. B is the 8,403,124-byte unoptimized APK with SHA-256
+`dfbbbb68888d19638bb877c844597b57cabe9287a2b6f876234a72c72871b763`; C is the
+1,266,693-byte optimized proxy with SHA-256
+`dadd1fb783678426ec92d8b425d698a89932a5275b460cc80ed6346348590452`. C's unsigned
+shipping `release` artifact is separately proven payload-equivalent to the proxy. C
+`nonMinifiedRelease` remains an unoptimized producer-control that excludes the project P62 input;
+it is not a measurement consumer.
+
+B packages prof/profm SHA-256
+`442fda9b5a533650f5dd2c3a81e44b46db8b6f33d2116e09549d2369747aaa4b` /
+`ea3952b961dfbacb383bd6089dec6c6a1950cc7e306a374463c7d52a40d983fe`; C packages
+`ccf1253d960014a83bf1825dad0f26b0dcd164e029074bb44fdab252f3c1d42a` /
+`6999514d7f1fec2951f976324e2a3766a75f892aa03f76a9aab5d7a0c4240ab6`. Both map to
+the immutable P62 acceptance manifest SHA-256
+`9781827af89116147b667db71d8f1fddf6897ed72c1f3527431ad9acfc85b2a5`, pair SHA-256
+`d8f9279dc399fccd8de82bdc1d2c6ea80f8db9ea76b2fcccf5fd82aa319ea45b`, and canonical
+profile SHA-256 `3be9f24e5c485364787c1319c3ec6bd2138ed589a30ff245100ce9a283c653ee`.
+The fixed reader and artifact-only checks passed for both roles without creating an experiment
+directory. The exact C proxy then passed all three bounded optimized-runtime journeys. Its retained
+functional ledger SHA-256 is
+`37b019423932c70523bdb776ed28d183130d9913d7748265dd6fad5977f27e6d`.
+
+The prospective experiment is `issue76-optimized-release-v3-01` at
+`C:\Users\info\.codex\tmp\nene-pixel-sol-20260905-180549\experiments\76\optimized-release-v3-01`.
+The directory remains absent before slot 1. Every slot invokes the same absolute collector produced
+by harness commit `8bd2184d2327ce9c085d43b6957208f67ca853c7`, file SHA-256
+`863e553840b9c32b4a8200f471398ae4ca1ade5007e3bae67491f266ab8d9663`; its fixed dexopt
+helper and profile reader SHA-256 values are respectively
+`ba9b232be6dc4b4a125c61c0d03a3e77fe8abc4a817f99a4089b10a288bf3259` and
+`02fce3f4e071b49c9247e548df7dd28b8a60ad24e49c30002d82267c5b1c8d31`.
+The collector's source guard runs from the clean B or C source clone so repository HEAD equals the
+corresponding APK's embedded revision; the single absolute collector is never copied or relabelled.
+
+The executable timing is the frame writer's 100 ms DOWN-preview window, 350 ms UP-commit window,
+and verified Undo clean checkpoint using a 150 ms polling interval with at most three taps. The
+1,200 ms quiet interval belongs to the separate source-attribution collector and is not imported into
+this frame experiment. Order, populations, thresholds, and maximum remain B10, C10, C50, B50; five
+warmups per slot; at most 120 measured operations; all-frame overrun p95 <=0 ms and p99 <=16.67 ms;
+and operation p95 <=33.33 ms. Any INVALID, gross diagnostic (>33.34 ms frame overrun or >100 ms
+operation), or candidate decision FAIL stops all later slots. The manifest records max one and
+replacement `none`; there is no retry. The prospective manifest snapshot is SHA-256
+`04ad474edce233ed892f68885f5056c42a274f1ad095866beb98caefa5db6c2f`; it is a host-only
+model, not the unpublished actual experiment manifest. No frame slot or device operation is
+authorized by this record.
