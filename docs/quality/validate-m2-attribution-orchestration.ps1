@@ -168,7 +168,8 @@ $nativeQuery = {
 }
 Set-Item -LiteralPath ('Function:\' + $processor) -Value $nativeQuery
 
-foreach ($mode in @('success','malformed-frame','flagged-frame','wrong-ui','wrong-dexopt','prefix-decoy-dexopt','duplicate-target-dexopt','missing-target-dexopt','malformed-start','duplicate-app-actual-correlation','duplicate-app-expected-correlation','duplicate-sf-correlation','data-loss','analyzer-failure')) {
+$scenarioModes = @('success','malformed-frame','flagged-frame','wrong-ui','wrong-dexopt','prefix-decoy-dexopt','duplicate-target-dexopt','missing-target-dexopt','malformed-start','duplicate-app-actual-correlation','duplicate-app-expected-correlation','duplicate-sf-correlation','data-loss','analyzer-failure')
+foreach ($mode in $scenarioModes) {
     $output = Join-Path $fixtureRoot $mode
     $global:NeneAttributionFixtureState = @{
         Mode=$mode; Output=$output; Committed=$false; Undone=$false; TraceActive=$false;
@@ -210,4 +211,4 @@ foreach ($mode in @('success','malformed-frame','flagged-frame','wrong-ui','wron
 }
 $results | Export-Csv -LiteralPath (Join-Path $fixtureRoot 'fixture-results.csv') -NoTypeInformation -Encoding utf8
 $results | Format-Table -AutoSize
-Write-Output 'Full collector/analyzer orchestration: PASS (11 scenarios; zero device calls; synthetic timing is not performance evidence)'
+Write-Output "Full collector/analyzer orchestration: PASS ($($scenarioModes.Count) scenarios; zero device calls; synthetic timing is not performance evidence)"
