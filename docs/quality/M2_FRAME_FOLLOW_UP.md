@@ -1829,3 +1829,207 @@ The canonical source and its hash manifest now contain the accepted result. The 
 mismatch evidence remain immutable and excluded from this pair. No third invocation, favorable
 subset, union/intersection, filtering, threshold change, or performance collection occurred. Issue
 #62 remains open until this focused source and artifact change merges. Active waivers: none.
+
+## Prospective natural-size dirty-status comparison — manifest v3
+
+Issue #70 retains one correctness-green local candidate at
+`f32f31f295f90ed3ad5a8086a7a6ab33b315f88c`. Its four focused dirty-status reference cases and nine
+existing editor journeys are correctness evidence only. They neither prove that the generic text
+slice in Issue #67 belongs uniquely to this label nor establish a speedup.
+
+The frame population remains `nene-pixel-m2-actual-app-frame-v7`. The incompatible experiment
+identity advances from `nene-pixel-m2-frame-experiment-v2` to
+`nene-pixel-m2-frame-experiment-v3`; old v2 experiment directories and their verdicts remain
+immutable and cannot be resumed by the v3 sole writer. This change is required by `ARC-009` and
+`QLT-011` through `QLT-016` because the earlier `57ae20d` fresh-pair attempt is a retained mismatch,
+not a baseline, and the accepted generation identities must remain distinct from final packaging.
+
+Issue #62 has now produced the only accepted prospective baseline-profile evidence:
+
+- generation source: `384af834c74189dcca9d79da1cf1ac90d0363082`;
+- generation app APK SHA-256:
+  `f7390cf56f38a36e0ac2ed6e7dfb14c73f75292bef212a149a1648d2fbab3b79`;
+- generation test APK SHA-256:
+  `fc0c57cffa3ac7b232f19638e372f33841d92f199f977b0eaf47fb87a41ed691`;
+- pair manifest SHA-256:
+  `d8f9279dc399fccd8de82bdc1d2c6ea80f8db9ea76b2fcccf5fd82aa319ea45b`;
+- canonical profile SHA-256:
+  `3be9f24e5c485364787c1319c3ec6bd2138ed589a30ff245100ce9a283c653ee`;
+- acceptance manifest SHA-256:
+  `9781827af89116147b667db71d8f1fddf6897ed72c1f3527431ad9acfc85b2a5`;
+- retained acceptance manifest:
+  `C:\n62-tap100\build\reports\baseline-profile-generation\issue-62-20260906-1611-384af834\acceptance-manifest.json`.
+
+Issue #70 has produced the corresponding accepted candidate-profile evidence:
+
+- generation source: `374ad2111ed61d012bc20ba18229973b982e7df2`;
+- generation app APK SHA-256:
+  `6f2d2023c3ff548b4973ae1cd9cf2021173dc6a883b3fedac66a7a269c23e552`;
+- generation test APK SHA-256:
+  `fc0c57cffa3ac7b232f19638e372f33841d92f199f977b0eaf47fb87a41ed691`;
+- 13,692 canonical rules, SHA-256
+  `ca83f66917fdda19ade75bfe31861dbd33a6615c0c8feda7a5b774b55ce2f62d`;
+- pair manifest SHA-256:
+  `44fa0383ae404012d32ddf2d883d44da24b0cfe817e0b140501848bf1954c3a3`;
+- acceptance manifest SHA-256:
+  `7fade8dcb677633a1200373100d05c56ebf627622b4eb554d15a4df27893b2b7`;
+- retained acceptance manifest:
+  `C:\n70\build\reports\baseline-profile-generation\issue-70-20260906-1640-374ad211\acceptance-manifest.json`.
+
+The accepted candidate artifact and ledger are committed at packaging-lineage source
+`e055022dca4cb28337c3b5118ab3904d122ae372`. Its generation source remains `374ad211`; `e055022d`
+is not relabelled as the producer source and does not automatically become final comparison source
+`C`. The final `B`/`C` identities are fixed only after the shared harness integration and exact APK
+packaging checks below.
+
+The manifest is accepted only after two fresh invocations agree on source, separate app/test APK identities, ordered rules, and canonical bytes, followed by successful final validation. A matched pair or an `accepted` string alone is insufficient. This focused change adds one repository-fixed typed evidence reader shared by the Issue #62 generation wrapper and the v3 frame harness. It verifies the acceptance -> pair -> two invocation -> validation log/source profile hash chain, schema/status/evidence ID, valid fresh invocation identities, full canonical rules, and expected source/app APK/test APK/pair/canonical values. The existing evidence schema v1, generation behavior, collection inputs, and historical evidence remain unchanged; production callers cannot substitute a validator command.
+
+An evidence root may be relocated for immutable retention. Relocation does not change its identity:
+the canonical filenames, internal evidence IDs, containment, and every linked file/hash must still
+validate. The reader uses saved manifest timestamps and authenticated freshness/status records; it
+does not infer freshness again from current filesystem modification times.
+
+Baseline and candidate each also fix their final packaging source/APK and the content hashes of
+packaged `assets/dexopt/baseline.prof` and `baseline.profm`. The frame harness verifies those ZIP
+entry hashes and, after profile installation and compilation, uses one shared package-delimited
+dexopt helper to require `speed-profile` inside the exact application package block. The attribution
+collector reuses the same helper; there is no second dexopt interpretation.
+
+Artifact-only validation checks either role's embedded source revision, APK hash, and packaged
+profile-entry hashes before publishing an experiment manifest or reading slot progression. It writes
+no experiment directory and therefore can validate the candidate before baseline slot 1 exists.
+Signing and SDK tooling identity remain separate final-packaging checks; artifact-only validation
+does not replace `apksigner` verification.
+
+Identity proceeds without recursive generation:
+
+1. Integrate the accepted Issue #62 producer and artifact as post-#62 main `M`. Map the producer
+   evidence to `M` only after proving application/product/profile inputs equivalent under QLT-012.
+2. Rebase the Issue #70 production/test change onto `M` as candidate producer `P70`. Reuse the existing
+   4/4 and 9/9 functional results only if their source, Compose/toolchain, and affected test inputs
+   remain equivalent.
+3. The one authorized fresh two-invocation candidate pair from `P70` matched and passed final
+   validation. Its identities are fixed above; no third invocation occurred and no frame budget was
+   opened by generation.
+4. Package the accepted candidate artifact in the `P70` lineage. The common manifest-v3
+   harness/protocol change may integrate afterward; it is not a prerequisite for candidate profile
+   generation. Define final baseline packaging source `B` and candidate packaging source `C` only
+   after that integration, and record why the harness/protocol-only change preserves the respective
+   application and profile producer inputs. QLT-012 then maps the accepted Issue #62 evidence to `B`
+   and the accepted `P70` evidence to `C` without another generation pair.
+5. Build and fix exact signed release-like `B` and `C` APK/profile identities. Any unset identity
+   remains `TBD` and blocks slot 1.
+
+All four slots require release-like `speed-profile`; diagnostic debug or full-AOT lanes are not part
+of this experiment. Order remains baseline diagnostic 10, candidate diagnostic 10, candidate
+decision 50, and baseline decision 50 only after candidate absolute PASS. The maximum measured
+budget is 120 operations. Attempt 2 is available only after attempt 1 records zero measured DOWN
+events and `invalid-before-samples`; invalid-after-start consumes and stops the experiment.
+
+Diagnostics stop only for a frame overrun greater than 33.34 ms or an UP-input-to-committed-result
+duration greater than 100.0 ms. Equality and every valid non-gross diagnostic are inconclusive.
+Candidate decision PASS requires all-frame overrun p95 <= 0 ms, all-frame p99 <= 16.67 ms, and
+50-operation committed-result p95 <= 33.33 ms. Operation p95 is nearest-rank 10/10 for diagnostics
+and rank 48/50 for decisions. Frame ranks remain `ceil(0.95 * Nframes)` and
+`ceil(0.99 * Nframes)` over each actual retained population; no 100-frame cardinality is assumed.
+A gross diagnostic, exhausted invalid slot, or candidate FAIL stops all remaining slots. Every output
+is retained without favorable retry or historical relabelling.
+
+Issue #58's 65,536/262,144-position Pencil/Eraser results remain a host-only component diagnostic.
+They omit `PixelCanvas.drawPreview` and physical frame acceptance. Dirty-status text layout changes
+once on the clean-to-dirty transition regardless of stroke length, so adding a long-stroke lane to
+this comparison would not exercise a distinct changed cost. The existing #58 result remains risk
+context and supports no whole-editor or #54 PASS claim.
+
+The first fixed packaging identities used harness source
+`4f3e50071f6b49e6fbaf35e19b45c8a8e95cbd6c`, candidate source
+`b20bc7321cdf0fa5e3e0f1d4c1cc24c2e89b26b0`, and APK SHA-256 values
+`b105bbb683a275d43afd43b788788ce128d0dab5721a6dc485d2d96bd1a1a5a9` /
+`6ffab90c0106268b0d41f5e2484c14c80c910bebe9700f2c9e9c9ae6462d37d6`. Experiment
+`issue70-natural-size-dirty-status-v3-01` opened baseline diagnostic attempt 1, then failed before
+APK installation because the verified resolved path remained local to `Assert-M2PackagedArtifact`
+while the device path referenced an unbound script variable. Its immutable `run-state.json` records
+`invalid-before-samples` and zero measured DOWN events. It contains no performance sample and does
+not permit either APK to be relabelled after the harness fix.
+
+The first correction carried the safe resolved APK path in the typed verified-artifact return and
+used only that returned path for the device invocation. Its replacement packaging used harness
+source `7dd8acf259bb0fb3957033835fefa77894a9a58e`, candidate source
+`410799469e504cad7f4b0f9f6576cd6cd2efa81f`, and APK SHA-256 values
+`4e87fb3ac595d843fe0005b95809226a6d9c3d73abfbec1600d7d61dd7e9c92d` /
+`849e0b62b9583f9fff1d8c1514ad7ba1345de95a9d9746b99d57b1838b9755e9`.
+Experiment `issue70-natural-size-dirty-status-v3-02` completed ten baseline measured DOWN events and
+published its raw phase files, `frames.csv`, `samples.csv`, final UI/screenshot, logcat, and environment.
+Metadata construction then found a second scope defect: embedded source, APK hash and packaged
+prof/profm values were also function-local. The immutable run state is `invalid-after-samples` with
+ten measured DOWN events; metadata, completed state and numeric verdict were never published. Slot 2
+and attempt 2 were not run. The invalid raw data is not interpreted as performance evidence.
+
+The complete correction audits all caller uses of `Assert-M2PackagedArtifact` locals. The typed return
+now owns resolved path, embedded source, APK byte count/hash and packaged prof/profm hashes; install
+and metadata read those values only through that object. One host-only end-to-end diagnostic fixture
+uses an exact-revision APK and a clean temporary Git repository, traverses both profile evidence
+graphs, artifact validation, manifest/slot setup, physical preflight, install, warmups, ten operations,
+final correctness, CSV aggregation, metadata and final verdict. It asserts the exact source/APK bytes
+and hashes in metadata, 20 frame rows, ten operation rows and a completed inconclusive run state.
+The two failed experiments remain immutable; any future comparison requires another reviewed source,
+packaging and experiment identity. The profile producer inputs and Issue #70 functional-test inputs
+are unchanged, so QLT-012 permits their evidence reuse after those identities are mapped.
+
+The next prospective identity is `issue70-natural-size-dirty-status-v3-03`. It keeps the same Issue
+#70 production candidate, accepted P62/P70 profile evidence, release-like `speed-profile` workload,
+numeric thresholds, four-slot ABBA order and maximum 120 measured operations. It changes the common
+harness source only by the reviewed complete caller-scope correction above. No timing or frame value
+from either invalid experiment is an input to candidate selection, thresholds, stopping rules or the
+new comparison. Slot 1 remains blocked until new standalone B/C source, signed APK and packaged
+prof/profm identities pass static checks and receive explicit review.
+
+### Manifest-v3-03 result — natural-size dirty-status candidate
+
+The reviewed standalone packaging used baseline source
+`91cf17499be225dcf1bff8151aa9f3166e8c014e` / APK SHA-256
+`ac50568d6262a9dd6af4c8877b80866a06c4f35eceb2b1459777d551c485fe00` and candidate source
+`624ba29bb56e0c02cca47599a2c5af9450fa5127` / APK SHA-256
+`47d4c4753532726bf31c5508e8aad5ff52280a21e135960d1898a01e45f0df6b`. Both APKs contained their
+exact embedded revision, v2/v3 signatures, and the predeclared packaged prof/profm hashes. Artifact-only
+validation passed both retained P62/P70 evidence graphs without creating an experiment directory.
+
+Baseline diagnostic slot 1 and candidate diagnostic slot 2 each completed ten operations and 20 / 20
+valid frames with exact correctness, environment, profile and fatal/ANR checks. Both are inconclusive
+and non-gross, as required. Baseline all-frame overrun p95/p99 was 2.931503 / 3.153534 ms and
+UP-to-committed-result p95 was 11.712885 ms. Candidate diagnostic all-frame overrun p95/p99 was
+2.920431 / 3.172749 ms and UP-to-committed-result p95 was 11.212154 ms. These diagnostics are not an
+admission zero-miss gate and do not establish acceptance or a speedup.
+
+Candidate decision slot 3 completed 50 operations and 100 / 100 valid frames with eight environment
+checkpoints, the exact committed pixel/dirty/Undo/Redo/canvas state, successful packaged-profile
+installation and `speed-profile` compilation, and zero fatal/ANR matches. It is **FAIL** at the unchanged
+acceptance: all-frame overrun p95 is 0.677286 ms (> 0 ms). All-frame p99 is 2.827032 ms and
+UP-to-committed-result p95 is 10.108653 ms, both within their 16.67 / 33.33 ms limits. Preview has
+3 / 50 positive overruns with p95 0.097638 ms; commit has 30 / 50 with p95 0.777667 ms. The maximum
+frame overrun is 3.824223 ms and maximum operation latency is 11.409154 ms.
+
+The candidate FAIL stopped the sequence before baseline decision slot 4. There is no retry, baseline-50
+result, favorable row removal, threshold change, physical-present claim, or reinterpretation of either
+earlier invalid experiment. The generic text slice from Issue #67 remains supporting diagnostic context,
+not unique proof that this label owns the cost. The natural-size label implementation remains
+correctness-green but is not accepted or merged; Issue #54 and its M2 exit dependency remain open.
+
+Retained slot 3 SHA-256 identities are: run state
+`200eb670f311dca994e6318e9ca4eb6de613929c86e48f35d3db74f50019010b`, metadata
+`55ed7ea543ded0d0cc4fb0ea25386f6fd066692119261fa1cd7a6ce8b5071ee7`, frames
+`4d7c1ad3cc6c3386221ef9e53450db8860720f829d355a2e543e3b0c9eb51973`, samples
+`f36a4b9447cd798d5948020c0227fc7a6689bd82e8a2ab4221285e24e16c829a`, and environment
+`71c40e5d98b58387512039a040e402666c013eacbaa020180bd27424cbfc8fe3`.
+The retained raw slot-3 metadata predates the final wording correction and says diagnostics never
+produce acceptance PASS even though this record is a decision lane. Its
+`acceptance_lane=decision`, `threshold_status=fail`, `status=fail`, and completed run-state verdict
+are correct, so the immutable result remains unambiguous. Future decision metadata omits that
+diagnostic-only sentence while retaining the app-issued-gfxinfo and missing-strict-SurfaceFlinger
+limitations; the metric, gate, and schema are unchanged.
+
+No profile regeneration or further performance sample is authorized by this correction. Normal Gradle cache
+and daemon defaults apply to host verification and repackaging; `--no-configuration-cache` is not a
+routine flag. Active waivers: none.
+
+Implementation paths are limited to the shared evidence reader and its generation/evidence fixtures, the existing generation wrapper, the sole frame harness/protocol fixture, the shared dexopt helper, the existing attribution collector/fixture, and this protocol document. The accepted P62 evidence is also exercised read-only; no profile generation is part of this change.

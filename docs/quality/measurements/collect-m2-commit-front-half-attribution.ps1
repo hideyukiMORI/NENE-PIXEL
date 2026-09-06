@@ -10,6 +10,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 . (Join-Path $PSScriptRoot "m2-perfetto-session.ps1")
+. (Join-Path $PSScriptRoot "m2-package-dexopt.ps1")
 
 $schema = "nene-pixel-m2-commit-front-half-attribution-v3"
 $sourceCommit = "efb8c36003a1c62e958da92cf4fb28c2b35dc261"
@@ -346,32 +347,7 @@ try {
         throw "speed-profile compilation did not report success."
     }
     $dexoptText = (Invoke-TargetAdb -Arguments @("shell", "dumpsys", "package", "dexopt")) -join "`n"
-    $packagePattern = "(?m)^(?<indent>[ `t]*)\[" + [regex]::Escape($packageName) + "\][ `t]*`r?$"
-    $packageMatches = [regex]::Matches($dexoptText, $packagePattern)
-    $packageStart = if ($packageMatches.Count -eq 1) { $packageMatches[0].Index } else { -1 }
-    $nextPackage = -1
-    if ($packageStart -ge 0) {
-        $packageIndent = [regex]::Escape($packageMatches[0].Groups["indent"].Value)
-        $nextPackageRegex = [regex]::new("(?m)^$packageIndent\[[^]=`r`n]+\][ `t]*`r?$")
-        $nextPackageMatch = $nextPackageRegex.Match(
-            $dexoptText,
-            $packageMatches[0].Index + $packageMatches[0].Length
-        )
-        if ($nextPackageMatch.Success) {
-            $nextPackage = $nextPackageMatch.Index
-        }
-    }
-    $packageDexopt =
-        if ($packageStart -lt 0) {
-            ""
-        } elseif ($nextPackage -lt 0) {
-            $dexoptText.Substring($packageStart)
-        } else {
-            $dexoptText.Substring($packageStart, $nextPackage - $packageStart)
-        }
-    if ($packageDexopt -notmatch "\[status=speed-profile\]") {
-        throw "The installed package does not report the fixed speed-profile runtime state."
-    }
+    $packageDexopt = Assert-M2PackageSpeedProfile -DexoptText $dexoptText -PackageName $packageName
     [System.IO.File]::WriteAllText(
         (Join-Path $resolvedOutput "compile-state.txt"),
         $packageDexopt,

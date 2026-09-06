@@ -7,6 +7,8 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+. (Join-Path $PSScriptRoot 'baseline-profile-evidence.ps1')
+
 $script:EvidenceSchema = 'nene-pixel-baseline-profile-evidence-v1'
 $script:ProducerTask = ':quality:baseline-profile:connectedNonMinifiedReleaseAndroidTest'
 $script:ProducerTimeoutSeconds = 1800
@@ -117,27 +119,6 @@ namespace NenePixelBaselineProfile {
 '@
 }
 
-function Get-Sha256Hex {
-    param([Parameter(Mandatory = $true)][byte[]]$Bytes)
-
-    $sha256 = [System.Security.Cryptography.SHA256]::Create()
-    try {
-        return [System.BitConverter]::ToString($sha256.ComputeHash($Bytes)).Replace('-', '').ToLowerInvariant()
-    }
-    finally {
-        $sha256.Dispose()
-    }
-}
-
-function Get-FileSha256 {
-    param([Parameter(Mandatory = $true)][string]$Path)
-
-    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
-        throw "Required artifact is missing: $Path"
-    }
-    return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
-}
-
 function Get-FileState {
     param([Parameter(Mandatory = $true)][string]$Path)
 
@@ -157,50 +138,6 @@ function Restore-FileState {
         [System.IO.File]::WriteAllBytes($Path, $State.Bytes)
     } elseif (Test-Path -LiteralPath $Path -PathType Leaf) {
         Remove-Item -LiteralPath $Path -Force
-    }
-}
-
-function Get-CanonicalProfileRecord {
-    param([Parameter(Mandatory = $true)][string]$Path)
-
-    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
-        throw "Baseline Profile is missing: $Path"
-    }
-    $utf8 = [System.Text.UTF8Encoding]::new($false, $true)
-    $rawBytes = [System.IO.File]::ReadAllBytes($Path)
-    $text = $utf8.GetString($rawBytes)
-    if ($text.StartsWith([char]0xFEFF)) {
-        throw "Baseline Profile must be UTF-8 without a byte-order mark: $Path"
-    }
-    $normalized = $text.Replace("`r`n", "`n")
-    if ($normalized.Contains("`r")) {
-        throw "Baseline Profile permits only LF or CRLF line separators: $Path"
-    }
-    if ($normalized.EndsWith("`n", [System.StringComparison]::Ordinal)) {
-        $normalized = $normalized.Substring(0, $normalized.Length - 1)
-    }
-    if ([string]::IsNullOrWhiteSpace($normalized)) {
-        throw "Baseline Profile must contain at least one rule: $Path"
-    }
-    $rules = @($normalized -split "`n")
-    if ($rules.Where({ [string]::IsNullOrEmpty($_) }).Count -ne 0) {
-        throw "Baseline Profile must not contain blank rules: $Path"
-    }
-    $uniqueRules = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
-    foreach ($rule in $rules) {
-        if (-not $uniqueRules.Add($rule)) {
-            throw "Baseline Profile must not contain duplicate rules: $rule"
-        }
-    }
-    $canonicalBytes = $utf8.GetBytes([string]::Join("`n", $rules))
-    return [pscustomobject]@{
-        Path = $Path
-        RawByteCount = $rawBytes.Length
-        RawSha256 = Get-Sha256Hex -Bytes $rawBytes
-        RuleCount = $rules.Count
-        CanonicalByteCount = $canonicalBytes.Length
-        CanonicalSha256 = Get-Sha256Hex -Bytes $canonicalBytes
-        CanonicalBytes = $canonicalBytes
     }
 }
 
@@ -226,20 +163,6 @@ function Get-GradleTaskOutcomes {
         }
     }
     return $outcomes
-}
-
-function Test-CanonicalProfileEquality {
-    param(
-        [Parameter(Mandatory = $true)]$First,
-        [Parameter(Mandatory = $true)]$Second
-    )
-
-    if ($First.CanonicalSha256 -ne $Second.CanonicalSha256) {
-        return $false
-    }
-    $firstBase64 = [System.Convert]::ToBase64String($First.CanonicalBytes)
-    $secondBase64 = [System.Convert]::ToBase64String($Second.CanonicalBytes)
-    return $firstBase64 -ceq $secondBase64
 }
 
 function Assert-FreshProducerOutput {
@@ -967,7 +890,18 @@ function Invoke-BaselineProfileEvidenceGeneration {
             producer_timeout_seconds = $script:ProducerTimeoutSeconds
             validation_timeout_seconds = $script:ValidationTimeoutSeconds
         }
-        Write-JsonFile -Value $acceptanceManifest -Path (Join-Path $evidenceRoot 'acceptance-manifest.json')
+        $pendingAcceptanceManifestPath = Join-Path $evidenceRoot 'acceptance-manifest.pending.json'
+        $acceptanceManifestPath = Join-Path $evidenceRoot 'acceptance-manifest.json'
+        Write-JsonFile -Value $acceptanceManifest -Path $pendingAcceptanceManifestPath
+        Read-BaselineProfileAcceptanceEvidence -AcceptanceManifestPath $pendingAcceptanceManifestPath `
+            -EvidenceRoot $evidenceRoot `
+            -ExpectedAcceptanceManifestSha256 (Get-FileSha256 $pendingAcceptanceManifestPath) `
+            -ExpectedSourceRevision $second.SourceRevision `
+            -ExpectedAppApkSha256 $second.AppApkSha256 `
+            -ExpectedTestApkSha256 $second.TestApkSha256 `
+            -ExpectedPairManifestSha256 (Get-FileSha256 $pairManifestPath) `
+            -ExpectedCanonicalSha256 $second.Profile.Source.CanonicalSha256 | Out-Null
+        [System.IO.File]::Move($pendingAcceptanceManifestPath, $acceptanceManifestPath)
     }
     catch {
         if ($_.Exception.Data[$script:RestorationBlockedDataKey] -eq $true) {

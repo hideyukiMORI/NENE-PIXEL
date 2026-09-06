@@ -55,8 +55,19 @@ function adb {
         'shell dumpsys battery' { return 'USB powered: true' }
         'shell settings get global low_power' { return '0' }
         'shell dumpsys package dexopt' {
-            if ($global:NeneAttributionFixtureState.Mode -eq 'wrong-dexopt') {
-                return "[io.github.hideyukimori.nenepixel]`n    arm64: [status=verify]`n[example.decoy]`n    arm64: [status=speed-profile]"
+            switch ($global:NeneAttributionFixtureState.Mode) {
+                'wrong-dexopt' {
+                    return "[io.github.hideyukimori.nenepixel]`n    arm64: [status=verify]`n[example.decoy]`n    arm64: [status=speed-profile]"
+                }
+                'prefix-decoy-dexopt' {
+                    return "[io.github.hideyukimori.nenepixel.debug]`n    arm64: [status=speed-profile]`n[io.github.hideyukimori.nenepixel]`n    arm64: [status=verify]"
+                }
+                'duplicate-target-dexopt' {
+                    return "[io.github.hideyukimori.nenepixel]`n    arm64: [status=speed-profile]`n[io.github.hideyukimori.nenepixel]`n    arm64: [status=speed-profile]"
+                }
+                'missing-target-dexopt' {
+                    return "[example.decoy]`n    arm64: [status=speed-profile]"
+                }
             }
             return "[io.github.hideyukimori.nenepixel]`n    arm64: [status=speed-profile]`n[example.decoy]`n    arm64: [status=verify]"
         }
@@ -157,7 +168,8 @@ $nativeQuery = {
 }
 Set-Item -LiteralPath ('Function:\' + $processor) -Value $nativeQuery
 
-foreach ($mode in @('success','malformed-frame','flagged-frame','wrong-ui','wrong-dexopt','malformed-start','duplicate-app-actual-correlation','duplicate-app-expected-correlation','duplicate-sf-correlation','data-loss','analyzer-failure')) {
+$scenarioModes = @('success','malformed-frame','flagged-frame','wrong-ui','wrong-dexopt','prefix-decoy-dexopt','duplicate-target-dexopt','missing-target-dexopt','malformed-start','duplicate-app-actual-correlation','duplicate-app-expected-correlation','duplicate-sf-correlation','data-loss','analyzer-failure')
+foreach ($mode in $scenarioModes) {
     $output = Join-Path $fixtureRoot $mode
     $global:NeneAttributionFixtureState = @{
         Mode=$mode; Output=$output; Committed=$false; Undone=$false; TraceActive=$false;
@@ -169,10 +181,13 @@ foreach ($mode in @('success','malformed-frame','flagged-frame','wrong-ui','wron
     try { & $collector -DeviceSerial 'fixture-device' -ApkPath $ApkPath -TraceProcessorPath $processor -OutputDirectory $output | Out-Null }
     catch { $failure = $_.Exception.Message }
     $state = Get-Content -Raw -LiteralPath (Join-Path $output 'run-state.json') | ConvertFrom-Json
-    if ($mode -eq 'wrong-dexopt') {
+    if ($mode -in @('wrong-dexopt','prefix-decoy-dexopt','duplicate-target-dexopt','missing-target-dexopt')) {
         if (
             $null -eq $failure -or
-            $failure -notlike '*fixed speed-profile runtime state*' -or
+            (
+                $failure -notlike '*dexopt output must contain exactly one block*' -and
+                $failure -notlike '*fixed speed-profile runtime state*'
+            ) -or
             $state.status -ne 'invalid-before-trace-start' -or
             $state.trace_started -or
             $global:NeneAttributionFixtureState.Starts -ne 0 -or
@@ -196,4 +211,4 @@ foreach ($mode in @('success','malformed-frame','flagged-frame','wrong-ui','wron
 }
 $results | Export-Csv -LiteralPath (Join-Path $fixtureRoot 'fixture-results.csv') -NoTypeInformation -Encoding utf8
 $results | Format-Table -AutoSize
-Write-Output 'Full collector/analyzer orchestration: PASS (11 scenarios; zero device calls; synthetic timing is not performance evidence)'
+Write-Output "Full collector/analyzer orchestration: PASS ($($scenarioModes.Count) scenarios; zero device calls; synthetic timing is not performance evidence)"
