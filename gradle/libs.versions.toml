@@ -7,7 +7,7 @@ androidx-test-uiautomator = "2.4.0"
 compose-bom = "2026.08.00"
 detekt = "2.0.0-alpha.6"
 junit = "6.1.2"
-kotlin = "2.4.10"
+kotlin = "2.4.20"
 ktlint-engine = "1.8.0"
 ktlint-gradle = "14.2.0"
 
