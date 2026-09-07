@@ -1,10 +1,13 @@
 # M2 Core Drawing Exit Proof
 
-Status: pending affected Kotlin 2.4.20 evidence for `P2-07` / Issue #44. The previously accepted
+Status: technical acceptance complete for `P2-07` / Issue #44. Required CI, merge, and external
+Issue/milestone completion are live facts recorded through Issue #44 read-back rather than embedded
+as static status in this proof. The previously accepted
 Kotlin 2.4.10 command/history, frame, and process-recreation numbers remain immutable historical
 evidence; they are not current Kotlin 2.4.20 acceptance evidence. The affected Kotlin 2.4.20 core
-command/history, actual-app frame, and process-recreation lanes are pending. Existing unaffected
-correctness and exact stacked-artifact functional evidence remains recorded below with its identity.
+command/history, actual-app frame, and process-recreation lanes now pass. Existing unaffected
+correctness and the Kotlin 2.4.20 final ten-test emulator functional
+evidence remain recorded below with their identities.
 
 ## Scope and authority
 
@@ -20,14 +23,21 @@ death remain M3 work.
 
 Active waiver: none.
 
-## Prospective Kotlin 2.4.20 command/history collection
+## Kotlin 2.4.20 command/history result
 
-No result is claimed in this section. The fixed source is
+Result: **PASS**. The fixed source is
 `bb124a7989d2489aa28128911f9d2a4582ed7428`; app APK SHA-256 is
 `13891a2fd81ed91b4672f31bac2570386edfe2d6364476cc8fb41ec8893f41ca`; AndroidTest APK SHA-256 is
 `cd56a0d6cb9e7143f22fc5b1693627c0dad22c1eb3d8cdfe22623d7f00b3ad89`. The physical serial is
 `T830128GB26321131293`. The candidate argument remains
 `m2-production-command-256-lane-separated-v2`, as required by `P2AndroidFinalCommandProtocol`.
+
+The three core modules contain 273 classes: 168 application, 67 domain, and 38 pixel-engine.
+Of these, 260 class files are byte-exact across the toolchain change; the other 13 changed at the
+class-file byte level while their inspected executable views remained equal. Those observations do
+not prove transitive runtime equivalence: the Kotlin stdlib inventory changed from 990 to 995
+classes with 170 changed entries. Old timing values were therefore not transferred; this result is
+the independent Kotlin 2.4.20 collection.
 
 The exact private execution package is:
 
@@ -42,10 +52,12 @@ The exact private execution package is:
   `e0c79a1339fd4e918d3f04789728df6112715f28d2bbb740f38b4e3835b545a1` and history analyzer
   SHA-256 `fb3f590f9a5fe33e7cfe2f396a1a12b0a91409a91fa120184e666d4573935913`.
 
-The fresh measurement output is
+The completed measurement output is
 `C:/Users/info/.codex/tmp/nene-pixel-sol44-20260906-artifacts/nonframe-physical-bb124a7-kotlin-2420-run-01`;
-the sibling path ending `-outer` records invocation start, end, exit, and error. Both must be absent
-before the one authorized invocation. There is no retry.
+the sibling path ending `-outer` records invocation start, end, exit, error, release state, and the
+complete artifacts ledger. They were fresh before the sole invocation. There was no retry. The
+outer exit is zero; the invocation ran from `2026-09-08T01:19:11.1992331+09:00` through
+`2026-09-08T01:19:56.7201437+09:00`.
 
 The command lane performs real `cmd package compile -m verify -f`, then one instrumentation with
 six workloads, five warmups per workload, and 200 measured samples per workload: exactly 1,200
@@ -55,7 +67,7 @@ and at least 190 of 200 samples with zero blocking GC. Structural identity, sche
 compile status, and runner failures are `INVALID`; a valid numeric failure is `PERFORMANCE_FAIL`.
 Either result stops before history.
 
-Only after command `PASS`, history runs indices 1 through 5 in five fresh target processes. Each
+Only after command `PASS`, history ran indices 1 through 5 in five fresh target processes. Each
 retains 64 entries, applies 524,288 changes, proves the complete round trip, and performs ten extra
 cycles. Every run requires retained Java heap <= 50% of runtime max, retained PSS <= baseline plus
 60% of memory class, and post-cycle heap growth <= max(1 MiB, 1% of runtime max). The five-run median
@@ -67,8 +79,102 @@ limits, followed when needed by at most 10 seconds for kill/wait and 5 seconds f
 Timeout, incomplete capture, native error, or failure to prove target-app PID absence and live device
 state is `INVALID` and blocks later lanes. Host start/end, limits, complete native error text,
 stdout, stderr, exit, timeout, and capture state are retained. Host viewport remains descriptive
-without new collection. Frame and process-recreation are separate pending Kotlin 2.4.20 lanes and
-are outside this 1,200-row plus five-history-run budget.
+without new collection. Frame and process-recreation are separate Kotlin 2.4.20 lanes recorded
+below and were outside this 1,200-row plus five-history-run budget.
+
+All six command workloads passed. Sparse Pencil p95/p99 was 1.401/3.216 ms; dense Pencil
+6.791/7.179 ms; dense Eraser 6.449/7.038 ms; same-color no-op 1.040/2.479 ms; dense Undo
+4.392/4.898 ms; and dense Redo 4.128/4.675 ms. Every workload recorded zero blocking GC in all
+200 samples. Command classification SHA-256 is
+`d41bff81873ebb1cfc3a0d6fa638a9c8b1b3a3c23459bf5d25a0af8a31f4b6c8`; the 1,200-row CSV
+SHA-256 is `eb041795c764f04e1de5b1e38093d4e90ac6c700d49207fbf661a12626e2b60c`.
+
+All five history runs passed with distinct PID/process-start pairs. PIDs were 32481, 32523, 32564,
+32604, and 32644. Each retained 9,487,024 bytes of Java heap against the 134,217,728-byte limit and
+recorded zero post-cycle heap growth against the 2,684,354-byte limit. Paired PSS deltas were 5,743,
+5,625, 5,550, 5,547, and 5,963 KiB; median 5,625 KiB passed the 131,072-KiB limit. Population
+classification SHA-256 is `de44a541c4ebd365def28265e4469f2dc07aa777f49e92669ad5c9493abd20bf`.
+The native record SHA-256 is
+`ad9fe5341232d69029935fbadc2894a7a2f26438aa0f8dda08ffd52422365fb1`. It contains exactly six
+instrumentation commands, `COLLECTION_COMPLETE`, zero timeouts, zero incomplete captures, and zero
+nonzero native-error counts. The 19-row output/outer/release ledger is 2,787 bytes with SHA-256
+`7211883d958647f9cc579f84924de5449a189d841c08611f1effc5563123de75`. Post-run release checks
+record app and test `pidof` exit one with blank stdout/stderr and `get-state` exit zero with `device`.
+
+## Kotlin 2.4.20 final emulator functional result
+
+Run 07 passed the exact nine `UndoRedoEditorTest` tests followed by the maximum-boundary lifecycle
+test: ten tests total and no additional test. Its source is
+`bb124a7989d2489aa28128911f9d2a4582ed7428`; app, target AndroidTest, and presentation AndroidTest
+APK SHA-256 values are respectively
+`13891a2fd81ed91b4672f31bac2570386edfe2d6364476cc8fb41ec8893f41ca`,
+`cd56a0d6cb9e7143f22fc5b1693627c0dad22c1eb3d8cdfe22623d7f00b3ad89`, and
+`358771a916dc31c920c7a7cfa4e15bf0bf7c8cf84a53c656d8b4a135b75f9e7c`. The outer exit was zero;
+both instrumentation calls had exit zero, complete capture, no timeout, no native error, and one
+exact terminal record. Presentation ended with `OK (9 tests)` and lifecycle ended with
+`OK (1 test)`. Cleanup completed with no
+emulator/QEMU process left. The immutable 1,175-row ledger SHA-256 is
+`eef863610fa62b48b414af68324cc6b9dfe03d8ef22682035376f7fba909271a`. Runs 01 through 05 remain
+preserved as `INVALID`/`UNKNOWN`; run 07 does not rewrite or relabel them.
+
+## Kotlin 2.4.20 process-recreation result
+
+Result: **PASS**. The single strict attempt used source
+`bb124a7989d2489aa28128911f9d2a4582ed7428`, serial `T830128GB26321131293`, app APK SHA-256
+`13891a2fd81ed91b4672f31bac2570386edfe2d6364476cc8fb41ec8893f41ca`, and AndroidTest APK
+SHA-256 `cd56a0d6cb9e7143f22fc5b1693627c0dad22c1eb3d8cdfe22623d7f00b3ad89`. It imported the reviewed
+core wrapper/helper identities `f4294daf35c3c4ea3b157329787498a86428700a14ece92638e7328cf6c2ce4b` /
+`29736313b91a99a4a4d0a120214915ad90ad1c3938ad0f48c2a373e63be387da`.
+
+The outer invocation ran once from `2026-09-08T01:40:10.0993185+09:00` through
+`2026-09-08T01:40:16.9714522+09:00` and exited zero. Cold launch produced prior PID 12491. The
+acceptance force-stop succeeded; exact `pidof` exit one with blank stdout/stderr and the following
+`get-state=device` proved the boundary. The single process-stage test reported new Bundle PID 12576,
+distinct from the prior PID, and ended with `OK (1 test)` plus `INSTRUMENTATION_CODE: -1`.
+
+All ten native calls had no timeout, complete capture, zero native errors, and blank stderr. Native
+record SHA-256 is `c60c4c6f6a0567a946d2944be4baeaaac1a7cf48037bc36e684f4c9b34870812`; the four-file
+output/outer ledger is 793 bytes with SHA-256
+`5c4ec7db16332c53de8022451048b566938f912f51a116806f49e878538891b8`. Evidence roots are
+`C:/Users/info/.codex/tmp/nene-pixel-sol44-20260906-artifacts/process-recreation-bb124a7-kotlin2420-run-01`
+and its sibling ending `-outer`. There was no retry or new APK build. This proves the M2 canonical
+initial-owner/PID-transition boundary; it does not claim restoration of unsaved state after process
+death. The historical Kotlin 2.4.10 process result below remains immutable historical evidence.
+
+No M3 behavior is added: unsaved process-death restoration remains outside M2.
+The optimized three-test observer covers configuration recreation but does not prove full coverage
+of all 13,514 P62 descriptors or unsaved process-death persistence. Host viewport remains historical
+and descriptive. Whole composed-app heap/PSS and strict SurfaceFlinger physical-present completion
+remain unmeasured.
+
+## Kotlin 2.4.20 actual-app frame result
+
+Result: **PASS**. Experiment `issue81-kotlin-2-4-20-rotation-fixed-v3-02` completed the exact fixed
+old-10, new-10, new-50, old-50 sequence with five warmups per slot, 120/120 measured operations,
+240/240 valid app-issued `gfxinfo` FrameTimeline rows, and no retry. Old optimized source/APK was
+`92c1f4e6ffe18a9c41d13215f21c237493628043` /
+`dadd1fb783678426ec92d8b425d698a89932a5275b460cc80ed6346348590452`; new Kotlin 2.4.20 optimized
+source/APK was `7a34b7e1f044ce52b50e7f8739cee8387d54088f` /
+`ba82190d46824b195da578d20bf9d9efe00eabe5e9647fdb324fe67ca771ba38`.
+
+Both ten-operation diagnostic slots were valid and remained inconclusive by design. New decision
+slot 3 passed with frame-overrun p95 `-0.936989 ms`, p99 `-0.417696 ms`, and input-operation p95
+`8.655923 ms`. Old decision slot 4 passed with frame-overrun p95 `-0.819432 ms`, p99
+`0.521607 ms`, and input-operation p95 `9.128154 ms`. All four outer invocations exited zero and
+all four saved rotation states were restored and verified. The immutable 293-file artifacts ledger
+SHA-256 is `f759a00e8af1a5b922126befce7c09164af20b9be5a2c1018106c0d325443752`; evidence root is
+`C:/Users/info/.codex/tmp/nene-pixel-81-experiments/81/kotlin-2-4-20-rotation-fixed-v3-02`.
+
+The earlier experiment ending `v3-01` remains immutable `INCOMPLETE`. Slots 1 through 3 retain their
+original valid statuses; slot 4 stopped at sample 29 as `INVALID`, with the exact UI predicate
+`UNKNOWN`. A recorded landscape-to-portrait transition violated the fixed viewport premise; no
+exact ordering between host and device clocks is asserted. Its partial slot-4 rows are not
+replacement evidence. The corrected experiment pins and validates the fixed landscape/logical
+viewport contract and restores the saved rotation policy.
+The new current p95 headroom is `0.936989 ms`; the historical Kotlin 2.4.10 accepted result's
+`0.024291 ms` headroom remains historical. The current old/new Kotlin optimized-APK comparison does
+not establish that R8 or Kotlin caused a speed change, and app-issued `gfxinfo` is not strict
+SurfaceFlinger physical-present proof.
 
 ## Change scope and verification policy
 
@@ -77,6 +183,20 @@ apply. A successful result is reused when the behavior, relevant implementation 
 and assertion remain equivalent. A different aggregate Git revision is not by itself an
 invalidation reason. Performance, correctness, retained memory, and frame observations remain
 separate lanes.
+
+After Issue #81 merged as `adc29146cc28656cdf974b312feb8f279adcce4e`, the #44 branch was rebased
+to pre-proof head `5bc24127777a5c76f7c16345af1dcc0424dcbc0c`. A filesystem SHA-256 comparison
+against frozen producer source `bb124a7989d2489aa28128911f9d2a4582ed7428` found the same 265
+tracked non-document paths, zero set differences, and zero byte mismatches. This covers production,
+Android tests, Gradle/build scripts, catalog, locks, verification metadata, wrapper, ProGuard/R8
+role inputs, and packaged-profile source inputs. The six #44 test blobs are exact at Git blob IDs
+`68e015560d6e9a3edbd0041610e0feb6bf83a336`, `38d0133b7d0e97921a0db0f5b586e16013f12b70`,
+`349df574cfd240c8e6698c6f29b0e9d2a36bdfd5`, `e5c2d708f2cf867ab10224819b0856b04387ef7a`,
+`89b0c8b87a149821ad5cb00dc306d3d6410ec307`, and
+`9e59a8b69d6d8dce8f2eb1ae5f5945b0637748ee`. Document-side differences are the reviewed
+rotation-fixed frame protocol/writer and this proof. They do not change the frozen APK bytes.
+Accordingly, all accepted `bb124a7` APK-bound results retain their measured source/artifact identity
+under `QLT-012`; they are not relabelled as results of the later documentation commit.
 
 The full canonical check/build is reserved for the final PR candidate and may be satisfied by its
 required CI result. This integration uses documentation validation, affected compilation/static
@@ -89,10 +209,10 @@ does not regenerate P62 or repeat the exhausted physical frame experiment.
 | --- | --- | --- |
 | Direct application command, controller adapter, pixels, revisions, `ChangeSet`, history, dirty state | `EditorRuntimeTest`, `CommandGatewayHistoryTest`, `CommandResultContractTest`, `ViewportEditorControllerTest` | Core runtime, gateway, controller, and adapter production blobs are unchanged from their accepted focused evidence; reuse under `QLT-012` |
 | Zoom, pan, density, resize, grid, rectangular canvas, half-open edges, maximum canvas | `ViewportTransformGestureTest`, `ViewportTransformMappingTest`, `ViewportTransformPropertyTest`, `ViewportValueTest` | Viewport production and test blobs are unchanged; reuse under `QLT-012` |
-| Compose journey: create/reject/cancel, palette, Pencil/Eraser/no-op, two-pointer cancellation, multi-step undo/redo, dirty state | `UndoRedoEditorTest` (9 tests) | Test blob `2efa845ed6b9e826523a127766a088fc5475bd83` is identical at accepted #77 source `7b512d0b8d75677b14d15d2bd4515ae5f0f22dc0` and frozen #76 head `b5edfd9385bcb0db2b74ef73e7369d0c22b44712`; the #44 stack does not edit it or its production presentation inputs. The exact stacked presentation APK passed all 9 tests in run-06 |
+| Compose journey: create/reject/cancel, palette, Pencil/Eraser/no-op, two-pointer cancellation, multi-step undo/redo, dirty state | `UndoRedoEditorTest` (9 tests) | Kotlin 2.4.20 run 07 passed all nine tests with presentation AndroidTest APK SHA-256 `358771a916dc31c920c7a7cfa4e15bf0bf7c8cf84a53c656d8b4a135b75f9e7c` |
 | Configuration recreation retains the sole owners | `EditorRuntimeLifecycleTest.configurationRecreationRetainsTheOnlyDocumentAndWorkspaceOwners` | MainActivity, ViewModel, runtime, and the existing configuration-test method/assertions are unchanged; reuse the recorded PASS |
-| New process creates one canonical initial runtime and `WorkspaceState` owner | host PID transition plus `EditorRuntimeLifecycleTest.processStageHasOneCanonicalInitialRuntimeAndWorkspaceOwner` | Recorded PASS on test source `14c7efe15ad696c695c7f97d2a92561fb506ee11`; see [Process recreation](#process-recreation) |
-| Validated maximum new-document boundary | `EditorRuntimeLifecycleTest.emulatorNewDocumentCreationSmokeUsesValidatedMaximumBoundary` | The `+1` in run-06 passed only after the exact nine-test presentation lane was valid/PASS; process-recreation evidence remains a separately reused physical-device result |
+| New process creates one canonical initial runtime and `WorkspaceState` owner | host PID transition plus `EditorRuntimeLifecycleTest.processStageHasOneCanonicalInitialRuntimeAndWorkspaceOwner` | Kotlin 2.4.20 strict one-attempt result PASS: prior PID 12491, new Bundle PID 12576; historical Kotlin 2.4.10 PASS is retained in [Process recreation](#process-recreation) |
+| Validated maximum new-document boundary | `EditorRuntimeLifecycleTest.emulatorNewDocumentCreationSmokeUsesValidatedMaximumBoundary` | Kotlin 2.4.20 run 07 `+1` passed after its exact nine-test presentation lane passed |
 
 The matrix is the integrated acceptance proof. No duplicate synthetic journey test is added while
 these direct, adapter, and Compose assertions cover the same canonical results.
@@ -154,7 +274,9 @@ proving the same transport distinction; no repeat was performed merely to add th
 The test uses only existing test access to `MainActivity` and `ViewModelProvider`. It adds no
 production probe, saved-state owner, or recovery path.
 
-## Performance and limit lanes
+## Canonical performance and limit protocols
+
+### Historical Kotlin 2.4.10 identity comparison and compilation context
 
 Historical Issue #44 command and retained-history measurements from source `53841ff` remain useful
 diagnostic evidence, but their production-tree equality alone is not sufficient for reuse under
@@ -162,29 +284,29 @@ diagnostic evidence, but their production-tree equality alone is not sufficient 
 
 | Identity input | Recorded comparison | Disposition |
 | --- | --- | --- |
-| Production core | `:core:application/src/main` tree `71493da4f4ed90ba4b1d5860d9c60cb36fc2bcc4`, `:core:domain/src/main` tree `32e34d1f3c0b700ba7195c83fabd71bb8f828585`, and `:core:pixel-engine/src/main` tree `eefbe39b1398c5c634b2cc5e907e409f6aeb80fb` are identical at `53841ff`, measured non-frame source `3a4034f`, accepted #76 head `b5edfd9`, and the #44 stack | Reuse semantic/core correctness and the accepted core-only non-frame results; presentation and whole-app behavior are excluded |
-| Core compile inputs | Gradle wrapper, `gradle.properties`, all three core build scripts, and `AndroidComposePlugin.kt` are identical; AGP 9.4.0, Kotlin 2.4.10, Compose BOM 2026.08.00, Activity Compose 1.13.0, and JUnit 6.1.2 remain fixed | No core compilation-input invalidation found |
+| Production core | `:core:application/src/main` tree `71493da4f4ed90ba4b1d5860d9c60cb36fc2bcc4`, `:core:domain/src/main` tree `32e34d1f3c0b700ba7195c83fabd71bb8f828585`, and `:core:pixel-engine/src/main` tree `eefbe39b1398c5c634b2cc5e907e409f6aeb80fb` are identical at `53841ff`, measured non-frame source `3a4034f`, accepted #76 head `b5edfd9`, and the old #44 stack | This supported the historical Kotlin 2.4.10 core-only result; it does not transfer timing to Kotlin 2.4.20 |
+| Core compile inputs | Gradle wrapper, `gradle.properties`, all three core build scripts, and `AndroidComposePlugin.kt` were identical; AGP 9.4.0, Kotlin 2.4.10, Compose BOM 2026.08.00, Activity Compose 1.13.0, and JUnit 6.1.2 were fixed for that record | No compilation-input invalidation existed within the historical Kotlin 2.4.10 comparison |
 | #62 build additions | #62 adds the Baseline Profile plugin/module/dependencies and generated profile to app packaging; the added benchmark/UI Automator dependencies belong to the new quality module and do not enter the three core runtime classpaths | Core correctness and host-core compilation remain equivalent; final APK and device compilation identity are changed inputs |
 | Old M2 command artifact | `nene-pixel-m2-android-command-latency-v1`, debug/debugAndroidTest, six ordered workloads, 5 warmups plus 200 samples, physical profile `NENE-P2-ALLDOCUBE-IPL80MP-A16-API36`, raw SHA-256 `CF0B64A1FFB15AF507F44001699AFF6C3BA8EA26186EF29BDF65FA3AF71105CA` | Not accepted as final latency, ART allocation, or GC evidence |
 | Command harness | #56 separated one correctness execution from latency fixtures. The old harness built and compared a complete expected `DocumentState` and computed document/snapshot hashes after every warmup and measured execution. These operations were outside each timer but changed allocation, cache, and GC state before later samples | `QLT-014` observer-effect correction invalidates the old population. The old CSV also has no exact app/test APK hashes or declared package compilation mode required by `QLT-012` |
 | Retained history | Five `nene-pixel-m2-production-history-v1` files identify source, profile, 64 entries, and 524,288 changes; the subject is a retained `CommandGateway`, not Compose | Semantics and Java-heap meaning remain useful, but final acceptance reuse is not established: exact app/test APK hashes, toolchain invocation, and compilation state are absent from the retained records |
-| Host viewport | Raw schema `nene-pixel-p2-viewport-measurement-v1`, profile `NENE-P2-WINDOWS-I9-10850K-JBR21`, OpenJDK 21.0.11, 20 warmups plus 50 samples, raw SHA-256 `5863665146AB95C0508B112FA00C05F00D5C70F916B15AA1504850A9F69D0BA6` | Not reused as final timing/allocation: its recorded source was `e178130`, while the current measurement-test blob differs and the raw file carries no source revision. Viewport semantic/property tests remain reusable |
+| Host viewport | Raw schema `nene-pixel-p2-viewport-measurement-v1`, profile `NENE-P2-WINDOWS-I9-10850K-JBR21`, OpenJDK 21.0.11, 20 warmups plus 50 samples, raw SHA-256 `5863665146AB95C0508B112FA00C05F00D5C70F916B15AA1504850A9F69D0BA6` | Not reused as final timing/allocation: its recorded source was `e178130`, while the then-current measurement-test blob differed and the raw file carried no source revision. Viewport semantic/property tests remained reusable |
 | Runtime profile | Existing records establish that debuggable APKs contain no packaged profile, while the release-like actual-app decision lane explicitly installs the packaged profile and compiles `speed-profile` | Baseline Profile changes do not invalidate host/core correctness. They do invalidate release-like actual-app identity. The old debug command artifact did not record an explicit compilation mode, so timing reuse is still prohibited |
 
-The replacement non-frame protocol is fixed at test/document source
+The historical replacement non-frame protocol was fixed at test/document source
 `3a4034ffc1292f710308903d0091338a60394882`, layered on production candidate `374ad211`. Issue #70's
 frame decision subsequently failed its unchanged absolute gate, so that presentation candidate is not
 adopted. The retained historical debug artifact from `3a4034f` includes that rejected P70
 presentation. The command and retained-history collectors do not start an Activity or initialize the
 Compose presentation tree; they execute the production `CommandGateway` and three core trees
 directly. The complete `app/android/src/androidTest` affected-input tree, the three core production
-trees, and their core build inputs are byte-identical between `3a4034f` and the #44 stack. Reuse is
-therefore limited to those core subjects and does not assert equivalence for UI memory, frame timing, or
-presentation behavior. The final integrated UI contains the accepted #77 layout and #76 R8 role
+trees, and their core build inputs were byte-identical between `3a4034f` and the historical #44
+stack. Historical reuse was therefore limited to those core subjects and did not assert equivalence
+for UI memory, frame timing, or presentation behavior. The then-final integrated UI contained the accepted #77 layout and #76 R8 role
 policy, not the rejected P70 presentation. Root reviewed the exact source, artifact, harness, and
 finite-budget identity before the recorded collection below:
 
-The physical core lanes use the already-built 11,762,545-byte app APK with SHA-256
+The historical physical core lanes used the already-built 11,762,545-byte app APK with SHA-256
 `E15684FFF220C669F788ED1898234E02CBAD9D4B87114E59F1B6021A9BE6D57B` and the 1,305,999-byte
 AndroidTest APK with SHA-256
 `413294CE1E9865676EB65A73B2F8E76A9D8781BC381E7F1F1D8C3207058513F2`. Later documentation-only
@@ -194,19 +316,23 @@ command/history compilation contract therefore requests `cmd package compile -m 
 the complete dexopt report, uses the canonical target-package block parser, and requires every
 reported target status to equal `verify`. It also records the test package dexopt block without
 requiring the same filter. The debug/JIT/profile state is part of this scoped identity; these core
-numbers do not describe release performance. Actual-app release-like performance is accepted
-separately by Issue #76 and ADR 0013 on the fixed post-#77 optimized consumer identity.
+numbers do not describe release performance. Historical actual-app release-like performance was
+accepted separately by Issue #76 and ADR 0013 on the fixed post-#77 optimized consumer identity.
 The first collection attempt requested `speed`, received command success but actual target
 `[status=verify] [reason=cmdline]`, and stopped before any sample. It is retained as
 `INVALID_PREFLIGHT`, not a performance result.
 
-| Lane | Fixed current protocol | Decision rule |
+### Canonical measurement rules
+
+| Lane | Fixed protocol | Decision rule |
 | --- | --- | --- |
 | Physical command | The sole `P2AndroidFinalCommandMeasurementTest` collector receives candidate `m2-production-command-256-lane-separated-v2`, schema `nene-pixel-m2-android-command-latency-v2`, run 1, and fail-if-present output `m2-production-command-256-lane-separated-run-01.csv`. Ordered 256-square workloads are sparse Pencil, dense Pencil, dense Eraser, same-color no-op, dense Undo, and dense Redo. Each has five untimed warmups and 200 measured samples, for 1,200 rows. One separate correctness execution per workload precedes warmup; latency fixtures do not construct a full expected document. Each sample times the sole `CommandGateway.execute`; cheap result/revision/history/`ChangeSet`/invalidation/no-op checks and ART deltas remain outside that timer. No per-sample full-document scan, hash, forced GC, or report write is permitted. Physical checkpoints occur before sampling, every 25 global samples, and after sampling. | For every workload, nearest-rank p95 <= 8.0 ms and p99 <= 16.67 ms, with no discarded rows; at least 95% of its 200 rows have zero blocking-GC increment. A numeric miss in an otherwise valid population is `PERFORMANCE_FAIL` and ends the finite budget. |
 | Retained production history | Five independent instrumentation processes run indices 1 through 5. Each retains the production `CommandGateway` at 64 entries and 524,288 changes, proves the complete 64-step Undo/Redo round trip and ten additional cycles, and records two-pass post-GC baseline, retained, and post-cycle observations. | Every retained Java heap <= 50% of `Runtime.maxMemory`; median paired PSS delta <= 50% of `memoryClass`; every retained PSS <= its baseline plus 60% of `memoryClass`; every post-cycle heap growth <= max(1 MiB, 1% of max heap). No interpolation or discarded invocation. |
 | Host viewport | One normal-default Gradle `measureP2ViewportInteraction` batch in a quiescent host window with no concurrent Gradle build or measurement: schema `nene-pixel-p2-viewport-measurement-v1`, profile `NENE-P2-WINDOWS-I9-10850K-JBR21`, debug host worker, 16 x 16 canvas, 1600 x 1600 surface, 2 px/dp, 20 warmups, and 50 samples. The canonical controller transform is timed; correctness stays outside timing. | Descriptive median/p95 latency and current-thread HotSpot allocation only; the accepted protocol defines no numeric viewport gate. Identity, row-count, deterministic-result, or raw-report failure invalidates the batch. |
 
-The final host record binds the stacked source revision, exact debug app and AndroidTest APK
+### Historical Kotlin 2.4.10 non-frame record
+
+The historical host record binds the stacked source revision, exact debug app and AndroidTest APK
 byte lengths and SHA-256 values for physical lanes, Gradle/JDK/AGP/Kotlin/dependency identity,
 explicit package compilation mode, exact serial/profile/fingerprint/security patch, native command
 exit codes, stdout, stderr, finite timeouts, raw byte lengths, and raw SHA-256 values. History uses
@@ -233,7 +359,7 @@ complete otherwise-valid artifact is `PERFORMANCE_FAIL`; its raw result is retai
 budget ends, and no favorable replacement attempt is collected. A JUnit assertion failure does not
 turn a complete valid performance population into `INVALID`; the raw evidence decides the class.
 
-The sole physical non-frame batch completed on serial `T830128GB26321131293` with the exact APKs
+The sole historical Kotlin 2.4.10 physical non-frame batch completed on serial `T830128GB26321131293` with the exact APKs
 above and actual target compilation status `verify`. The 1,200-row command artifact has SHA-256
 `AC7116E27C8A736F491EAF036E29A72297F1CD9B85C873E3C03F6B1527B42F18`; all workloads retained 200
 rows and 200 zero-blocking-GC rows. Nearest-rank p95/p99 were 1.324/3.197 ms sparse Pencil,
@@ -279,12 +405,15 @@ Issue #58 long-stroke results are host/JDK component diagnostics and do not incl
 device frames, or physical presentation; they remain risk evidence and cannot replace #44 physical
 acceptance.
 
-The command, history-cap, retained heap/PSS, viewport, allocation, and process-recreation lanes have
-their individual valid results above. Issue #76 also satisfies Issue #54's actual-app absolute frame
-gate on the accepted post-#77 R8 path. The exact stacked-artifact 9+1 emulator smoke is accepted
-below; required final CI/merge and external Issue/milestone state remain live completion facts.
+The historical Kotlin 2.4.10 command, history-cap, retained heap/PSS, viewport, allocation,
+process-recreation, frame, and 9+1 emulator records retain their original valid or invalid
+classifications below. Current Kotlin 2.4.20 disposition is governed by the current-result sections
+above; required final CI/merge and external Issue/milestone state remain live completion facts.
 
 ### Actual-app frame acceptance
+
+Current Kotlin 2.4.20 disposition: **PASS**, recorded in the current-result section above. The
+result below remains historical Kotlin 2.4.10 evidence only.
 
 Issue #76's fixed `issue76-optimized-release-v3-01` experiment completed the exact max-one B10,
 C10, C50, B50 sequence with 120/120 operations, 240/240 valid app-issued `gfxinfo` FrameTimeline
@@ -322,7 +451,8 @@ strict SurfaceFlinger physical-present completion.
 
 ### Process recreation
 
-Result: **PASS** for the M2 process-recreation boundary only.
+Historical result: **PASS** for the Kotlin 2.4.10 M2 process-recreation boundary only. Current
+Kotlin 2.4.20 disposition: **PASS**, recorded in the current-result section above.
 
 | Field | Recorded value |
 | --- | --- |
@@ -357,12 +487,12 @@ and is not a device attempt or acceptance evidence. The prior unexecuted wrapper
 corrected, producing the executed wrapper SHA-256 recorded in the table, and that identity was
 executed once against the reserved device.
 
-Command and retained-history gates are PASS, the host viewport lane is valid with descriptive values,
-process recreation is PASS, actual-app frame acceptance is PASS through Issue #76, and the final
-stacked-artifact emulator smoke below is PASS. Repository integration and external state are read
-back through Issue #44 rather than embedded prospectively in this candidate.
+Kotlin 2.4.20 command, retained-history, and actual-app frame gates are PASS; the host viewport lane
+remains valid with descriptive historical values; and Kotlin 2.4.20 final ten-test emulator smoke is
+PASS. Kotlin 2.4.20 process recreation is PASS. Repository integration and
+external state are read back through Issue #44 rather than embedded prospectively in this candidate.
 
-### Final stacked-artifact emulator smoke
+### Historical Kotlin 2.4.10 final stacked-artifact emulator smoke
 
 Result: **PASS** for the fixed 9+1 M2 emulator functional population.
 
@@ -401,13 +531,18 @@ directory is
 ## Rule review and limitations
 
 Unsaved process-death restoration is intentionally outside M2 and remains M3 work. Whole-app UI
-heap/PSS remains unmeasured. The accepted frame result has the one-device, narrow p95-headroom,
-non-causal B/C comparison, and app-issued-gfxinfo limitations recorded above. Active waivers: none.
+heap/PSS remains unmeasured. The historical Kotlin 2.4.10 frame result has the one-device, narrow
+0.024291 ms p95 headroom, non-causal B/C comparison, and app-issued-gfxinfo limitations recorded
+above. Current Kotlin 2.4.20 p95 headroom is 0.936989 ms, still on one physical device. Both records
+use app-issued `gfxinfo`; strict SurfaceFlinger physical-present
+completion remains unmeasured. Active waivers: none.
 
 ## External completion read-back
 
-Final required CI, merged PR, and Issue/M2 completion read-back are recorded in
-[Issue #44](https://github.com/hideyukiMORI/NENE-PIXEL/issues/44).
+Required CI, merge, and Issue/M2 completion are live external facts recorded through
+[Issue #44](https://github.com/hideyukiMORI/NENE-PIXEL/issues/44) read-back. Prospective plans and
+current evidence identities are linked there; this proof does not freeze a transient external
+status that would require a post-CI documentation commit.
 
 ## Related evidence
 
