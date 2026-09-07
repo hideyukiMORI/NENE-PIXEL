@@ -983,13 +983,115 @@ function Get-OperationPhaseCapture {
     }
 }
 
+function Set-LatestUiFailureSnapshot {
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateSet("committed-result", "undo-reset")]
+        [string]$Kind,
+
+        [Parameter(Mandatory = $true)]
+        [ValidateSet("sample-commit", "sample-reset", "warmup-reset")]
+        [string]$Phase,
+
+        [AllowNull()]
+        [Nullable[int]]$SampleIndex,
+
+        [AllowNull()]
+        [Nullable[int]]$WarmupIndex,
+
+        [AllowNull()]
+        [Nullable[int]]$UndoAttempt,
+
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
+        [string]$RawXml
+    )
+
+    $snapshot = [pscustomobject]@{
+        Kind = $Kind
+        Phase = $Phase
+        SampleIndex = $SampleIndex
+        WarmupIndex = $WarmupIndex
+        UndoAttempt = $UndoAttempt
+        RawXml = $RawXml
+    }
+    if ($Kind -eq "committed-result") {
+        $script:latestCommittedResultSnapshot = $snapshot
+    }
+    else {
+        $script:latestUndoResetSnapshot = $snapshot
+    }
+}
+
+function Write-Utf8CreateNew {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Text
+    )
+
+    $stream = [System.IO.File]::Open(
+        $Path,
+        [System.IO.FileMode]::CreateNew,
+        [System.IO.FileAccess]::Write,
+        [System.IO.FileShare]::None
+    )
+    try {
+        $writer = [System.IO.StreamWriter]::new($stream, [System.Text.UTF8Encoding]::new($false))
+        try {
+            $writer.Write($Text)
+        }
+        finally {
+            $writer.Dispose()
+        }
+    }
+    finally {
+        $stream.Dispose()
+    }
+}
+
+function Save-LatestUiFailureSnapshots {
+    param(
+        [Parameter(Mandatory = $true)][string]$RawDirectory,
+        [Parameter(Mandatory = $true)][System.Management.Automation.ErrorRecord]$SourceError
+    )
+
+    foreach ($snapshot in @($script:latestCommittedResultSnapshot, $script:latestUndoResetSnapshot)) {
+        if ($null -eq $snapshot) {
+            continue
+        }
+        try {
+            $stem = "failure-latest-$($snapshot.Kind)"
+            Write-Utf8CreateNew -Path (Join-Path $RawDirectory "$stem.xml") -Text $snapshot.RawXml
+            $metadata = @(
+                "kind=$($snapshot.Kind)",
+                "phase=$($snapshot.Phase)",
+                "sample_index=$(if ($null -eq $snapshot.SampleIndex) { '' } else { $snapshot.SampleIndex })",
+                "warmup_index=$(if ($null -eq $snapshot.WarmupIndex) { '' } else { $snapshot.WarmupIndex })",
+                "undo_attempt=$(if ($null -eq $snapshot.UndoAttempt) { '' } else { $snapshot.UndoAttempt })",
+                "source_error=$($SourceError.Exception.Message -replace '[\r\n]+', ' ')"
+            ) -join "`n"
+            Write-Utf8CreateNew -Path (Join-Path $RawDirectory "$stem.metadata.txt") -Text ($metadata + "`n")
+        }
+        catch {
+            # Failure evidence is best effort and must not replace the source failure.
+        }
+    }
+}
+
 function Invoke-UndoToCleanCheckpoint {
     param(
         [Parameter(Mandatory = $true)]
         [int]$UndoX,
 
         [Parameter(Mandatory = $true)]
-        [int]$UndoY
+        [int]$UndoY,
+
+        [Parameter(Mandatory = $true)]
+        [ValidateSet("sample-reset", "warmup-reset")]
+        [string]$Phase,
+
+        [Parameter(Mandatory = $true)]
+        [int]$JourneyIndex
     )
 
     $checkpointRemote = "$remotePrefix-checkpoint.xml"
@@ -997,8 +1099,16 @@ function Invoke-UndoToCleanCheckpoint {
         Invoke-TargetAdb -AdbArguments @("shell", "cmd", "input", "tap", "$UndoX", "$UndoY") | Out-Null
         Start-Sleep -Milliseconds $undoWaitMilliseconds
         Invoke-TargetAdb -AdbArguments @("shell", "uiautomator", "dump", $checkpointRemote) | Out-Null
-        [xml]$checkpointUi =
+        $checkpointText =
             (Invoke-TargetAdb -AdbArguments @("shell", "cat", $checkpointRemote)) -join "`n"
+        Set-LatestUiFailureSnapshot `
+            -Kind "undo-reset" `
+            -Phase $Phase `
+            -SampleIndex $(if ($Phase -eq "sample-reset") { $JourneyIndex } else { $null }) `
+            -WarmupIndex $(if ($Phase -eq "warmup-reset") { $JourneyIndex } else { $null }) `
+            -UndoAttempt $attempt `
+            -RawXml $checkpointText
+        [xml]$checkpointUi = $checkpointText
         $dirtyNode = $checkpointUi.SelectSingleNode("//node[@content-desc='Document dirty status']")
         $undoNode = $checkpointUi.SelectSingleNode("//node[@text='Undo']")
         if (
@@ -1021,8 +1131,16 @@ function Assert-CommittedResult {
 
     $checkpointRemote = "$remotePrefix-checkpoint.xml"
     Invoke-TargetAdb -AdbArguments @("shell", "uiautomator", "dump", $checkpointRemote) | Out-Null
-    [xml]$checkpointUi =
+    $checkpointText =
         (Invoke-TargetAdb -AdbArguments @("shell", "cat", $checkpointRemote)) -join "`n"
+    Set-LatestUiFailureSnapshot `
+        -Kind "committed-result" `
+        -Phase "sample-commit" `
+        -SampleIndex $SampleIndex `
+        -WarmupIndex $null `
+        -UndoAttempt $null `
+        -RawXml $checkpointText
+    [xml]$checkpointUi = $checkpointText
     $dirtyNode = $checkpointUi.SelectSingleNode("//node[@content-desc='Document dirty status']")
     $undoNode = $checkpointUi.SelectSingleNode("//node[@text='Undo']")
     $redoNode = $checkpointUi.SelectSingleNode("//node[@text='Redo']")
@@ -1257,6 +1375,8 @@ $environmentRows = [System.Collections.Generic.List[object]]::new()
 $environmentPath = Join-Path $resolvedOutput "environment.csv"
 $frameRows = [System.Collections.Generic.List[object]]::new()
 $sampleSummaries = [System.Collections.Generic.List[object]]::new()
+$script:latestCommittedResultSnapshot = $null
+$script:latestUndoResetSnapshot = $null
 
 try {
     $deviceIdentity = Get-PhysicalDeviceIdentity
@@ -1341,7 +1461,11 @@ try {
     foreach ($warmupIndex in 1..$warmupCount) {
         Invoke-TargetAdb -AdbArguments @("shell", "cmd", "input", "tap", "$canvasX", "$canvasY") | Out-Null
         Start-Sleep -Milliseconds $undoWaitMilliseconds
-        Invoke-UndoToCleanCheckpoint -UndoX $undoX -UndoY $undoY
+        Invoke-UndoToCleanCheckpoint `
+            -UndoX $undoX `
+            -UndoY $undoY `
+            -Phase "warmup-reset" `
+            -JourneyIndex $warmupIndex
     }
 
     $environmentRows.Add((Get-PhysicalCheckpoint -Name "before_samples"))
@@ -1397,7 +1521,11 @@ try {
         }
 
         if ($sampleIndex -lt $sampleCount) {
-            Invoke-UndoToCleanCheckpoint -UndoX $undoX -UndoY $undoY
+            Invoke-UndoToCleanCheckpoint `
+                -UndoX $undoX `
+                -UndoY $undoY `
+                -Phase "sample-reset" `
+                -JourneyIndex $sampleIndex
         }
     }
 
@@ -1589,12 +1717,16 @@ try {
     $metadata
 }
 catch {
+    $sourceError = $_
+    Save-LatestUiFailureSnapshots `
+        -RawDirectory (Join-Path $resolvedOutput "raw") `
+        -SourceError $sourceError
     $currentState = Get-RunState -Directory $resolvedOutput
     if ($null -eq $currentState -or $currentState.status -ne "completed") {
         $invalidStatus = if ($script:measuredDownCount -eq 0) { "invalid-before-samples" } else { "invalid-after-samples" }
         Write-RunState -Status $invalidStatus -Verdict "invalid"
     }
-    throw
+    throw $sourceError
 }
 finally {
     if ($null -ne $physicalTraceState -and $physicalTraceState.Active) {

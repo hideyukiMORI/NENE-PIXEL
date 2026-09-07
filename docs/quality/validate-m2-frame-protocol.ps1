@@ -20,6 +20,7 @@ $baselineProfHash = "9" * 64
 $candidateProfHash = "a" * 64
 $baselineProfmHash = "b" * 64
 $candidateProfmHash = "c" * 64
+$frameFixtureGlobalsOwned = $false
 
 New-Item -ItemType Directory -Path $temporaryRoot | Out-Null
 $experimentRoot = Join-Path $temporaryRoot "experiment"
@@ -521,6 +522,9 @@ try {
         InstallSeen = $false
         Committed = $false
         Frame = 0
+        Mode = 'success'
+        Commands = [System.Collections.Generic.List[string]]::new()
+        CollisionPath = $null
     }
     function global:Start-Sleep {
         param([int]$Milliseconds, [int]$Seconds)
@@ -538,6 +542,7 @@ try {
 </node></hierarchy>
 "@
     }
+    $frameFixtureGlobalsOwned = $true
     function global:adb {
         param(
             [string]$s,
@@ -549,6 +554,7 @@ try {
             throw 'The end-to-end fixture received an unexpected device route.'
         }
         $command = $AdbArguments -join ' '
+        $global:neneFrameFixtureState.Commands.Add($command)
         switch -Regex ($command) {
             '^shell getprop ro\.kernel\.qemu$' { '0'; return }
             '^shell getprop ro\.product\.manufacturer$' { 'ALLDOCUBE'; return }
@@ -613,7 +619,25 @@ try {
                 return
             }
             '^shell uiautomator dump ' { 'UI dumped'; return }
-            '^shell cat ' { Get-NeneFrameFixtureUi; return }
+            '^shell cat ' {
+                if ($global:neneFrameFixtureState.Committed -and $global:neneFrameFixtureState.Mode -eq 'malformed') {
+                    '<malformed'
+                    return
+                }
+                if ($global:neneFrameFixtureState.Committed -and $global:neneFrameFixtureState.Mode -eq 'persistence-failure') {
+                    [System.IO.File]::WriteAllText(
+                        $global:neneFrameFixtureState.CollisionPath,
+                        'fixture collision',
+                        [System.Text.UTF8Encoding]::new($false)
+                    )
+                }
+                $ui = Get-NeneFrameFixtureUi
+                if ($global:neneFrameFixtureState.Committed -and $global:neneFrameFixtureState.Mode -in @('semantic-mismatch', 'persistence-failure')) {
+                    $ui = $ui.Replace('text="Unsaved changes"', 'text="No unsaved changes"')
+                }
+                $ui
+                return
+            }
             '^shell dumpsys gfxinfo .* reset$' { 'reset'; return }
             '^shell dumpsys gfxinfo .* framestats$' {
                 $global:neneFrameFixtureState.Frame += 1
@@ -682,9 +706,6 @@ try {
     }
     finally {
         Pop-Location
-        Remove-Item Function:\global:adb -ErrorAction SilentlyContinue
-        Remove-Item Function:\global:Start-Sleep -ErrorAction SilentlyContinue
-        Remove-Item Function:\global:Get-NeneFrameFixtureUi -ErrorAction SilentlyContinue
     }
     if (
         -not $global:neneFrameFixtureState.InstallSeen -or
@@ -722,7 +743,129 @@ try {
     ) {
         throw 'The host end-to-end fixture did not publish the typed artifact identity and final diagnostic verdict.'
     }
+
+    $malformedFixtureError = $null
+    try {
+        [xml]$null = '<malformed'
+    }
+    catch {
+        $malformedFixtureError = $_
+    }
+    if ($null -eq $malformedFixtureError) {
+        throw 'Malformed XML fixture did not establish its native parser error.'
+    }
+    $failureCommandLedgers = @{}
+    foreach ($failureCase in @(
+            [pscustomobject]@{
+                Name = 'semantic-mismatch'
+                ExpectedError = 'Sample 1 did not expose the committed Pencil result.'
+                ExpectedRaw = $null
+                PersistenceFailure = $false
+            },
+            [pscustomobject]@{
+                Name = 'malformed'
+                ExpectedError = $malformedFixtureError.Exception.Message
+                ExpectedRaw = '<malformed'
+                PersistenceFailure = $false
+            },
+            [pscustomobject]@{
+                Name = 'persistence-failure'
+                ExpectedError = 'Sample 1 did not expose the committed Pencil result.'
+                ExpectedRaw = $null
+                PersistenceFailure = $true
+            }
+        )) {
+        $failure = $preDevice.Clone()
+        $failure.ExperimentDirectory = Join-Path $temporaryRoot "failure-evidence-$($failureCase.Name)"
+        $failure.ExperimentId = "failure-evidence-$($failureCase.Name)"
+        $slotDirectory = Join-Path $failure.ExperimentDirectory 'slot-01-diagnostic-baseline-attempt-1'
+        $global:neneFrameFixtureState.InstallSeen = $false
+        $global:neneFrameFixtureState.Committed = $false
+        $global:neneFrameFixtureState.Frame = 0
+        $global:neneFrameFixtureState.Mode = $failureCase.Name
+        $global:neneFrameFixtureState.Commands = [System.Collections.Generic.List[string]]::new()
+        $global:neneFrameFixtureState.CollisionPath =
+            Join-Path $slotDirectory 'raw/failure-latest-committed-result.xml'
+        $failureError = $null
+        Push-Location $preDeviceRepository
+        try {
+            & $collector @failure | Out-Null
+        }
+        catch {
+            $failureError = $_
+        }
+        finally {
+            Pop-Location
+        }
+        if ($null -eq $failureError) {
+            throw "The $($failureCase.Name) fixture did not retain its source failure."
+        }
+        if (
+            $null -ne $failureCase.ExpectedError -and
+            $failureError.Exception.Message -cne $failureCase.ExpectedError
+        ) {
+            throw "The $($failureCase.Name) fixture replaced its source semantic error."
+        }
+        $failureState = Get-Content -Raw -LiteralPath (Join-Path $slotDirectory 'run-state.json') | ConvertFrom-Json
+        if ($failureState.status -cne 'invalid-after-samples' -or $failureState.verdict -cne 'invalid') {
+            throw "The $($failureCase.Name) fixture changed the existing INVALID guard."
+        }
+        $commitRawPath = Join-Path $slotDirectory 'raw/failure-latest-committed-result.xml'
+        $commitMetadataPath = Join-Path $slotDirectory 'raw/failure-latest-committed-result.metadata.txt'
+        $undoRawPath = Join-Path $slotDirectory 'raw/failure-latest-undo-reset.xml'
+        $undoMetadataPath = Join-Path $slotDirectory 'raw/failure-latest-undo-reset.metadata.txt'
+        if ($failureCase.PersistenceFailure) {
+            if (
+                (Get-Content -Raw -LiteralPath $commitRawPath) -cne 'fixture collision' -or
+                (Test-Path -LiteralPath $commitMetadataPath)
+            ) {
+                throw 'Persistence failure did not preserve the collision or suppress partial metadata.'
+            }
+        }
+        else {
+            $commitRaw = Get-Content -Raw -LiteralPath $commitRawPath
+            $commitMetadata = Get-Content -LiteralPath $commitMetadataPath
+            if (
+                'kind=committed-result' -notin $commitMetadata -or
+                'phase=sample-commit' -notin $commitMetadata -or
+                'sample_index=1' -notin $commitMetadata -or
+                'warmup_index=' -notin $commitMetadata -or
+                'undo_attempt=' -notin $commitMetadata -or
+                @($commitMetadata | Where-Object { $_ -eq "source_error=$($failureError.Exception.Message -replace '[\r\n]+', ' ')" }).Count -ne 1
+            ) {
+                throw "The $($failureCase.Name) committed-result metadata is incomplete."
+            }
+            if ($null -ne $failureCase.ExpectedRaw -and $commitRaw -cne $failureCase.ExpectedRaw) {
+                throw "The $($failureCase.Name) raw XML changed before persistence."
+            }
+        }
+        $undoMetadata = Get-Content -LiteralPath $undoMetadataPath
+        if (
+            -not (Test-Path -LiteralPath $undoRawPath) -or
+            'kind=undo-reset' -notin $undoMetadata -or
+            'phase=warmup-reset' -notin $undoMetadata -or
+            'sample_index=' -notin $undoMetadata -or
+            'warmup_index=5' -notin $undoMetadata -or
+            'undo_attempt=1' -notin $undoMetadata
+        ) {
+            throw "The $($failureCase.Name) latest Undo/reset evidence is incomplete."
+        }
+        $failureCommandLedgers[$failureCase.Name] =
+            (@($global:neneFrameFixtureState.Commands | ForEach-Object {
+                        $_ -replace 'failure-evidence-(semantic-mismatch|malformed|persistence-failure)', 'failure-evidence-case'
+                    }) -join "`n")
+    }
+    if (
+        $failureCommandLedgers['semantic-mismatch'] -cne $failureCommandLedgers['malformed'] -or
+        $failureCommandLedgers['semantic-mismatch'] -cne $failureCommandLedgers['persistence-failure']
+    ) {
+        throw 'Failure-evidence retention added or reordered device calls between failure modes.'
+    }
+    Remove-Item Function:\global:adb -ErrorAction SilentlyContinue
+    Remove-Item Function:\global:Start-Sleep -ErrorAction SilentlyContinue
+    Remove-Item Function:\global:Get-NeneFrameFixtureUi -ErrorAction SilentlyContinue
     Remove-Variable neneFrameFixtureState -Scope Global -ErrorAction SilentlyContinue
+    $frameFixtureGlobalsOwned = $false
 
     $wrongProf = $artifact.Clone()
     $wrongProf.CandidatePackagedProfSha256 = "0" * 64
@@ -823,6 +966,12 @@ try {
     Write-Output "M2 frame protocol state validation: PASS"
 }
 finally {
+    if ($frameFixtureGlobalsOwned) {
+        Remove-Item Function:\global:adb -ErrorAction SilentlyContinue
+        Remove-Item Function:\global:Start-Sleep -ErrorAction SilentlyContinue
+        Remove-Item Function:\global:Get-NeneFrameFixtureUi -ErrorAction SilentlyContinue
+        Remove-Variable neneFrameFixtureState -Scope Global -ErrorAction SilentlyContinue
+    }
     $resolvedTemporaryRoot = [System.IO.Path]::GetFullPath($temporaryRoot)
     $resolvedSystemTemp = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath())
     if ($resolvedTemporaryRoot.StartsWith($resolvedSystemTemp, [System.StringComparison]::OrdinalIgnoreCase)) {
