@@ -2539,3 +2539,35 @@ operations; attempt 1 only; and no retry or replacement. It reuses old source/AP
 `ba82190d46824b195da578d20bf9d9efe00eabe5e9647fdb324fe67ca771ba38`, and the unchanged accepted
 P62 input. This contract does not authorize collection. The existing optimized-runtime correctness
 and final ten-test emulator results remain reusable because their APK and test inputs do not change.
+
+### Issue #81 rotation-fixed result
+
+The reviewed writer is commit `a1e6a7ca81fcd93494c22675e45a1afd68c7795c`, with
+`measure-m2-frame.ps1` SHA-256
+`c5de02b785f6286e8936f2fa0f46c9b05cabcd88203b7826d40b0a1616389ce1`. The private slot wrapper
+SHA-256 was `c1619de19cf85a36771446c1586d47036696882b06d8a3fa6b6130c8a1bc21ed` and pinned that exact
+writer. The prospective verification record is
+<https://github.com/hideyukiMORI/NENE-PIXEL/issues/81#issuecomment-5573325460>.
+
+Experiment `issue81-kotlin-2-4-20-rotation-fixed-v3-02` completed the fixed four-slot order exactly
+once: old diagnostic 10 `inconclusive`, new diagnostic 10 `inconclusive`, new decision 50 `PASS`,
+and old decision 50 `PASS`. The candidate decision frame-overrun p95/p99 were
+`-0.936989 / -0.417696 ms`, and input-to-committed-result p95 was `8.655923 ms`. The baseline
+decision values were `-0.819432 / 0.521607 ms` and `9.128154 ms`. All 120 measured operations and
+240 raw frame rows were valid. Every slot had outer exit zero, retained its declared environment
+checkpoints, and verified restoration of the original free rotation and numeric value. The
+293-file byte ledger SHA-256 is
+`f759a00e8af1a5b922126befce7c09164af20b9be5a2c1018106c0d325443752`.
+
+The candidate producer remained clean standalone source
+`7a34b7e1f044ce52b50e7f8739cee8387d54088f`; this focused correction changes the measurement
+writer, fixture, and protocol text, not the measured APK or product source. The three-workload
+optimized functional result and final ten-test emulator result remain applicable to their exact
+candidate APK and test inputs. The old `issue81-kotlin-2-4-20-v3-01` slot 4 stays preserved as
+`INVALID` and is not replaced or reclassified.
+
+The accepted P62 producer and 13,514-rule canonical profile remain unchanged. Successful profile
+packaging, functional checks, and this app-issued FrameTimeline comparison do not prove complete
+class/profile coverage equivalence under the new mapping. Strict SurfaceFlinger physical-present
+correlation remains unmeasured. No profile was regenerated, no retry or replacement was used, and
+no waiver is active.
