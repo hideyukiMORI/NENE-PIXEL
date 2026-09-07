@@ -2487,3 +2487,55 @@ Slot 4, the old optimized baseline decision, became `invalid-after-samples` at s
 For future failures, the writer retains in memory one latest already collected committed-result XML and one latest already collected Undo/reset XML. Each snapshot records its phase, sample index or separate warmup index, and Undo attempt before XML parsing or semantic checks. Only `catch` may save these snapshots and metadata with create-new semantics below that invocation's fresh local `raw` directory. The correction adds no device dump, `cat`, parse, sleep, retry, timed loop, or per-operation disk write.
 
 Failure-evidence persistence is best effort. A persistence failure cannot replace the original ErrorRecord, alter the existing INVALID/completed run-state guard, or suppress the original throw. The schema, metrics, thresholds, attempt budget, no-retry rule, and stop conditions remain unchanged. This evidence-retention correction does not determine or fix the original sample 29 cause and does not authorize a new device or performance run.
+
+### Issue #81 rotation-fixed replacement contract
+
+The retained slot 4 raw frame headers identify app process `28706`. A later bounded read-only
+WindowManager record captured the same process and retained the exact transition
+`09-08 00:09:24.120 ROTATION_90 to ROTATION_0` for the NENE-PIXEL activity. That timestamp is from
+the device clock. The separately retained host-clock raw creation timestamps are
+`00:09:23.5912786` for sample 29 preview and `00:09:24.1961754` for commit. They are corroborating
+failure-time evidence; no clock alignment was established to order the device event between them.
+The normal three-command record is rooted at
+`C:\Users\info\.codex\tmp\nene-81-rotation-readback-20260908-0047`; all three commands exited zero,
+completed capture without a timeout, and retained empty stderr. Its 50-file ledger SHA-256 is
+`ec3c4cfa95c10925a47b66f4ca293b652bfe6ecd1033ada95309f42d598aa250`.
+
+The recorded landscape-to-portrait transition violates the fixed landscape viewport and coordinate
+premise. It does not identify which transient dirty, Undo, or Redo semantic predicate
+failed because the failing XML was not retained. That narrower cause remains UNKNOWN. The old
+four-slot experiment remains immutable and incomplete.
+
+Before a corrected invocation changes rotation, it must capture and validate both the original
+WindowManager user-rotation mode and the separate numeric `user_rotation` setting. A partial pin
+attempt is treated as device mutation and therefore requires restoration. The writer pins user
+rotation to locked value `1` before installing or launching the app. The existing
+`before_warmups` checkpoint, without a new wait or poll, then requires current rotation `1`, logical
+size 1920 x 1200, and the existing physical mode 1200 x 1920. Every later physical checkpoint
+retains these logical and physical facts separately.
+
+The four retained pre-run UI records establish hierarchy rotation `1`, logical root bounds
+`[0,0][1920,1200]`, and canvas bounds `[688,615][1232,1159]`. The corrected writer requires those
+same values in `ui-before.xml` and in every commit and Undo/reset XML it already collects. These
+checks add no UI dump, `cat`, XML parse, sleep, retry, or timed operation.
+
+Cleanup always records its restore commands and observations. An originally locked device must
+return to the saved numeric user rotation and matching current rotation. For an originally free
+device, cleanup first restores the saved numeric value through lock and then restores free mode;
+the saved numeric value and free mode must match, while the sensor-selected current rotation is
+recorded without requiring equality to its pre-run value. A restore failure is isolated from any
+source measurement error, so an existing INVALID or completed numeric failure and its ErrorRecord
+remain authoritative. If measurement otherwise completes with PASS or diagnostic inconclusive,
+unverified restoration rewrites run-state to `invalid-after-samples`, throws, and blocks the next
+slot. Metadata, numeric thresholds, and the original failure remain unchanged.
+
+After focused host validation and a separate execution review, the corrected prospective
+experiment is `issue81-kotlin-2-4-20-rotation-fixed-v3-02`. It preserves old diagnostic 10, new
+diagnostic 10, new decision 50, old decision 50; five warmups per slot; at most 120 measured
+operations; attempt 1 only; and no retry or replacement. It reuses old source/APK
+`92c1f4e6ffe18a9c41d13215f21c237493628043` /
+`dadd1fb783678426ec92d8b425d698a89932a5275b460cc80ed6346348590452`, new source/APK
+`7a34b7e1f044ce52b50e7f8739cee8387d54088f` /
+`ba82190d46824b195da578d20bf9d9efe00eabe5e9647fdb324fe67ca771ba38`, and the unchanged accepted
+P62 input. This contract does not authorize collection. The existing optimized-runtime correctness
+and final ten-test emulator results remain reusable because their APK and test inputs do not change.

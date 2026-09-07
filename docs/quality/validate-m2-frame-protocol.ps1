@@ -523,6 +523,10 @@ try {
         Committed = $false
         Frame = 0
         Mode = 'success'
+        RotationMode = 'free'
+        NumericRotation = 0
+        CurrentRotation = 0
+        PinSeen = $false
         Commands = [System.Collections.Generic.List[string]]::new()
         CollisionPath = $null
     }
@@ -532,13 +536,14 @@ try {
     function global:Get-NeneFrameFixtureUi {
         $dirty = if ($global:neneFrameFixtureState.Committed) { 'Unsaved changes' } else { 'No unsaved changes' }
         $undo = $global:neneFrameFixtureState.Committed.ToString().ToLowerInvariant()
+        $rotation = if ($global:neneFrameFixtureState.Committed -and $global:neneFrameFixtureState.Mode -eq 'rotation-mismatch') { 0 } else { 1 }
         return @"
-<hierarchy><node>
+<hierarchy rotation="$rotation"><node bounds="[0,0][1920,1200]">
 <node content-desc="Document dirty status" text="$dirty" />
-<node enabled="$undo" bounds="[200,0][300,100]"><node text="Undo" /></node>
+<node enabled="$undo" bounds="[823,506][953,588]"><node text="Undo" /></node>
 <node enabled="false"><node text="Redo" /></node>
 <node checked="true"><node content-desc="Pencil tool" /></node>
-<node content-desc="16 by 16 pixel canvas" bounds="[0,0][160,160]" />
+<node content-desc="16 by 16 pixel canvas" bounds="[688,615][1232,1159]" />
 </node></hierarchy>
 "@
     }
@@ -565,6 +570,31 @@ try {
             '^shell getprop ro\.build\.fingerprint$' { 'fixture/fingerprint'; return }
             '^shell getprop ro\.build\.version\.security_patch$' { '2026-09-01'; return }
             '^shell settings get global stay_on_while_plugged_in$' { '0'; return }
+            '^shell settings get system user_rotation$' { "$($global:neneFrameFixtureState.NumericRotation)"; return }
+            '^shell dumpsys window$' {
+                $mode = if ($global:neneFrameFixtureState.RotationMode -eq 'locked') { 'USER_ROTATION_LOCKED' } else { 'USER_ROTATION_FREE' }
+                $reportedDegrees = $global:neneFrameFixtureState.NumericRotation * 90
+                $logicalWidth = if ($global:neneFrameFixtureState.CurrentRotation % 2 -eq 0) { 1200 } else { 1920 }
+                $logicalHeight = if ($global:neneFrameFixtureState.CurrentRotation % 2 -eq 0) { 1920 } else { 1200 }
+                "  mRotation=$($global:neneFrameFixtureState.CurrentRotation) mDeferredRotationPauseCount=0"
+                "    mUserRotationMode=$mode mUserRotation=ROTATION_$reportedDegrees"
+                "  DisplayFrames w=$logicalWidth h=$logicalHeight r=$($global:neneFrameFixtureState.CurrentRotation)"
+                return
+            }
+            '^shell wm user-rotation lock ([0-3])$' {
+                $rotation = [int]([regex]::Match($command, '([0-3])$').Groups[1].Value)
+                $global:neneFrameFixtureState.RotationMode = 'locked'
+                $global:neneFrameFixtureState.NumericRotation = $rotation
+                $global:neneFrameFixtureState.CurrentRotation = $rotation
+                $global:neneFrameFixtureState.PinSeen = $true
+                return
+            }
+            '^shell wm user-rotation free$' {
+                if ($global:neneFrameFixtureState.Mode -notin @('restore-failure', 'semantic-and-restore-failure')) {
+                    $global:neneFrameFixtureState.RotationMode = 'free'
+                }
+                return
+            }
             '^shell wm size$' { 'Physical size: 1200x1920'; return }
             '^shell dumpsys display$' {
                 'DisplayDeviceInfo{fixture, 1200 x 1920, modeId 1, supportedModes [{id=1, width=1200, height=1920, fps=90.0}]}'
@@ -601,10 +631,10 @@ try {
             '^shell am force-stop ' { return }
             '^shell am start ' { return }
             '^shell cmd input tap ' {
-                if ([int]$AdbArguments[4] -eq 5) {
+                if ([int]$AdbArguments[4] -eq 705) {
                     $global:neneFrameFixtureState.Committed = $true
                 }
-                elseif ([int]$AdbArguments[4] -eq 250) {
+                elseif ([int]$AdbArguments[4] -eq 888) {
                     $global:neneFrameFixtureState.Committed = $false
                 }
                 else {
@@ -632,7 +662,7 @@ try {
                     )
                 }
                 $ui = Get-NeneFrameFixtureUi
-                if ($global:neneFrameFixtureState.Committed -and $global:neneFrameFixtureState.Mode -in @('semantic-mismatch', 'persistence-failure')) {
+                if ($global:neneFrameFixtureState.Committed -and $global:neneFrameFixtureState.Mode -in @('semantic-mismatch', 'persistence-failure', 'semantic-and-restore-failure')) {
                     $ui = $ui.Replace('text="Unsaved changes"', 'text="No unsaved changes"')
                 }
                 $ui
@@ -743,6 +773,24 @@ try {
     ) {
         throw 'The host end-to-end fixture did not publish the typed artifact identity and final diagnostic verdict.'
     }
+    $initialRotation = Get-Content -LiteralPath (Join-Path $preDevice.ExperimentDirectory 'slot-01-diagnostic-baseline-attempt-1/rotation-original.txt')
+    $restoredRotation = Get-Content -LiteralPath (Join-Path $preDevice.ExperimentDirectory 'slot-01-diagnostic-baseline-attempt-1/rotation-restore.txt')
+    if (
+        'mode=free' -notin $initialRotation -or
+        'numeric_user_rotation=0' -notin $initialRotation -or
+        'mode=free' -notin $restoredRotation -or
+        'numeric_user_rotation=0' -notin $restoredRotation -or
+        'command=wm user-rotation lock 0' -notin $restoredRotation -or
+        'command=wm user-rotation free' -notin $restoredRotation -or
+        'restore_verified=true' -notin $restoredRotation
+    ) {
+        throw 'The normal fixture did not capture before pin and restore the original free rotation state.'
+    }
+    $originalRotationReadIndex = $global:neneFrameFixtureState.Commands.IndexOf('shell settings get system user_rotation')
+    $pinIndex = $global:neneFrameFixtureState.Commands.IndexOf('shell wm user-rotation lock 1')
+    if ($originalRotationReadIndex -lt 0 -or $pinIndex -le $originalRotationReadIndex) {
+        throw 'The normal fixture did not capture the original rotation before pinning it.'
+    }
 
     $malformedFixtureError = $null
     try {
@@ -773,6 +821,18 @@ try {
                 ExpectedError = 'Sample 1 did not expose the committed Pencil result.'
                 ExpectedRaw = $null
                 PersistenceFailure = $true
+            },
+            [pscustomobject]@{
+                Name = 'rotation-mismatch'
+                ExpectedError = 'The editor UI left the fixed landscape viewport.'
+                ExpectedRaw = $null
+                PersistenceFailure = $false
+            },
+            [pscustomobject]@{
+                Name = 'semantic-and-restore-failure'
+                ExpectedError = 'Sample 1 did not expose the committed Pencil result.'
+                ExpectedRaw = $null
+                PersistenceFailure = $false
             }
         )) {
         $failure = $preDevice.Clone()
@@ -783,6 +843,10 @@ try {
         $global:neneFrameFixtureState.Committed = $false
         $global:neneFrameFixtureState.Frame = 0
         $global:neneFrameFixtureState.Mode = $failureCase.Name
+        $global:neneFrameFixtureState.RotationMode = 'free'
+        $global:neneFrameFixtureState.NumericRotation = 0
+        $global:neneFrameFixtureState.CurrentRotation = 0
+        $global:neneFrameFixtureState.PinSeen = $false
         $global:neneFrameFixtureState.Commands = [System.Collections.Generic.List[string]]::new()
         $global:neneFrameFixtureState.CollisionPath =
             Join-Path $slotDirectory 'raw/failure-latest-committed-result.xml'
@@ -799,6 +863,9 @@ try {
         }
         if ($null -eq $failureError) {
             throw "The $($failureCase.Name) fixture did not retain its source failure."
+        }
+        if ($failureCase.Name -eq 'semantic-and-restore-failure' -and -not (Test-Path -LiteralPath (Join-Path $slotDirectory 'rotation-restore-failure.txt'))) {
+            throw 'The source-error fixture did not retain its isolated rotation restore failure.'
         }
         if (
             $null -ne $failureCase.ExpectedError -and
@@ -852,14 +919,82 @@ try {
         }
         $failureCommandLedgers[$failureCase.Name] =
             (@($global:neneFrameFixtureState.Commands | ForEach-Object {
-                        $_ -replace 'failure-evidence-(semantic-mismatch|malformed|persistence-failure)', 'failure-evidence-case'
+                        $_ -replace 'failure-evidence-(semantic-mismatch|malformed|persistence-failure|rotation-mismatch|semantic-and-restore-failure)', 'failure-evidence-case'
                     }) -join "`n")
     }
     if (
         $failureCommandLedgers['semantic-mismatch'] -cne $failureCommandLedgers['malformed'] -or
-        $failureCommandLedgers['semantic-mismatch'] -cne $failureCommandLedgers['persistence-failure']
+        $failureCommandLedgers['semantic-mismatch'] -cne $failureCommandLedgers['persistence-failure'] -or
+        $failureCommandLedgers['semantic-mismatch'] -cne $failureCommandLedgers['rotation-mismatch']
     ) {
         throw 'Failure-evidence retention added or reordered device calls between failure modes.'
+    }
+
+    $restoreFailure = $preDevice.Clone()
+    $restoreFailure.ExperimentDirectory = Join-Path $temporaryRoot 'normal-restore-failure'
+    $restoreFailure.ExperimentId = 'normal-restore-failure'
+    $global:neneFrameFixtureState.InstallSeen = $false
+    $global:neneFrameFixtureState.Committed = $false
+    $global:neneFrameFixtureState.Frame = 0
+    $global:neneFrameFixtureState.Mode = 'restore-failure'
+    $global:neneFrameFixtureState.RotationMode = 'free'
+    $global:neneFrameFixtureState.NumericRotation = 0
+    $global:neneFrameFixtureState.CurrentRotation = 0
+    $global:neneFrameFixtureState.PinSeen = $false
+    $global:neneFrameFixtureState.Commands = [System.Collections.Generic.List[string]]::new()
+    $restoreFailureError = $null
+    Push-Location $preDeviceRepository
+    try {
+        & $collector @restoreFailure | Out-Null
+    }
+    catch {
+        $restoreFailureError = $_
+    }
+    finally {
+        Pop-Location
+    }
+    $restoreFailureSlot = Join-Path $restoreFailure.ExperimentDirectory 'slot-01-diagnostic-baseline-attempt-1'
+    $restoreFailureState = Get-Content -Raw -LiteralPath (Join-Path $restoreFailureSlot 'run-state.json') | ConvertFrom-Json
+    if (
+        $null -eq $restoreFailureError -or
+        $restoreFailureError.Exception.Message -notlike 'The frame result is invalid because rotation restoration was not verified:*' -or
+        $restoreFailureState.status -cne 'invalid-after-samples' -or
+        $restoreFailureState.verdict -cne 'invalid' -or
+        -not (Test-Path -LiteralPath (Join-Path $restoreFailureSlot 'rotation-restore-failure.txt'))
+    ) {
+        throw 'A normally completed result did not become INVALID after rotation restore failure.'
+    }
+
+    $lockedRestore = $preDevice.Clone()
+    $lockedRestore.ExperimentDirectory = Join-Path $temporaryRoot 'locked-rotation-restore'
+    $lockedRestore.ExperimentId = 'locked-rotation-restore'
+    $global:neneFrameFixtureState.InstallSeen = $false
+    $global:neneFrameFixtureState.Committed = $false
+    $global:neneFrameFixtureState.Frame = 0
+    $global:neneFrameFixtureState.Mode = 'success'
+    $global:neneFrameFixtureState.RotationMode = 'locked'
+    $global:neneFrameFixtureState.NumericRotation = 2
+    $global:neneFrameFixtureState.CurrentRotation = 2
+    $global:neneFrameFixtureState.PinSeen = $false
+    $global:neneFrameFixtureState.Commands = [System.Collections.Generic.List[string]]::new()
+    Push-Location $preDeviceRepository
+    try {
+        $lockedOutput = @(& $collector @lockedRestore)
+    }
+    finally {
+        Pop-Location
+    }
+    $lockedRestoreLines = Get-Content -LiteralPath (Join-Path $lockedRestore.ExperimentDirectory 'slot-01-diagnostic-baseline-attempt-1/rotation-restore.txt')
+    if (
+        'status=inconclusive' -notin $lockedOutput -or
+        'mode=locked' -notin $lockedRestoreLines -or
+        'numeric_user_rotation=2' -notin $lockedRestoreLines -or
+        'current_rotation=2' -notin $lockedRestoreLines -or
+        'command=wm user-rotation lock 2' -notin $lockedRestoreLines -or
+        'command=wm user-rotation free' -in $lockedRestoreLines -or
+        'restore_verified=true' -notin $lockedRestoreLines
+    ) {
+        throw 'The locked-origin fixture did not restore the exact mode and numeric rotation.'
     }
     Remove-Item Function:\global:adb -ErrorAction SilentlyContinue
     Remove-Item Function:\global:Start-Sleep -ErrorAction SilentlyContinue
