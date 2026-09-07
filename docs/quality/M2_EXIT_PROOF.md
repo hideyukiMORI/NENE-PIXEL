@@ -1,9 +1,10 @@
 # M2 Core Drawing Exit Proof
 
-Status: final integration candidate for `P2-07` / Issue #44. The scoped correctness, command,
-history, viewport, process-recreation, actual-app frame, and exact stacked-artifact emulator
-functional gates have passed. The candidate now contains the complete required technical evidence;
-required CI, merge, and external Issue/milestone state are recorded through Issue #44 read-back.
+Status: pending affected Kotlin 2.4.20 evidence for `P2-07` / Issue #44. The previously accepted
+Kotlin 2.4.10 command/history, frame, and process-recreation numbers remain immutable historical
+evidence; they are not current Kotlin 2.4.20 acceptance evidence. The affected Kotlin 2.4.20 core
+command/history, actual-app frame, and process-recreation lanes are pending. Existing unaffected
+correctness and exact stacked-artifact functional evidence remains recorded below with its identity.
 
 ## Scope and authority
 
@@ -18,6 +19,56 @@ Save/load/autosave, project format, PNG export, and restoration of an unsaved do
 death remain M3 work.
 
 Active waiver: none.
+
+## Prospective Kotlin 2.4.20 command/history collection
+
+No result is claimed in this section. The fixed source is
+`bb124a7989d2489aa28128911f9d2a4582ed7428`; app APK SHA-256 is
+`13891a2fd81ed91b4672f31bac2570386edfe2d6364476cc8fb41ec8893f41ca`; AndroidTest APK SHA-256 is
+`cd56a0d6cb9e7143f22fc5b1693627c0dad22c1eb3d8cdfe22623d7f00b3ad89`. The physical serial is
+`T830128GB26321131293`. The candidate argument remains
+`m2-production-command-256-lane-separated-v2`, as required by `P2AndroidFinalCommandProtocol`.
+
+The exact private execution package is:
+
+- wrapper
+  `C:/Users/info/.codex/tmp/nene-pixel-sol44-20260906-artifacts/kotlin-2420-command-history-plan-01/run-m2-nonframe-physical-bb124a7.ps1`,
+  SHA-256 `f4294daf35c3c4ea3b157329787498a86428700a14ece92638e7328cf6c2ce4b`;
+- bounded native helper in the same directory, SHA-256
+  `29736313b91a99a4a4d0a120214915ad90ad1c3938ad0f48c2a373e63be387da`;
+- fixed-serial invocation `invoke-m2-nonframe-physical-bb124a7.ps1` in the same directory, SHA-256
+  `49c4a71f6e9723486394a6189bb244231ba4f25b0ec6a0dd970d80ef5deec1ac`;
+- command analyzer SHA-256
+  `e0c79a1339fd4e918d3f04789728df6112715f28d2bbb740f38b4e3835b545a1` and history analyzer
+  SHA-256 `fb3f590f9a5fe33e7cfe2f396a1a12b0a91409a91fa120184e666d4573935913`.
+
+The fresh measurement output is
+`C:/Users/info/.codex/tmp/nene-pixel-sol44-20260906-artifacts/nonframe-physical-bb124a7-kotlin-2420-run-01`;
+the sibling path ending `-outer` records invocation start, end, exit, and error. Both must be absent
+before the one authorized invocation. There is no retry.
+
+The command lane performs real `cmd package compile -m verify -f`, then one instrumentation with
+six workloads, five warmups per workload, and 200 measured samples per workload: exactly 1,200
+rows. `P2AndroidFinalCommandMeasurementTest` runs per-workload correctness before warmup and asserts
+warmup and measured outcomes. Each workload requires p95 <= 8,000,000 ns, p99 <= 16,670,000 ns,
+and at least 190 of 200 samples with zero blocking GC. Structural identity, schema, cardinality,
+compile status, and runner failures are `INVALID`; a valid numeric failure is `PERFORMANCE_FAIL`.
+Either result stops before history.
+
+Only after command `PASS`, history runs indices 1 through 5 in five fresh target processes. Each
+retains 64 entries, applies 524,288 changes, proves the complete round trip, and performs ten extra
+cycles. Every run requires retained Java heap <= 50% of runtime max, retained PSS <= baseline plus
+60% of memory class, and post-cycle heap growth <= max(1 MiB, 1% of runtime max). The five-run median
+PSS delta must be <= 50% of memory class. The first `INVALID` or `PERFORMANCE_FAIL` stops collection;
+no invocation is discarded or repeated.
+
+Native calls have 30-second ordinary, 120-second install/compile, and 300-second instrumentation
+limits, followed when needed by at most 10 seconds for kill/wait and 5 seconds for capture drain.
+Timeout, incomplete capture, native error, or failure to prove target-app PID absence and live device
+state is `INVALID` and blocks later lanes. Host start/end, limits, complete native error text,
+stdout, stderr, exit, timeout, and capture state are retained. Host viewport remains descriptive
+without new collection. Frame and process-recreation are separate pending Kotlin 2.4.20 lanes and
+are outside this 1,200-row plus five-history-run budget.
 
 ## Change scope and verification policy
 
