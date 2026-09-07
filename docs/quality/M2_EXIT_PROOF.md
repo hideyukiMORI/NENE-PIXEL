@@ -1,9 +1,9 @@
 # M2 Core Drawing Exit Proof
 
 Status: final integration candidate for `P2-07` / Issue #44. The scoped correctness, command,
-history, viewport, process-recreation, and actual-app frame gates have passed. M2 remains open until
-the exact stacked debug artifacts pass the final 9+1 emulator smoke, required CI passes, and the
-merge, Issue, and milestone state is read back.
+history, viewport, process-recreation, actual-app frame, and exact stacked-artifact emulator
+functional gates have passed. The candidate now contains the complete required technical evidence;
+required CI, merge, and external Issue/milestone state are recorded through Issue #44 read-back.
 
 ## Scope and authority
 
@@ -38,20 +38,22 @@ does not regenerate P62 or repeat the exhausted physical frame experiment.
 | --- | --- | --- |
 | Direct application command, controller adapter, pixels, revisions, `ChangeSet`, history, dirty state | `EditorRuntimeTest`, `CommandGatewayHistoryTest`, `CommandResultContractTest`, `ViewportEditorControllerTest` | Core runtime, gateway, controller, and adapter production blobs are unchanged from their accepted focused evidence; reuse under `QLT-012` |
 | Zoom, pan, density, resize, grid, rectangular canvas, half-open edges, maximum canvas | `ViewportTransformGestureTest`, `ViewportTransformMappingTest`, `ViewportTransformPropertyTest`, `ViewportValueTest` | Viewport production and test blobs are unchanged; reuse under `QLT-012` |
-| Compose journey: create/reject/cancel, palette, Pencil/Eraser/no-op, two-pointer cancellation, multi-step undo/redo, dirty state | `UndoRedoEditorTest` (9 tests) | Test blob `2efa845ed6b9e826523a127766a088fc5475bd83` is identical at accepted #77 source `7b512d0b8d75677b14d15d2bd4515ae5f0f22dc0` and frozen #76 head `b5edfd9385bcb0db2b74ef73e7369d0c22b44712`; the #44 stack does not edit it or its production presentation inputs. Its final 9-test execution remains part of the exact stacked-artifact emulator smoke |
+| Compose journey: create/reject/cancel, palette, Pencil/Eraser/no-op, two-pointer cancellation, multi-step undo/redo, dirty state | `UndoRedoEditorTest` (9 tests) | Test blob `2efa845ed6b9e826523a127766a088fc5475bd83` is identical at accepted #77 source `7b512d0b8d75677b14d15d2bd4515ae5f0f22dc0` and frozen #76 head `b5edfd9385bcb0db2b74ef73e7369d0c22b44712`; the #44 stack does not edit it or its production presentation inputs. The exact stacked presentation APK passed all 9 tests in run-06 |
 | Configuration recreation retains the sole owners | `EditorRuntimeLifecycleTest.configurationRecreationRetainsTheOnlyDocumentAndWorkspaceOwners` | MainActivity, ViewModel, runtime, and the existing configuration-test method/assertions are unchanged; reuse the recorded PASS |
 | New process creates one canonical initial runtime and `WorkspaceState` owner | host PID transition plus `EditorRuntimeLifecycleTest.processStageHasOneCanonicalInitialRuntimeAndWorkspaceOwner` | Recorded PASS on test source `14c7efe15ad696c695c7f97d2a92561fb506ee11`; see [Process recreation](#process-recreation) |
-| Validated maximum new-document boundary | `EditorRuntimeLifecycleTest.emulatorNewDocumentCreationSmokeUsesValidatedMaximumBoundary` | The `+1` in the final emulator 9+1 smoke; process-recreation evidence remains a separately reused physical-device result |
+| Validated maximum new-document boundary | `EditorRuntimeLifecycleTest.emulatorNewDocumentCreationSmokeUsesValidatedMaximumBoundary` | The `+1` in run-06 passed only after the exact nine-test presentation lane was valid/PASS; process-recreation evidence remains a separately reused physical-device result |
 
 The matrix is the integrated acceptance proof. No duplicate synthetic journey test is added while
 these direct, adapter, and Compose assertions cover the same canonical results.
 
 ## Process recreation boundary and protocol
 
-Process recreation means a new Android process creates exactly one application-owned
-`EditorRuntime`, `EditorController`, and `WorkspaceState` owner in the scope-defined initial state:
-16 x 16 blank document, revision zero, empty history, clean dirty state, Pencil, first palette entry,
-and canonical initial viewport. It does not mean restoration of an unsaved M2 document.
+A new Android process creates the canonical runtime and owners. The process-stage test directly
+asserts the same owner references/relations for `EditorRuntime`, `EditorController`, and
+`WorkspaceState`, together with 16 x 16, revision zero, empty history, clean dirty state, Pencil,
+palette index 0, and canonical canvas semantics. The test does not count every process object;
+blank pixel contents and initial viewport numeric values are supplied by the canonical production
+path and host contracts used by the test. This does not mean restoration of an unsaved M2 document.
 
 `ActivityScenario.recreate()` proves configuration recreation only and is not process-recreation
 evidence. The process check is one host-orchestrated two-stage invocation against the selected
@@ -228,8 +230,8 @@ acceptance.
 
 The command, history-cap, retained heap/PSS, viewport, allocation, and process-recreation lanes have
 their individual valid results above. Issue #76 also satisfies Issue #54's actual-app absolute frame
-gate on the accepted post-#77 R8 path. M2 remains open only for the exact stacked-artifact 9+1 smoke,
-the required final CI/merge, and external Issue/milestone read-back.
+gate on the accepted post-#77 R8 path. The exact stacked-artifact 9+1 emulator smoke is accepted
+below; required final CI/merge and external Issue/milestone state remain live completion facts.
 
 ### Actual-app frame acceptance
 
@@ -254,8 +256,10 @@ tracks #76 integration.
 
 PR #79's initial CI run failed `:app:android:ktlintKotlinScriptCheck` on the single-line chain layout
 in `app/android/build.gradle.kts`; it is retained as a failed required-CI attempt, not as a
-functional or performance failure. Frozen head `b5edfd9` changes only that whitespace layout, with
-all non-whitespace content identical. A passing replacement exact-head CI result remains required.
+functional or performance failure. The replacement required CI run `34046587278`, job
+`101522606855`, completed with `quality` SUCCESS. PR #79 is MERGED and its merge commit is
+`1a6ff2516363f56abfb3d4a4c46b3d85449e229f` on `main`. Frozen head `b5edfd9` changes only that
+whitespace layout, with all non-whitespace content identical.
 
 Both decision lanes pass the predeclared absolute gate, while B's frame p95 and p99 are slightly
 lower than C's. The result does not establish that R8 caused the frame gap to close or that C is
@@ -303,9 +307,45 @@ corrected, producing the executed wrapper SHA-256 recorded in the table, and tha
 executed once against the reserved device.
 
 Command and retained-history gates are PASS, the host viewport lane is valid with descriptive values,
-process recreation is PASS, and actual-app frame acceptance is PASS through Issue #76. Final stacked
-artifact smoke and integration/CI read-back remain pending, so this proof does not yet close Issue
-#44 or M2.
+process recreation is PASS, actual-app frame acceptance is PASS through Issue #76, and the final
+stacked-artifact emulator smoke below is PASS. Repository integration and external state are read
+back through Issue #44 rather than embedded prospectively in this candidate.
+
+### Final stacked-artifact emulator smoke
+
+Result: **PASS** for the fixed 9+1 M2 emulator functional population.
+
+Run-06 used build/execution source `2ffa71f7c72e2dfe30c46315ffa4feefe39c07f2`, tree
+`ea15c56a792f0cd0857cd5b6097b052d3560bbfa`, app APK SHA-256
+`254156641c88b34cc78451bd10f30fa5aa7bb42d6c856f41c733d094fdae8a6f`, app AndroidTest APK
+SHA-256 `e8a853c73fc839a77a0aee734d3b21b2bad5ff6e6ce165b7937b475cb8c4efdf`, and #77
+presentation AndroidTest APK SHA-256
+`fe9282e0884dc90e330baf3b95a0481f5b5985a302510e3695ebb70619559a7b` from source
+`7b512d0b8d75677b14d15d2bd4515ae5f0f22dc0`. The runner SHA-256 was
+`15e10ed502a6b435b9b4d808ba33d3a724b34cc2c00fbcbd56c5fd8062fec06c`.
+
+The exact nine-method `UndoRedoEditorTest` invocation completed with start/end 9/9, failure 0,
+one terminal, one `OK`, fatal/ANR 0, and a matching installed APK pullback. Only after that complete
+valid/PASS result, the one-method
+`EditorRuntimeLifecycleTest#emulatorNewDocumentCreationSmokeUsesValidatedMaximumBoundary`
+invocation completed with start/end 1/1, failure 0, one terminal, one `OK`, fatal/ANR 0, and matching
+app/test APK pullbacks. The runner summary is `valid/PASS`, stop reason `completed`.
+
+Cleanup retained its finite contract and passed. It observed three active owned Job processes,
+terminated the Job, required active process count zero, confirmed Job empty and launcher exit, and
+captured both output tasks as `RanToCompletion`. The 80 recorded native commands each have the
+native sidecar set and had zero timeout, zero incomplete capture, and zero non-empty native error;
+the separate emulator launcher command makes 81 total `*.command.txt` files. There were three
+APK-install and two instrumentation commands, exactly the fixed maximum population. No retry, additional test, build,
+profile, frame, or performance collection occurred. The 1,147-row raw ledger has zero missing,
+size, hash, duplicate, or unlisted entries and SHA-256
+`ACCAD9C87AC2E916922301D08E696DC538965AA623323DD3E0FFC6ADE1082884`.
+
+Runs 01 through 05 remain immutable `invalid/UNKNOWN` history and are not functional results.
+Run-05 established the API 35 window-policy parser defect and incomplete launcher capture; v6 fixed
+the parser and added explicit descendant ownership before this single run-06. The private raw
+directory is
+`C:/Users/info/.codex/tmp/nene-pixel-sol44-20260906-artifacts/final-emulator-smoke/run-06/`.
 
 ## Rule review and limitations
 
@@ -315,8 +355,8 @@ non-causal B/C comparison, and app-issued-gfxinfo limitations recorded above. Ac
 
 ## External completion read-back
 
-Pending the exact stacked 9+1 emulator smoke, #44 PR, required CI, merge, and Issue/milestone state
-transitions. Issue #44 and M2 remain open until those final criteria pass and are read back.
+Final required CI, merged PR, and Issue/M2 completion read-back are recorded in
+[Issue #44](https://github.com/hideyukiMORI/NENE-PIXEL/issues/44).
 
 ## Related evidence
 
