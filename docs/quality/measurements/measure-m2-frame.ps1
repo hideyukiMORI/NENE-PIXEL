@@ -182,6 +182,11 @@ $previewWaitMilliseconds = 100
 $drawWaitMilliseconds = 350
 $undoWaitMilliseconds = 150
 $undoAttemptLimit = 3
+$requiredRotation = 1
+$requiredLogicalWidth = 1920
+$requiredLogicalHeight = 1200
+$requiredRootBounds = "[0,0][1920,1200]"
+$requiredCanvasBounds = "[688,615][1232,1159]"
 $profileInstallSuccessResult = 1
 $inputInjection = "cmd-input-service-direct"
 $remotePrefix = "/data/local/tmp/nene-m2-frame-$Variant-$CompilationMode"
@@ -697,6 +702,58 @@ function Get-PhysicalDeviceIdentity {
     }
 }
 
+function Get-WindowRotationState {
+    $numericText =
+        (Invoke-TargetAdb -AdbArguments @("shell", "settings", "get", "system", "user_rotation") |
+            Select-Object -First 1).Trim()
+    if ($numericText -notmatch "^[0-3]$") {
+        throw "The numeric user_rotation setting is unavailable."
+    }
+
+    $windowText = (Invoke-TargetAdb -AdbArguments @("shell", "dumpsys", "window")) -join "`n"
+    $modeMatch =
+        [regex]::Match(
+            $windowText,
+            "(?m)^\s*mUserRotationMode=(USER_ROTATION_FREE|USER_ROTATION_LOCKED)\s+mUserRotation=ROTATION_(0|90|180|270)(?:\s|$)"
+        )
+    $currentMatch = [regex]::Match($windowText, "(?m)^\s*mRotation=([0-3])(?:\s|$)")
+    $displayFramesMatch =
+        [regex]::Match($windowText, "(?m)^\s*DisplayFrames\s+w=(\d+)\s+h=(\d+)\s+r=([0-3])(?:\s|$)")
+    if (-not $modeMatch.Success -or -not $currentMatch.Success -or -not $displayFramesMatch.Success) {
+        throw "WindowManager rotation state is unavailable."
+    }
+
+    $currentRotation = [int]$currentMatch.Groups[1].Value
+    $reportedUserRotation = [int]$modeMatch.Groups[2].Value / 90
+    $displayFramesRotation = [int]$displayFramesMatch.Groups[3].Value
+    if ($displayFramesRotation -ne $currentRotation) {
+        throw "WindowManager rotation and display-frame rotation disagree."
+    }
+    [pscustomobject]@{
+        mode = if ($modeMatch.Groups[1].Value -eq "USER_ROTATION_LOCKED") { "locked" } else { "free" }
+        numeric_user_rotation = [int]$numericText
+        reported_user_rotation = $reportedUserRotation
+        current_rotation = $currentRotation
+        logical_width = [int]$displayFramesMatch.Groups[1].Value
+        logical_height = [int]$displayFramesMatch.Groups[2].Value
+    }
+}
+
+function Assert-PinnedLandscapeRotation {
+    param([Parameter(Mandatory = $true)][object]$State)
+
+    if (
+        $State.mode -ne "locked" -or
+        $State.numeric_user_rotation -ne $requiredRotation -or
+        $State.reported_user_rotation -ne $requiredRotation -or
+        $State.current_rotation -ne $requiredRotation -or
+        $State.logical_width -ne $requiredLogicalWidth -or
+        $State.logical_height -ne $requiredLogicalHeight
+    ) {
+        throw "WindowManager did not retain the required locked landscape rotation."
+    }
+}
+
 function Get-PhysicalCheckpoint {
     param(
         [Parameter(Mandatory = $true)]
@@ -734,6 +791,9 @@ function Get-PhysicalCheckpoint {
     }
     $refreshRateHertz =
         [double]::Parse($activeModeMatch.Groups[1].Value, [System.Globalization.CultureInfo]::InvariantCulture)
+
+    $rotationState = Get-WindowRotationState
+    Assert-PinnedLandscapeRotation -State $rotationState
 
     $thermalText = (Invoke-TargetAdb -AdbArguments @("shell", "dumpsys", "thermalservice")) -join "`n"
     $thermalMatch = [regex]::Match($thermalText, "Thermal Status:\s*(\d+)")
@@ -786,11 +846,33 @@ function Get-PhysicalCheckpoint {
         active_height = $activeHeight
         display_mode_id = $displayModeId
         refresh_rate_hertz = $refreshRateHertz
+        rotation_mode = $rotationState.mode
+        numeric_user_rotation = $rotationState.numeric_user_rotation
+        reported_user_rotation = $rotationState.reported_user_rotation
+        current_rotation = $rotationState.current_rotation
+        logical_width = $rotationState.logical_width
+        logical_height = $rotationState.logical_height
         thermal_status = $thermalStatus
         power_save_mode = $powerSaveMode
         interactive = $interactive
         usb_powered = $usbPowered
         battery_level_percent = $batteryLevel
+    }
+}
+
+function Assert-LandscapeEditorUi {
+    param([Parameter(Mandatory = $true)][xml]$Ui)
+
+    $rootNode = $Ui.DocumentElement.SelectSingleNode("./node")
+    $canvasNode = $Ui.SelectSingleNode("//node[@content-desc='16 by 16 pixel canvas']")
+    if (
+        $Ui.DocumentElement.GetAttribute("rotation") -ne "$requiredRotation" -or
+        $null -eq $rootNode -or
+        $rootNode.GetAttribute("bounds") -ne $requiredRootBounds -or
+        $null -eq $canvasNode -or
+        $canvasNode.GetAttribute("bounds") -ne $requiredCanvasBounds
+    ) {
+        throw "The editor UI left the fixed landscape viewport."
     }
 }
 
@@ -983,13 +1065,115 @@ function Get-OperationPhaseCapture {
     }
 }
 
+function Set-LatestUiFailureSnapshot {
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateSet("committed-result", "undo-reset")]
+        [string]$Kind,
+
+        [Parameter(Mandatory = $true)]
+        [ValidateSet("sample-commit", "sample-reset", "warmup-reset")]
+        [string]$Phase,
+
+        [AllowNull()]
+        [Nullable[int]]$SampleIndex,
+
+        [AllowNull()]
+        [Nullable[int]]$WarmupIndex,
+
+        [AllowNull()]
+        [Nullable[int]]$UndoAttempt,
+
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
+        [string]$RawXml
+    )
+
+    $snapshot = [pscustomobject]@{
+        Kind = $Kind
+        Phase = $Phase
+        SampleIndex = $SampleIndex
+        WarmupIndex = $WarmupIndex
+        UndoAttempt = $UndoAttempt
+        RawXml = $RawXml
+    }
+    if ($Kind -eq "committed-result") {
+        $script:latestCommittedResultSnapshot = $snapshot
+    }
+    else {
+        $script:latestUndoResetSnapshot = $snapshot
+    }
+}
+
+function Write-Utf8CreateNew {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Text
+    )
+
+    $stream = [System.IO.File]::Open(
+        $Path,
+        [System.IO.FileMode]::CreateNew,
+        [System.IO.FileAccess]::Write,
+        [System.IO.FileShare]::None
+    )
+    try {
+        $writer = [System.IO.StreamWriter]::new($stream, [System.Text.UTF8Encoding]::new($false))
+        try {
+            $writer.Write($Text)
+        }
+        finally {
+            $writer.Dispose()
+        }
+    }
+    finally {
+        $stream.Dispose()
+    }
+}
+
+function Save-LatestUiFailureSnapshots {
+    param(
+        [Parameter(Mandatory = $true)][string]$RawDirectory,
+        [Parameter(Mandatory = $true)][System.Management.Automation.ErrorRecord]$SourceError
+    )
+
+    foreach ($snapshot in @($script:latestCommittedResultSnapshot, $script:latestUndoResetSnapshot)) {
+        if ($null -eq $snapshot) {
+            continue
+        }
+        try {
+            $stem = "failure-latest-$($snapshot.Kind)"
+            Write-Utf8CreateNew -Path (Join-Path $RawDirectory "$stem.xml") -Text $snapshot.RawXml
+            $metadata = @(
+                "kind=$($snapshot.Kind)",
+                "phase=$($snapshot.Phase)",
+                "sample_index=$(if ($null -eq $snapshot.SampleIndex) { '' } else { $snapshot.SampleIndex })",
+                "warmup_index=$(if ($null -eq $snapshot.WarmupIndex) { '' } else { $snapshot.WarmupIndex })",
+                "undo_attempt=$(if ($null -eq $snapshot.UndoAttempt) { '' } else { $snapshot.UndoAttempt })",
+                "source_error=$($SourceError.Exception.Message -replace '[\r\n]+', ' ')"
+            ) -join "`n"
+            Write-Utf8CreateNew -Path (Join-Path $RawDirectory "$stem.metadata.txt") -Text ($metadata + "`n")
+        }
+        catch {
+            # Failure evidence is best effort and must not replace the source failure.
+        }
+    }
+}
+
 function Invoke-UndoToCleanCheckpoint {
     param(
         [Parameter(Mandatory = $true)]
         [int]$UndoX,
 
         [Parameter(Mandatory = $true)]
-        [int]$UndoY
+        [int]$UndoY,
+
+        [Parameter(Mandatory = $true)]
+        [ValidateSet("sample-reset", "warmup-reset")]
+        [string]$Phase,
+
+        [Parameter(Mandatory = $true)]
+        [int]$JourneyIndex
     )
 
     $checkpointRemote = "$remotePrefix-checkpoint.xml"
@@ -997,8 +1181,17 @@ function Invoke-UndoToCleanCheckpoint {
         Invoke-TargetAdb -AdbArguments @("shell", "cmd", "input", "tap", "$UndoX", "$UndoY") | Out-Null
         Start-Sleep -Milliseconds $undoWaitMilliseconds
         Invoke-TargetAdb -AdbArguments @("shell", "uiautomator", "dump", $checkpointRemote) | Out-Null
-        [xml]$checkpointUi =
+        $checkpointText =
             (Invoke-TargetAdb -AdbArguments @("shell", "cat", $checkpointRemote)) -join "`n"
+        Set-LatestUiFailureSnapshot `
+            -Kind "undo-reset" `
+            -Phase $Phase `
+            -SampleIndex $(if ($Phase -eq "sample-reset") { $JourneyIndex } else { $null }) `
+            -WarmupIndex $(if ($Phase -eq "warmup-reset") { $JourneyIndex } else { $null }) `
+            -UndoAttempt $attempt `
+            -RawXml $checkpointText
+        [xml]$checkpointUi = $checkpointText
+        Assert-LandscapeEditorUi -Ui $checkpointUi
         $dirtyNode = $checkpointUi.SelectSingleNode("//node[@content-desc='Document dirty status']")
         $undoNode = $checkpointUi.SelectSingleNode("//node[@text='Undo']")
         if (
@@ -1021,8 +1214,17 @@ function Assert-CommittedResult {
 
     $checkpointRemote = "$remotePrefix-checkpoint.xml"
     Invoke-TargetAdb -AdbArguments @("shell", "uiautomator", "dump", $checkpointRemote) | Out-Null
-    [xml]$checkpointUi =
+    $checkpointText =
         (Invoke-TargetAdb -AdbArguments @("shell", "cat", $checkpointRemote)) -join "`n"
+    Set-LatestUiFailureSnapshot `
+        -Kind "committed-result" `
+        -Phase "sample-commit" `
+        -SampleIndex $SampleIndex `
+        -WarmupIndex $null `
+        -UndoAttempt $null `
+        -RawXml $checkpointText
+    [xml]$checkpointUi = $checkpointText
+    Assert-LandscapeEditorUi -Ui $checkpointUi
     $dirtyNode = $checkpointUi.SelectSingleNode("//node[@content-desc='Document dirty status']")
     $undoNode = $checkpointUi.SelectSingleNode("//node[@text='Undo']")
     $redoNode = $checkpointUi.SelectSingleNode("//node[@text='Redo']")
@@ -1035,6 +1237,84 @@ function Assert-CommittedResult {
         $redoNode.ParentNode.GetAttribute("enabled") -ne "false"
     ) {
         throw "Sample $SampleIndex did not expose the committed Pencil result."
+    }
+}
+
+function Write-RotationStateArtifact {
+    param(
+        [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)][object]$State,
+        [string[]]$AdditionalLines = @()
+    )
+
+    $lines = @(
+        "mode=$($State.mode)",
+        "numeric_user_rotation=$($State.numeric_user_rotation)",
+        "reported_user_rotation=$($State.reported_user_rotation)",
+        "current_rotation=$($State.current_rotation)",
+        "logical_width=$($State.logical_width)",
+        "logical_height=$($State.logical_height)"
+    ) + $AdditionalLines
+    [System.IO.File]::WriteAllLines(
+        (Join-Path $resolvedOutput $Name),
+        $lines,
+        [System.Text.UTF8Encoding]::new($false)
+    )
+}
+
+function Initialize-PinnedRotation {
+    $script:rotationPinAttempted = $true
+    Invoke-TargetAdb -AdbArguments @("shell", "wm", "user-rotation", "lock", "$requiredRotation") | Out-Null
+    $pinned = Get-WindowRotationState
+    Write-RotationStateArtifact `
+        -Name "rotation-pin.txt" `
+        -State $pinned `
+        -AdditionalLines @("command=wm user-rotation lock $requiredRotation")
+    if (
+        $pinned.mode -ne "locked" -or
+        $pinned.numeric_user_rotation -ne $requiredRotation -or
+        $pinned.reported_user_rotation -ne $requiredRotation
+    ) {
+        throw "WindowManager did not accept the required landscape rotation lock."
+    }
+}
+
+function Restore-OriginalRotation {
+    param([Parameter(Mandatory = $true)][object]$Original)
+
+    $commands = [System.Collections.Generic.List[string]]::new()
+    if ($Original.mode -eq "locked") {
+        $commands.Add("wm user-rotation lock $($Original.numeric_user_rotation)")
+        Invoke-TargetAdb -AdbArguments @(
+            "shell", "wm", "user-rotation", "lock", "$($Original.numeric_user_rotation)"
+        ) | Out-Null
+    }
+    else {
+        $commands.Add("wm user-rotation lock $($Original.numeric_user_rotation)")
+        Invoke-TargetAdb -AdbArguments @(
+            "shell", "wm", "user-rotation", "lock", "$($Original.numeric_user_rotation)"
+        ) | Out-Null
+        $commands.Add("wm user-rotation free")
+        Invoke-TargetAdb -AdbArguments @("shell", "wm", "user-rotation", "free") | Out-Null
+    }
+
+    $restored = Get-WindowRotationState
+    $verified =
+        $restored.mode -eq $Original.mode -and
+        $restored.numeric_user_rotation -eq $Original.numeric_user_rotation -and
+        $restored.reported_user_rotation -eq $Original.numeric_user_rotation -and
+        ($Original.mode -eq "free" -or $restored.current_rotation -eq $Original.current_rotation)
+    Write-RotationStateArtifact `
+        -Name "rotation-restore.txt" `
+        -State $restored `
+        -AdditionalLines (@($commands | ForEach-Object { "command=$_" }) + @(
+            "original_mode=$($Original.mode)",
+            "original_numeric_user_rotation=$($Original.numeric_user_rotation)",
+            "original_current_rotation=$($Original.current_rotation)",
+            "restore_verified=$(([string]$verified).ToLowerInvariant())"
+        ))
+    if (-not $verified) {
+        throw "WindowManager rotation restoration could not be verified."
     }
 }
 
@@ -1257,16 +1537,31 @@ $environmentRows = [System.Collections.Generic.List[object]]::new()
 $environmentPath = Join-Path $resolvedOutput "environment.csv"
 $frameRows = [System.Collections.Generic.List[object]]::new()
 $sampleSummaries = [System.Collections.Generic.List[object]]::new()
+$script:latestCommittedResultSnapshot = $null
+$script:latestUndoResetSnapshot = $null
+$script:rotationPinAttempted = $false
+$originalRotationState = $null
+$rotationRestoreError = $null
+$successfulMetadata = $null
 
 try {
     $deviceIdentity = Get-PhysicalDeviceIdentity
+    $originalRotationState = Get-WindowRotationState
+    Write-RotationStateArtifact -Name "rotation-original.txt" -State $originalRotationState
+    if (
+        $originalRotationState.numeric_user_rotation -ne $originalRotationState.reported_user_rotation -or
+        ($originalRotationState.mode -eq "locked" -and
+            $originalRotationState.current_rotation -ne $originalRotationState.numeric_user_rotation)
+    ) {
+        throw "The original WindowManager rotation state is internally inconsistent."
+    }
+    Initialize-PinnedRotation
     $originalStayAwake =
         (Invoke-TargetAdb -AdbArguments @("shell", "settings", "get", "global", "stay_on_while_plugged_in") |
             Select-Object -First 1).Trim()
     Invoke-TargetAdb -AdbArguments @("shell", "svc", "power", "stayon", "usb") | Out-Null
     Invoke-TargetAdb -AdbArguments @("shell", "cmd", "input", "keyevent", "WAKEUP") | Out-Null
     Start-Sleep -Milliseconds 250
-    $environmentRows.Add((Get-PhysicalCheckpoint -Name "before_warmups"))
     Invoke-TargetAdb -AdbArguments @("install", "-r", "-d", $artifactIdentity.resolved_apk_path) | Out-Null
     Invoke-TargetAdb -AdbArguments @("shell", "pm", "clear", $packageName) | Out-Null
     Invoke-TargetAdb -AdbArguments @("shell", "cmd", "package", "compile", "--reset", $packageName) | Out-Null
@@ -1305,12 +1600,14 @@ try {
     Invoke-TargetAdb -AdbArguments @("shell", "am", "force-stop", $packageName) | Out-Null
     Invoke-TargetAdb -AdbArguments @("shell", "am", "start", "-W", "-n", $activityName) | Out-Null
     Start-Sleep -Milliseconds 1500
+    $environmentRows.Add((Get-PhysicalCheckpoint -Name "before_warmups"))
 
     $beforeRemote = "$remotePrefix-before.xml"
     $beforeLocal = Join-Path $resolvedOutput "ui-before.xml"
     Invoke-TargetAdb -AdbArguments @("shell", "uiautomator", "dump", $beforeRemote) | Out-Null
     Invoke-TargetAdb -AdbArguments @("pull", $beforeRemote, $beforeLocal) | Out-Null
     [xml]$beforeUi = Get-Content -Raw -LiteralPath $beforeLocal
+    Assert-LandscapeEditorUi -Ui $beforeUi
     $canvasNode = $beforeUi.SelectSingleNode("//node[@content-desc='16 by 16 pixel canvas']")
     $dirtyNode = $beforeUi.SelectSingleNode("//node[@content-desc='Document dirty status']")
     $undoTextNode = $beforeUi.SelectSingleNode("//node[@text='Undo']")
@@ -1341,7 +1638,11 @@ try {
     foreach ($warmupIndex in 1..$warmupCount) {
         Invoke-TargetAdb -AdbArguments @("shell", "cmd", "input", "tap", "$canvasX", "$canvasY") | Out-Null
         Start-Sleep -Milliseconds $undoWaitMilliseconds
-        Invoke-UndoToCleanCheckpoint -UndoX $undoX -UndoY $undoY
+        Invoke-UndoToCleanCheckpoint `
+            -UndoX $undoX `
+            -UndoY $undoY `
+            -Phase "warmup-reset" `
+            -JourneyIndex $warmupIndex
     }
 
     $environmentRows.Add((Get-PhysicalCheckpoint -Name "before_samples"))
@@ -1397,7 +1698,11 @@ try {
         }
 
         if ($sampleIndex -lt $sampleCount) {
-            Invoke-UndoToCleanCheckpoint -UndoX $undoX -UndoY $undoY
+            Invoke-UndoToCleanCheckpoint `
+                -UndoX $undoX `
+                -UndoY $undoY `
+                -Phase "sample-reset" `
+                -JourneyIndex $sampleIndex
         }
     }
 
@@ -1410,6 +1715,7 @@ try {
     Invoke-TargetAdb -AdbArguments @("pull", $afterRemote, $afterLocal) | Out-Null
     Invoke-TargetAdb -AdbArguments @("pull", $screenRemote, $screenLocal) | Out-Null
     [xml]$afterUi = Get-Content -Raw -LiteralPath $afterLocal
+    Assert-LandscapeEditorUi -Ui $afterUi
     $afterDirty = $afterUi.SelectSingleNode("//node[@content-desc='Document dirty status']")
     $afterUndo = $afterUi.SelectSingleNode("//node[@text='Undo']")
     $afterRedo = $afterUi.SelectSingleNode("//node[@text='Redo']")
@@ -1586,15 +1892,19 @@ try {
     if ($RunKind -eq "diagnostic" -and $grossRegression) {
         throw "The diagnostic exceeded a predeclared gross-regression boundary."
     }
-    $metadata
+    $successfulMetadata = @($metadata)
 }
 catch {
+    $sourceError = $_
+    Save-LatestUiFailureSnapshots `
+        -RawDirectory (Join-Path $resolvedOutput "raw") `
+        -SourceError $sourceError
     $currentState = Get-RunState -Directory $resolvedOutput
     if ($null -eq $currentState -or $currentState.status -ne "completed") {
         $invalidStatus = if ($script:measuredDownCount -eq 0) { "invalid-before-samples" } else { "invalid-after-samples" }
         Write-RunState -Status $invalidStatus -Verdict "invalid"
     }
-    throw
+    throw $sourceError
 }
 finally {
     if ($null -ne $physicalTraceState -and $physicalTraceState.Active) {
@@ -1603,6 +1913,27 @@ finally {
         }
         catch {
             Write-Warning "Unable to finalize the active physical-present trace through its declared trigger-only stop path."
+        }
+    }
+    if ($script:rotationPinAttempted -and $null -ne $originalRotationState) {
+        try {
+            Restore-OriginalRotation -Original $originalRotationState
+        }
+        catch {
+            $rotationRestoreError = $_.Exception.Message
+            try {
+                [System.IO.File]::WriteAllLines(
+                    (Join-Path $resolvedOutput "rotation-restore-failure.txt"),
+                    @(
+                        "restore_verified=false",
+                        "source_error=$($rotationRestoreError -replace '[\r\n]+', ' ')"
+                    ),
+                    [System.Text.UTF8Encoding]::new($false)
+                )
+            }
+            catch {
+                # Cleanup evidence must not replace the source measurement result.
+            }
         }
     }
     if ($environmentRows.Count -gt 0) {
@@ -1630,3 +1961,9 @@ finally {
         ) | Out-Null
     }
 }
+
+if ($null -ne $rotationRestoreError) {
+    Write-RunState -Status "invalid-after-samples" -Verdict "invalid"
+    throw "The frame result is invalid because rotation restoration was not verified: $rotationRestoreError"
+}
+$successfulMetadata

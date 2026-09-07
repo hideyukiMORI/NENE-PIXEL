@@ -17,7 +17,7 @@ The version decision uses these primary sources:
 - [Android Studio releases and AGP compatibility](https://developer.android.com/studio/releases): Android Studio Quail 3 / 2026.1.3 supports AGP 7.1 through 9.3. A preview IDE may be evaluated separately, but does not become the canonical project path before its exact build is verified.
 - [Gradle Java compatibility](https://docs.gradle.org/current/userguide/compatibility.html): Gradle can run on Java 21 from Gradle 8.5 onward.
 - [AGP built-in Kotlin migration](https://developer.android.com/build/migrate-to-built-in-kotlin): AGP 9 enables built-in Kotlin and removes the need for `org.jetbrains.kotlin.android`.
-- [Kotlin releases](https://kotlinlang.org/docs/releases.html): Kotlin 2.4.10 is the current stable compiler line.
+- [Kotlin 2.4.20 release](https://github.com/JetBrains/kotlin/releases/tag/v2.4.20): Kotlin 2.4.20 is the current stable compiler line.
 - [Compose setup](https://developer.android.com/develop/ui/compose/setup-compose-dependencies-and-compiler): Compose 1.12 requires compile SDK 37 and AGP 9; the current stable Compose BOM is `2026.08.00`.
 - [Compose BOM guidance](https://developer.android.com/develop/ui/compose/bom): the BOM is the canonical way to keep Compose libraries compatible, while the Compose compiler follows the Kotlin compiler version.
 - [ktlint Gradle plugin releases](https://github.com/JLLeitschuh/ktlint-gradle/releases): plugin 14.2.0 supports Gradle 9 and AGP built-in Kotlin.
@@ -48,9 +48,9 @@ Package names below the root follow the owning module and capability. A second r
 | Android JVM bytecode target | 17 | Java `sourceCompatibility`/`targetCompatibility` and Kotlin `jvmTarget` |
 | Gradle Wrapper | 9.7.1 | the only supported Gradle entry point |
 | Android Gradle plugin | 9.4.0 | all Android modules |
-| Kotlin | AGP built-in Kotlin with Kotlin plugin line 2.4.10 | Android modules; no `org.jetbrains.kotlin.android` plugin |
-| Kotlin JVM plugin | 2.4.10 | future non-Android core/build modules, matching the Android compiler line |
-| Compose compiler plugin | 2.4.10 | Compose modules, matching built-in Kotlin |
+| Kotlin | AGP built-in Kotlin with Kotlin plugin line 2.4.20 | Android modules; no `org.jetbrains.kotlin.android` plugin |
+| Kotlin JVM plugin | 2.4.20 | future non-Android core/build modules, matching the Android compiler line |
+| Compose compiler plugin | 2.4.20 | Compose modules, matching built-in Kotlin |
 | Compose libraries | BOM 2026.08.00 | all Compose dependency constraints |
 
 JDK 21 is the build runtime and toolchain. Android bytecode remains at JVM 17 because it is the conservative Android contract supported by the selected ecosystem and avoids making Java 21 bytecode a hidden minimum. Project Kotlin code uses progressive mode only after a separate, evidence-backed decision; warnings are errors from the first source file.
@@ -186,6 +186,7 @@ If a selected tool cannot produce the initial clean build, stop the scaffold cha
 
 - Issue: #5
 - Compatible minor update: #48
+- Compatible Kotlin tooling update: #81
 - PR: #11
 - Supersedes: none
 - Superseded by: none

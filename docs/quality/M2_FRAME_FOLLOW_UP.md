@@ -2464,3 +2464,110 @@ C's lower CPU p95 and operation p95 are descriptive only. C's p95 has `0.024291 
 zero-overrun threshold, the evidence is one device and one exhausted budget, and the writer does not
 provide strict SurfaceFlinger physical-present completion. ADR 0013 accepts the official optimized
 shipping path on the complete prospective gate, with those uncertainties retained.
+
+
+### Issue #81 Kotlin 2.4.20 prospective optimized-runtime check
+
+Issue #81 updates the Kotlin toolchain without changing the canonical Pencil/Undo journey source. Static comparison cannot prove that the optimized runtime is unchanged: R8 mapping and usage, optimized DEX, and packaged `baseline.prof` changed. The accepted Issue #76 optimized `benchmarkRelease` is therefore the baseline and the Issue #81 `host-02` optimized `benchmarkRelease` is the candidate. This check tests whether the toolchain update can change the canonical Pencil/Undo runtime cost; it assumes no speedup.
+
+The immutable baseline is source `92c1f4e6ffe18a9c41d13215f21c237493628043`, APK SHA-256 `dadd1fb783678426ec92d8b425d698a89932a5275b460cc80ed6346348590452`, packaged prof/profm `ccf1253d960014a83bf1825dad0f26b0dcd164e029074bb44fdab252f3c1d42a` / `6999514d7f1fec2951f976324e2a3766a75f892aa03f76a9aab5d7a0c4240ab6`. The immutable candidate is source and embedded revision `7a34b7e1f044ce52b50e7f8739cee8387d54088f`, `host-02` APK SHA-256 `ba82190d46824b195da578d20bf9d9efe00eabe5e9647fdb324fe67ca771ba38`, packaged prof/profm `f46527e25307e2d1b1d8acccbd06a9753c15fe60148027a32dd01c32a4cb6ac2` / `6999514d7f1fec2951f976324e2a3766a75f892aa03f76a9aab5d7a0c4240ab6`. Both use signing certificate SHA-256 `34e3288a5398f1e471b8ca4b19fe80fb4c118990a80f5a2d592bf02c2602ec08`.
+
+Before frame collection, run the existing three-method optimized-runtime observer APK SHA-256 `8ed761a414f00df7a24364125697c92837d88c8144cfec9ba7dd0c995635a795` against the candidate. Any INVALID or FAIL stops the experiment. A VALID PASS permits experiment `issue81-kotlin-2-4-20-v3-01` in fresh output `C:\Users\info\.codex\tmp\nene-pixel-81-experiments\81\kotlin-2-4-20-v3-01`. The existing frame-v3 metric, physical-profile, warmup, threshold, and state contracts apply unchanged. Its four slots remain old diagnostic 10, new diagnostic 10, new decision 50, old decision 50; each slot has attempt 1 only, no replacement, and no retry. Any INVALID, gross diagnostic, or candidate decision FAIL stops all remaining slots.
+
+Both lanes consume the historically accepted P62 input unchanged: generation source `384af834c74189dcca9d79da1cf1ac90d0363082`, producer app/test SHA-256 `f7390cf56f38a36e0ac2ed6e7dfb14c73f75292bef212a149a1648d2fbab3b79` / `fc0c57cffa3ac7b232f19638e372f33841d92f199f977b0eaf47fb87a41ed691`, 13,514-rule canonical SHA-256 `3be9f24e5c485364787c1319c3ec6bd2138ed589a30ff245100ce9a283c653ee`, acceptance/pair manifest SHA-256 `9781827af89116147b667db71d8f1fddf6897ed72c1f3527431ad9acfc85b2a5` / `d8f9279dc399fccd8de82bdc1d2c6ea80f8db9ea76b2fcccf5fd82aa319ea45b`. Successful R8 rewrite/packaging plus the new consumer's correctness and absolute-performance checks do not prove complete coverage equivalence for all 13,514 rules under the new mapping. That coverage remains unmeasured. This work does not regenerate the source profile, normalize flags, modify source rules, re-evaluate Issue #76 B/C, or accept a new profile.
+
+The command snapshot fixes collector SHA-256 `863e553840b9c32b4a8200f471398ae4ca1ade5007e3bae67491f266ab8d9663`, dexopt helper `ba9b232be6dc4b4a125c61c0d03a3e77fe8abc4a817f99a4089b10a288bf3259`, acceptance reader `02fce3f4e071b49c9247e548df7dd28b8a60ad24e49c30002d82267c5b1c8d31`, device serial `T830128GB26321131293`, and the paths and hashes above. The functional runner uses 120 s native execution, 10 s kill wait, and 5 s capture drain deadlines; transport timeout or incomplete capture is INVALID. Failure cleanup restores rotation only after the exact observer package is confirmed stopped; if termination cannot be confirmed, it records the blocked restoration and leaves the result INVALID.
+
+### Issue #81 observed frame result and failure-evidence retention
+
+The fixed `issue81-kotlin-2-4-20-v3-01` run completed slots 1–3. The old optimized diagnostic and new optimized diagnostic each completed 10 samples with non-gross `inconclusive` results. The new optimized candidate decision completed 50 samples and passed: frame-overrun p95/p99 were `-1.155791 / -0.176287 ms`, and input-to-committed-result p95 was `8.503231 ms`. These candidate results remain valid under their original identities and fixed thresholds.
+
+Slot 4, the old optimized baseline decision, became `invalid-after-samples` at sample 29 when the committed semantic checkpoint did not expose the required Pencil result. Its reused remote checkpoint XML was deleted by the writer's existing `finally` cleanup before a local diagnostic copy existed. The cause is therefore UNKNOWN. The four-slot comparison is incomplete, no relative Kotlin 2.4.20 performance conclusion is accepted, and the fixed attempt-one/no-retry contract prohibits replacing or rerunning slot 4. Slots 1–3 and the slot 4 INVALID result remain unchanged.
+
+For future failures, the writer retains in memory one latest already collected committed-result XML and one latest already collected Undo/reset XML. Each snapshot records its phase, sample index or separate warmup index, and Undo attempt before XML parsing or semantic checks. Only `catch` may save these snapshots and metadata with create-new semantics below that invocation's fresh local `raw` directory. The correction adds no device dump, `cat`, parse, sleep, retry, timed loop, or per-operation disk write.
+
+Failure-evidence persistence is best effort. A persistence failure cannot replace the original ErrorRecord, alter the existing INVALID/completed run-state guard, or suppress the original throw. The schema, metrics, thresholds, attempt budget, no-retry rule, and stop conditions remain unchanged. This evidence-retention correction does not determine or fix the original sample 29 cause and does not authorize a new device or performance run.
+
+### Issue #81 rotation-fixed replacement contract
+
+The retained slot 4 raw frame headers identify app process `28706`. A later bounded read-only
+WindowManager record captured the same process and retained the exact transition
+`09-08 00:09:24.120 ROTATION_90 to ROTATION_0` for the NENE-PIXEL activity. That timestamp is from
+the device clock. The separately retained host-clock raw creation timestamps are
+`00:09:23.5912786` for sample 29 preview and `00:09:24.1961754` for commit. They are corroborating
+failure-time evidence; no clock alignment was established to order the device event between them.
+The normal three-command record is rooted at
+`C:\Users\info\.codex\tmp\nene-81-rotation-readback-20260908-0047`; all three commands exited zero,
+completed capture without a timeout, and retained empty stderr. Its 50-file ledger SHA-256 is
+`ec3c4cfa95c10925a47b66f4ca293b652bfe6ecd1033ada95309f42d598aa250`.
+
+The recorded landscape-to-portrait transition violates the fixed landscape viewport and coordinate
+premise. It does not identify which transient dirty, Undo, or Redo semantic predicate
+failed because the failing XML was not retained. That narrower cause remains UNKNOWN. The old
+four-slot experiment remains immutable and incomplete.
+
+Before a corrected invocation changes rotation, it must capture and validate both the original
+WindowManager user-rotation mode and the separate numeric `user_rotation` setting. A partial pin
+attempt is treated as device mutation and therefore requires restoration. The writer pins user
+rotation to locked value `1` before installing or launching the app. The existing
+`before_warmups` checkpoint, without a new wait or poll, then requires current rotation `1`, logical
+size 1920 x 1200, and the existing physical mode 1200 x 1920. Every later physical checkpoint
+retains these logical and physical facts separately.
+
+The four retained pre-run UI records establish hierarchy rotation `1`, logical root bounds
+`[0,0][1920,1200]`, and canvas bounds `[688,615][1232,1159]`. The corrected writer requires those
+same values in `ui-before.xml` and in every commit and Undo/reset XML it already collects. These
+checks add no UI dump, `cat`, XML parse, sleep, retry, or timed operation.
+
+Cleanup always records its restore commands and observations. An originally locked device must
+return to the saved numeric user rotation and matching current rotation. For an originally free
+device, cleanup first restores the saved numeric value through lock and then restores free mode;
+the saved numeric value and free mode must match, while the sensor-selected current rotation is
+recorded without requiring equality to its pre-run value. A restore failure is isolated from any
+source measurement error, so an existing INVALID or completed numeric failure and its ErrorRecord
+remain authoritative. If measurement otherwise completes with PASS or diagnostic inconclusive,
+unverified restoration rewrites run-state to `invalid-after-samples`, throws, and blocks the next
+slot. Metadata, numeric thresholds, and the original failure remain unchanged.
+
+After focused host validation and a separate execution review, the corrected prospective
+experiment is `issue81-kotlin-2-4-20-rotation-fixed-v3-02`. It preserves old diagnostic 10, new
+diagnostic 10, new decision 50, old decision 50; five warmups per slot; at most 120 measured
+operations; attempt 1 only; and no retry or replacement. It reuses old source/APK
+`92c1f4e6ffe18a9c41d13215f21c237493628043` /
+`dadd1fb783678426ec92d8b425d698a89932a5275b460cc80ed6346348590452`, new source/APK
+`7a34b7e1f044ce52b50e7f8739cee8387d54088f` /
+`ba82190d46824b195da578d20bf9d9efe00eabe5e9647fdb324fe67ca771ba38`, and the unchanged accepted
+P62 input. This contract does not authorize collection. The existing optimized-runtime correctness
+and final ten-test emulator results remain reusable because their APK and test inputs do not change.
+
+### Issue #81 rotation-fixed result
+
+The reviewed writer is commit `a1e6a7ca81fcd93494c22675e45a1afd68c7795c`, with
+`measure-m2-frame.ps1` SHA-256
+`c5de02b785f6286e8936f2fa0f46c9b05cabcd88203b7826d40b0a1616389ce1`. The private slot wrapper
+SHA-256 was `c1619de19cf85a36771446c1586d47036696882b06d8a3fa6b6130c8a1bc21ed` and pinned that exact
+writer. The prospective verification record is
+<https://github.com/hideyukiMORI/NENE-PIXEL/issues/81#issuecomment-5573325460>.
+
+Experiment `issue81-kotlin-2-4-20-rotation-fixed-v3-02` completed the fixed four-slot order exactly
+once: old diagnostic 10 `inconclusive`, new diagnostic 10 `inconclusive`, new decision 50 `PASS`,
+and old decision 50 `PASS`. The candidate decision frame-overrun p95/p99 were
+`-0.936989 / -0.417696 ms`, and input-to-committed-result p95 was `8.655923 ms`. The baseline
+decision values were `-0.819432 / 0.521607 ms` and `9.128154 ms`. All 120 measured operations and
+240 raw frame rows were valid. Every slot had outer exit zero, retained its declared environment
+checkpoints, and verified restoration of the original free rotation and numeric value. The
+293-file byte ledger SHA-256 is
+`f759a00e8af1a5b922126befce7c09164af20b9be5a2c1018106c0d325443752`.
+
+The candidate producer remained clean standalone source
+`7a34b7e1f044ce52b50e7f8739cee8387d54088f`; this focused correction changes the measurement
+writer, fixture, and protocol text, not the measured APK or product source. The three-workload
+optimized functional result and final ten-test emulator result remain applicable to their exact
+candidate APK and test inputs. The old `issue81-kotlin-2-4-20-v3-01` slot 4 stays preserved as
+`INVALID` and is not replaced or reclassified.
+
+The accepted P62 producer and 13,514-rule canonical profile remain unchanged. Successful profile
+packaging, functional checks, and this app-issued FrameTimeline comparison do not prove complete
+class/profile coverage equivalence under the new mapping. Strict SurfaceFlinger physical-present
+correlation remains unmeasured. No profile was regenerated, no retry or replacement was used, and
+no waiver is active.
