@@ -10,7 +10,10 @@ Human memory and code-review attention are not enforcement mechanisms. The Kotli
 
 ## Status
 
-Milestones 0 and 1 are complete: the executable foundation and the first touch-to-command vertical slice have passed their documented exit criteria. Milestone 2 is next; production changes may be introduced only through its focused core-drawing work packages, beginning with the evidence and decision gates defined in `P2-00` and `P2-01`.
+Milestones 0 through 2 are complete. The executable foundation, touch-to-command vertical slice,
+and bounded core-drawing editor have passed their documented exit criteria. Milestone 3 begins with
+the project-format, storage, and recovery decision in `P3-01`; later implementation must follow its
+focused work-package order.
 
 ## Canonical documents
 
@@ -25,6 +28,7 @@ Read these documents in order:
 7. [Development Workflow](docs/DEVELOPMENT_WORKFLOW.md)
 8. [Development Setup](docs/DEVELOPMENT_SETUP.md)
 9. [Glossary](docs/GLOSSARY.md)
+10. [Project Format Version 1](docs/PROJECT_FORMAT_V1.md)
 
 Architecture decisions live in [`docs/adr/`](docs/adr/README.md). Temporary and narrowly scoped rule exceptions live in [`docs/waivers/`](docs/waivers/README.md).
 

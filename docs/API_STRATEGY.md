@@ -22,7 +22,10 @@ Internal Kotlin class names and package names are not compatibility promises to 
 
 ### 3. Project-file contract
 
-Versioned DTOs, codec rules, migration rules, limits, and golden fixtures define durable documents. Domain objects do not carry serialization annotations.
+Versioned DTOs, codec rules, migration rules, limits, and golden fixtures define durable documents.
+[Project Format Version 1](PROJECT_FORMAT_V1.md) is the single byte-contract authority for the first
+durable schema. Domain objects do not carry serialization annotations, and the application module
+does not depend on format bytes or codecs.
 
 ### 4. External automation contract
 

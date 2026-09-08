@@ -109,8 +109,10 @@ Make the core editor safe for real documents and complete the first internal MVP
 ### Exit criteria
 
 - every acceptance journey in `MVP_SCOPE.md` passes on the supported Android profile
-- save interruption never replaces the last valid document with a partial file
-- supported older fixtures migrate deterministically
+- save interruption never replaces an existing user document with a partial file, and private
+  recovery never reports success without verified AtomicFile read-back
+- every supported schema fixture decodes deterministically; when a later schema exists, every
+  supported older fixture migrates through the one accepted path
 - unsupported future/corrupt documents fail with typed user-visible outcomes
 - exported PNG matches the document pixels exactly
 - MVP limitations are documented in-app and in release notes

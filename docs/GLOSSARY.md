@@ -10,11 +10,15 @@ One concept has one canonical name. New synonyms in code are prohibited. Add or 
 | `DocumentId` | Validated 32-character lowercase hexadecimal identity of one Document | document key, UUID string |
 | `DocumentState` | Immutable saved and undoable truth of a Document | editor state, model data |
 | `WorkspaceState` | Immutable ephemeral editor/session state not saved in the Document | temporary document, UI model |
-| `EditorRuntime` | Application owner of the current CommandGateway, WorkspaceState, clean checkpoint, and derived dirty-state projection | view model, controller, session |
+| `EditorRuntime` | Application owner of the current CommandGateway, WorkspaceState, clean checkpoint, persistence coordination, and derived projections | view model, controller, session |
 | `NewDocumentRequest` | Validated canvas request created once from raw width and height text before allocation | width/height integers, form state |
 | `DocumentIdSource` | Core-owned port that supplies a validated identity without core random or process reads | UUID call in core, ID string |
 | `DocumentDirtyState` | Derived closed state comparing the current runtime-local history position with DocumentCleanCheckpoint | revision comparison, latched changed flag, UI Boolean |
-| `DocumentCleanCheckpoint` | Application-owned document identity and runtime-local HistoryPosition defining the current clean boundary | saved Revision, snapshot copy, UI dirty flag |
+| `DocumentCleanCheckpoint` | Application-owned exact document/history position defining the current verified clean boundary within one runtime generation; recovered unsaved state has no user-file checkpoint | saved Revision, snapshot copy, UI dirty flag |
+| `RuntimeGeneration` | Private application identity for one atomically installed set of editor owners, used with operation and history identity to reject stale persistence completion | Revision, process ID, serialized lineage |
+| `PersistenceOperation` | One application-owned capture/completion or load/install coordination sequence with a single active identity and typed busy/stale outcomes | adapter job, UI Boolean, DocumentCommand |
+| `Project Format v1` | The exact bounded `.nenepixel` byte contract in `PROJECT_FORMAT_V1.md` for DocumentId, Revision, CanvasSize, and straight-sRGB RGBA8 pixels | domain model serialization, recovery envelope, external API |
+| `RecoveryRecord` | The one app-private versioned AtomicFile envelope containing either a last-safe Candidate v1 payload or Retired marker with conditional generation identity | project file, autosave journal, timestamp winner |
 | `ViewportZoom` | Validated finite fit-relative viewport factor in the closed range 1.0 through 64.0 | raw scale Double, saved zoom |
 | `ViewportCenter` | Validated finite preferred center in continuous document-edge coordinates | screen pan, surface offset |
 | `ViewportState` | Workspace-owned fit-relative zoom and document-coordinate center | camera state, transform matrix |
@@ -63,7 +67,7 @@ One concept has one canonical name. New synonyms in code are prohibited. Add or 
 | `DomainValueResult` | Closed created/rejected result returned by invariant-bearing domain factories | nullable value, thrown validation error |
 | `HistoryEntry` | Undo/redo record derived from one committed ChangeSet | callback, snapshot stack item |
 | `BoundedLinearHistory` | Gateway-owned ordered HistoryEntry list with one between-entry cursor and oldest-first dual-budget eviction | undo stack plus redo stack, snapshot history |
-| `HistoryPosition` | Internal runtime-local identity restored with a history cursor and used by the clean checkpoint | Revision, audit sequence, persisted lineage |
+| `HistoryPosition` | Internal runtime-local identity restored with a history cursor and used by clean and persistence preconditions | Revision, audit sequence, persisted lineage |
 | `HistoryAvailability` | Closed none, undo-only, redo-only, or undo-and-redo projection derived from the history cursor | mutually exclusive stack flag, two UI-owned Booleans |
 | `Port` | Core-owned interface for a required outside capability | service interface, gateway when it is not command execution |
 | `Adapter` | Boundary implementation or translator connected to a Port | manager, integration helper |

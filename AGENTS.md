@@ -22,11 +22,12 @@ Before proposing or changing production code, read all of the following:
 7. `docs/DEVELOPMENT_WORKFLOW.md`
 8. `docs/DEVELOPMENT_SETUP.md`
 9. `docs/GLOSSARY.md`
-10. `docs/ROADMAP.md`
-11. `docs/MILESTONES.md`
-12. `docs/MVP_SCOPE.md`
-13. `docs/DEVELOPMENT_PLAN.md`
-14. `docs/API_STRATEGY.md`
+10. `docs/PROJECT_FORMAT_V1.md`
+11. `docs/ROADMAP.md`
+12. `docs/MILESTONES.md`
+13. `docs/MVP_SCOPE.md`
+14. `docs/DEVELOPMENT_PLAN.md`
+15. `docs/API_STRATEGY.md`
 
 Read the active GitHub Issue, relevant accepted ADRs, and active waivers after the documents above.
 

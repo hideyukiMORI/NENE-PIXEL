@@ -79,9 +79,46 @@ factory. Document identity is supplied as a validated `DocumentId` through the a
 `DocumentIdSource` port.
 
 `CMD-001` governs all mutations inside the active document runtime. Installing an entirely new
-runtime does not mutate the abandoned document and MUST NOT create cross-document history. A future
-saved-document replacement or import operation is a separate command/change-set decision and is not
-an alternate P2 new-document path.
+runtime does not mutate the abandoned document and MUST NOT create cross-document history. New
+document, validated project load, accepted recovery, and explicit discard use the one runtime-install
+boundary defined by ADR 0014; they are not document commands against the abandoned runtime.
+
+## Durable document boundary
+
+Application-owned persistence ports exchange one immutable `DocumentState` capture or one fully
+validated loaded candidate. The application module never depends on the project-format codec, and a
+persistence adapter never reads from or mutates a live runtime. Encoding, provider/file I/O, and
+decoding occur outside the runtime lock on an owned lifecycle worker.
+
+Every persistence operation carries an application-owned runtime generation and operation identity.
+A save additionally captures the exact internal `HistoryPosition`. A successful durable save
+completion may install that captured clean checkpoint only when its runtime and active operation
+still match. Later editing remains allowed during normal save: it leaves the current position dirty,
+and undoing to the saved position becomes clean. `Revision` alone never identifies a save completion.
+
+Runtime generation, operation identity, switch-busy state, save capture, and recovery ordering are
+private coordination bookkeeping inside the existing application owner. They are not a fourth state
+category, document/workspace truth, or an adapter/UI-owned copy. UI and adapters may only observe an
+immutable derived operation projection and emit typed requests.
+
+Load validates the complete bounded file before installation. Editing may continue during the long
+read/decode phase. Its source token captures `DocumentId`, runtime generation, active operation
+identity, and starting `HistoryPosition`; all must match immediately before switching. Undo or redo
+back to that exact position is the same source state and may proceed, while a different position or
+new branch requires a typed stale/reconfirmation outcome and fresh discard consent. Generation-only
+validation is prohibited. The short final destructive-switch phase rejects document commits and
+other switches as typed busy, cancels preview through `WorkspaceReducer`, durably retires the old
+recovery candidate, and atomically installs document, empty history, canonical workspace, and the
+new checkpoint. Failure to retire leaves the old runtime authoritative. Loaded documents start
+clean. Explicitly accepted recovery uses the same installation path but retains its valid recovery
+Candidate as the new runtime's last-safe lineage and starts dirty because no user-file save
+checkpoint exists.
+
+Explicit user-file save is Save As to a fresh Android document only. Saved is returned only after
+all encoded bytes are written and closed, then read back byte-for-byte and validated. Existing
+content URIs are never truncated or replaced. Autosave derives only from committed command results
+and writes the one bounded private recovery record selected by ADR 0014; it is not a second document
+owner or command path.
 
 ## Mandatory rules
 
