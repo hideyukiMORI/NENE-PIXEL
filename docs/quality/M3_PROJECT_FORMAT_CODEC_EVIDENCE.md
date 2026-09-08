@@ -96,6 +96,8 @@ identity was base Git revision `4eb519dc4504a5e453eb59c59484d13db6fe0168`, produ
 and wrapper SHA-256 values were respectively
 `bec7f4f7e8810bd27b27773052aa69508910457c614f506b155ab2e6c8c0ca2e` and
 `27cbaf26ecd48f37d482944cd5213b8f9dae92d90f66649c10fcb85c1520b4d0`.
+The production/test hashes are deterministic aggregates over the exact Windows collection-checkout
+file bytes and relative paths; they are source identities rather than Git object IDs.
 
 The separately recorded Gradle preparation wall time was 8,767 ms, and the complete Gradle
 invocation containing the timed Java process took 9,082 ms. These values include Gradle work and
@@ -111,7 +113,9 @@ external init script and ran `:core:project-format:issue85HostEvidence`.
 
 The exact metadata, 80 raw rows, and summaries are committed in
 [`measurements/m3-project-format-host-latency-v1.csv`](measurements/m3-project-format-host-latency-v1.csv).
-The file is 2,370 bytes with SHA-256
-`2e93572daeec8abb974870ceb02cfd9c7b3fb12e8997ca309caf5511772e212d`. These host-JVM minima and
-maxima are descriptive observations only. They establish no Android or product performance PASS
-and support no speedup claim.
+The collected CRLF raw output is 2,370 bytes with SHA-256
+`2e93572daeec8abb974870ceb02cfd9c7b3fb12e8997ca309caf5511772e212d`. Git's required LF
+normalization retains the same 91 lines and sample values in a 2,279-byte committed blob with
+SHA-256 `8c919065844af7cd9685532ee8e9ca692913e9b52c4626660ea2a542aab868c2`. These host-JVM minima
+and maxima are descriptive observations only. They establish no Android or product performance
+PASS and support no speedup claim.
