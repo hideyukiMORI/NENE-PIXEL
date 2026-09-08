@@ -46,7 +46,16 @@ The same fact MUST NOT be independently stored in more than one category. Derive
 
 ### ARC-005 — Controlled mutation enclave
 
-Externally visible domain and application state MUST be immutable. `PixelSnapshot` and `Stroke` MAY privately own defensive packed primitive storage that is never mutated after construction and is never exposed; any bulk read returns a copy. Mutable pixel buffers and algorithm workspaces MAY exist only inside `:core:pixel-engine` implementation classes.
+Externally visible domain and application state MUST be immutable. `PixelSnapshot` and `Stroke` MAY
+privately own defensive packed primitive storage that is never mutated after construction and is
+never exposed; any bulk read returns a copy. `:core:project-format` codecs and
+`:adapters:persistence` transports MAY use bounded, privately owned mutable byte buffers only for one
+project file or versioned recovery record at the declared codec/transport boundary. Untrusted bytes
+remain local to that boundary until typed validation succeeds. An encoded value owns immutable bytes
+after construction, caller-owned arrays are copied, and owned buffers never escape. These byte
+buffers are not document or pixel truth and MUST NOT become a pixel-operation work surface, shared
+state, unbounded input, or a general local-mutation exception. Mutable pixel buffers and pixel
+algorithm workspaces MAY exist only inside `:core:pixel-engine` implementation classes.
 
 The pixel engine MUST:
 

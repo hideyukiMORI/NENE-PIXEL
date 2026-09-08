@@ -60,10 +60,10 @@ Production-domain work starts only after P0-01 through P0-05 pass. P0-06 closes 
 
 | ID | Work package | Depends on | Required evidence |
 | --- | --- | --- | --- |
-| P3-01 | Accept project-format, storage, and recovery ADR | P2-08 | Schema/migration/atomic-save/recovery decisions |
-| P3-02 | Implement project-format v1 codec and fixtures | P3-01 | Deterministic golden/round-trip/version/corruption tests |
-| P3-03 | Implement Android save/load adapter | P3-02 | Document-boundary integration and failure normalization |
-| P3-04 | Implement safe autosave and recovery | P3-03 | Interruption and last-known-good recovery tests |
+| P3-01 | Accept project-format, storage, and recovery ADR | P2-08 | V1 byte authority, compatibility, Save As, runtime completion/install, and recovery decisions |
+| P3-02 | Implement project-format v1 codec and fixtures | P3-01 | Exact golden/round-trip/version/corruption/boundary tests and bounded host evidence |
+| P3-03 | Implement Android save/load adapter | P3-02 | Fresh-URI write/close/read-back, typed failure, checkpoint race, and atomic load evidence |
+| P3-04 | Implement safe autosave and recovery | P3-03 | Focused envelope/debounce decision, AtomicFile read-back, interruption, ordering, and last-safe evidence |
 | P3-05 | Implement exact PNG export | P2-08 | Golden pixel comparison and failure tests |
 | P3-06 | Complete durable MVP acceptance | P3-04, P3-05 | All `MVP_SCOPE.md` journeys and M3 exit evidence |
 

@@ -109,6 +109,13 @@ Pixel-engine algorithms must test relevant invariants:
 ### QLT-009 — Serialization tests are golden and migratory
 
 Each project-file schema version has committed minimal golden fixtures. Tests cover deterministic output, round-trip, previous-version migration, unsupported future versions, corruption, and size/resource limits.
+The v1 codec additionally proves its exact normative byte offsets, big-endian integers, row/channel
+order, CRC-32 conformance vector, checksum byte order, transparent hidden RGB, leading-zero
+identity, maximum revision, truncation/trailing-data boundaries, maximum-plus-one input rejection,
+and domain pixel-snapshot allocation only after structural and checksum validation. No fictional pre-v1 migration is
+created. Storage and recovery tests separately cover interrupted writes, read-back mismatch,
+typed adapter failure normalization, stale operation/generation completion, switch-busy behavior,
+and preservation of the last valid user file and private recovery record.
 
 ### QLT-010 — Performance claims are measured
 

@@ -16,7 +16,7 @@ The MVP proves the canonical architecture with a product that is small enough to
 4. Choose a palette color.
 5. Draw and erase pixel-precise strokes.
 6. Undo and redo complete gestures.
-7. Save the document through the Android document boundary.
+7. Save As the document to a fresh destination through the Android document boundary.
 8. Close/restart the app and load the same document without pixel changes.
 9. Export an exact PNG.
 10. Recover the last safe document after an interrupted autosave scenario.
@@ -35,7 +35,7 @@ The MVP proves the canonical architecture with a product that is small enough to
 - gesture-level undo and redo
 - dirty-state indication
 - versioned project-file format v1
-- explicit save/load and safe autosave recovery
+- explicit Save As/load and safe autosave recovery; in-place overwrite is outside the MVP
 - PNG export
 - typed, user-visible rejection/failure states
 - deterministic core tests and representative performance measurements
@@ -70,7 +70,8 @@ Excluded items require later milestone entry criteria; they are not hidden TODOs
 ADR 0005 accepts these conservative M2 drawing limits: canvas axes 1 through 256, canvas area at
 most 65,536 pixels, raw stroke paths at most 262,144 positions, patches at most 65,536 unique
 changes, history at most 64 entries, and at most 524,288 total retained changes. File-size limits
-remain for the project-format ADR.
+are fixed by [Project Format Version 1](PROJECT_FORMAT_V1.md): one valid uncompressed project file is
+46 through 262,186 bytes, and a decoder reads at most one byte beyond that maximum before rejection.
 
 Every limit must be:
 

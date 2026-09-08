@@ -25,7 +25,7 @@ The module graph is part of the architecture. A package convention alone is not 
     Mutable pixel surface, patches, raster algorithms, controlled mutation
 
 :core:project-format
-    Versioned project DTOs, codecs, migrations
+    Versioned project DTOs, bounded byte codecs, mappings, migrations
 
 :adapters:persistence
     Android/filesystem persistence implementations
@@ -135,8 +135,12 @@ Owns behavior coordination:
 - bounded linear history, dual-budget eviction, exact-position undo/redo, and clean-checkpoint coordination
 - query projections
 - ports for persistence, clocks, identifiers, and future external effects
+- immutable save capture, runtime/operation identity, checked completion, and the one loaded/recovered
+  runtime-install protocol
+- bounded persistence ordering: one active writer and at most one coalesced latest autosave capture
 
-It does not know Compose, Android, SQL, files, JSON libraries, or automation protocols.
+It does not know Compose, Android, SQL, files, project-format bytes/codecs, JSON libraries, storage
+URIs, or automation protocols.
 
 ### `:core:project-format`
 
@@ -146,8 +150,11 @@ Owns project-file compatibility:
 - deterministic codecs
 - schema migrations
 - corruption and compatibility errors
+- bounded private encoding/decoding byte storage permitted by `ARC-005`
 
-It maps to/from domain snapshots. Domain types do not carry serialization annotations.
+It maps to/from domain snapshots. Domain types do not carry serialization annotations. Encoded
+values defensively own bytes that are immutable after construction and expose no mutable storage.
+The module performs no I/O and is never a dependency of `:core:application` or presentation.
 
 ### `:presentation:compose`
 
@@ -168,7 +175,11 @@ persistence calls or document transition logic.
 
 ### `:adapters:persistence`
 
-Implements application ports for project storage and recovery. It may use Android/filesystem APIs and the project-format module. It never performs domain mutations outside the command gateway.
+Implements application ports for project storage and recovery. It may use Android/filesystem APIs
+and the project-format module, and may privately own bounded transport bytes under `ARC-005`. It
+maps only immutable save captures and fully validated loaded candidates, never obtains a live
+runtime, and never performs domain mutations. The Android adapter owns fresh-document Save As and
+read-back verification. App-private recovery uses one serialized framework `AtomicFile` record.
 
 ### `:app:android`
 
