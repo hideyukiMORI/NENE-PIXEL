@@ -155,6 +155,10 @@ Owns project-file compatibility:
 It maps to/from domain snapshots. Domain types do not carry serialization annotations. Encoded
 values defensively own bytes that are immutable after construction and expose no mutable storage.
 The module performs no I/O and is never a dependency of `:core:application` or presentation.
+ADR 0015 fixes its first public boundary to one `ProjectFormatBytes` carrier, one closed
+`ProjectFormatResult`, and `ProjectFormatV1Codec`. The carrier admits exactly one maximum-plus-one
+probe while the codec separately enforces the valid-file maximum. Pixel mapping reaches the existing
+domain snapshot factory only after complete structural and checksum validation.
 
 ### `:presentation:compose`
 

@@ -8,12 +8,24 @@ internal class ModuleArchitectureValidatorTest {
     fun `canonical graph and build tooling dependencies are accepted`() {
         val violations =
             validate(
-                modules = setOf(":", APP, QUALITY, BASELINE_PROFILE, DOMAIN, PIXEL, APPLICATION, PRESENTATION),
+                modules =
+                    setOf(
+                        ":",
+                        APP,
+                        QUALITY,
+                        BASELINE_PROFILE,
+                        DOMAIN,
+                        PIXEL,
+                        APPLICATION,
+                        PROJECT_FORMAT,
+                        PRESENTATION,
+                    ),
                 moduleDependencies =
                     listOf(
                         dependency(PIXEL, "implementation", DOMAIN),
                         dependency(APPLICATION, "implementation", DOMAIN),
                         dependency(APPLICATION, "implementation", PIXEL),
+                        dependency(PROJECT_FORMAT, "implementation", DOMAIN),
                         dependency(PRESENTATION, "implementation", APPLICATION),
                         dependency(APP, "implementation", PRESENTATION),
                         dependency(APP, "detektPlugins", QUALITY),
@@ -163,6 +175,7 @@ internal class ModuleArchitectureValidatorTest {
         const val DOMAIN = ":core:domain"
         const val PIXEL = ":core:pixel-engine"
         const val APPLICATION = ":core:application"
+        const val PROJECT_FORMAT = ":core:project-format"
         const val PRESENTATION = ":presentation:compose"
     }
 }
