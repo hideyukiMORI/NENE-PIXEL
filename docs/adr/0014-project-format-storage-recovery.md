@@ -233,7 +233,8 @@ Immutable captures and checked completion provide atomic owner changes without l
 - P3-02 must implement every golden, boundary, corruption, determinism, CRC-conformance, and bounded
   allocation test listed in the format authority.
 - P3-03 must test fresh-URI Save As, full close/read-back, cancellation, permission loss, null/crashed
-  provider results, I/O failure, mismatch, partial-output cleanup reporting, exact checkpoint
+  provider results, maximum-plus-one bounded stream input, I/O failure normalization, mismatch,
+  partial-output cleanup reporting, exact checkpoint
   completion, continued editing, stale runtime/operation completion, long-load editing followed by
   a different position or replacement branch, exact-position undo/redo return, stale load
   reconfirmation, busy commit rejection, preview cancellation, and atomic loaded installation.

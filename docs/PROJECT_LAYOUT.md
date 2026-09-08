@@ -179,7 +179,9 @@ Implements application ports for project storage and recovery. It may use Androi
 and the project-format module, and may privately own bounded transport bytes under `ARC-005`. It
 maps only immutable save captures and fully validated loaded candidates, never obtains a live
 runtime, and never performs domain mutations. The Android adapter owns fresh-document Save As and
-read-back verification. App-private recovery uses one serialized framework `AtomicFile` record.
+read-back verification. It also owns maximum-plus-one bounded stream reads and typed I/O failure
+normalization before invoking the no-I/O codec. App-private recovery uses one serialized framework
+`AtomicFile` record.
 
 ### `:app:android`
 

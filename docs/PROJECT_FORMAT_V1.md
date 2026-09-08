@@ -64,11 +64,14 @@ The encoder converts `DocumentId` pairs without numeric widening, preserves the 
 not premultiply alpha, discard RGB under zero alpha, reorder channels, change revision, or invent
 layer/frame containers.
 
-## Bounded decoding and validation order
+## Bounded transport, decoding, and validation order
 
-An input stream is read with a hard bound of 262,187 bytes: one byte beyond the maximum valid file
-is enough to return the typed resource-limit result. A known larger length is rejected before a
-read. A decoder must not use an unbounded read-all operation.
+The persistence transport reads an input stream with a hard bound of 262,187 bytes: one byte beyond
+the maximum valid file is enough to return its typed resource-limit result. A known larger length is
+rejected before a read, and no unbounded read-all operation is permitted. It passes one bounded,
+privately owned byte value to the project-format codec and normalizes I/O failures itself. The codec
+has no file, stream, provider, Android, or JDK I/O API and rejects any supplied byte value above the
+262,186-byte format maximum.
 
 Before allocating the domain pixel snapshot, decoding validates in this order:
 
@@ -83,8 +86,9 @@ Before allocating the domain pixel snapshot, decoding validates in this order:
 
 Only then may the decoder construct exact `PixelColor` values and one `PixelSnapshot` through the
 canonical domain boundary. Bad magic, unsupported version, invalid canvas, invalid revision,
-resource excess, truncation, trailing data, checksum mismatch, and lower-level read failure remain
-distinct typed outcomes. Exceptions and `null` do not encode these expected results.
+resource excess, truncation, trailing data, and checksum mismatch remain distinct typed codec
+outcomes. The persistence adapter separately normalizes lower-level read failure. Exceptions and
+`null` do not encode these expected results.
 
 Schema `0` and every value other than `1` are unsupported. There is no historical v0 format and no
 synthetic v0 migration. When a later schema is accepted, a separate ADR must define one
