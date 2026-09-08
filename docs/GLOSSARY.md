@@ -18,6 +18,10 @@ One concept has one canonical name. New synonyms in code are prohibited. Add or 
 | `RuntimeGeneration` | Private application identity for one atomically installed set of editor owners, used with operation and history identity to reject stale persistence completion | Revision, process ID, serialized lineage |
 | `PersistenceOperation` | One application-owned capture/completion or load/install coordination sequence with a single active identity and typed busy/stale outcomes | adapter job, UI Boolean, DocumentCommand |
 | `Project Format v1` | The exact bounded `.nenepixel` byte contract in `PROJECT_FORMAT_V1.md` for DocumentId, Revision, CanvasSize, and straight-sRGB RGBA8 pixels | domain model serialization, recovery envelope, external API |
+| `ProjectFormatBytes` | Defensively owned bounded bytes carrying one v1 file or its maximum-plus-one validation probe | ByteArray API, stream, mutable buffer, validated document |
+| `ProjectFormatVersion` | Meaning-bearing unsigned 16-bit project-format wire version used in typed diagnostics | schema Int, app version |
+| `ProjectFormatResult` | Closed accepted/rejected result shared by bounded-byte construction and v1 decoding | nullable result, exception, Boolean success |
+| `ProjectFormatRejection` | Closed reachable reason that project-format bytes or v1 decoding are rejected | I/O failure, generic parse error, error string |
 | `RecoveryRecord` | The one app-private versioned AtomicFile envelope containing either a last-safe Candidate v1 payload or Retired marker with conditional generation identity | project file, autosave journal, timestamp winner |
 | `ViewportZoom` | Validated finite fit-relative viewport factor in the closed range 1.0 through 64.0 | raw scale Double, saved zoom |
 | `ViewportCenter` | Validated finite preferred center in continuous document-edge coordinates | screen pan, surface offset |

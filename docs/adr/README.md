@@ -53,3 +53,4 @@ An ADR must include:
 | [0012](0012-bounded-static-controls-color-tolerance.md) | accepted | Issue-#54-only one-step RGB tolerance for canonical static operation controls before the offscreen performance decision |
 | [0013](0013-optimized-shipping-release.md) | accepted | One role-aware AGP optimization policy and an immutable accepted-profile consumer comparison |
 | [0014](0014-project-format-storage-recovery.md) | accepted | Project-format v1, fresh-document Save As, checked runtime persistence, and one bounded recovery record |
+| [0015](0015-project-format-v1-codec-contract.md) | accepted | One bounded project-format byte carrier, closed v1 codec result, and allocation-after-validation mapping |

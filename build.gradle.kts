@@ -47,6 +47,7 @@ tasks.named("check") {
     dependsOn(":core:application:check")
     dependsOn(":core:domain:check")
     dependsOn(":core:pixel-engine:check")
+    dependsOn(":core:project-format:check")
     dependsOn(":quality:architecture-rules:check")
     dependsOn(":quality:baseline-profile:check")
 }
