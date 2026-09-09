@@ -5,6 +5,8 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 
 public sealed interface WorkspaceActionRejection {
+    public data object PersistenceBusy : WorkspaceActionRejection
+
     public data object PreviewAlreadyActive : WorkspaceActionRejection
 
     public data object NoActivePreview : WorkspaceActionRejection

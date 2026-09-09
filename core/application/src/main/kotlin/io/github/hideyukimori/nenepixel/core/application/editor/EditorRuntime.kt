@@ -1,18 +1,21 @@
 package io.github.hideyukimori.nenepixel.core.application.editor
 
-import io.github.hideyukimori.nenepixel.core.application.document.command.CommandGateway
+import io.github.hideyukimori.nenepixel.core.application.document.command.CommandFailure
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandResult
 import io.github.hideyukimori.nenepixel.core.application.document.command.DocumentCommand
+import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryPosition
+import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationProjection
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceAction
+import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceActionRejection
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReducer
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReductionResult
-import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceState
-import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
+import io.github.hideyukimori.nenepixel.core.domain.document.DocumentId
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
-import io.github.hideyukimori.nenepixel.core.domain.document.Revision
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
-import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 public class EditorRuntime private constructor(
     private val documentIdSource: DocumentIdSource,
@@ -22,48 +25,96 @@ public class EditorRuntime private constructor(
 ) {
     private val runtimeLock: Any = Any()
     private var owners: RuntimeOwners = initialOwners
+    private var coordination: PersistenceCoordination = PersistenceCoordination.initial()
+    private val mutablePersistenceOperation: MutableStateFlow<PersistenceOperationProjection> =
+        MutableStateFlow(PersistenceProjectionMapper.project(coordination))
+
+    internal val saveOperations: RuntimeSaveOperations = RuntimeSaveOperations(this)
+    internal val switchOperations: RuntimeSwitchOperations = RuntimeSwitchOperations(this)
 
     public val state: EditorRuntimeState
         get() = synchronized(runtimeLock) { owners.toState() }
 
+    internal val persistenceOperation: StateFlow<PersistenceOperationProjection> =
+        mutablePersistenceOperation.asStateFlow()
+
     public fun execute(command: DocumentCommand): CommandResult =
         synchronized(runtimeLock) {
-            owners.commandGateway.execute(command)
+            if (coordination.activeOperation.isSwitching()) {
+                CommandResult.Failed(CommandFailure.PersistenceBusy)
+            } else {
+                owners.commandGateway.execute(command)
+            }
         }
 
     public fun reduce(action: WorkspaceAction): WorkspaceReductionResult =
         synchronized(runtimeLock) {
-            val result = workspaceReducer.reduce(owners.workspaceState, action)
-            owners = owners.copy(workspaceState = result.nextState)
-            result
-        }
-
-    public fun createNewDocument(requestResult: NewDocumentRequestResult): NewDocumentResult =
-        synchronized(runtimeLock) {
-            when (requestResult) {
-                is NewDocumentRequestResult.Created -> {
-                    owners =
-                        createRuntimeOwners(
-                            requestResult.request.canvas,
-                            documentIdSource,
-                        )
-                    NewDocumentResult.Created(owners.toState())
-                }
-
-                is NewDocumentRequestResult.Rejected -> {
-                    NewDocumentResult.Rejected(requestResult.rejection, owners.toState())
-                }
+            if (coordination.activeOperation.isSwitching()) {
+                WorkspaceReductionResult.Rejected(
+                    owners.workspaceState,
+                    WorkspaceActionRejection.PersistenceBusy,
+                )
+            } else {
+                reduceWorkspaceLocked(action)
             }
         }
 
-    private fun RuntimeOwners.toState(): EditorRuntimeState {
-        val commandState = commandGateway.runtimeState
-        return EditorRuntimeState(
-            documentState = commandState.documentState,
-            historyAvailability = commandState.historyAvailability,
-            workspaceState = workspaceState,
-            dirtyState = cleanCheckpoint.deriveDirtyState(commandState),
-        )
+    internal fun <R> transact(block: (RuntimeTransaction) -> PersistenceTransition<R>): R =
+        synchronized(runtimeLock) {
+            val transition = block(RuntimeTransaction())
+            coordination = transition.next
+            applyEffectLocked(transition.effect)
+            mutablePersistenceOperation.value = PersistenceProjectionMapper.project(coordination)
+            transition.result
+        }
+
+    private fun reduceWorkspaceLocked(action: WorkspaceAction): WorkspaceReductionResult {
+        val result = workspaceReducer.reduce(owners.workspaceState, action)
+        owners = owners.copy(workspaceState = result.nextState)
+        return result
+    }
+
+    private fun applyEffectLocked(effect: RuntimeOwnerEffect) {
+        when (effect) {
+            RuntimeOwnerEffect.None -> { }
+
+            RuntimeOwnerEffect.CancelPreview -> {
+                cancelPreviewLocked()
+            }
+
+            is RuntimeOwnerEffect.InstallCleanCheckpoint -> {
+                owners = owners.copy(cleanCheckpoint = effect.checkpoint)
+            }
+
+            is RuntimeOwnerEffect.ReplaceOwners -> {
+                owners = effect.owners
+            }
+        }
+    }
+
+    private fun cancelPreviewLocked() {
+        if (owners.workspaceState.preview != null) {
+            reduceWorkspaceLocked(WorkspaceAction.CancelGesturePreview)
+        }
+    }
+
+    internal inner class RuntimeTransaction {
+        val coordination: PersistenceCoordination
+            get() = this@EditorRuntime.coordination
+
+        fun documentState(): DocumentState = owners.commandGateway.runtimeState.documentState
+
+        fun historyPosition(): HistoryPosition = owners.commandGateway.runtimeState.historyPosition
+
+        fun documentId(): DocumentId = owners.documentId()
+
+        fun switchContext(): SwitchContext =
+            SwitchContext(
+                source = owners.sourceToken(coordination.runtimeGeneration),
+                dirty = owners.isDirty(),
+                newDocumentOwners = { request -> RuntimeOwners.create(request.canvas, documentIdSource) },
+                loadedOwners = { document -> RuntimeOwners.create(document) },
+            )
     }
 
     public companion object {
@@ -76,28 +127,7 @@ public class EditorRuntime private constructor(
                 documentIdSource,
                 palette,
                 WorkspaceReducer.create(palette),
-                createRuntimeOwners(initialCanvas, documentIdSource),
+                RuntimeOwners.create(initialCanvas, documentIdSource),
             )
     }
-}
-
-private data class RuntimeOwners(
-    val commandGateway: CommandGateway,
-    val workspaceState: WorkspaceState,
-    val cleanCheckpoint: DocumentCleanCheckpoint,
-)
-
-private fun createRuntimeOwners(
-    canvas: CanvasSize,
-    documentIdSource: DocumentIdSource,
-): RuntimeOwners {
-    val documentId = documentIdSource.nextDocumentId()
-    val snapshot = PixelSnapshot.createFilled(canvas, Revision.initial(), PixelColor.blank)
-    val document = DocumentState.create(documentId, snapshot)
-    val commandGateway = CommandGateway.create(document)
-    return RuntimeOwners(
-        commandGateway,
-        WorkspaceState.create(canvas),
-        DocumentCleanCheckpoint.create(commandGateway.runtimeState),
-    )
 }

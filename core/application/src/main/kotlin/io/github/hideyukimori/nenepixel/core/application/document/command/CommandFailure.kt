@@ -1,3 +1,5 @@
 package io.github.hideyukimori.nenepixel.core.application.document.command
 
-public sealed interface CommandFailure
+public sealed interface CommandFailure {
+    public data object PersistenceBusy : CommandFailure
+}
