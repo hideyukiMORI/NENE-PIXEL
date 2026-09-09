@@ -274,16 +274,23 @@ dependency, force, or exclusion; it keeps the adapter's resolved transitive grap
 versions already selected by the app.
 
 The same standalone `activity` 1.13.0 path reaches `androidx.core:core` 1.18.0 and requests
-`androidx.collection:collection` 1.4.2, which is lower than the 1.5.0 the app runtime graph already
-selects. One `androidx-collection` 1.5.0 catalog version is therefore the explicit authority, applied
-as a third alignment-only constraint in the same block. It adds no direct collection dependency,
-alternate version source, force, or exclusion, and it neither grows the resolved artifact set nor the
-verified artifact set, because collection 1.5.0 is already resolved by the app and already recorded in
-the SHA-256 verification metadata. The same authority applies to `androidx.savedstate:savedstate`,
-which `lifecycle-viewmodel-savedstate` 2.9.4 requests at 1.3.1 while the app already selects 1.3.2:
-one `androidx-savedstate` 1.3.2 catalog version is the explicit authority, applied as a fourth
-alignment-only constraint in the same block, adding no direct savedstate dependency, alternate version
-source, force, or exclusion, and growing neither the resolved nor the verified artifact set.
+`androidx.collection:collection` 1.4.2, so the adapter's own resolved graph selects collection 1.4.2.
+That is left alone. The app graph already selects 1.5.0 through ordinary conflict resolution, so the
+shipped artifact set is unchanged whether or not the adapter constrains collection, and the app
+lockfile is identical either way. No `androidx-collection` catalog version or alignment-only
+constraint is declared, because a catalog entry pinning a version that is not the newest published one
+is incompatible with the `GradleDependency` lint check that the merge gate runs, and raising the
+shipped collection version would be a dependency update rather than this work package's feature work.
+The adapter's unit-test and instrumentation classpaths therefore resolve `collection-jvm` 1.4.2, whose
+official Google Maven jar and Gradle module descriptor are recorded in the SHA-256 verification
+metadata; no trust rule, ignored key, or metadata-verification relaxation is used.
+
+The standalone path's `androidx.savedstate:savedstate` request is different, because
+`lifecycle-viewmodel-savedstate` 2.9.4 requests 1.3.1 while the app already selects 1.3.2, which is the
+newest published version. One `androidx-savedstate` 1.3.2 catalog version is therefore the explicit
+authority, applied as a third alignment-only constraint in the same block, adding no direct savedstate
+dependency, alternate version source, force, or exclusion, and growing neither the resolved nor the
+verified artifact set.
 
 Only the current create result becomes a fresh destination; no URI association is retained and no
 API accepts a prior destination for overwrite. The adapter writes and closes every byte, then reopens

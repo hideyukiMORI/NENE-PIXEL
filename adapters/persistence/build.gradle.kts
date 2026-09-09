@@ -20,7 +20,6 @@ dependencies {
     implementation(libs.kotlinx.coroutines.core)
     implementation(platform(libs.androidx.compose.bom))
     constraints {
-        implementation(libs.androidx.collection)
         implementation(libs.androidx.lifecycle.viewmodel)
         implementation(libs.androidx.lifecycle.viewmodel.savedstate)
         implementation(libs.androidx.savedstate)
