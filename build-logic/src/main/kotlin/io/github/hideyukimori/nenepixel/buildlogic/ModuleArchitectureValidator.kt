@@ -160,7 +160,7 @@ internal class ModuleArchitectureValidator(
                 DOMAIN_MODULE to emptySet(),
                 ":core:pixel-engine" to setOf(":core:domain"),
                 ":core:project-format" to setOf(":core:domain"),
-                ":adapters:persistence" to setOf(":core:application", ":core:project-format"),
+                ":adapters:persistence" to setOf(":core:application", ":core:domain", ":core:project-format"),
                 ":adapters:automation" to setOf(":core:application"),
                 ":quality" to emptySet(),
                 ARCHITECTURE_RULES_MODULE to emptySet(),
