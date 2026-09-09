@@ -4,20 +4,25 @@ import io.github.hideyukimori.nenepixel.core.application.editor.EditorRuntime
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceAction
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceState
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportGesture
-import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportMappingResult
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportSurface
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportSurfacePoint
-import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportTransform
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportValueResult
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
-import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 public class EditorController private constructor(
-    private val runtime: EditorRuntime,
+    internal val runtime: EditorRuntime,
     private val adapter: EditorRuntimeAdapter,
 ) {
+    private val mapping: ViewportGestureMapping = ViewportGestureMapping(runtime, adapter)
+    private val mutableRenderState: MutableStateFlow<EditorRenderState> = MutableStateFlow(adapter.renderState)
+
     public val renderState: EditorRenderState
-        get() = adapter.renderState
+        get() = mutableRenderState.value
+
+    public val renderStates: StateFlow<EditorRenderState> = mutableRenderState.asStateFlow()
 
     public val callbacks: EditorCallbacks =
         EditorCallbacks(
@@ -27,14 +32,17 @@ public class EditorController private constructor(
             pointerCancel = ::pointerCancel,
             viewportStarted = ::viewportStarted,
             viewportTransformed = ::viewportTransformed,
-            undo = adapter::undo,
-            redo = adapter::redo,
-            selectTool = { tool -> adapter.reduce(WorkspaceAction.SelectTool(tool)).renderState },
+            undo = { publish(adapter.undo()) },
+            redo = { publish(adapter.redo()) },
+            selectTool = { tool -> publish(adapter.reduce(WorkspaceAction.SelectTool(tool)).renderState) },
             selectPaletteEntry = { index ->
-                adapter.reduce(WorkspaceAction.SelectPaletteEntry(index)).renderState
+                publish(adapter.reduce(WorkspaceAction.SelectPaletteEntry(index)).renderState)
             },
-            createNewDocument = adapter::createNewDocument,
         )
+
+    public fun synchronizeWithRuntime() {
+        publish(adapter.renderState)
+    }
 
     internal val documentState: DocumentState
         get() = runtime.state.documentState
@@ -46,104 +54,66 @@ public class EditorController private constructor(
         surface: ViewportSurface,
         point: ViewportSurfacePoint,
     ): PointerInputAcknowledgement =
-        withMappedPoint(surface, point, outsideIsCancellation = false) { position ->
-            adapter.reduce(
-                WorkspaceAction.BeginGesturePreview(runtime.state.documentState.size, position),
-            )
-        }
+        acknowledge(
+            mapping.withMappedPoint(surface, point, adapter::ignored) { position ->
+                adapter.reduce(
+                    WorkspaceAction.BeginGesturePreview(runtime.state.documentState.size, position),
+                )
+            },
+        )
 
     internal fun pointerMove(
         surface: ViewportSurface,
         point: ViewportSurfacePoint,
     ): PointerInputAcknowledgement =
-        withMappedPoint(surface, point, outsideIsCancellation = true) { position ->
-            adapter.reduce(WorkspaceAction.ExtendGesturePreview(position))
-        }
+        acknowledge(
+            mapping.withMappedPoint(surface, point, ::pointerCancel) { position ->
+                adapter.reduce(WorkspaceAction.ExtendGesturePreview(position))
+            },
+        )
 
     internal fun pointerEnd(
         surface: ViewportSurface,
         point: ViewportSurfacePoint,
     ): PointerInputAcknowledgement =
-        withMappedPoint(surface, point, outsideIsCancellation = true, action = adapter::finishGesture)
+        acknowledge(mapping.withMappedPoint(surface, point, ::pointerCancel, adapter::finishGesture))
 
     internal fun pointerCancel(): PointerInputAcknowledgement =
-        if (runtime.state.workspaceState.preview == null) {
-            adapter.ignored()
-        } else {
-            adapter.reduce(WorkspaceAction.CancelGesturePreview)
-        }
+        acknowledge(
+            if (runtime.state.workspaceState.preview == null) {
+                adapter.ignored()
+            } else {
+                adapter.reduce(WorkspaceAction.CancelGesturePreview)
+            },
+        )
 
     internal fun viewportStarted(surface: ViewportSurface): PointerInputAcknowledgement =
-        when (val transform = createTransform(surface)) {
-            is ViewportValueResult.Created -> adapter.reduce(WorkspaceAction.SetViewport(transform.value.viewport))
-            is ViewportValueResult.Rejected -> adapter.rejected()
-        }
+        acknowledge(
+            when (val transform = mapping.createTransform(surface)) {
+                is ViewportValueResult.Created -> adapter.reduce(WorkspaceAction.SetViewport(transform.value.viewport))
+                is ViewportValueResult.Rejected -> adapter.rejected()
+            },
+        )
 
     internal fun viewportTransformed(
         surface: ViewportSurface,
         gesture: ViewportGesture,
     ): PointerInputAcknowledgement =
-        when (val transform = createTransform(surface)) {
-            is ViewportValueResult.Created -> applyViewportGesture(transform.value, gesture)
-            is ViewportValueResult.Rejected -> adapter.rejected()
-        }
+        acknowledge(
+            when (val transform = mapping.createTransform(surface)) {
+                is ViewportValueResult.Created -> mapping.applyGesture(transform.value, gesture)
+                is ViewportValueResult.Rejected -> adapter.rejected()
+            },
+        )
 
-    private fun applyViewportGesture(
-        transform: ViewportTransform,
-        gesture: ViewportGesture,
-    ): PointerInputAcknowledgement =
-        when (val nextViewport = transform.apply(gesture)) {
-            is ViewportValueResult.Created -> adapter.reduce(WorkspaceAction.SetViewport(nextViewport.value))
-            is ViewportValueResult.Rejected -> adapter.rejected()
-        }
-
-    private fun withMappedPoint(
-        surface: ViewportSurface,
-        point: ViewportSurfacePoint,
-        outsideIsCancellation: Boolean,
-        action: (PixelPosition) -> PointerInputAcknowledgement,
-    ): PointerInputAcknowledgement =
-        when (val transform = createTransform(surface)) {
-            is ViewportValueResult.Created -> {
-                mapWithNormalizedViewport(transform.value, point, outsideIsCancellation, action)
-            }
-
-            is ViewportValueResult.Rejected -> {
-                adapter.rejected()
-            }
-        }
-
-    private fun mapWithNormalizedViewport(
-        transform: ViewportTransform,
-        point: ViewportSurfacePoint,
-        outsideIsCancellation: Boolean,
-        action: (PixelPosition) -> PointerInputAcknowledgement,
-    ): PointerInputAcknowledgement {
-        if (transform.viewport != runtime.state.workspaceState.viewport) {
-            val normalization = adapter.reduce(WorkspaceAction.SetViewport(transform.viewport))
-            if (
-                normalization is PointerInputAcknowledgement.Cancelled ||
-                normalization is PointerInputAcknowledgement.Rejected
-            ) {
-                return normalization
-            }
-        }
-        return when (val mapping = transform.toPixelPosition(point)) {
-            is ViewportMappingResult.Mapped -> action(mapping.value)
-
-            ViewportMappingResult.OutsideCanvas,
-            ViewportMappingResult.OutsideSurface,
-            -> if (outsideIsCancellation) pointerCancel() else adapter.ignored()
-        }
+    private fun acknowledge(acknowledgement: PointerInputAcknowledgement): PointerInputAcknowledgement {
+        publish(acknowledgement.renderState)
+        return acknowledgement
     }
 
-    private fun createTransform(surface: ViewportSurface): ViewportValueResult<ViewportTransform> {
-        val state = runtime.state
-        return ViewportTransform.create(
-            canvas = state.documentState.size,
-            surface = surface,
-            viewport = state.workspaceState.viewport,
-        )
+    private fun publish(state: EditorRenderState): EditorRenderState {
+        mutableRenderState.value = state
+        return state
     }
 
     public companion object {

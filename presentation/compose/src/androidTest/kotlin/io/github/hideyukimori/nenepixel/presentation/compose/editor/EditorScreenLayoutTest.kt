@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -27,7 +28,13 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import kotlin.math.abs
 
+/**
+ * Landscape 600x400dp leaves the canvas only about 22dp of height, so it is height constrained and
+ * renders at a few dozen device pixels. The document ratio is therefore asserted in whole device
+ * pixels rather than in dp, because one pixel of rounding is over one percent of such a small canvas.
+ */
 internal class EditorScreenLayoutTest {
     @get:Rule
     val composeRule = createComposeRule()
@@ -39,15 +46,16 @@ internal class EditorScreenLayoutTest {
         val root = composeRule.onNodeWithTag(ROOT_TAG).getUnclippedBoundsInRoot()
         val canvas = canvasBounds()
         val controlBounds = controlBounds()
+        val diagnostics = layoutDiagnostics(root, canvas, controlBounds)
 
-        assertNonEmpty(canvas)
-        assertContained(root, canvas, "canvas")
-        controlBounds.forEach { (name, bounds) -> assertContained(root, bounds, name) }
+        assertNonEmpty(canvas, diagnostics)
+        assertContained(root, canvas, "canvas", diagnostics)
+        controlBounds.forEach { (name, bounds) -> assertContained(root, bounds, name, diagnostics) }
         assertTrue(
-            "canvas must start below every editor control: canvas=$canvas controls=$controlBounds",
+            "canvas must start below every editor control: $diagnostics",
             controlBounds.all { (_, bounds) -> canvas.top >= bounds.bottom },
         )
-        assertAspectRatio(canvas)
+        assertAspectRatio(canvas, diagnostics)
     }
 
     @Test
@@ -58,16 +66,18 @@ internal class EditorScreenLayoutTest {
         val canvas = canvasBounds()
         val controlBounds = controlBounds()
 
-        assertNonEmpty(canvas)
-        assertContained(root, canvas, "canvas")
-        controlBounds.forEach { (name, bounds) -> assertContained(root, bounds, name) }
+        val diagnostics = layoutDiagnostics(root, canvas, controlBounds)
+
+        assertNonEmpty(canvas, diagnostics)
+        assertContained(root, canvas, "canvas", diagnostics)
+        controlBounds.forEach { (name, bounds) -> assertContained(root, bounds, name, diagnostics) }
         assertTrue(
-            "canvas must start below every editor control: canvas=$canvas controls=$controlBounds",
+            "canvas must start below every editor control: $diagnostics",
             controlBounds.all { (_, bounds) -> canvas.top >= bounds.bottom },
         )
-        assertEquals(PORTRAIT_CANVAS_WIDTH.value, canvas.widthValue(), DP_TOLERANCE)
-        assertEquals(PORTRAIT_CANVAS_HEIGHT.value, canvas.heightValue(), DP_TOLERANCE)
-        assertAspectRatio(canvas)
+        assertEquals(diagnostics, PORTRAIT_CANVAS_WIDTH.value, canvas.widthValue(), DP_TOLERANCE)
+        assertEquals(diagnostics, PORTRAIT_CANVAS_HEIGHT.value, canvas.heightValue(), DP_TOLERANCE)
+        assertAspectRatio(canvas, diagnostics)
     }
 
     private fun setEditorContent(
@@ -77,18 +87,14 @@ internal class EditorScreenLayoutTest {
         val controller = controller()
         composeRule.setContent {
             Box(modifier = Modifier.requiredSize(width, height).testTag(ROOT_TAG)) {
-                NenePixelEditor(
-                    initialState = controller.renderState,
-                    callbacks = controller.callbacks,
-                    modifier = Modifier.requiredSize(width, height),
-                )
+                TestNenePixelEditor(controller, Modifier.requiredSize(width, height))
             }
         }
     }
 
     private fun canvasBounds(): DpRect =
         composeRule
-            .onNodeWithContentDescription("3 by 2 pixel canvas")
+            .onNodeWithContentDescription(CANVAS_DESCRIPTION)
             .assertIsDisplayed()
             .getUnclippedBoundsInRoot()
 
@@ -131,27 +137,59 @@ internal class EditorScreenLayoutTest {
                     .getUnclippedBoundsInRoot(),
         )
 
+    private fun layoutDiagnostics(
+        root: DpRect,
+        canvas: DpRect,
+        controls: List<Pair<String, DpRect>>,
+    ): String {
+        val clipped =
+            composeRule
+                .onNodeWithContentDescription(CANVAS_DESCRIPTION)
+                .getBoundsInRoot()
+        val lines =
+            listOf(
+                "$LAYOUT_MARKER root=${root.describe()}",
+                "$LAYOUT_MARKER canvasUnclipped=${canvas.describe()}",
+                "$LAYOUT_MARKER canvasClipped=${clipped.describe()}",
+            ) + controls.map { (name, bounds) -> "$LAYOUT_MARKER control[$name]=${bounds.describe()}" }
+        return lines.joinToString(separator = System.lineSeparator())
+    }
+
+    private fun DpRect.describe(): String =
+        "left=${left.value} top=${top.value} right=${right.value} bottom=${bottom.value} " +
+            "w=${widthValue()} h=${heightValue()} ratio=${widthValue() / heightValue()}"
+
     private fun assertContained(
         outer: DpRect,
         inner: DpRect,
         name: String,
+        diagnostics: String,
     ) {
-        assertTrue("$name left edge is outside root: root=$outer bounds=$inner", inner.left >= outer.left)
-        assertTrue("$name top edge is outside root: root=$outer bounds=$inner", inner.top >= outer.top)
-        assertTrue("$name right edge is outside root: root=$outer bounds=$inner", inner.right <= outer.right)
-        assertTrue("$name bottom edge is outside root: root=$outer bounds=$inner", inner.bottom <= outer.bottom)
+        assertTrue("$name left edge is outside root: $diagnostics", inner.left >= outer.left)
+        assertTrue("$name top edge is outside root: $diagnostics", inner.top >= outer.top)
+        assertTrue("$name right edge is outside root: $diagnostics", inner.right <= outer.right)
+        assertTrue("$name bottom edge is outside root: $diagnostics", inner.bottom <= outer.bottom)
     }
 
-    private fun assertNonEmpty(bounds: DpRect) {
-        assertTrue("canvas width must be positive: $bounds", bounds.widthValue() > 0f)
-        assertTrue("canvas height must be positive: $bounds", bounds.heightValue() > 0f)
+    private fun assertNonEmpty(
+        bounds: DpRect,
+        diagnostics: String,
+    ) {
+        assertTrue("canvas width must be positive: $diagnostics", bounds.widthValue() > 0f)
+        assertTrue("canvas height must be positive: $diagnostics", bounds.heightValue() > 0f)
     }
 
-    private fun assertAspectRatio(bounds: DpRect) {
-        assertEquals(
-            DOCUMENT_ASPECT_RATIO,
-            bounds.widthValue() / bounds.heightValue(),
-            ASPECT_RATIO_TOLERANCE,
+    private fun assertAspectRatio(
+        bounds: DpRect,
+        diagnostics: String,
+    ) {
+        val widthPx = with(composeRule.density) { (bounds.right - bounds.left).toPx() }
+        val heightPx = with(composeRule.density) { (bounds.bottom - bounds.top).toPx() }
+        val expectedWidthPx = heightPx * DOCUMENT_ASPECT_RATIO
+        assertTrue(
+            "canvas must keep the document ratio within one device pixel: " +
+                "widthPx=$widthPx heightPx=$heightPx expectedWidthPx=$expectedWidthPx $diagnostics",
+            abs(widthPx - expectedWidthPx) <= PIXEL_TOLERANCE,
         )
     }
 
@@ -192,9 +230,11 @@ internal class EditorScreenLayoutTest {
         const val DOCUMENT_HEIGHT: Int = 2
         const val CHANNEL_MIN: Int = 0
         const val CHANNEL_MAX: Int = 255
+        const val CANVAS_DESCRIPTION: String = "3 by 2 pixel canvas"
+        const val LAYOUT_MARKER: String = "NENE_LAYOUT"
         const val DOCUMENT_ASPECT_RATIO: Float = 1.5f
         const val DP_TOLERANCE: Float = 1f
-        const val ASPECT_RATIO_TOLERANCE: Float = 0.01f
+        const val PIXEL_TOLERANCE: Float = 1.0f
         const val FIRST_PALETTE_DESCRIPTION: String = "Palette color 1, RGBA 255, 0, 0, 255"
         val LANDSCAPE_WIDTH: Dp = 600.dp
         val LANDSCAPE_HEIGHT: Dp = 400.dp

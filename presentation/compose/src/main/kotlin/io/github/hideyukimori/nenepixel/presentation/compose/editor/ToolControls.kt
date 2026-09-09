@@ -17,17 +17,16 @@ import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
 internal fun ToolControls(
     activeTool: DrawingTool,
     callbacks: EditorCallbacks,
-    onRenderStateChanged: (EditorRenderState) -> Unit,
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(TOOL_SPACING)) {
         ToolButton(
             "Pencil",
             activeTool == DrawingTool.Pencil,
-        ) { onRenderStateChanged(callbacks.onSelectTool(DrawingTool.Pencil)) }
+        ) { callbacks.onSelectTool(DrawingTool.Pencil) }
         ToolButton(
             "Eraser",
             activeTool == DrawingTool.Eraser,
-        ) { onRenderStateChanged(callbacks.onSelectTool(DrawingTool.Eraser)) }
+        ) { callbacks.onSelectTool(DrawingTool.Eraser) }
     }
 }
 

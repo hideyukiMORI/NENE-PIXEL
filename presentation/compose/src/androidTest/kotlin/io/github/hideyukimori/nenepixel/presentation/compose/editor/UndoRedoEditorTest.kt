@@ -4,6 +4,8 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -39,7 +41,7 @@ internal class UndoRedoEditorTest {
         val controller = controller()
         val initial = controller.renderState
         composeRule.setContent {
-            NenePixelEditor(initialState = initial, callbacks = controller.callbacks)
+            TestNenePixelEditor(controller)
         }
 
         composeRule.onNodeWithText("Undo").assertIsNotEnabled()
@@ -85,7 +87,7 @@ internal class UndoRedoEditorTest {
     fun multiStepHistoryExposesBothControlsAndNewBranchClearsRedo() {
         val controller = controller()
         composeRule.setContent {
-            NenePixelEditor(initialState = controller.renderState, callbacks = controller.callbacks)
+            TestNenePixelEditor(controller)
         }
 
         touchPixel(FIRST_PIXEL_PERCENT)
@@ -118,7 +120,7 @@ internal class UndoRedoEditorTest {
         val controller = controller()
         val initial = controller.renderState
         composeRule.setContent {
-            NenePixelEditor(initialState = initial, callbacks = controller.callbacks)
+            TestNenePixelEditor(controller)
         }
 
         composeRule
@@ -159,7 +161,7 @@ internal class UndoRedoEditorTest {
     fun pencilAndEraserControlsUseOneWorkspaceSelectionAndCommandPath() {
         val controller = controller()
         composeRule.setContent {
-            NenePixelEditor(initialState = controller.renderState, callbacks = controller.callbacks)
+            TestNenePixelEditor(controller)
         }
 
         composeRule.onNodeWithContentDescription("Pencil tool").assertIsSelected()
@@ -192,7 +194,7 @@ internal class UndoRedoEditorTest {
     fun alreadyBlankEraserGestureIsNoOpWithoutHistory() {
         val controller = controller()
         composeRule.setContent {
-            NenePixelEditor(initialState = controller.renderState, callbacks = controller.callbacks)
+            TestNenePixelEditor(controller)
         }
 
         composeRule.onNodeWithContentDescription("Eraser tool").performClick()
@@ -209,7 +211,7 @@ internal class UndoRedoEditorTest {
     fun paletteControlsExposeSelectionAndCommitExactRgbaThroughTheCanonicalPath() {
         val controller = controller()
         composeRule.setContent {
-            NenePixelEditor(initialState = controller.renderState, callbacks = controller.callbacks)
+            TestNenePixelEditor(controller)
         }
 
         composeRule.onNodeWithContentDescription(FIRST_PALETTE_DESCRIPTION).assertIsSelected()
@@ -243,7 +245,7 @@ internal class UndoRedoEditorTest {
         val ids = CountingDocumentIdSource()
         val controller = controller(ids)
         composeRule.setContent {
-            NenePixelEditor(initialState = controller.renderState, callbacks = controller.callbacks)
+            TestNenePixelEditor(controller)
         }
 
         composeRule.onNodeWithContentDescription("Eraser tool").performClick()
@@ -272,7 +274,7 @@ internal class UndoRedoEditorTest {
         val beforeDocument = controller.documentState
         val beforeWorkspace = controller.workspaceState
         composeRule.setContent {
-            NenePixelEditor(initialState = controller.renderState, callbacks = controller.callbacks)
+            TestNenePixelEditor(controller)
         }
 
         openNewDocumentDialog()
@@ -294,7 +296,7 @@ internal class UndoRedoEditorTest {
         val beforeDocument = controller.documentState
         val beforeWorkspace = controller.workspaceState
         composeRule.setContent {
-            NenePixelEditor(initialState = controller.renderState, callbacks = controller.callbacks)
+            TestNenePixelEditor(controller)
         }
 
         openNewDocumentDialog()
@@ -309,6 +311,12 @@ internal class UndoRedoEditorTest {
     }
 
     private fun openNewDocumentDialog() {
+        composeRule.waitUntil {
+            composeRule
+                .onAllNodes(hasText("New document") and isEnabled())
+                .fetchSemanticsNodes()
+                .size == 1
+        }
         composeRule.onNodeWithText("New document").performClick()
         composeRule.onNodeWithText("Create new document").assertExists()
     }

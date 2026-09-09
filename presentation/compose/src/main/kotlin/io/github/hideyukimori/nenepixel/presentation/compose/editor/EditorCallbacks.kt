@@ -17,7 +17,6 @@ public class EditorCallbacks internal constructor(
     private val redo: () -> EditorRenderState,
     private val selectTool: (DrawingTool) -> EditorRenderState,
     private val selectPaletteEntry: (PaletteIndex) -> EditorRenderState,
-    private val createNewDocument: (String, String) -> NewDocumentSubmission,
 ) {
     internal fun onPointerDown(
         surface: ViewportSurface,
@@ -50,9 +49,4 @@ public class EditorCallbacks internal constructor(
     internal fun onSelectTool(tool: DrawingTool): EditorRenderState = selectTool(tool)
 
     internal fun onSelectPaletteEntry(index: PaletteIndex): EditorRenderState = selectPaletteEntry(index)
-
-    internal fun onCreateNewDocument(
-        rawWidth: String,
-        rawHeight: String,
-    ): NewDocumentSubmission = createNewDocument(rawWidth, rawHeight)
 }

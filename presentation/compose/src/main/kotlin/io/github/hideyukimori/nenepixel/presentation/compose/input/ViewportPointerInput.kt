@@ -14,25 +14,18 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.View
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportSurfacePoint
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportValueResult
 import io.github.hideyukimori.nenepixel.presentation.compose.editor.EditorCallbacks
-import io.github.hideyukimori.nenepixel.presentation.compose.editor.EditorRenderState
 import io.github.hideyukimori.nenepixel.presentation.compose.editor.PointerInputAcknowledgement
 
-internal fun Modifier.viewportPointerInput(
-    callbacks: EditorCallbacks,
-    onRenderStateChanged: (EditorRenderState) -> Unit,
-): Modifier =
+internal fun Modifier.viewportPointerInput(callbacks: EditorCallbacks): Modifier =
     pointerInput(callbacks) {
         awaitEachGesture {
-            runViewportGesture(callbacks, onRenderStateChanged)
+            runViewportGesture(callbacks)
         }
     }
 
-private suspend fun AwaitPointerEventScope.runViewportGesture(
-    callbacks: EditorCallbacks,
-    onRenderStateChanged: (EditorRenderState) -> Unit,
-) {
+private suspend fun AwaitPointerEventScope.runViewportGesture(callbacks: EditorCallbacks) {
     val firstDown = awaitFirstDown(requireUnconsumed = false)
-    val session = ViewportPointerSession(callbacks, onRenderStateChanged)
+    val session = ViewportPointerSession(callbacks)
     try {
         val surface = validatedSurface() ?: return
         val point = firstDown.validatedPoint() ?: return
@@ -49,9 +42,8 @@ private suspend fun AwaitPointerEventScope.runViewportGesture(
 
 private class ViewportPointerSession(
     callbacks: EditorCallbacks,
-    onRenderStateChanged: (EditorRenderState) -> Unit,
 ) {
-    private val dispatcher = PointerCallbackDispatcher(callbacks, onRenderStateChanged)
+    private val dispatcher = PointerCallbackDispatcher(callbacks)
     private var phase: PointerPhase = PointerPhase.Suppressed
 
     val isActive: Boolean
@@ -281,7 +273,6 @@ private fun PointerEvent.transformDirective(
 
 private class PointerCallbackDispatcher(
     private val callbacks: EditorCallbacks,
-    private val onRenderStateChanged: (EditorRenderState) -> Unit,
 ) {
     fun pointerDown(
         surface: ViewportSurface,
@@ -308,10 +299,7 @@ private class PointerCallbackDispatcher(
         gesture: ViewportGesture,
     ): PointerInputAcknowledgement = publish(callbacks.onViewportTransformed(surface, gesture))
 
-    private fun publish(acknowledgement: PointerInputAcknowledgement): PointerInputAcknowledgement {
-        onRenderStateChanged(acknowledgement.renderState)
-        return acknowledgement
-    }
+    private fun publish(acknowledgement: PointerInputAcknowledgement): PointerInputAcknowledgement = acknowledgement
 }
 
 private sealed interface PointerPhase {

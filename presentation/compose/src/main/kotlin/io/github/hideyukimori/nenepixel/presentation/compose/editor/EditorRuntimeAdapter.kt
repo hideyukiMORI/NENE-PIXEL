@@ -5,8 +5,6 @@ import io.github.hideyukimori.nenepixel.core.application.document.command.Comman
 import io.github.hideyukimori.nenepixel.core.application.document.command.RedoCommand
 import io.github.hideyukimori.nenepixel.core.application.document.command.UndoCommand
 import io.github.hideyukimori.nenepixel.core.application.editor.EditorRuntime
-import io.github.hideyukimori.nenepixel.core.application.editor.NewDocumentRequest
-import io.github.hideyukimori.nenepixel.core.application.editor.NewDocumentResult
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceAction
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReductionResult
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
@@ -68,20 +66,6 @@ internal class EditorRuntimeAdapter(
         runtime.execute(RedoCommand.create(target.id, target.revision))
         return createRenderState()
     }
-
-    fun createNewDocument(
-        rawWidth: String,
-        rawHeight: String,
-    ): NewDocumentSubmission =
-        when (val result = runtime.createNewDocument(NewDocumentRequest.create(rawWidth, rawHeight))) {
-            is NewDocumentResult.Created -> {
-                NewDocumentSubmission.Created(createRenderState())
-            }
-
-            is NewDocumentResult.Rejected -> {
-                NewDocumentSubmission.Rejected(createRenderState(), result.rejection.toUserMessage())
-            }
-        }
 
     fun ignored(): PointerInputAcknowledgement = PointerInputAcknowledgement.Ignored(createRenderState())
 

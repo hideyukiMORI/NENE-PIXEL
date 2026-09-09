@@ -1,21 +1,26 @@
 package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
+import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationProjection
+import kotlinx.coroutines.flow.StateFlow
 
 @Composable
 public fun NenePixelEditor(
-    initialState: EditorRenderState,
+    renderStates: StateFlow<EditorRenderState>,
+    persistenceOperations: StateFlow<PersistenceOperationProjection>,
     callbacks: EditorCallbacks,
+    persistenceCallbacks: EditorPersistenceCallbacks,
     modifier: Modifier = Modifier,
 ) {
-    val renderState = remember(callbacks) { mutableStateOf(initialState) }
+    val renderState = renderStates.collectAsState()
+    val persistenceOperation = persistenceOperations.collectAsState()
     EditorScreen(
         renderState = renderState,
-        onRenderStateChanged = { nextState -> renderState.value = nextState },
+        persistenceOperation = persistenceOperation.value,
         callbacks = callbacks,
+        persistenceCallbacks = persistenceCallbacks,
         modifier = modifier,
     )
 }

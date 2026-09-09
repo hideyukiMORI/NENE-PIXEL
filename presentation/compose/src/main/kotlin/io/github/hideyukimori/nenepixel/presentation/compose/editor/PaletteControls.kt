@@ -29,7 +29,6 @@ internal fun PaletteControls(
     palette: Palette,
     activePaletteIndex: PaletteIndex,
     callbacks: EditorCallbacks,
-    onRenderStateChanged: (EditorRenderState) -> Unit,
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -44,7 +43,7 @@ internal fun PaletteControls(
                 PaletteEntryControl(
                     entry = entry,
                     selected = entry.index == activePaletteIndex,
-                    onClick = { onRenderStateChanged(callbacks.onSelectPaletteEntry(entry.index)) },
+                    onClick = { callbacks.onSelectPaletteEntry(entry.index) },
                 )
             }
         }
