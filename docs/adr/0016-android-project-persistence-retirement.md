@@ -250,47 +250,32 @@ without enabling Compose.
 
 Save As emits the standard `ACTION_CREATE_DOCUMENT` intent with openable category,
 `application/octet-stream`, and a `.nenepixel` suggested name. Load emits the standard
-`ACTION_OPEN_DOCUMENT` intent with the same category and MIME restriction. Adapter-owned typed
-Activity Result contracts inspect the result code before the returned data: `RESULT_CANCELED` is
-Cancelled, while `RESULT_OK` with a missing `Uri` and any unexpected result code are failures. This
-avoids the nullable-`Uri` parsing of the stock CreateDocument/OpenDocument contracts, which would
-collapse provider-invalid success into user cancellation.
+`ACTION_OPEN_DOCUMENT` intent with the same category and MIME restriction. The adapter-owned
+`ProjectPickerIntents` object builds both intents and parses the result code before the returned data:
+`RESULT_CANCELED` is Cancelled, while `RESULT_OK` with a missing `Uri` and any unexpected result code
+are failures. This avoids the nullable-`Uri` parsing of the stock CreateDocument/OpenDocument
+contracts, which would collapse provider-invalid success into user cancellation.
 
 The adapter exposes one `ProjectDocumentPicker` suspension boundary with `createDocument(String)` and
 `openDocument()`. Its closed result is Selected with one `Uri`, Cancelled, or Failed with the existing
-`ProjectStorageFailure`. The app-owned broker implements this boundary with
+`ProjectStorageFailure`. The app-owned broker implements this boundary with the app-owned
 `CreateProjectDocumentContract<String, ProjectPickerResult>` and
-`OpenProjectDocumentContract<Unit, ProjectPickerResult>`. Activity-not-found and permission failures
-while launching are also resumed as Failed, so no suspended picker request can be orphaned. The
-adapter directly declares the already resolved `androidx.activity:activity` artifact at the existing
-1.13.0 version for these contracts.
+`OpenProjectDocumentContract<Unit, ProjectPickerResult>`, thin `ActivityResultContract` wrappers that
+delegate intent construction and result parsing to `ProjectPickerIntents`. Activity-not-found and
+permission failures while launching are also resumed as Failed, so no suspended picker request can be
+orphaned. Because the contract wrappers live in the app module, which already resolves
+`androidx.activity`, the adapter's production graph contains only the three core modules and the
+already resolved `kotlinx-coroutines-core`; it declares no androidx library at all.
 
-The standalone Activity artifact advertises lower transitive Lifecycle defaults than the existing
-shipping graph. One `androidx-lifecycle` 2.9.4 catalog version is the explicit authority for both
-lifecycle-viewmodel and lifecycle-viewmodel-savedstate. The adapter reuses the existing Compose BOM as
-a platform constraint and applies those two catalog aliases as alignment-only constraints. This adds
-no direct ViewModel dependency, alternate version source, Compose plugin, Compose UI source
-dependency, force, or exclusion; it keeps the adapter's resolved transitive graph aligned with the
-versions already selected by the app.
-
-The same standalone `activity` 1.13.0 path reaches `androidx.core:core` 1.18.0 and requests
-`androidx.collection:collection` 1.4.2, so the adapter's own resolved graph selects collection 1.4.2.
-That is left alone. The app graph already selects 1.5.0 through ordinary conflict resolution, so the
-shipped artifact set is unchanged whether or not the adapter constrains collection, and the app
-lockfile is identical either way. No `androidx-collection` catalog version or alignment-only
-constraint is declared, because a catalog entry pinning a version that is not the newest published one
-is incompatible with the `GradleDependency` lint check that the merge gate runs, and raising the
-shipped collection version would be a dependency update rather than this work package's feature work.
-The adapter's unit-test and instrumentation classpaths therefore resolve `collection-jvm` 1.4.2, whose
-official Google Maven jar and Gradle module descriptor are recorded in the SHA-256 verification
-metadata; no trust rule, ignored key, or metadata-verification relaxation is used.
-
-The standalone path's `androidx.savedstate:savedstate` request is different, because
-`lifecycle-viewmodel-savedstate` 2.9.4 requests 1.3.1 while the app already selects 1.3.2, which is the
-newest published version. One `androidx-savedstate` 1.3.2 catalog version is therefore the explicit
-authority, applied as a third alignment-only constraint in the same block, adding no direct savedstate
-dependency, alternate version source, force, or exclusion, and growing neither the resolved nor the
-verified artifact set.
+That absence is deliberate. A catalog entry that pins a version older than the newest published one
+is incompatible with the `GradleDependency` lint check that the merge gate runs, and raising a shipped
+version is a dependency update rather than this work package's feature work. P3-03 therefore adds no
+androidx catalog version: `lifecycle-viewmodel` keeps its version-less catalog alias, no
+alignment-only constraint exists for lifecycle, savedstate, collection, or activity, the app keeps
+receiving those versions through its existing graph, and `gradle/verification-metadata.xml` is
+unchanged. The adapter's instrumentation tests reuse the Compose BOM platform, `ui-test-junit4`, and
+the existing `activity-compose` alias as test-only dependencies so `AndroidJUnitRunner` and its
+transitive graph resolve to the versions already verified for the app.
 
 Only the current create result becomes a fresh destination; no URI association is retained and no
 API accepts a prior destination for overwrite. The adapter writes and closes every byte, then reopens

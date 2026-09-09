@@ -16,14 +16,9 @@ dependencies {
     implementation(project(":core:application"))
     implementation(project(":core:domain"))
     implementation(project(":core:project-format"))
-    implementation(libs.androidx.activity)
     implementation(libs.kotlinx.coroutines.core)
-    implementation(platform(libs.androidx.compose.bom))
-    constraints {
-        implementation(libs.androidx.lifecycle.viewmodel)
-        implementation(libs.androidx.lifecycle.viewmodel.savedstate)
-        implementation(libs.androidx.savedstate)
-    }
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    androidTestImplementation(libs.androidx.activity.compose)
     androidTestImplementation(libs.androidx.test.ext.junit)
-    androidTestImplementation(libs.androidx.test.runner)
 }
