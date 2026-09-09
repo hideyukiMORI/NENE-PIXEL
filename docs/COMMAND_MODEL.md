@@ -88,7 +88,8 @@ boundary defined by ADR 0014; they are not document commands against the abandon
 Application-owned persistence ports exchange one immutable `DocumentState` capture or one fully
 validated loaded candidate. The application module never depends on the project-format codec, and a
 persistence adapter never reads from or mutates a live runtime. Encoding, provider/file I/O, and
-decoding occur outside the runtime lock on an owned lifecycle worker.
+decoding occur outside the runtime lock through suspend ports and an application-composed IO
+dispatcher.
 
 Every persistence operation carries an application-owned runtime generation and operation identity.
 A save additionally captures the exact internal `HistoryPosition`. A successful durable save
@@ -98,8 +99,9 @@ and undoing to the saved position becomes clean. `Revision` alone never identifi
 
 Runtime generation, operation identity, switch-busy state, save capture, and recovery ordering are
 private coordination bookkeeping inside the existing application owner. They are not a fourth state
-category, document/workspace truth, or an adapter/UI-owned copy. UI and adapters may only observe an
-immutable derived operation projection and emit typed requests.
+category, document/workspace truth, or an adapter/UI-owned copy. `EditorRuntime` owns the sole mutable
+operation flow; UI and adapters may only observe its read-only immutable projection and emit typed
+requests carrying opaque handles.
 
 Load validates the complete bounded file before installation. Editing may continue during the long
 read/decode phase. Its source token captures `DocumentId`, runtime generation, active operation
@@ -107,12 +109,20 @@ identity, and starting `HistoryPosition`; all must match immediately before swit
 back to that exact position is the same source state and may proceed, while a different position or
 new branch requires a typed stale/reconfirmation outcome and fresh discard consent. Generation-only
 validation is prohibited. The short final destructive-switch phase rejects document commits and
-other switches as typed busy, cancels preview through `WorkspaceReducer`, durably retires the old
-recovery candidate, and atomically installs document, empty history, canonical workspace, and the
-new checkpoint. Failure to retire leaves the old runtime authoritative. Loaded documents start
-clean. Explicitly accepted recovery uses the same installation path but retains its valid recovery
-Candidate as the new runtime's last-safe lineage and starts dirty because no user-file save
-checkpoint exists.
+other switches as typed busy, rejects cancellation as too late, cancels preview through
+`WorkspaceReducer`, and executes recovery retirement plus atomic installation in one non-cancellable
+workflow block. Failure to retire leaves the old runtime authoritative. A post-finish result whose
+durable generation cannot be proven marks recovery lineage unknown and blocks another destructive
+switch until inspection reconciles it. Loaded documents start clean. Explicitly accepted recovery
+uses the same installation path but retains its valid recovery Candidate as the new runtime's
+last-safe lineage and starts dirty because no user-file save checkpoint exists.
+
+Cancelling a save/load/confirmation operation invalidates its opaque operation identity but retains
+one physical-operation lease until the picker/transport call and cleanup have actually finished.
+Late success cannot update a checkpoint or install a runtime, and another operation remains typed
+busy while cancellation drains. An unadopted startup Candidate is preserved by Save As. P3-03 permits
+new/load to retire it only after an explicit warning that the recovery data will be discarded; P3-04
+later adds the recovery-accept path without changing this lineage rule.
 
 Explicit user-file save is Save As to a fresh Android document only. Saved is returned only after
 all encoded bytes are written and closed, then read back byte-for-byte and validated. Existing
