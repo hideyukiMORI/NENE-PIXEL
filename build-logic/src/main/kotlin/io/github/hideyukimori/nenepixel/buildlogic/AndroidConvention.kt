@@ -38,6 +38,7 @@ internal fun Project.configureAndroidConvention(
         lint.checkDependencies = true
         lint.checkReleaseBuilds = true
         lint.warningsAsErrors = true
+        lint.informational += REMOTE_INDEX_DEPENDENCY_CHECKS
     }
     extensions.configure<KotlinAndroidProjectExtension> {
         jvmToolchain(JAVA_TOOLCHAIN_VERSION)
@@ -53,6 +54,9 @@ internal fun Project.configureAndroidConvention(
         }
     }
 }
+
+// Lint checks that compare catalog version literals against a remote index. Severity rationale: ADR 0017.
+private val REMOTE_INDEX_DEPENDENCY_CHECKS: Set<String> = setOf("GradleDependency", "NewerVersionAvailable")
 
 private const val COMPILE_SDK: Int = 37
 private const val MIN_SDK: Int = 26
