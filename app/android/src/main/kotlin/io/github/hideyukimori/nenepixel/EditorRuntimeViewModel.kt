@@ -10,6 +10,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import io.github.hideyukimori.nenepixel.adapters.persistence.AndroidProjectStorageAdapter
 import io.github.hideyukimori.nenepixel.adapters.persistence.AndroidRecoveryRecordAdapter
 import io.github.hideyukimori.nenepixel.core.application.editor.EditorRuntime
+import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveProjection
 import io.github.hideyukimori.nenepixel.core.application.persistence.EditorPersistenceWorkflow
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceCancellationResult
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationHandle
@@ -34,7 +35,10 @@ internal class EditorRuntimeViewModel private constructor(
     private val operationJobsLock = Any()
     private val operationJobs = mutableMapOf<PersistenceOperationHandle, Job>()
 
+    private val autosave = AutosaveScheduler(persistence)
+
     val persistenceOperations: StateFlow<PersistenceOperationProjection> = persistence.operation
+    val autosaveStates: StateFlow<AutosaveProjection> = persistence.autosave
     val persistenceCallbacks: EditorPersistenceCallbacks =
         EditorPersistenceCallbacks.create(
             saveAs = { launchOperation(persistence::saveAs) },
@@ -44,9 +48,12 @@ internal class EditorRuntimeViewModel private constructor(
             },
             confirm = { request -> launchOperation { persistence.confirm(request) } },
             cancel = ::cancel,
+            acceptRecovery = ::acceptRecovery,
+            declineRecovery = { launchOperation(persistence::declineRecovery) },
         )
 
     init {
+        autosave.launchIn(viewModelScope)
         viewModelScope.launch {
             try {
                 persistence.initializeRecovery()
@@ -54,6 +61,14 @@ internal class EditorRuntimeViewModel private constructor(
                 controller.synchronizeWithRuntime()
             }
         }
+    }
+
+    /**
+     * Publishes any pending autosave capture immediately. Called from `MainActivity.onStop`; the
+     * request runs on `viewModelScope`, so it outlives the activity instance.
+     */
+    fun flushAutosave() {
+        autosave.flush()
     }
 
     private fun launchOperation(block: suspend () -> PersistenceRequestResult) {
@@ -78,6 +93,15 @@ internal class EditorRuntimeViewModel private constructor(
                 }
             }
         }
+    }
+
+    /**
+     * Recovery adoption is decided synchronously inside the runtime. A dirty document answers with a
+     * confirmation request that the existing dialog already renders from the operation projection.
+     */
+    private fun acceptRecovery() {
+        persistence.acceptRecovery()
+        controller.synchronizeWithRuntime()
     }
 
     private fun cancelOperationJob(handle: PersistenceOperationHandle) {
@@ -136,6 +160,8 @@ private fun PersistenceOperationPhase.operationHandle(): PersistenceOperationHan
         is PersistenceOperationPhase.Switching -> operation
 
         is PersistenceOperationPhase.Cancelling -> operation
+
+        is PersistenceOperationPhase.Discarding -> operation
 
         PersistenceOperationPhase.Initializing,
         PersistenceOperationPhase.Idle,

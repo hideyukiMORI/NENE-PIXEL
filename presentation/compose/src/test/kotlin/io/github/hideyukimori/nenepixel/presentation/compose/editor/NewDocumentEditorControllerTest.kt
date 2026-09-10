@@ -38,5 +38,7 @@ internal class NewDocumentEditorControllerTest {
             createNewDocument = createNewDocument,
             confirm = {},
             cancel = {},
+            acceptRecovery = {},
+            declineRecovery = {},
         )
 }
