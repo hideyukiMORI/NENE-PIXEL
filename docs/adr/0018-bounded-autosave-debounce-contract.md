@@ -85,7 +85,9 @@ exactly these three rules with the constants fixed here:
 
 The scheduler issues at most one outstanding request at a time. After a publication completes with a
 still-pending newer capture, the quiet window restarts from that completion; the latency cap keeps
-counting from the oldest unpublished capture. Both constants live in one `AutosavePolicy` value in
+counting from the oldest unpublished capture. When a request is deferred because a user operation
+holds the persistence lease, the scheduler retries one quiet window later and the cap resumes from
+that retry, so an active user operation never turns the cap into an immediate re-request loop. Both constants live in one `AutosavePolicy` value in
 the app module and are the only autosave numbers in the code base.
 
 ### Bounds and product consequence

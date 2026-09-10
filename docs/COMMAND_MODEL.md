@@ -130,6 +130,26 @@ content URIs are never truncated or replaced. Autosave derives only from committ
 and writes the one bounded private recovery record selected by ADR 0014; it is not a second document
 owner or command path.
 
+## Bounded autosave boundary
+
+Every committed command result that advances the revision records one immutable autosave capture in
+the same persistence coordination, including committed undo and redo. A newer capture replaces the
+pending one and a committed undo back to the published revision clears it, so the pending set is
+never larger than one. A Candidate publication is one persistence operation under the existing
+one-active lease: a user operation waits for an active publication, a publication requested during a
+user operation answers a typed deferred result and keeps the capture, and a publication requested
+while an unadopted startup Candidate is still offered answers a typed offer-pending result so
+autosave never overwrites the previous session's unsaved work. A verified explicit save at a clean
+boundary drops a pending capture whose revision equals the saved revision and keeps a newer one.
+
+The platform owns the clock. `AutosavePolicy` in `:app:android` holds the only ADR 0018 quiet-window
+and latency-cap numbers, the autosave scheduler observes the read-only autosave projection on the
+ViewModel scope and keeps at most one outstanding request, and the activity `ON_STOP` event requests
+one immediate publication of any pending capture. Core creates no scope, dispatcher, or timer and
+reads no wall time. Accepting the startup recovery offer installs the Candidate through the one
+runtime-install boundary, retains its generation as the new runtime's last-safe lineage, and starts
+dirty; declining retires that generation without replacing the runtime.
+
 ## Mandatory rules
 
 ### CMD-001 — Document mutation uses commands

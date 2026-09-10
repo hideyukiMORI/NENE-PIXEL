@@ -139,8 +139,8 @@ Owns behavior coordination:
 - private immutable save capture/candidate, runtime/operation identity, checked completion, and the
   one loaded/recovered runtime-install protocol
 - one runtime-owned mutable operation flow exposed only as a read-only derived projection
-- bounded persistence ordering: one active physical operation; P3-04 may add at most one coalesced
-  latest autosave capture
+- bounded persistence ordering: one active physical operation and at most one coalesced latest
+  autosave capture, published as a recovery Candidate on an explicit platform request
 
 It does not know Compose, Android, SQL, files, project-format bytes/codecs, JSON libraries, storage
 URIs, or automation protocols. It may use platform-neutral coroutines for suspend ports, its read-only
@@ -179,8 +179,10 @@ Owns display and interaction translation:
 It renders immutable state and emits commands/actions. Rendering and input consume the same
 application-owned viewport transform; presentation owns no competing matrix, rounding policy,
 document runtime, workspace state, active palette selection, or dirty state. Palette controls render
-the immutable projection and emit the canonical workspace selection action. It contains no
-persistence calls or document transition logic.
+the immutable projection and emit the canonical workspace selection action. The startup recovery
+offer replaces the status-row content while an unadopted Candidate exists and emits typed accept and
+decline requests through the same persistence callbacks. It contains no persistence calls or
+document transition logic.
 
 ### `:adapters:persistence`
 
@@ -199,7 +201,10 @@ serialized framework `AtomicFile` record and conditional Retired writer fixed by
 Is the composition root. It wires concrete adapters to ports, retains the one activity-scoped
 application `EditorRuntime` and persistence workflow through an AndroidX `ViewModel`, and launches
 the UI. It owns `viewModelScope`, the picker-request broker/Activity Result launcher connection, and
-selection of the injected serialized IO dispatcher; it does not own persistence transition rules.
+selection of the injected serialized IO dispatcher; it does not own persistence transition rules. It
+also owns the autosave clock: the one `AutosavePolicy` value holding the ADR 0018 quiet window and
+latency cap, the autosave scheduler that turns the read-only autosave projection into at most one
+outstanding publication request on `viewModelScope`, and the activity `ON_STOP` flush.
 Android UUID generation implements the application `DocumentIdSource` port here, and the fixed MVP
 tool palette is supplied here as immutable configuration. Business rules in this module are
 prohibited.
