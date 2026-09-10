@@ -28,6 +28,8 @@ internal data class RuntimeOwners(
 
     fun documentId(): DocumentId = commandGateway.runtimeState.documentState.id
 
+    fun asUnsaved(): RuntimeOwners = copy(cleanCheckpoint = DocumentCleanCheckpoint.Unsaved)
+
     fun sourceToken(runtimeGeneration: Long): RuntimeSourceToken {
         val commandState = commandGateway.runtimeState
         return RuntimeSourceToken(runtimeGeneration, commandState.documentState.id, commandState.historyPosition)

@@ -75,6 +75,8 @@ private fun PersistenceOperationPhase.cancellableOperation(): PersistenceOperati
 
         is PersistenceOperationPhase.Loading -> operation
 
+        is PersistenceOperationPhase.Discarding -> operation
+
         PersistenceOperationPhase.Idle,
         PersistenceOperationPhase.Initializing,
         is PersistenceOperationPhase.NeedsConfirmation,
@@ -95,6 +97,7 @@ internal fun PersistenceOperationProjection.statusText(): String =
         is PersistenceOperationPhase.NeedsConfirmation -> "Waiting for confirmation"
         is PersistenceOperationPhase.Switching -> "Switching document"
         is PersistenceOperationPhase.Cancelling -> "Cancelling project operation"
+        is PersistenceOperationPhase.Discarding -> "Discarding recovery data"
     }
 
 private fun PersistenceOperationProjection.idleStatusText(): String =

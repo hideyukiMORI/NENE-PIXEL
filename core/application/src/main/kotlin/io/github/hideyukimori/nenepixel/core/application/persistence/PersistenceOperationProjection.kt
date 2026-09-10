@@ -30,6 +30,10 @@ public sealed interface PersistenceOperationPhase {
     public data class Cancelling internal constructor(
         public val operation: PersistenceOperationHandle,
     ) : PersistenceOperationPhase
+
+    public data class Discarding internal constructor(
+        public val operation: PersistenceOperationHandle,
+    ) : PersistenceOperationPhase
 }
 
 public class PersistenceOperationHandle internal constructor(
@@ -71,6 +75,10 @@ public sealed interface PersistenceLastOutcome {
     public data object Loaded : PersistenceLastOutcome
 
     public data object NewDocumentCreated : PersistenceLastOutcome
+
+    public data object Recovered : PersistenceLastOutcome
+
+    public data object RecoveryDeclined : PersistenceLastOutcome
 
     public data object Cancelled : PersistenceLastOutcome
 

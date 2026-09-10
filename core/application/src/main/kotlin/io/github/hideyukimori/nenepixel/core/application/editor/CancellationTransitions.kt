@@ -66,6 +66,12 @@ internal object CancellationTransitions {
                 PersistenceTransition(coordination, PersistenceCancellationResult.TooLate)
             }
 
+            is ActivePersistenceOperation.Autosave,
+            is ActivePersistenceOperation.RecoveryDecline,
+            -> {
+                PersistenceTransition(coordination, PersistenceCancellationResult.TooLate)
+            }
+
             is ActivePersistenceOperation.Switch.Cancelling -> {
                 PersistenceTransition(coordination, PersistenceCancellationResult.Stale)
             }

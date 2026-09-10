@@ -12,6 +12,7 @@ internal class PersistenceSaveFlow(
     private val operations: RuntimeSaveOperations,
     private val projectStorage: ProjectStoragePort,
     private val recoveryRecord: RecoveryRecordPort,
+    private val autosave: PersistenceAutosaveFlow,
 ) {
     suspend fun initializeRecovery(): RecoveryInitializationResult =
         when (operations.beginRecoveryInspection()) {
@@ -20,7 +21,9 @@ internal class PersistenceSaveFlow(
             RecoveryInspectionStart.Busy -> RecoveryInitializationResult.Busy
         }
 
-    suspend fun saveAs(): PersistenceRequestResult =
+    suspend fun saveAs(): PersistenceRequestResult = autosave.retryAfterPublication { attemptSave() }
+
+    private suspend fun attemptSave(): PersistenceRequestResult =
         when (val start = operations.beginSave()) {
             is SaveStart.Started -> save(start)
             SaveStart.Busy -> PersistenceRequestResult.Busy

@@ -15,11 +15,11 @@ internal object SaveCleanupTransitions {
         outcome: RecoveryRetirementOutcome,
     ): PersistenceTransition<PersistenceRequestResult> {
         val operation = coordination.activeOperation as? ActivePersistenceOperation.Save
-        val matches = operation != null && operation.handle == handle && operation.phase == SavePhase.Cleanup
-        return if (matches) {
-            finish(coordination, outcome)
-        } else {
+        return if (operation == null || operation.handle != handle || operation.phase != SavePhase.Cleanup) {
             PersistenceTransition(coordination, PersistenceRequestResult.Stale)
+        } else {
+            val savedRevision = operation.capture.document.revision.value
+            finish(coordination.withAutosave(coordination.autosave.droppedAt(savedRevision)), outcome)
         }
     }
 

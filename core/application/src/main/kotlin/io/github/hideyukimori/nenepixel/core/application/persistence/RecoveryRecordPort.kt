@@ -6,6 +6,11 @@ public interface RecoveryRecordPort {
     public suspend fun inspect(): RecoveryInspection
 
     public suspend fun retire(expected: ExpectedRecoveryLineage): RecoveryRetirementOutcome
+
+    public suspend fun publishCandidate(
+        expected: ExpectedRecoveryLineage,
+        document: DocumentState,
+    ): RecoveryPublicationOutcome
 }
 
 public class RecoveryGeneration private constructor(
@@ -88,9 +93,30 @@ public sealed interface RecoveryRetirementOutcome {
     ) : RecoveryRetirementOutcome
 }
 
+public sealed interface RecoveryPublicationOutcome {
+    public data class Published(
+        public val generation: RecoveryGeneration,
+    ) : RecoveryPublicationOutcome
+
+    public data object Stale : RecoveryPublicationOutcome
+
+    public data object GenerationExhausted : RecoveryPublicationOutcome
+
+    public data class Failed(
+        public val failure: RecoveryRetirementFailure,
+        public val rollback: RecoveryRollbackOutcome,
+    ) : RecoveryPublicationOutcome
+
+    public data class Uncertain(
+        public val failure: RecoveryRetirementFailure,
+        public val rollback: RecoveryRollbackOutcome,
+    ) : RecoveryPublicationOutcome
+}
+
 public enum class RecoveryRetirementFailure {
     CURRENT_RECORD_INSPECTION,
     RETIRED_ENCODING,
+    CANDIDATE_ENCODING,
     START_WRITE,
     WRITE,
     SYNC,

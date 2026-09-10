@@ -15,6 +15,7 @@ internal data class PersistenceIdentity(
 internal data class RecoveryTracking(
     val state: RuntimeRecoveryState,
     val inspectionInFlight: Boolean,
+    val autosave: AutosaveTracking,
 )
 
 internal sealed interface OperationHandleCreation {
@@ -50,6 +51,9 @@ internal data class PersistenceCoordination(
     val inspectionInFlight: Boolean
         get() = recovery.inspectionInFlight
 
+    val autosave: AutosaveTracking
+        get() = recovery.autosave
+
     fun withActive(operation: ActivePersistenceOperation?): PersistenceCoordination = copy(activeOperation = operation)
 
     fun withRecovery(state: RuntimeRecoveryState): PersistenceCoordination =
@@ -57,6 +61,9 @@ internal data class PersistenceCoordination(
 
     fun withInspection(inFlight: Boolean): PersistenceCoordination =
         copy(recovery = recovery.copy(inspectionInFlight = inFlight))
+
+    fun withAutosave(tracking: AutosaveTracking): PersistenceCoordination =
+        copy(recovery = recovery.copy(autosave = tracking))
 
     fun finished(outcome: PersistenceLastOutcome): PersistenceCoordination =
         copy(activeOperation = null, lastOutcome = outcome)
@@ -94,7 +101,11 @@ internal data class PersistenceCoordination(
             PersistenceCoordination(
                 PersistenceIdentity(INITIAL_RUNTIME_GENERATION, INITIAL_OPERATION_ID, INITIAL_CONFIRMATION_ID),
                 null,
-                RecoveryTracking(RuntimeRecoveryState.Initializing, false),
+                RecoveryTracking(
+                    RuntimeRecoveryState.Initializing,
+                    false,
+                    AutosaveTracking.initial(INITIAL_RUNTIME_GENERATION),
+                ),
                 PersistenceLastOutcome.None,
             )
 

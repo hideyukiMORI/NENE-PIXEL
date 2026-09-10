@@ -1,6 +1,7 @@
 package io.github.hideyukimori.nenepixel.core.application.editor
 
 import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryPosition
+import io.github.hideyukimori.nenepixel.core.application.persistence.ExpectedRecoveryLineage
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceConfirmationRequest
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationHandle
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationPhase
@@ -13,6 +14,17 @@ internal sealed interface ActivePersistenceOperation {
         override val handle: PersistenceOperationHandle,
         val capture: SaveCapture,
         val phase: SavePhase,
+    ) : ActivePersistenceOperation
+
+    data class Autosave(
+        override val handle: PersistenceOperationHandle,
+        val capture: AutosaveCapture,
+        val expected: ExpectedRecoveryLineage,
+    ) : ActivePersistenceOperation
+
+    data class RecoveryDecline(
+        override val handle: PersistenceOperationHandle,
+        val expected: ExpectedRecoveryLineage,
     ) : ActivePersistenceOperation
 
     sealed interface Switch : ActivePersistenceOperation {
@@ -76,6 +88,10 @@ internal sealed interface PendingSwitch {
     data class Prepared(
         val candidate: RuntimeOwners,
         val kind: SwitchKind,
+    ) : PendingSwitch
+
+    data class Recover(
+        val candidate: RuntimeOwners,
     ) : PendingSwitch
 }
 
