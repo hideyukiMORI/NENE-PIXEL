@@ -42,7 +42,8 @@ Every committed command result that changes the document, including committed un
 records one immutable autosave capture in the runtime's persistence coordination: the current
 `DocumentState` reference and its revision, tagged with the runtime generation. Recording replaces
 any earlier pending capture; the pending set is therefore never larger than one. A committed result
-that leaves the document at the last published revision records nothing. Core exposes a read-only
+that returns the document to the last published revision, for example an undo, clears the pending
+capture instead of leaving an older capture behind. Core exposes a read-only
 autosave projection (pending revision, published revision, active publication, last outcome) as a
 `StateFlow` next to the existing persistence projection. Core creates no scope, dispatcher, or
 timer and reads no wall time; it receives explicit `publishLatestCapture` requests from the
@@ -62,6 +63,11 @@ persistence operation under the existing one-active lease:
   publication cost measured by the evidence protocol below and never blocks drawing.
 - A `publishLatestCapture` request while a user operation is active returns a typed `Deferred`
   result, keeps the capture pending, and leaves scheduling to the platform.
+- While a startup Candidate is still offered and undecided, `publishLatestCapture` returns a typed
+  `OfferPending` result and keeps the capture pending: autosave never overwrites the previous
+  session's unsaved work before the user accepts or declines it, matching the explicit-save rule of
+  ADR 0014 that preserves an unadopted Candidate. The platform stops requesting until the offer is
+  resolved.
 - A verified explicit save at a clean boundary retires the matching generation as ADR 0014 already
   requires; a pending capture whose revision equals the saved revision is dropped, a newer pending
   capture stays pending.
