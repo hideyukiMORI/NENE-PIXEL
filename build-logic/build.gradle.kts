@@ -79,6 +79,10 @@ gradlePlugin {
             id = "nene.android-compose"
             implementationClass = "io.github.hideyukimori.nenepixel.buildlogic.AndroidComposePlugin"
         }
+        create("androidLibrary") {
+            id = "nene.android-library"
+            implementationClass = "io.github.hideyukimori.nenepixel.buildlogic.AndroidLibraryPlugin"
+        }
         create("androidTest") {
             id = "nene.android-test"
             implementationClass = "io.github.hideyukimori.nenepixel.buildlogic.AndroidTestPlugin"

@@ -62,6 +62,7 @@ The root `validateArchitecture` task reads the configured Gradle project graph a
 
 :adapters:persistence
     -> :core:application
+    -> :core:domain
     -> :core:project-format
 
 :presentation:compose
@@ -135,12 +136,16 @@ Owns behavior coordination:
 - bounded linear history, dual-budget eviction, exact-position undo/redo, and clean-checkpoint coordination
 - query projections
 - ports for persistence, clocks, identifiers, and future external effects
-- immutable save capture, runtime/operation identity, checked completion, and the one loaded/recovered
-  runtime-install protocol
-- bounded persistence ordering: one active writer and at most one coalesced latest autosave capture
+- private immutable save capture/candidate, runtime/operation identity, checked completion, and the
+  one loaded/recovered runtime-install protocol
+- one runtime-owned mutable operation flow exposed only as a read-only derived projection
+- bounded persistence ordering: one active physical operation; P3-04 may add at most one coalesced
+  latest autosave capture
 
 It does not know Compose, Android, SQL, files, project-format bytes/codecs, JSON libraries, storage
-URIs, or automation protocols.
+URIs, or automation protocols. It may use platform-neutral coroutines for suspend ports, its read-only
+`StateFlow`, and the non-cancellable retirement/install critical section, but creates no scope or
+dispatcher.
 
 ### `:core:project-format`
 
@@ -179,20 +184,25 @@ persistence calls or document transition logic.
 
 ### `:adapters:persistence`
 
-Implements application ports for project storage and recovery. It may use Android/filesystem APIs
-and the project-format module, and may privately own bounded transport bytes under `ARC-005`. It
-maps only immutable save captures and fully validated loaded candidates, never obtains a live
-runtime, and never performs domain mutations. The Android adapter owns fresh-document Save As and
-read-back verification. It also owns maximum-plus-one bounded stream reads and typed I/O failure
-normalization before invoking the no-I/O codec. App-private recovery uses one serialized framework
-`AtomicFile` record.
+Implements application ports for project storage and recovery. It depends directly on application,
+domain, and project-format because the suspend port signatures contain `DocumentState`; it never
+relies on domain types leaking through another module's implementation dependency. It may use
+Android/filesystem APIs and privately own bounded transport bytes under `ARC-005`. It maps only an
+immutable `DocumentState` supplied to `save` or returns one fully validated `DocumentState` from
+`load`; it never obtains a live runtime or performs domain mutations. The Android adapter owns typed
+SAF result contracts, fresh-document Save As, read-back verification, maximum-plus-one bounded stream
+reads, and failure normalization before invoking the no-I/O codec. App-private recovery uses the one
+serialized framework `AtomicFile` record and conditional Retired writer fixed by ADR 0016.
 
 ### `:app:android`
 
 Is the composition root. It wires concrete adapters to ports, retains the one activity-scoped
-application `EditorRuntime` through an AndroidX `ViewModel`, and launches the UI. Android UUID
-generation implements the application `DocumentIdSource` port here, and the fixed MVP tool palette
-is supplied here as immutable configuration. Business rules in this module are prohibited.
+application `EditorRuntime` and persistence workflow through an AndroidX `ViewModel`, and launches
+the UI. It owns `viewModelScope`, the picker-request broker/Activity Result launcher connection, and
+selection of the injected serialized IO dispatcher; it does not own persistence transition rules.
+Android UUID generation implements the application `DocumentIdSource` port here, and the fixed MVP
+tool palette is supplied here as immutable configuration. Business rules in this module are
+prohibited.
 
 ### `:quality:baseline-profile`
 

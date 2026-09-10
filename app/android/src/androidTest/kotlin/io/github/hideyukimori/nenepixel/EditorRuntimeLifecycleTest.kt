@@ -2,6 +2,8 @@ package io.github.hideyukimori.nenepixel
 
 import android.os.Bundle
 import android.os.Process
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isEnabled
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -122,6 +124,12 @@ internal class EditorRuntimeLifecycleTest {
         width: String,
         height: String,
     ) {
+        composeRule.waitUntil {
+            composeRule
+                .onAllNodes(hasText("New document") and isEnabled())
+                .fetchSemanticsNodes()
+                .size == 1
+        }
         composeRule.onNodeWithText("New document").performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithText("Create new document").assertExists()
@@ -132,7 +140,7 @@ internal class EditorRuntimeLifecycleTest {
     }
 
     private fun MainActivity.editorModel(): EditorRuntimeViewModel =
-        ViewModelProvider(this, EditorRuntimeViewModel.factory)[EditorRuntimeViewModel::class.java]
+        ViewModelProvider(this, EditorRuntimeViewModel.factory(application))[EditorRuntimeViewModel::class.java]
 
     private companion object {
         const val PROCESS_ID_STATUS_CODE: Int = 2

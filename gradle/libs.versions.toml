@@ -10,6 +10,7 @@ junit = "6.1.2"
 kotlin = "2.4.20"
 ktlint-engine = "1.8.0"
 ktlint-gradle = "14.2.0"
+kotlinx-coroutines = "1.11.0"
 
 [libraries]
 android-gradle-plugin = { module = "com.android.tools.build:gradle", version.ref = "agp" }
@@ -31,6 +32,8 @@ detekt-gradle-plugin = { module = "dev.detekt:detekt-gradle-plugin", version.ref
 detekt-test = { module = "dev.detekt:detekt-test", version.ref = "detekt" }
 kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
 ktlint-gradle-plugin = { module = "org.jlleitschuh.gradle:ktlint-gradle", version.ref = "ktlint-gradle" }
+kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinx-coroutines" }
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx-coroutines" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

@@ -37,7 +37,6 @@ internal fun PixelCanvas(
     renderState: State<EditorRenderState>,
     canvasSize: CanvasSize,
     callbacks: EditorCallbacks,
-    onRenderStateChanged: (EditorRenderState) -> Unit,
     modifier: Modifier,
 ) {
     val pixels = remember { RenderedBitmapCache(PresentationPalette.canvasBackground.toArgb()) }
@@ -54,7 +53,7 @@ internal fun PixelCanvas(
         modifier =
             modifier
                 .semantics { contentDescription = canvasSize.accessibilityDescription() }
-                .viewportPointerInput(callbacks, onRenderStateChanged),
+                .viewportPointerInput(callbacks),
     ) {
         val current = renderState.value
         val canvas = current.snapshot.size

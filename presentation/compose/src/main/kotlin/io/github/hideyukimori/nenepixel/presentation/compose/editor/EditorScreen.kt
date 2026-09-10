@@ -24,6 +24,8 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.github.hideyukimori.nenepixel.core.application.editor.DocumentDirtyState
+import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationPhase
+import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationProjection
 import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
@@ -33,8 +35,9 @@ import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 @Composable
 internal fun EditorScreen(
     renderState: State<EditorRenderState>,
-    onRenderStateChanged: (EditorRenderState) -> Unit,
+    persistenceOperation: PersistenceOperationProjection,
     callbacks: EditorCallbacks,
+    persistenceCallbacks: EditorPersistenceCallbacks,
     modifier: Modifier,
 ) {
     MaterialTheme {
@@ -49,8 +52,8 @@ internal fun EditorScreen(
                         .padding(SCREEN_PADDING),
             ) {
                 Text(text = "NENE-PIXEL", style = MaterialTheme.typography.headlineSmall)
-                SelectionControls(renderState, callbacks, onRenderStateChanged)
-                DocumentControls(renderState, callbacks, onRenderStateChanged)
+                SelectionControls(renderState, callbacks)
+                DocumentControls(renderState, persistenceOperation, callbacks, persistenceCallbacks)
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier.fillMaxWidth().weight(1f),
@@ -58,7 +61,6 @@ internal fun EditorScreen(
                     EditorCanvas(
                         renderState = renderState,
                         callbacks = callbacks,
-                        onRenderStateChanged = onRenderStateChanged,
                         modifier = Modifier,
                     )
                 }
@@ -71,7 +73,6 @@ internal fun EditorScreen(
 private fun SelectionControls(
     renderState: State<EditorRenderState>,
     callbacks: EditorCallbacks,
-    onRenderStateChanged: (EditorRenderState) -> Unit,
 ) {
     val inputs by
         remember(renderState) {
@@ -85,16 +86,16 @@ private fun SelectionControls(
         palette = inputs.palette,
         activePaletteIndex = inputs.activePaletteIndex,
         callbacks = callbacks,
-        onRenderStateChanged = onRenderStateChanged,
     )
-    ToolControls(inputs.activeTool, callbacks, onRenderStateChanged)
+    ToolControls(inputs.activeTool, callbacks)
 }
 
 @Composable
 private fun DocumentControls(
     renderState: State<EditorRenderState>,
+    persistenceOperation: PersistenceOperationProjection,
     callbacks: EditorCallbacks,
-    onRenderStateChanged: (EditorRenderState) -> Unit,
+    persistenceCallbacks: EditorPersistenceCallbacks,
 ) {
     val inputs by
         remember(renderState) {
@@ -103,13 +104,12 @@ private fun DocumentControls(
                 DocumentInputs(current.snapshot.size, current.canUndo, current.canRedo, current.dirtyState)
             }
         }
-    NewDocumentControls(inputs.canvasSize, callbacks, onRenderStateChanged)
+    PersistenceControls(persistenceOperation, inputs.canvasSize, persistenceCallbacks)
+    DocumentStatusRow(inputs.dirtyState, persistenceOperation)
     HistoryControls(
         canUndo = inputs.canUndo,
         canRedo = inputs.canRedo,
-        dirtyState = inputs.dirtyState,
         callbacks = callbacks,
-        onRenderStateChanged = onRenderStateChanged,
     )
 }
 
@@ -117,7 +117,6 @@ private fun DocumentControls(
 private fun EditorCanvas(
     renderState: State<EditorRenderState>,
     callbacks: EditorCallbacks,
-    onRenderStateChanged: (EditorRenderState) -> Unit,
     modifier: Modifier,
 ) {
     val canvasSize by
@@ -128,7 +127,6 @@ private fun EditorCanvas(
         renderState = renderState,
         canvasSize = canvasSize,
         callbacks = callbacks,
-        onRenderStateChanged = onRenderStateChanged,
         modifier = modifier.aspectRatio(canvasSize.aspectRatio()),
     )
 }

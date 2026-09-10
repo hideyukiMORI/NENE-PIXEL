@@ -122,11 +122,12 @@ a cleanup failure does not relabel verified user bytes as an unsuccessful save.
 
 ### One bounded private recovery record
 
-Recovery uses one app-private `android.util.AtomicFile`, one serialized writer, and no added
-dependency. Its versioned private envelope contains either one Candidate with the exact v1 project
-payload or an explicit Retired marker. The envelope layout, state names in code, and autosave debounce
-value must be fixed by P3-04's focused implementation contract before code is added; P3-04 must not
-invent a second pixel schema or change the exported v1 bytes.
+Recovery uses one app-private `android.util.AtomicFile` and one serialized writer. Its versioned
+private envelope contains either one Candidate with the exact v1 project payload or an explicit
+Retired marker. ADR 0016 fixes the envelope layout, state names, generation, reader, and conditional
+Retired publication in P3-03 because load/new-document installation cannot land with a no-op
+retirement dependency. P3-04 fixes only the autosave debounce/coalescing contract before Candidate
+publication is added; it must reuse the same envelope and writer and must not change exported v1.
 
 Before `startWrite`, the candidate document is encoded and validated. After writing, the adapter
 calls `FileDescriptor.sync()` explicitly so sync failure remains observable before commit, then calls
@@ -222,7 +223,8 @@ Immutable captures and checked completion provide atomic owner changes without l
 - AtomicFile integrity still depends on the application enforcing its one-writer rule;
 - a process death before a pending autosave completes may lose edits since the last successfully
   completed autosave; and
-- exact recovery-envelope bytes and debounce timing remain blocked on the focused P3-04 contract.
+- autosave debounce timing remains blocked on the focused P3-04 contract; ADR 0016 fixes the shared
+  recovery-envelope bytes and Retired foundation in P3-03.
 
 ## Enforcement impact
 
@@ -237,13 +239,13 @@ Immutable captures and checked completion provide atomic owner changes without l
   partial-output cleanup reporting, exact checkpoint
   completion, continued editing, stale runtime/operation completion, long-load editing followed by
   a different position or replacement branch, exact-position undo/redo return, stale load
-  reconfirmation, busy commit rejection, preview cancellation, and atomic loaded installation.
-- P3-04 must first accept its private envelope/debounce contract, then test AtomicFile success/failure
-  recovery plus explicit sync/read-back verification, Candidate/Retired startup behavior, corruption,
-  explicit recovery acceptance with Candidate lineage retention, dirty restored state,
-  retirement-before-switch failure, save/retirement outcome separation, one-writer ordering, the
-  C1-save/C2-autosave/C1-retirement race, generation races, coalescing, and the
-  one-active-plus-one-latest bound.
+  reconfirmation, busy commit rejection, preview cancellation, atomic loaded installation, exact
+  Candidate/Retired envelope fixtures and corruption bounds, startup inspection, conditional
+  Retired sync/read-back, generation/stale/uncertain outcomes, and retirement-before-switch failure.
+- P3-04 must first accept its debounce/coalescing contract, then test Candidate publication,
+  explicit recovery acceptance with Candidate lineage retention, dirty restored state, the C1-save
+  -> C2-autosave -> C1-retirement race, abandoned-runtime publication, coalescing, and the
+  one-active-plus-one-latest bound against P3-03's existing envelope and writer.
 - P3-01 changes documentation only. Its narrow checks are `git diff --check` and
   `./gradlew validateDocumentation`. Codec/storage/device evidence is not triggered until its owning
   implementation Issue. The final merge-ready PR uses required `quality` CI; no duplicate local full
@@ -253,8 +255,9 @@ Immutable captures and checked completion provide atomic owner changes without l
 
 No project file or recovery record exists before this decision, so there is no user data migration
 and no v0 reader. P3-02 creates the reserved project-format module and v1 codec; P3-03 creates the
-reserved persistence adapter and application protocol; P3-04 adds the one private recovery envelope.
-Each later Issue must remove any exploratory duplicate before merge.
+reserved persistence adapter, application protocol, and private recovery-envelope/Retired foundation;
+P3-04 adds Candidate publication and recovery behavior to that foundation. Each later Issue must
+remove any exploratory duplicate before merge.
 
 Before any v2 writer is accepted, a separate ADR must preserve v1 golden semantics and define one
 read-old/write-current migration path. Rollback before user files ship removes the unmerged
@@ -267,6 +270,7 @@ requires a compatibility ADR; silently reinterpreting or abandoning v1 is prohib
 - PR: pending
 - Format authority: [Project Format Version 1](../PROJECT_FORMAT_V1.md)
 - Builds on: ADR 0005, ADR 0006, and ADR 0009
+- Refined by: ADR 0016
 - Android storage evidence:
   [Storage Access Framework](https://developer.android.com/training/data-storage/shared/documents-files),
   [ContentResolver](https://developer.android.com/reference/android/content/ContentResolver),

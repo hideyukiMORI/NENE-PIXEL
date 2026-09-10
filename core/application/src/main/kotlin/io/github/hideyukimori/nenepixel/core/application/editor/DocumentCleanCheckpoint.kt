@@ -16,6 +16,11 @@ internal class DocumentCleanCheckpoint private constructor(
         }
 
     companion object {
+        fun create(
+            documentId: DocumentId,
+            historyPosition: HistoryPosition,
+        ): DocumentCleanCheckpoint = DocumentCleanCheckpoint(documentId, historyPosition)
+
         fun create(current: CommandRuntimeState): DocumentCleanCheckpoint =
             DocumentCleanCheckpoint(current.documentState.id, current.historyPosition)
     }

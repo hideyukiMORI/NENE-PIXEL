@@ -44,6 +44,7 @@ tasks.named("check") {
     dependsOn(gradle.includedBuild("build-logic").task(":check"))
     dependsOn(":app:android:check")
     dependsOn(":presentation:compose:check")
+    dependsOn(":adapters:persistence:check")
     dependsOn(":core:application:check")
     dependsOn(":core:domain:check")
     dependsOn(":core:pixel-engine:check")

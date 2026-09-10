@@ -26,11 +26,11 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 @Composable
 internal fun NewDocumentControls(
     canvasSize: CanvasSize,
-    callbacks: EditorCallbacks,
-    onRenderStateChanged: (EditorRenderState) -> Unit,
+    callbacks: EditorPersistenceCallbacks,
+    enabled: Boolean,
 ) {
     val state = remember { NewDocumentControlState() }
-    NewDocumentButton(onClick = { state.open(canvasSize) })
+    NewDocumentButton(enabled = enabled, onClick = { state.open(canvasSize) })
     if (state.dialogVisible) {
         NewDocumentDialog(
             state = state.dialogState,
@@ -41,7 +41,6 @@ internal fun NewDocumentControls(
                     onCreate = {
                         state.accept(
                             callbacks.onCreateNewDocument(state.widthInput, state.heightInput),
-                            onRenderStateChanged,
                         )
                     },
                     onCancel = state::cancel,
@@ -51,8 +50,11 @@ internal fun NewDocumentControls(
 }
 
 @Composable
-private fun NewDocumentButton(onClick: () -> Unit) {
-    Button(onClick = onClick) {
+private fun NewDocumentButton(
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    Button(enabled = enabled, onClick = onClick) {
         Text("New document")
     }
 }
@@ -145,13 +147,9 @@ private class NewDocumentControlState {
         dialogVisible = true
     }
 
-    fun accept(
-        submission: NewDocumentSubmission,
-        onRenderStateChanged: (EditorRenderState) -> Unit,
-    ) {
+    fun accept(submission: NewDocumentSubmission) {
         when (submission) {
-            is NewDocumentSubmission.Created -> {
-                onRenderStateChanged(submission.renderState)
+            NewDocumentSubmission.Submitted -> {
                 cancel()
             }
 
