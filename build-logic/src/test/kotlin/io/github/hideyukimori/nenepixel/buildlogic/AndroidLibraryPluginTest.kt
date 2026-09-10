@@ -18,7 +18,7 @@ internal class AndroidLibraryPluginTest {
     fun `plugin applies the complete non-Compose Android library convention`() {
         writeFixture()
 
-        val conventionBuild = runner("check", "--write-locks").build()
+        val conventionBuild = runner("check", "--write-locks", LintPolicyProbe.TASK).build()
         val lockedBuild = runner("compileDebugKotlin").build()
 
         assertSuccessfulTask(conventionBuild, ":compileDebugKotlin")
@@ -26,6 +26,8 @@ internal class AndroidLibraryPluginTest {
         assertSuccessfulTask(conventionBuild, ":ktlintMainSourceSetCheck")
         assertSuccessfulTask(conventionBuild, ":lintDebug")
         assertSuccessfulTask(conventionBuild, ":testDebugUnitTest")
+        assertSuccessfulTask(conventionBuild, ":${LintPolicyProbe.TASK}")
+        LintPolicyProbe.assertAdvisoryDependencyChecks(conventionBuild)
         assertSuccessfulTask(lockedBuild, ":compileDebugKotlin")
         assertTrue(Files.exists(projectDirectory.resolve("gradle.lockfile")))
 
@@ -55,7 +57,7 @@ internal class AndroidLibraryPluginTest {
         writeFile("settings.gradle.kts", SETTINGS)
         writeFile("gradle/libs.versions.toml", VERSION_CATALOG)
         writeFile("config/detekt/detekt.yml", DETEKT_CONFIG)
-        writeFile("build.gradle.kts", BUILD_FILE)
+        writeFile("build.gradle.kts", LintPolicyProbe.buildScript(BUILD_FILE))
         writeFile("local.properties", "sdk.dir=${escapedAndroidSdkPath()}")
         writeFile("src/main/kotlin/probe/Probe.kt", KOTLIN_SOURCE)
     }

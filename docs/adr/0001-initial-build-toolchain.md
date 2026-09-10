@@ -124,6 +124,12 @@ the Baseline Profile plugin moved to stable 1.5.0 and the Compose BOM moved to 2
 Gradle Wrapper, JDK 21, Build Tools 36.0.0, compile/target SDK 37, Kotlin line, AGP 9.4.0, and
 gate semantics remain unchanged.
 
+ADR 0017 (Issue #93, 2026-09-10) changed the severity of the two run-time freshness checks,
+`GradleDependency` and `NewerVersionAvailable`, from error to informational after #48 and #92 showed
+that upstream releases alone turned the merge gate red. Every other lint severity, `warningsAsErrors`,
+`checkDependencies`, and the no-baseline rule of this decision remain in force; catalog freshness is
+now enforced by the dependency refresh cadence in the Quality Gates document.
+
 ## Rejected alternatives
 
 ### Generate the project from Android Studio defaults
@@ -196,4 +202,4 @@ If a selected tool cannot produce the initial clean build, stop the scaffold cha
 - Compatible dependency refresh: #92
 - PR: #11
 - Supersedes: none
-- Superseded by: none
+- Superseded by: ADR 0017 for the severity of `GradleDependency` and `NewerVersionAvailable` only
