@@ -62,6 +62,12 @@ change.
 Dependency locking and SHA-256 verification cover the new plugins and libraries. No module-local
 repository, dynamic version, version range, or automatic dependency update path is introduced.
 
+Issue #92 closed the release-candidate exception on 2026-09-10: the canonical CI lint gate
+rejected `1.5.0-rc02` as outdated, and the Baseline Profile Gradle plugin and Benchmark Macro
+JUnit4 moved to the first compatible stable release, `1.5.0`. That change is a build- and
+instrumentation-toolchain update only. The committed baseline profile artifact was not
+regenerated, and the `QLT-004` SHA-256 verification of that artifact is unchanged.
+
 ### Generated artifact
 
 The producer launches the installed application and finds the canonical editor through stable
@@ -242,6 +248,7 @@ rollback that leaves two profile sources or an unvalidated generated artifact is
 
 - Issue: #54
 - Evidence correction: #62
+- Stable toolchain replacement: #92
 - Builds on: ADR 0001 initial build toolchain
 - Builds on: ADR 0007 canonical Pencil gesture
 - Builds on: ADR 0009 bounded history and clean checkpoint
