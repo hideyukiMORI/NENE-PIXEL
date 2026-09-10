@@ -106,7 +106,7 @@ can be added later without changing this decision.
 - `build-logic`: `AndroidConvention.kt` adds the two IDs to `lint.informational`; the shared
   functional test asserts that exactly these two IDs are informational and that
   `warningsAsErrors`, `abortOnError`, `checkDependencies`, and `checkReleaseBuilds` remain `true`.
-- Intentional-failure and restored-green proof, recorded in the Issue #93 PR. An unused catalog
+- Intentional-failure and restored-green proof, recorded in PR #95. An unused catalog
   entry `androidx.collection:collection` 1.4.0 (newest 1.6.0) was added temporarily so that lint
   resolution stays inside the locked graph. With network access, `:app:android:lintDebug` on this
   branch reported the finding as a hint and passed (2026-09-10 15:57 JST, exit 0,
@@ -130,7 +130,7 @@ with the incidents above as the known cost.
 
 - Issue: #93
 - Incidents: #48, #92
-- PR: recorded on Issue #93
+- PR: #95
 - Builds on: ADR 0001 initial build toolchain
 - Supersedes: ADR 0001 for the severity of `GradleDependency` and `NewerVersionAvailable` only
 - Superseded by: none
