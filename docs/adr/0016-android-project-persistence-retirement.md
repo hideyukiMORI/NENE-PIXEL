@@ -324,10 +324,16 @@ prevents a recreated ViewModel and adapter from racing an older non-cancellable 
 adding an Application singleton or moving recovery ownership into the app.
 
 The app already directly uses `androidx.lifecycle:lifecycle-viewmodel:2.9.4`; that artifact exposes
-`viewModelScope`. Its locked runtime graph already contains `kotlinx-coroutines-core` and
-`kotlinx-coroutines-android` 1.9.0. P3-03 adds direct `kotlinx-coroutines-core` declarations to
-`:core:application` and `:adapters:persistence`, plus the direct Android declaration to `:app:android`,
-at that already resolved version. The resolved Android runtime artifact set does not grow. Code
+`viewModelScope` and transitively resolved `kotlinx-coroutines-core` and `kotlinx-coroutines-android`
+1.9.0 into the locked Android runtime graph. P3-03 adds direct `kotlinx-coroutines-core` declarations
+to `:core:application` and `:adapters:persistence`, plus the direct Android declaration to
+`:app:android`. A direct declaration needs a version literal in `gradle/libs.versions.toml`, and the
+merge gate's lint `NewerVersionAvailable` check, the Maven Central counterpart of `GradleDependency`,
+requires that literal to be the newest published release, so the declared version is 1.11.0 rather
+than the previously resolved 1.9.0. The coroutines artifacts in the app runtime graph therefore move
+from 1.9.0 to 1.11.0. The resolved Android runtime artifact set does not grow: the regenerated
+`app/android/gradle.lockfile` keeps the same 97 debug and 96 release runtime modules, and only the
+four `kotlinx-coroutines` version literals change. Code
 reachability and R8 output may still change and are assessed by the normal build gate rather than
 assumed to be size-neutral. Core creates no scope or dispatcher; it uses `StateFlow` for its read-only
 projection and `withContext(NonCancellable)` only for the switch critical phase. The app composition selects and injects one
