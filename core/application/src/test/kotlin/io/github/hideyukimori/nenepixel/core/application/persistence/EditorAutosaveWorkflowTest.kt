@@ -127,6 +127,7 @@ internal class EditorAutosaveWorkflowTest {
 
             releaseSave.complete(Unit)
             assertSaved(saving.await())
+            assertNull(fixture.workflow.autosave.value.pendingRevision)
         }
 
     @Test
@@ -221,8 +222,8 @@ internal class EditorAutosaveWorkflowTest {
                 AutosaveLastOutcome.Uncertain(RecoveryRetirementFailure.READ_BACK, RecoveryRollbackOutcome.FAILED),
                 fixture.workflow.autosave.value.lastOutcome,
             )
-            assertEquals(1L, fixture.workflow.autosave.value.pendingRevision)
             assertInstanceOf(RecoveryStatus.Unknown::class.java, fixture.workflow.operation.value.recoveryStatus)
+            assertEquals(1L, fixture.workflow.autosave.value.pendingRevision)
         }
 
     @Test
@@ -254,6 +255,39 @@ internal class EditorAutosaveWorkflowTest {
 
             fixture.initialize()
             assertEquals(generation(1), assertPublished(fixture.workflow.publishLatestCapture()))
+        }
+
+    @Test
+    fun `caller cancellation cannot split a durable publication from its runtime record`() =
+        runBlocking {
+            val fixture = initializedFixture()
+            val entered = CompletableDeferred<Unit>()
+            val release = CompletableDeferred<Unit>()
+            fixture.recovery.publishHandler = { publication ->
+                entered.complete(Unit)
+                release.await()
+                RecoveryPublicationOutcome.Published(nextGeneration(publication.expected))
+            }
+            apply(fixture.runtime, position(0, 0), red)
+
+            val publishing = async { fixture.workflow.publishLatestCapture() }
+            entered.await()
+            publishing.cancel()
+            release.complete(Unit)
+            publishing.join()
+
+            assertEquals(1L, fixture.workflow.autosave.value.publishedRevision)
+            assertNull(fixture.workflow.autosave.value.pendingRevision)
+            assertFalse(fixture.workflow.autosave.value.publishing)
+            assertEquals(
+                AutosaveLastOutcome.Published(generation(1)),
+                fixture.workflow.autosave.value.lastOutcome,
+            )
+            assertEquals(RecoveryStatus.Clear, fixture.workflow.operation.value.recoveryStatus)
+
+            fixture.storage.saveHandler = { ProjectSaveOutcome.Saved }
+            assertSaved(fixture.workflow.saveAs())
+            assertEquals(PersistenceOperationPhase.Idle, fixture.workflow.operation.value.phase)
         }
 
     @Test

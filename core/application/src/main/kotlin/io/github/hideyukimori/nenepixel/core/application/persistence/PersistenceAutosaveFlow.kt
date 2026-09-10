@@ -32,14 +32,30 @@ internal class PersistenceAutosaveFlow(
 
     private suspend fun awaitActivePublication(): Boolean {
         val handle = operations.activePublication() ?: return false
-        completions[handle]?.await()
+        val completion = completions.getOrPut(handle) { CompletableDeferred() }
+        if (operations.activePublication() == handle) {
+            completion.await()
+        } else {
+            completions.remove(handle, completion)
+        }
         return true
     }
 
+    /**
+     * The publication and the transition that records its outcome run under one [NonCancellable] block, so a
+     * cancelled caller can never leave a durable Candidate that the runtime does not know about. Caller
+     * cancellation therefore does not reach the catch below; it stays as a safety net for a port that raises
+     * cancellation on its own, and it releases the lease before rethrowing.
+     */
     private suspend fun publish(start: AutosaveStart.Started): AutosaveRequestResult {
-        completions[start.handle] = CompletableDeferred()
+        completions.getOrPut(start.handle) { CompletableDeferred() }
         return try {
-            finish(start, recoveryRecord.publishCandidate(start.expected, start.capture.document))
+            withContext(NonCancellable) {
+                operations.completePublication(
+                    start.handle,
+                    recoveryRecord.publishCandidate(start.expected, start.capture.document),
+                )
+            }
         } catch (cancelled: CancellationException) {
             withContext(NonCancellable) { operations.releasePublication(start.handle) }
             throw cancelled
@@ -47,9 +63,4 @@ internal class PersistenceAutosaveFlow(
             completions.remove(start.handle)?.complete(Unit)
         }
     }
-
-    private suspend fun finish(
-        start: AutosaveStart.Started,
-        outcome: RecoveryPublicationOutcome,
-    ): AutosaveRequestResult = withContext(NonCancellable) { operations.completePublication(start.handle, outcome) }
 }
