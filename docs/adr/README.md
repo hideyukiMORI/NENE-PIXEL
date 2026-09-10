@@ -56,4 +56,4 @@ An ADR must include:
 | [0015](0015-project-format-v1-codec-contract.md) | accepted | One bounded project-format byte carrier, closed v1 codec result, and allocation-after-validation mapping |
 | [0016](0016-android-project-persistence-retirement.md) | accepted | Android Save As/load operations, one runtime-install path, and real conditional recovery retirement |
 | [0017](0017-advisory-dependency-freshness-lint.md) | accepted | Informational `GradleDependency` / `NewerVersionAvailable` lint and a deliberate monthly catalog refresh cadence |
-| [0018](0018-bounded-autosave-debounce-contract.md) | proposed | Bounded autosave capture, 1 s quiet window, 5 s latency cap, `ON_STOP` flush, and one device publication evidence lane |
+| [0018](0018-bounded-autosave-debounce-contract.md) | accepted | Bounded autosave capture, 1 s quiet window, 5 s latency cap, `ON_STOP` flush, and one device publication evidence lane |

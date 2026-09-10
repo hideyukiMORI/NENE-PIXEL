@@ -1,6 +1,6 @@
 # ADR 0018: Bounded autosave debounce, coalescing, and lifecycle flush contract
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-09-10
 - Issue: #87
 - Affected rules: `ARC-011`, `CMD-001`, `QLT-006`, `QLT-011`, `QLT-013`, `QLT-015`
