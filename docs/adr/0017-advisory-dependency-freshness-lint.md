@@ -1,7 +1,7 @@
 # ADR 0017: Advisory dependency-freshness lint and a deliberate refresh cadence
 
 - Status: accepted
-- Date: 2026-09-10
+- Date: 2026-09-11
 - Issue: #93
 - Affected rules: `QLT-001`, `QLT-003`, `QLT-005`
 
@@ -18,8 +18,8 @@ Evidence that this makes the merge gate depend on the calendar rather than on th
 
 - 2026-09-02: `main` failed the required `quality` job when AGP 9.4.0 shipped while the catalog
   pinned 9.3.2. Issue #48 / PR #49 restored CI with a focused toolchain update.
-- 2026-09-10: a clean `main` worktree (`3a4ea65`) failed `:app:android:lintDebug` with network access
-  (exit 1, three errors, no other lint finding) because `androidx.benchmark` 1.5.0 and Compose BOM
+- 2026-09-10 20:36 JST: a clean `main` worktree (`3a4ea65`) failed `:app:android:lintDebug` with network
+  access (exit 1, three errors, no other lint finding) because `androidx.benchmark` 1.5.0 and Compose BOM
   2026.09.00 had shipped. PR #91 failed three times on the same errors plus two
   `NewerVersionAvailable` findings for `kotlinx-coroutines`. Issue #92 / PR #94 restored CI.
 - The Compose BOM ships monthly, so the failure recurs at least monthly without any source change.
@@ -109,11 +109,11 @@ can be added later without changing this decision.
 - Intentional-failure and restored-green proof, recorded in PR #95. An unused catalog
   entry `androidx.collection:collection` 1.4.0 (newest 1.6.0) was added temporarily so that lint
   resolution stays inside the locked graph. With network access, `:app:android:lintDebug` on this
-  branch reported the finding as a hint and passed (2026-09-10 15:57 JST, exit 0,
+  branch reported the finding as a hint and passed (2026-09-11 00:57 JST, exit 0,
   `0 errors, 0 warnings, 1 hint`); with the `informational` line removed it failed
-  (15:59 JST, exit 1, `Lint found 1 error`, `GradleDependency`). The entry and the line were then
+  (00:59 JST, exit 1, `Lint found 1 error`, `GradleDependency`). The entry and the line were then
   restored and the catalog diff is empty. The original incident is the same failure on main
-  `3a4ea65` (11:36 JST, exit 1, three errors; CI run 34391610354).
+  `3a4ea65` (2026-09-10 20:36 JST, exit 1, three errors; CI run 34391610354).
 - `docs/QUALITY_GATES.md`: `QLT-001` carve-out sentence and the Dependency refresh section.
 - `docs/adr/0001-initial-build-toolchain.md`: dated paragraph and `Superseded by` entry limited to
   this severity.
