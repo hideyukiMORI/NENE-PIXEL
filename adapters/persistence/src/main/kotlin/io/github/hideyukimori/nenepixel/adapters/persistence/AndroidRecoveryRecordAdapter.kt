@@ -3,12 +3,13 @@ package io.github.hideyukimori.nenepixel.adapters.persistence
 import android.util.AtomicFile
 import io.github.hideyukimori.nenepixel.core.application.persistence.ExpectedRecoveryLineage
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryGeneration
-import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryGenerationResult
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryInspection
+import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryPublicationOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRecordPort
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRetirementFailure
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRetirementOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRollbackOutcome
+import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -16,7 +17,7 @@ import kotlinx.coroutines.withContext
 
 public class AndroidRecoveryRecordAdapter private constructor(
     private val reader: RecoveryRecordReader,
-    private val writer: RecoveryRetirementWriter,
+    private val writer: RecoveryRecordWriter,
     private val ioDispatcher: CoroutineDispatcher,
 ) : RecoveryRecordPort {
     override suspend fun inspect(): RecoveryInspection =
@@ -33,43 +34,71 @@ public class AndroidRecoveryRecordAdapter private constructor(
             }
         }
 
+    override suspend fun publishCandidate(
+        expected: ExpectedRecoveryLineage,
+        document: DocumentState,
+    ): RecoveryPublicationOutcome =
+        withContext(ioDispatcher) {
+            RecoveryRecordSerialization.mutex.withLock {
+                publishCandidateSerialized(expected, document)
+            }
+        }
+
     private fun retireSerialized(expected: ExpectedRecoveryLineage): RecoveryRetirementOutcome =
-        when (val actual = reader.inspect()) {
-            is InternalInspection.Failed -> {
+        when (val step = RecoveryLineageMatcher.nextGeneration(expected, reader.inspect())) {
+            is RecoveryGenerationStep.Next -> {
+                publishRetired(step.generation)
+            }
+
+            RecoveryGenerationStep.InspectionFailed -> {
                 RecoveryRetirementOutcome.Failed(
                     RecoveryRetirementFailure.CURRENT_RECORD_INSPECTION,
                     RecoveryRollbackOutcome.NOT_NEEDED,
                 )
             }
 
-            InternalInspection.Missing,
-            is InternalInspection.Record,
-            -> {
-                retireLineage(expected, actual)
+            RecoveryGenerationStep.Stale -> {
+                RecoveryRetirementOutcome.Stale
+            }
+
+            RecoveryGenerationStep.Exhausted -> {
+                RecoveryRetirementOutcome.GenerationExhausted
             }
         }
 
-    private fun retireLineage(
+    private fun publishCandidateSerialized(
         expected: ExpectedRecoveryLineage,
-        actual: InternalInspection,
-    ): RecoveryRetirementOutcome =
-        if (matches(expected, actual)) {
-            retireGeneration(generationValue(actual))
-        } else {
-            RecoveryRetirementOutcome.Stale
-        }
+        document: DocumentState,
+    ): RecoveryPublicationOutcome =
+        when (val step = RecoveryLineageMatcher.nextGeneration(expected, reader.inspect())) {
+            is RecoveryGenerationStep.Next -> {
+                publishCandidateRecord(step.generation, document)
+            }
 
-    private fun retireGeneration(actualGeneration: Long): RecoveryRetirementOutcome =
-        if (actualGeneration == Long.MAX_VALUE) {
-            RecoveryRetirementOutcome.GenerationExhausted
-        } else {
-            publishRetired(createGeneration(actualGeneration + 1L))
+            RecoveryGenerationStep.InspectionFailed -> {
+                RecoveryPublicationOutcome.Failed(
+                    RecoveryRetirementFailure.CURRENT_RECORD_INSPECTION,
+                    RecoveryRollbackOutcome.NOT_NEEDED,
+                )
+            }
+
+            RecoveryGenerationStep.Stale -> {
+                RecoveryPublicationOutcome.Stale
+            }
+
+            RecoveryGenerationStep.Exhausted -> {
+                RecoveryPublicationOutcome.GenerationExhausted
+            }
         }
 
     private fun publishRetired(generation: RecoveryGeneration): RecoveryRetirementOutcome =
         when (val encoded = RecoveryRecordCodec.encodeRetired(generation)) {
             is RecoveryEncodeResult.Encoded -> {
-                writer.publish(encoded.bytes, generation)
+                retirementOutcome(
+                    writer.publish(encoded.bytes, generation) { record ->
+                        record == RecoveryRecord.Retired(generation)
+                    },
+                )
             }
 
             RecoveryEncodeResult.Rejected -> {
@@ -78,6 +107,42 @@ public class AndroidRecoveryRecordAdapter private constructor(
                     RecoveryRollbackOutcome.NOT_NEEDED,
                 )
             }
+        }
+
+    // ADR 0014: the candidate is encoded and validated before the write session is opened.
+    private fun publishCandidateRecord(
+        generation: RecoveryGeneration,
+        document: DocumentState,
+    ): RecoveryPublicationOutcome =
+        when (val encoded = RecoveryRecordCodec.encodeCandidate(generation, document)) {
+            is RecoveryEncodeResult.Encoded -> {
+                publicationOutcome(
+                    writer.publish(encoded.bytes, generation) { record ->
+                        record == RecoveryRecord.Candidate(generation, document)
+                    },
+                )
+            }
+
+            RecoveryEncodeResult.Rejected -> {
+                RecoveryPublicationOutcome.Failed(
+                    RecoveryRetirementFailure.CANDIDATE_ENCODING,
+                    RecoveryRollbackOutcome.NOT_NEEDED,
+                )
+            }
+        }
+
+    private fun retirementOutcome(result: RecordWriteResult): RecoveryRetirementOutcome =
+        when (result) {
+            is RecordWriteResult.Written -> RecoveryRetirementOutcome.Retired(result.generation)
+            is RecordWriteResult.Failed -> RecoveryRetirementOutcome.Failed(result.failure, result.rollback)
+            is RecordWriteResult.Uncertain -> RecoveryRetirementOutcome.Uncertain(result.failure, result.rollback)
+        }
+
+    private fun publicationOutcome(result: RecordWriteResult): RecoveryPublicationOutcome =
+        when (result) {
+            is RecordWriteResult.Written -> RecoveryPublicationOutcome.Published(result.generation)
+            is RecordWriteResult.Failed -> RecoveryPublicationOutcome.Failed(result.failure, result.rollback)
+            is RecordWriteResult.Uncertain -> RecoveryPublicationOutcome.Uncertain(result.failure, result.rollback)
         }
 
     private fun mapInspection(inspection: InternalInspection): RecoveryInspection =
@@ -98,28 +163,6 @@ public class AndroidRecoveryRecordAdapter private constructor(
             }
         }
 
-    private fun matches(
-        expected: ExpectedRecoveryLineage,
-        actual: InternalInspection,
-    ): Boolean =
-        when (expected) {
-            ExpectedRecoveryLineage.Missing -> actual is InternalInspection.Missing
-            is ExpectedRecoveryLineage.Present -> generationValue(actual) == expected.generation.value
-        }
-
-    private fun generationValue(inspection: InternalInspection): Long =
-        when (inspection) {
-            InternalInspection.Missing -> 0L
-            is InternalInspection.Record -> inspection.record.generation.value
-            is InternalInspection.Failed -> error("Failed inspection has no recovery generation")
-        }
-
-    private fun createGeneration(value: Long): RecoveryGeneration =
-        when (val result = RecoveryGeneration.create(value)) {
-            is RecoveryGenerationResult.Created -> result.generation
-            RecoveryGenerationResult.Rejected -> error("Validated next recovery generation was rejected")
-        }
-
     public companion object {
         public fun create(
             atomicFile: AtomicFile,
@@ -135,7 +178,7 @@ public class AndroidRecoveryRecordAdapter private constructor(
             ioDispatcher: CoroutineDispatcher,
         ): RecoveryRecordPort {
             val reader = RecoveryRecordReader(file)
-            return AndroidRecoveryRecordAdapter(reader, RecoveryRetirementWriter(file, reader), ioDispatcher)
+            return AndroidRecoveryRecordAdapter(reader, RecoveryRecordWriter(file, reader), ioDispatcher)
         }
     }
 }
