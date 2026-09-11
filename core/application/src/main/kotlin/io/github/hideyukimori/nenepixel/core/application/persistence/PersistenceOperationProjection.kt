@@ -15,6 +15,10 @@ public sealed interface PersistenceOperationPhase {
         public val operation: PersistenceOperationHandle,
     ) : PersistenceOperationPhase
 
+    public data class Exporting internal constructor(
+        public val operation: PersistenceOperationHandle,
+    ) : PersistenceOperationPhase
+
     public data class Loading internal constructor(
         public val operation: PersistenceOperationHandle,
     ) : PersistenceOperationPhase
@@ -71,6 +75,8 @@ public sealed interface PersistenceLastOutcome {
     public data class Saved internal constructor(
         public val recoveryCleanup: RecoveryCleanupOutcome,
     ) : PersistenceLastOutcome
+
+    public data object PngExported : PersistenceLastOutcome
 
     public data object Loaded : PersistenceLastOutcome
 
@@ -138,6 +144,11 @@ public sealed interface RecoveryUnavailableReason {
 
 public sealed interface PersistenceFailure {
     public data object IdentityExhausted : PersistenceFailure
+
+    public data class PngExport internal constructor(
+        public val failure: ProjectStorageFailure,
+        public val cleanup: PartialOutputCleanup,
+    ) : PersistenceFailure
 
     public data class Storage internal constructor(
         public val failure: ProjectStorageFailure,

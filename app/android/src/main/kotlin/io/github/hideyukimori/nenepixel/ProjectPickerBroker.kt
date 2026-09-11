@@ -1,13 +1,17 @@
 package io.github.hideyukimori.nenepixel
 
+import io.github.hideyukimori.nenepixel.adapters.persistence.DocumentCreationRequest
 import io.github.hideyukimori.nenepixel.adapters.persistence.ProjectDocumentPicker
 import io.github.hideyukimori.nenepixel.adapters.persistence.ProjectPickerResult
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectStorageFailure
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectTransportPhase
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.withContext
 
 internal class ProjectPickerBroker : ProjectDocumentPicker {
     private val lock = Any()
@@ -16,8 +20,8 @@ internal class ProjectPickerBroker : ProjectDocumentPicker {
 
     val pendingRequest: StateFlow<ProjectPickerRequest?> = mutablePendingRequest.asStateFlow()
 
-    override suspend fun createDocument(suggestedName: String): ProjectPickerResult =
-        awaitRequest { ProjectPickerRequest.Create(suggestedName) }
+    override suspend fun createDocument(request: DocumentCreationRequest): ProjectPickerResult =
+        awaitRequest { ProjectPickerRequest.Create(request) }
 
     override suspend fun openDocument(): ProjectPickerResult = awaitRequest { ProjectPickerRequest.Open() }
 
@@ -27,6 +31,7 @@ internal class ProjectPickerBroker : ProjectDocumentPicker {
             if (current == null || current.request !== request || mutablePendingRequest.value !== request) {
                 false
             } else {
+                current.claimed = true
                 mutablePendingRequest.value = null
                 true
             }
@@ -55,10 +60,11 @@ internal class ProjectPickerBroker : ProjectDocumentPicker {
     private suspend fun awaitRequest(createRequest: () -> ProjectPickerRequest): ProjectPickerResult {
         val completion = CompletableDeferred<ProjectPickerResult>()
         val request = createRequest()
+        val submitted = ActivePickerRequest(request, completion)
         val accepted =
             synchronized(lock) {
                 if (active == null) {
-                    active = ActivePickerRequest(request, completion)
+                    active = submitted
                     mutablePendingRequest.value = request
                     true
                 } else {
@@ -72,6 +78,8 @@ internal class ProjectPickerBroker : ProjectDocumentPicker {
         }
         return try {
             completion.await()
+        } catch (cancelled: CancellationException) {
+            drainClaimed(submitted, cancelled)
         } finally {
             synchronized(lock) {
                 if (active?.request === request) {
@@ -80,6 +88,29 @@ internal class ProjectPickerBroker : ProjectDocumentPicker {
                 }
             }
         }
+    }
+
+    private suspend fun drainClaimed(
+        submitted: ActivePickerRequest,
+        cancelled: CancellationException,
+    ): ProjectPickerResult {
+        val mustDrain =
+            synchronized(lock) {
+                if (submitted.claimed || submitted.completion.isCompleted) {
+                    true
+                } else {
+                    if (active === submitted) {
+                        active = null
+                        mutablePendingRequest.value = null
+                    }
+                    false
+                }
+            }
+        if (!mustDrain) throw cancelled
+        // A selected fresh URI must reach adapter cleanup before the physical lease is released.
+        val result = withContext(NonCancellable) { submitted.completion.await() }
+        if (result !is ProjectPickerResult.Selected) throw cancelled
+        return result
     }
 
     private fun complete(
@@ -98,7 +129,6 @@ internal class ProjectPickerBroker : ProjectDocumentPicker {
         current: ActivePickerRequest,
         result: ProjectPickerResult,
     ) {
-        active = null
         mutablePendingRequest.value = null
         current.completion.complete(result)
     }
@@ -108,7 +138,7 @@ internal sealed interface ProjectPickerRequest {
     val kind: ProjectPickerKind
 
     class Create(
-        val suggestedName: String,
+        val creation: DocumentCreationRequest,
     ) : ProjectPickerRequest {
         override val kind: ProjectPickerKind = ProjectPickerKind.Create
     }
@@ -120,7 +150,8 @@ internal sealed interface ProjectPickerRequest {
 
 internal enum class ProjectPickerKind { Create, Open }
 
-private data class ActivePickerRequest(
+private class ActivePickerRequest(
     val request: ProjectPickerRequest,
     val completion: CompletableDeferred<ProjectPickerResult>,
+    var claimed: Boolean = false,
 )

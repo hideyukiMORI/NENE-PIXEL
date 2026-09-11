@@ -97,8 +97,12 @@ internal class AutosaveSchedulerTest {
     }
 }
 
-private class SchedulerFixture(
+internal class SchedulerFixture(
     recovery: RecoveryRecordPort,
+    pngExport: io.github.hideyukimori.nenepixel.core.application.persistence.PngExportPort =
+        io.github.hideyukimori.nenepixel.core.application.persistence.PngExportPort {
+            io.github.hideyukimori.nenepixel.core.application.persistence.PngExportOutcome.Cancelled
+        },
 ) {
     private val runtime = createEditorRuntime()
     val workflow =
@@ -110,6 +114,7 @@ private class SchedulerFixture(
                 override suspend fun load(): ProjectLoadOutcome = ProjectLoadOutcome.Cancelled
             },
             recovery,
+            pngExport = pngExport,
         )
     private var nextX: Int = 0
 
@@ -140,7 +145,7 @@ private class SchedulerFixture(
     }
 }
 
-private class BlockingRecoveryRecordPort : RecoveryRecordPort {
+internal class BlockingRecoveryRecordPort : RecoveryRecordPort {
     private val publications = Channel<DocumentState>(Channel.UNLIMITED)
     private val completions = Channel<Unit>(Channel.UNLIMITED)
     private val completedPublicationCount = AtomicInteger(0)

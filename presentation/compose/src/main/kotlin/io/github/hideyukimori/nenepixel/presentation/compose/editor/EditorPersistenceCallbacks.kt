@@ -6,6 +6,7 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.Persistence
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationHandle
 
 public class EditorPersistenceCallbacks private constructor(
+    private val exportPng: () -> Unit,
     private val saveAs: () -> Unit,
     private val load: () -> Unit,
     private val createNewDocument: (NewDocumentRequestResult) -> Unit,
@@ -14,6 +15,10 @@ public class EditorPersistenceCallbacks private constructor(
     private val acceptRecovery: () -> Unit,
     private val declineRecovery: () -> Unit,
 ) {
+    internal fun onExportPng() {
+        exportPng()
+    }
+
     internal fun onSaveAs() {
         saveAs()
     }
@@ -55,6 +60,7 @@ public class EditorPersistenceCallbacks private constructor(
 
     public companion object {
         public fun create(
+            exportPng: () -> Unit,
             saveAs: () -> Unit,
             load: () -> Unit,
             createNewDocument: (NewDocumentRequestResult) -> Unit,
@@ -64,6 +70,7 @@ public class EditorPersistenceCallbacks private constructor(
             declineRecovery: () -> Unit,
         ): EditorPersistenceCallbacks =
             EditorPersistenceCallbacks(
+                exportPng,
                 saveAs,
                 load,
                 createNewDocument,

@@ -12,11 +12,11 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectStor
  * depends only on platform classes so its production graph stays free of androidx libraries.
  */
 public object ProjectPickerIntents {
-    public fun createDocument(suggestedName: String): Intent =
+    public fun createDocument(request: DocumentCreationRequest): Intent =
         Intent(Intent.ACTION_CREATE_DOCUMENT)
             .addCategory(Intent.CATEGORY_OPENABLE)
-            .setType(PROJECT_MIME_TYPE)
-            .putExtra(Intent.EXTRA_TITLE, suggestedName.withProjectExtension())
+            .setType(request.format.mimeType())
+            .putExtra(Intent.EXTRA_TITLE, request.filename())
 
     public fun openDocument(): Intent =
         Intent(Intent.ACTION_OPEN_DOCUMENT)
@@ -40,9 +40,20 @@ public object ProjectPickerIntents {
             ProjectPickerResult.Selected(this)
         }
 
-    private fun String.withProjectExtension(): String =
-        if (endsWith(PROJECT_EXTENSION, ignoreCase = true)) this else this + PROJECT_EXTENSION
+    private fun DocumentCreationRequest.filename(): String {
+        val extension =
+            when (format) {
+                DocumentOutputFormat.PROJECT -> ".nenepixel"
+                DocumentOutputFormat.PNG -> ".png"
+            }
+        return if (suggestedName.endsWith(extension, ignoreCase = true)) suggestedName else suggestedName + extension
+    }
+
+    private fun DocumentOutputFormat.mimeType(): String =
+        when (this) {
+            DocumentOutputFormat.PROJECT -> PROJECT_MIME_TYPE
+            DocumentOutputFormat.PNG -> "image/png"
+        }
 
     private const val PROJECT_MIME_TYPE: String = "application/octet-stream"
-    private const val PROJECT_EXTENSION: String = ".nenepixel"
 }

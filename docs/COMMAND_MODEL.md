@@ -130,6 +130,14 @@ content URIs are never truncated or replaced. Autosave derives only from committ
 and writes the one bounded private recovery record selected by ADR 0014; it is not a second document
 owner or command path.
 
+## PNG export boundary
+
+ADR 0019 adds `EditorPersistenceWorkflow.exportPng` through `PngExportPort`. The runtime captures an
+immutable document and retains the existing physical-operation lease through export or cancellation
+cleanup. Export permits editing and never modifies document, history, workspace, clean checkpoint,
+or recovery. Matching completion only projects the typed export outcome. The adapter uses the one
+fresh-destination writer and verifies exact PNG bytes before reporting success.
+
 ## Bounded autosave boundary
 
 Every committed command result that changes the document records one immutable autosave capture in

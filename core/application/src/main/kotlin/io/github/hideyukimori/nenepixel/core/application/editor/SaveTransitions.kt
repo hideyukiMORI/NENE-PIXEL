@@ -11,19 +11,6 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryCle
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentId
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 
-internal sealed interface SaveStart {
-    data class Started(
-        val handle: PersistenceOperationHandle,
-        val document: DocumentState,
-    ) : SaveStart
-
-    data object Busy : SaveStart
-
-    data object RecoveryUnavailable : SaveStart
-
-    data object IdentityExhausted : SaveStart
-}
-
 internal sealed interface SaveTransportCompletion {
     data class Cleanup(
         val handle: PersistenceOperationHandle,
@@ -42,14 +29,14 @@ internal object SaveTransitions {
         coordination: PersistenceCoordination,
         document: DocumentState,
         historyPosition: HistoryPosition,
-    ): PersistenceTransition<SaveStart> =
+    ): PersistenceTransition<DocumentOutputStart> =
         when {
             coordination.activeOperation != null || coordination.inspectionInFlight -> {
-                PersistenceTransition(coordination, SaveStart.Busy)
+                PersistenceTransition(coordination, DocumentOutputStart.Busy)
             }
 
             coordination.recoveryState is RuntimeRecoveryState.Initializing -> {
-                PersistenceTransition(coordination, SaveStart.RecoveryUnavailable)
+                PersistenceTransition(coordination, DocumentOutputStart.RecoveryUnavailable)
             }
 
             else -> {
@@ -61,14 +48,14 @@ internal object SaveTransitions {
         coordination: PersistenceCoordination,
         document: DocumentState,
         historyPosition: HistoryPosition,
-    ): PersistenceTransition<SaveStart> =
+    ): PersistenceTransition<DocumentOutputStart> =
         when (val creation = coordination.nextOperationHandle()) {
             is OperationHandleCreation.Created -> {
                 started(creation, document, historyPosition)
             }
 
             OperationHandleCreation.Exhausted -> {
-                PersistenceTransition(coordination.identityExhausted(), SaveStart.IdentityExhausted)
+                PersistenceTransition(coordination.identityExhausted(), DocumentOutputStart.IdentityExhausted)
             }
         }
 
@@ -76,7 +63,7 @@ internal object SaveTransitions {
         creation: OperationHandleCreation.Created,
         document: DocumentState,
         historyPosition: HistoryPosition,
-    ): PersistenceTransition<SaveStart> {
+    ): PersistenceTransition<DocumentOutputStart> {
         val next = creation.next
         val capture =
             SaveCapture(
@@ -86,7 +73,7 @@ internal object SaveTransitions {
                 recovery = next.recoveryState.toSaveCapture(),
             )
         val operation = ActivePersistenceOperation.Save(creation.handle, capture, SavePhase.Transport)
-        return PersistenceTransition(next.withActive(operation), SaveStart.Started(creation.handle, document))
+        return PersistenceTransition(next.withActive(operation), DocumentOutputStart.Started(creation.handle, document))
     }
 
     fun completeTransport(

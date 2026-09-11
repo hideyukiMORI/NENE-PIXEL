@@ -74,7 +74,15 @@ internal class RecoveryOfferStatusTest {
         fixture: EditorFixture,
         recoveryRecord: RecoveryRecordPort,
     ): EditorPersistenceWorkflow =
-        EditorPersistenceWorkflow.create(fixture.runtime, CancellingProjectStoragePort, recoveryRecord)
+        EditorPersistenceWorkflow.create(
+            fixture.runtime,
+            CancellingProjectStoragePort,
+            recoveryRecord,
+            pngExport =
+                io.github.hideyukimori.nenepixel.core.application.persistence.PngExportPort {
+                    io.github.hideyukimori.nenepixel.core.application.persistence.PngExportOutcome.Cancelled
+                },
+        )
 
     private fun commitStroke(fixture: EditorFixture) {
         val begun =

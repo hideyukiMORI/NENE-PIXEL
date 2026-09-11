@@ -28,11 +28,33 @@ internal object PersistenceProjectionMapper {
 
     private fun phase(coordination: PersistenceCoordination): PersistenceOperationPhase =
         when (val active = coordination.activeOperation) {
-            null -> idlePhase(coordination)
-            is ActivePersistenceOperation.Save -> active.toProjectionPhase()
-            is ActivePersistenceOperation.Switch -> active.toProjectionPhase()
-            is ActivePersistenceOperation.Autosave -> idlePhase(coordination)
-            is ActivePersistenceOperation.RecoveryDecline -> PersistenceOperationPhase.Discarding(active.handle)
+            null -> {
+                idlePhase(coordination)
+            }
+
+            is ActivePersistenceOperation.Save -> {
+                active.toProjectionPhase()
+            }
+
+            is ActivePersistenceOperation.Export -> {
+                if (active.phase == ExportPhase.Cancelling) {
+                    PersistenceOperationPhase.Cancelling(active.handle)
+                } else {
+                    PersistenceOperationPhase.Exporting(active.handle)
+                }
+            }
+
+            is ActivePersistenceOperation.Switch -> {
+                active.toProjectionPhase()
+            }
+
+            is ActivePersistenceOperation.Autosave -> {
+                idlePhase(coordination)
+            }
+
+            is ActivePersistenceOperation.RecoveryDecline -> {
+                PersistenceOperationPhase.Discarding(active.handle)
+            }
         }
 
     private fun idlePhase(coordination: PersistenceCoordination): PersistenceOperationPhase =

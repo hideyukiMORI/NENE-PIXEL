@@ -32,6 +32,8 @@ public class EditorRuntime private constructor(
     private val mutableAutosave: MutableStateFlow<AutosaveProjection> =
         MutableStateFlow(PersistenceProjectionMapper.projectAutosave(coordination))
 
+    internal val pngExportOperations: RuntimePngExportOperations = RuntimePngExportOperations(this)
+
     internal val saveOperations: RuntimeSaveOperations = RuntimeSaveOperations(this)
     internal val switchOperations: RuntimeSwitchOperations = RuntimeSwitchOperations(this)
     internal val autosaveOperations: RuntimeAutosaveOperations = RuntimeAutosaveOperations(this)

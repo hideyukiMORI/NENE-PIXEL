@@ -85,6 +85,9 @@ One concept has one canonical name. New synonyms in code are prohibited. Add or 
 | `Codec` | Deterministic encoder/decoder for a versioned format | serializer helper, converter |
 | `Mapper` | Pure conversion between two explicitly named representations | util, transformer |
 | `Renderer` | Component that derives visible output from state without changing document truth | view manager |
+| `PngExportPort` | Application-owned export of one immutable document capture without changing editor truth or recovery | save checkpoint, renderer capture |
+| `PngBytes` | Adapter-internal immutable bounded PNG encoding with defensive bulk copies | mutable pixel surface, project file |
+| `DocumentCreationRequest` | Typed fresh-destination request selecting PROJECT or PNG and a suggested filename | existing URI, raw MIME selection |
 
 ## Reserved state verbs
 

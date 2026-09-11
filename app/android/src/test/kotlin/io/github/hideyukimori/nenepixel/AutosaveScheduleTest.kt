@@ -317,6 +317,10 @@ private class AutosaveStateTokens {
                     document: DocumentState,
                 ): RecoveryPublicationOutcome = RecoveryPublicationOutcome.GenerationExhausted
             },
+            pngExport =
+                io.github.hideyukimori.nenepixel.core.application.persistence.PngExportPort {
+                    io.github.hideyukimori.nenepixel.core.application.persistence.PngExportOutcome.Cancelled
+                },
         )
     private var nextX: Int = 0
 

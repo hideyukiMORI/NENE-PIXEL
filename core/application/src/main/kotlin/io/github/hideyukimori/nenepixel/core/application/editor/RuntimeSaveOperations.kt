@@ -16,7 +16,7 @@ internal class RuntimeSaveOperations(
     fun completeRecoveryInspection(outcome: RecoveryInspection): RecoveryInitializationResult =
         runtime.transact { transaction -> RecoveryInspectionTransitions.complete(transaction.coordination, outcome) }
 
-    fun beginSave(): SaveStart =
+    fun beginSave(): DocumentOutputStart =
         runtime.transact { transaction ->
             SaveTransitions.begin(
                 transaction.coordination,

@@ -188,7 +188,9 @@ document transition logic.
 
 ### `:adapters:persistence`
 
-Implements application ports for project storage and recovery. It depends directly on application,
+Implements application ports for project storage, recovery, and PNG export (ADR 0019). The internal
+PNG encoder consumes only the supplied immutable snapshot; PNG and project Save As share one typed
+fresh-destination picker and verified writer. It depends directly on application,
 domain, and project-format because the suspend port signatures contain `DocumentState`; it never
 relies on domain types leaking through another module's implementation dependency. It may use
 Android/filesystem APIs and privately own bounded transport bytes under `ARC-005`. It maps only an

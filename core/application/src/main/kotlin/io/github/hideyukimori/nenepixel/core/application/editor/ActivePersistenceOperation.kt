@@ -17,6 +17,12 @@ internal sealed interface ActivePersistenceOperation {
         val phase: SavePhase,
     ) : ActivePersistenceOperation
 
+    data class Export(
+        override val handle: PersistenceOperationHandle,
+        val runtimeGeneration: Long,
+        val phase: ExportPhase,
+    ) : ActivePersistenceOperation
+
     data class Autosave(
         override val handle: PersistenceOperationHandle,
         val capture: AutosaveCapture,
@@ -59,6 +65,8 @@ internal sealed interface ActivePersistenceOperation {
         ) : Switch
     }
 }
+
+internal enum class ExportPhase { Transport, Cancelling }
 
 internal enum class SavePhase { Transport, Cleanup, Cancelling }
 
@@ -103,6 +111,7 @@ internal fun ActivePersistenceOperation?.isSwitching(): Boolean = this is Active
 
 internal fun ActivePersistenceOperation.isCancelling(): Boolean =
     (this is ActivePersistenceOperation.Save && phase == SavePhase.Cancelling) ||
+        (this is ActivePersistenceOperation.Export && phase == ExportPhase.Cancelling) ||
         this is ActivePersistenceOperation.Switch.Cancelling
 
 internal fun ActivePersistenceOperation.isSaveCleanup(): Boolean =

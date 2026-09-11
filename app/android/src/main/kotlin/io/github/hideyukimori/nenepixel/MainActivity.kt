@@ -8,6 +8,7 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.lifecycle.ViewModelProvider
+import io.github.hideyukimori.nenepixel.adapters.persistence.DocumentCreationRequest
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectStorageFailure
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectTransportPhase
 import io.github.hideyukimori.nenepixel.presentation.compose.editor.NenePixelEditor
@@ -19,7 +20,7 @@ public class MainActivity : ComponentActivity() {
             EditorRuntimeViewModel.factory(application),
         )[EditorRuntimeViewModel::class.java]
     }
-    private val createProjectLauncher: ActivityResultLauncher<String> =
+    private val createProjectLauncher: ActivityResultLauncher<DocumentCreationRequest> =
         registerForActivityResult(CreateProjectDocumentContract()) { result ->
             editorModel.pickerBroker.completeCreate(result)
         }
@@ -62,7 +63,7 @@ public class MainActivity : ComponentActivity() {
         if (!broker.claim(request)) return
         try {
             when (request) {
-                is ProjectPickerRequest.Create -> createProjectLauncher.launch(request.suggestedName)
+                is ProjectPickerRequest.Create -> createProjectLauncher.launch(request.creation)
                 is ProjectPickerRequest.Open -> openProjectLauncher.launch(Unit)
             }
         } catch (_: ActivityNotFoundException) {
