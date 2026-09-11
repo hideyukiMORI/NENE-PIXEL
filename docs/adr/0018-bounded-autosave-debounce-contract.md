@@ -143,6 +143,12 @@ constants are re-derived before merge as `AUTOSAVE_QUIET_MS = ceil(4 × max / 50
 and `AUTOSAVE_LATENCY_CAP_MS = ceil(20 × max / 500) × 500`, and this section is amended by a
 dated paragraph rather than by rewriting the table.
 
+2026-09-12 observation: the single authorized v2 run on iPlay80miniPro / Android 16 observed
+135.757769 ms to 147.071808 ms across the twenty maximum-document samples. The observed maximum
+is below the predeclared 250 ms re-derivation boundary, so the 1,000 ms quiet window and 5,000 ms
+cap remain unchanged. The [raw observation and artifact identity](../quality/M3_AUTOSAVE_PUBLICATION_EVIDENCE.md#result)
+are retained; this decision makes no worst-case latency or process-death completion guarantee.
+
 ### Evidence
 
 Before Candidate publication code merges, one bounded device observation is collected under

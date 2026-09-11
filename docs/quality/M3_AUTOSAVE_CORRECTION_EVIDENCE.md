@@ -226,8 +226,10 @@ selected host classes total 56 tests; Android contracts total 15 tests, includin
 runner contracts with the artifact/reuse limitation documented above. No changed behavior claims
 the earlier full-module result as a new execution.
 
-The real `nene-pixel-p3-autosave-publication-device-v2` observation is still not collected. Its
-reference physical device was unavailable, and its explicit single-run authorization remains
-required. Keep #87 open and the implementation PR in draft until the bounded observation supports
-ADR 0018's constants and the final merge candidate passes required `quality` CI. No duplicate local
-full suite was run. Active waivers: none.
+At the initial correction handoff, the reference physical device was unavailable and the real v2
+observation was not collected. On 2026-09-12, hide connected iPlay80miniPro and explicitly authorized
+one run. The [completed observation](M3_AUTOSAVE_PUBLICATION_EVIDENCE.md#result) retains all raw rows
+and observes a 147.071808 ms maximum for the maximum-document group, so ADR 0018's timing constants
+remain unchanged. No production source changed after the functional checks above. The final merge
+candidate still requires successful `quality` CI. No duplicate local full suite was run.
+Active waivers: none.
