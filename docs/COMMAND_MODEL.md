@@ -132,21 +132,31 @@ owner or command path.
 
 ## Bounded autosave boundary
 
-Every committed command result that advances the revision records one immutable autosave capture in
+Every committed command result that changes the document records one immutable autosave capture in
 the same persistence coordination, including committed undo and redo. A newer capture replaces the
-pending one and a committed undo back to the published revision clears it, so the pending set is
-never larger than one. A Candidate publication is one persistence operation under the existing
+pending one, so the pending set is never larger than one. Capture identity is the runtime generation
+plus exact internal history position, never Revision alone. A committed return to the exact
+published state clears the pending capture only when no active persistence operation can replace
+or retire that Candidate. Otherwise the latest current state remains pending. A Candidate
+publication is one persistence operation under the existing
 one-active lease: a user operation waits for an active publication, a publication requested during a
 user operation answers a typed deferred result and keeps the capture, and a publication requested
 while an unadopted startup Candidate is still offered answers a typed offer-pending result so
 autosave never overwrites the previous session's unsaved work. A verified explicit save at a clean
-boundary drops a pending capture whose revision equals the saved revision and keeps a newer one.
+boundary drops only the exact captured runtime/history state and keeps any different pending state.
+This also applies when an unadopted Candidate or unavailable recovery lineage prevents cleanup.
+Retirement or unproven recovery lineage invalidates the previously published Candidate identity.
 
 The platform owns the clock. `AutosavePolicy` in `:app:android` holds the only ADR 0018 quiet-window
-and latency-cap numbers, the autosave scheduler observes the read-only autosave projection on the
+and latency-cap numbers, the autosave scheduler observes opaque exact-state tokens in the read-only
+autosave projection on the
 ViewModel scope and keeps at most one outstanding request, and the activity `ON_STOP` event requests
 one immediate publication of any pending capture. Core creates no scope, dispatcher, or timer and
-reads no wall time. Accepting the startup recovery offer installs the Candidate through the one
+reads no wall time. A structured platform observer keeps the single derived deadline state current
+while a publication is in flight. The publishing token excludes that capture from the next request;
+the cap for a distinct pending capture survives the preceding publication's completion.
+An obsolete request result cannot suspend a newer observation.
+Accepting the startup recovery offer installs the Candidate through the one
 runtime-install boundary, retains its generation as the new runtime's last-safe lineage, and starts
 dirty; declining retires that generation without replacing the runtime.
 

@@ -114,7 +114,7 @@ internal object RecoveryAdoptionTransitions {
                 .withRecovery(RuntimeRecoveryState.Clear(ExpectedRecoveryLineage.Present(generation)))
                 .finished(PersistenceLastOutcome.Recovered)
         return PersistenceTransition(
-            advanced.withAutosave(AutosaveTracking.initial(advanced.runtimeGeneration)),
+            advanced.withAutosave(AutosaveTracking.initial()),
             PersistenceRequestResult.Completed(PersistenceLastOutcome.Recovered),
             RuntimeOwnerEffect.ReplaceOwners(candidate),
         )

@@ -156,6 +156,7 @@ internal object SaveTransitions {
         operation: ActivePersistenceOperation.Save,
     ): PersistenceTransition<SaveTransportCompletion> {
         val capture = operation.capture
+        val checkpointed = coordination.withAutosave(coordination.autosave.droppedAt(capture.stateToken))
         val effect =
             RuntimeOwnerEffect.InstallCleanCheckpoint(
                 DocumentCleanCheckpoint.create(capture.document.id, capture.historyPosition),
@@ -163,18 +164,18 @@ internal object SaveTransitions {
         return when (val recovery = capture.recovery) {
             is SaveRecoveryCapture.Clear -> {
                 PersistenceTransition(
-                    coordination.withActive(operation.copy(phase = SavePhase.Cleanup)),
+                    checkpointed.withActive(operation.copy(phase = SavePhase.Cleanup)),
                     SaveTransportCompletion.Cleanup(operation.handle, recovery.expected),
                     effect,
                 )
             }
 
             SaveRecoveryCapture.UnadoptedCandidate -> {
-                saved(coordination, RecoveryCleanupOutcome.PreservedUnadoptedCandidate, effect)
+                saved(checkpointed, RecoveryCleanupOutcome.PreservedUnadoptedCandidate, effect)
             }
 
             SaveRecoveryCapture.Unavailable -> {
-                saved(coordination, RecoveryCleanupOutcome.RecoveryUnavailable, effect)
+                saved(checkpointed, RecoveryCleanupOutcome.RecoveryUnavailable, effect)
             }
         }
     }

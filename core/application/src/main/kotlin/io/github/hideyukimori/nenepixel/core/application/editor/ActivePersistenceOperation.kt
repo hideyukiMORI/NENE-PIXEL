@@ -1,6 +1,7 @@
 package io.github.hideyukimori.nenepixel.core.application.editor
 
 import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryPosition
+import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveStateToken
 import io.github.hideyukimori.nenepixel.core.application.persistence.ExpectedRecoveryLineage
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceConfirmationRequest
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationHandle
@@ -66,7 +67,10 @@ internal data class SaveCapture(
     val historyPosition: HistoryPosition,
     val runtimeGeneration: Long,
     val recovery: SaveRecoveryCapture,
-)
+) {
+    val stateToken: AutosaveStateToken
+        get() = AutosaveStateToken(runtimeGeneration, historyPosition)
+}
 
 internal enum class SwitchKind { Loaded, NewDocument }
 

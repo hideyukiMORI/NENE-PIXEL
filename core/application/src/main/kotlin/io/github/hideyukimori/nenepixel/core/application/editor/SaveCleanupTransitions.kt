@@ -18,8 +18,7 @@ internal object SaveCleanupTransitions {
         return if (operation == null || operation.handle != handle || operation.phase != SavePhase.Cleanup) {
             PersistenceTransition(coordination, PersistenceRequestResult.Stale)
         } else {
-            val savedRevision = operation.capture.document.revision.value
-            finish(coordination.withAutosave(coordination.autosave.droppedAt(savedRevision)), outcome)
+            finish(coordination.withAutosave(coordination.autosave.droppedAt(operation.capture.stateToken)), outcome)
         }
     }
 
@@ -30,7 +29,12 @@ internal object SaveCleanupTransitions {
         when (outcome) {
             is RecoveryRetirementOutcome.Retired -> {
                 val state = RuntimeRecoveryState.Clear(ExpectedRecoveryLineage.Present(outcome.generation))
-                saved(coordination.withRecovery(state), RecoveryCleanupOutcome.Retired(outcome.generation))
+                saved(
+                    coordination
+                        .withAutosave(coordination.autosave.withoutPublishedState())
+                        .withRecovery(state),
+                    RecoveryCleanupOutcome.Retired(outcome.generation),
+                )
             }
 
             RecoveryRetirementOutcome.Stale -> {

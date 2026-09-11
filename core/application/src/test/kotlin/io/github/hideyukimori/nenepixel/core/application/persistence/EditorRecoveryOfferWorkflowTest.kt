@@ -12,6 +12,7 @@ import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -46,12 +47,12 @@ internal class EditorRecoveryOfferWorkflowTest {
         runBlocking {
             val fixture = candidateFixture()
             apply(fixture.runtime, position(0, 0), red)
-            assertEquals(1L, fixture.workflow.autosave.value.pendingRevision)
+            assertNotNull(fixture.workflow.autosave.value.pendingStateToken)
 
             val confirmation = assertAwaiting(fixture.workflow.acceptRecovery())
             assertCompleted(PersistenceLastOutcome.Recovered, fixture.workflow.confirm(confirmation))
 
-            assertNull(fixture.workflow.autosave.value.pendingRevision)
+            assertNull(fixture.workflow.autosave.value.pendingStateToken)
             assertEquals(AutosaveRequestResult.NoCapture, fixture.workflow.publishLatestCapture())
             assertTrue(fixture.recovery.publishCalls.isEmpty())
         }
@@ -124,7 +125,7 @@ internal class EditorRecoveryOfferWorkflowTest {
             assertEquals(AutosaveRequestResult.OfferPending, fixture.workflow.publishLatestCapture())
 
             assertTrue(fixture.recovery.publishCalls.isEmpty())
-            assertEquals(1L, fixture.workflow.autosave.value.pendingRevision)
+            assertNotNull(fixture.workflow.autosave.value.pendingStateToken)
             assertEquals(AutosaveLastOutcome.OfferPending, fixture.workflow.autosave.value.lastOutcome)
             assertEquals(RecoveryStatus.UnadoptedCandidate, fixture.workflow.operation.value.recoveryStatus)
 

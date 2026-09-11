@@ -17,7 +17,13 @@ device part that the host lane deliberately excluded.
 
 ## Prospective device publication protocol
 
-Schema identity: `nene-pixel-p3-autosave-publication-device-v1`.
+Schema identity: `nene-pixel-p3-autosave-publication-device-v2`.
+
+The 2026-09-11 correction supersedes the uncollected v1 protocol. V1's unrequested runner
+invocation was recorded by Android test tooling as an assumption failure; it is retained as
+historical evidence and is not a latency population. V2 fixes failure/timeout row retention and
+states the real production read-back work explicitly. Workloads, sample budget, and the 250 ms
+constant re-derivation boundary are unchanged.
 
 ### Purpose and hypothesis
 
@@ -33,8 +39,11 @@ One instrumentation runner class in the `:adapters:persistence` `androidTest` so
 `AutosavePublicationDeviceEvidence`, executed on the reference device by
 `connectedDebugAndroidTest` with the instrumentation runner argument
 `class=io.github.hideyukimori.nenepixel.adapters.persistence.AutosavePublicationDeviceEvidence`
-and the runner argument `nene.p3.autosaveEvidence=collect`. Without that argument the class is
-skipped, so routine focused test runs and CI (which has no device lane) never collect. No Gradle
+and the runner argument `nene.p3.autosaveEvidence=collect`. Without that argument the runner
+rejects the invocation before creating an observation or output file. Routine focused functional
+invocations name their functional classes explicitly and do not invoke this measurement class;
+CI has no device lane. A rejected invocation is never described as a successful skip or evidence.
+No Gradle
 task, configuration, dependency, plugin, lock, or verification-metadata change is introduced.
 
 The runner uses the production adapter path only: `RecoveryRecordCodec.encodeCandidate`, the
@@ -51,10 +60,14 @@ instrumentation start-up wall time is recorded separately from publication laten
 
 Metric: elapsed `System.nanoTime()` from immediately before `encodeCandidate` to immediately after
 the read-back verification returns an accepted outcome, for one publication. Population: twenty
-measured publications per group after five unreported warmups, in fixed order. Cheap facts checked
-inside the timed region are the outcome type and the generation; no pixel comparison, hash, forced
-GC, or memory probe runs between samples (`QLT-014`). After each group, one untimed full decode of
-the final record verifies the payload bytes.
+measured publications per group after five warmups excluded from summary statistics, in fixed order.
+The measured production operation includes exact byte read-back, complete envelope/nested-v1
+validation, and the same Candidate/document equality predicate as the production writer. These
+are required operation semantics, not additional correctness probes. The runner checks the
+returned outcome and generation after timing. It adds no document scan, hash, forced GC, or memory
+probe between samples (`QLT-014`). After each group, one untimed full decode of the final record
+verifies the payload bytes. Row recording uses a bounded in-memory journal; CSV/log I/O occurs only
+when the invocation completes or fails, not between timed operations.
 
 Reported statistics: minimum and maximum per group, plus every raw sample. No percentile is used
 for a decision; the derivation rule reads the maximum of the maximum-document group.
@@ -73,7 +86,12 @@ way autosave does in production.
 
 The budget is one invocation, twenty samples times two groups, with no retry, replacement,
 selective drop, or favourable rerun. A five-second per-sample post-operation anomaly check and a
-sixty-second outer instrumentation timeout bound the run. Any exception, non-accepted outcome,
+sixty-second outer JUnit test timeout bound the run. A test-owned outer reporting rule surrounds the
+timeout rule, freezes a synchronized bounded row journal, and emits its completed rows on success,
+exception, or timeout. Timeout interrupts the worker and makes the observation invalid; recording
+is closed and no follow-on publication may start. An already executing platform I/O call may finish
+while interruption drains; its late result cannot enter the frozen report or authorize another run.
+Any exception, non-accepted outcome,
 wrong cheap fact, sample over five seconds, timeout, missing row, or order mismatch stops collection
 and makes the observation invalid. Completed rows remain evidence, and a new attempt requires an
 explicit protocol revision with a new schema identity.
@@ -85,8 +103,11 @@ single run, and that hide explicitly authorises the run. Historical permissions 
 
 The runner logs one CSV block to logcat with tag `nene-p3-autosave-evidence` and writes the same
 bytes to the instrumentation target's files directory as
-`m3-autosave-publication-device-v1.csv`; the file is pulled with `adb` and committed at
-`docs/quality/measurements/m3-autosave-publication-device-v1.csv`. Columns:
+`m3-autosave-publication-device-v2.csv`; a companion `.status` file records `complete` or `invalid`.
+Existing output files are never overwritten. The CSV and status are pulled with `adb`; the raw CSV
+is committed at `docs/quality/measurements/m3-autosave-publication-device-v2.csv`, including partial
+rows for an invalid observation. A missing status, `invalid` status, truncated output, or failure to
+write the report cannot produce an accepted observation. Columns:
 `schema,group,index,kind,elapsed_ns,generation,outcome` with `kind` in `warmup`, `sample`,
 `summary_min`, `summary_max`.
 
@@ -95,6 +116,11 @@ bytes to the instrumentation target's files directory as
 Correctness of Candidate publication is fixed by adapter unit tests on the host seam and by the
 existing `AndroidPersistenceFunctionalTest` extended with one real Candidate publish and read-back;
 those run independently of this lane and do not time anything.
+
+Runner functional contracts use synthetic rows and an injected failing or interrupted statement.
+They prove prefix retention after failure and timeout, unchanged successful row order, closed
+recording after completion, preservation of the primary failure, and rejection without the explicit
+collection argument. They never publish real Candidate samples and never fill this Result section.
 
 ## Result
 

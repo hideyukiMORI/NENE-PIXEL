@@ -25,7 +25,7 @@ internal class AutosaveTransitionsTest {
             started.next
                 .advanceRuntimeGeneration()
                 .withActive(null)
-                .let { it.withAutosave(AutosaveTracking.initial(it.runtimeGeneration)) }
+                .let { it.withAutosave(AutosaveTracking.initial()) }
 
         val completion =
             AutosaveTransitions.complete(
@@ -36,7 +36,7 @@ internal class AutosaveTransitionsTest {
 
         assertEquals(AutosaveRequestResult.Stale, completion.result)
         assertSame(switched, completion.next)
-        assertNull(completion.next.autosave.publishedRevision)
+        assertNull(completion.next.autosave.publishedStateToken)
         assertEquals(AutosaveLastOutcome.None, completion.next.autosave.lastOutcome)
     }
 
@@ -45,7 +45,6 @@ internal class AutosaveTransitionsTest {
         val replaced =
             readyCoordination(document)
                 .advanceRuntimeGeneration()
-                .let { it.withAutosave(it.autosave.copy(publishedGeneration = it.runtimeGeneration)) }
 
         val started = AutosaveTransitions.begin(replaced)
 
@@ -75,6 +74,7 @@ private fun readyCoordination(document: DocumentState): PersistenceCoordination 
             RuntimeRecoveryState.Clear(ExpectedRecoveryLineage.Missing),
         ),
         document,
+        io.github.hideyukimori.nenepixel.core.application.document.history.HistoryPosition.initial,
     )
 
 private fun generation(value: Long): RecoveryGeneration =

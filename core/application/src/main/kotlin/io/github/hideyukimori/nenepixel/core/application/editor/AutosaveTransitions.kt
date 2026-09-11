@@ -1,7 +1,9 @@
 package io.github.hideyukimori.nenepixel.core.application.editor
 
+import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryPosition
 import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveLastOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveRequestResult
+import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveStateToken
 import io.github.hideyukimori.nenepixel.core.application.persistence.ExpectedRecoveryLineage
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationHandle
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryGeneration
@@ -31,16 +33,16 @@ internal object AutosaveTransitions {
     fun recordCapture(
         coordination: PersistenceCoordination,
         document: DocumentState,
+        historyPosition: HistoryPosition,
     ): PersistenceCoordination {
         val autosave = coordination.autosave
-        val revision = document.revision.value
-        val published =
-            autosave.publishedRevision == revision && autosave.publishedGeneration == coordination.runtimeGeneration
-        return if (published) {
+        val stateToken = AutosaveStateToken(coordination.runtimeGeneration, historyPosition)
+        val canReusePublishedState = coordination.activeOperation == null && !coordination.inspectionInFlight
+        return if (canReusePublishedState && autosave.publishedStateToken == stateToken) {
             coordination.withAutosave(autosave.abandoned())
         } else {
             coordination.withAutosave(
-                autosave.recorded(AutosaveCapture(document, revision, coordination.runtimeGeneration)),
+                autosave.recorded(AutosaveCapture(document, stateToken)),
             )
         }
     }
@@ -57,7 +59,7 @@ internal object AutosaveTransitions {
 
     private fun start(coordination: PersistenceCoordination): PersistenceTransition<AutosaveStart> {
         val pending = coordination.autosave.pending
-        return if (pending == null || pending.runtimeGeneration != coordination.runtimeGeneration) {
+        return if (pending == null || !pending.stateToken.belongsTo(coordination.runtimeGeneration)) {
             PersistenceTransition(
                 coordination.withAutosave(coordination.autosave.abandoned()),
                 AutosaveStart.NoCapture,

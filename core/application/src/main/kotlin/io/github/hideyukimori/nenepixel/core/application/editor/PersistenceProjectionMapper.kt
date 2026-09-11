@@ -14,10 +14,14 @@ internal object PersistenceProjectionMapper {
 
     fun projectAutosave(coordination: PersistenceCoordination): AutosaveProjection {
         val autosave = coordination.autosave
+        val publishingStateToken =
+            (coordination.activeOperation as? ActivePersistenceOperation.Autosave)
+                ?.capture
+                ?.stateToken
         return AutosaveProjection(
-            pendingRevision = autosave.pending?.revision,
-            publishedRevision = autosave.publishedRevision,
-            publishing = coordination.activeOperation is ActivePersistenceOperation.Autosave,
+            pendingStateToken = autosave.pending?.stateToken,
+            publishedStateToken = autosave.publishedStateToken,
+            publishingStateToken = publishingStateToken,
             lastOutcome = autosave.lastOutcome,
         )
     }

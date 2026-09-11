@@ -1,11 +1,13 @@
 package io.github.hideyukimori.nenepixel
 
-import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveRequestResult
 import io.github.hideyukimori.nenepixel.core.application.persistence.EditorPersistenceWorkflow
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
@@ -25,12 +27,17 @@ internal class AutosaveScheduler(
     private val clockNanos: () -> Long = System::nanoTime,
 ) {
     private val flushes: MutableStateFlow<Long> = MutableStateFlow(0L)
+    private val scheduleState: MutableStateFlow<AutosaveSchedule> = MutableStateFlow(AutosaveSchedule.idle())
 
     private val observations: Flow<AutosaveObservation> =
         combine(workflow.autosave, workflow.operation, flushes) { autosave, operation, flushCount ->
             AutosaveObservation(
-                pendingRevision = autosave.pendingRevision,
-                publishedRevision = autosave.publishedRevision,
+                states =
+                    AutosaveStateObservation(
+                        pending = autosave.pendingStateToken,
+                        published = autosave.publishedStateToken,
+                        publishing = autosave.publishingStateToken,
+                    ),
                 gate = operation,
                 flushes = flushCount,
             )
@@ -43,54 +50,43 @@ internal class AutosaveScheduler(
         flushes.update { count -> count + 1L }
     }
 
-    private suspend fun schedule() {
-        var state = AutosaveSchedule.idle()
-        var sample = observations.first()
-        while (true) {
-            state = state.observed(sample, clockNanos(), policy)
-            val due = state.dueNanos(clockNanos())
-            when {
-                due == null -> {
-                    sample = awaitChange(sample)
+    private suspend fun schedule(): Unit =
+        coroutineScope {
+            launch(start = CoroutineStart.UNDISPATCHED) {
+                observations.collect { sample ->
+                    scheduleState.update { state -> state.observed(sample, clockNanos(), policy) }
                 }
+            }
 
-                due > 0L -> {
-                    sample = awaitChange(sample, due)
-                }
+            while (true) {
+                val state = scheduleState.value
+                val due = state.dueNanos(clockNanos())
+                when {
+                    due == null -> {
+                        awaitChange(state)
+                    }
 
-                else -> {
-                    state = state.applied(workflow.publishLatestCapture(), clockNanos())
-                    sample = observations.first()
+                    due > 0L -> {
+                        awaitChange(state, due)
+                    }
+
+                    else -> {
+                        val requestedStateToken = requireNotNull(state.observation.states.pending)
+                        if (!scheduleState.compareAndSet(state, state.startedRequest())) continue
+                        val result = workflow.publishLatestCapture()
+                        scheduleState.update { current ->
+                            current.applied(result, requestedStateToken, clockNanos(), policy)
+                        }
+                    }
                 }
             }
         }
-    }
 
-    private suspend fun awaitChange(previous: AutosaveObservation): AutosaveObservation =
-        observations.first { sample -> sample != previous }
+    private suspend fun awaitChange(previous: AutosaveSchedule): AutosaveSchedule =
+        scheduleState.first { state -> state != previous }
 
     private suspend fun awaitChange(
-        previous: AutosaveObservation,
+        previous: AutosaveSchedule,
         waitNanos: Long,
-    ): AutosaveObservation = withTimeoutOrNull(waitNanos.nanoseconds) { awaitChange(previous) } ?: previous
-
-    private fun AutosaveSchedule.applied(
-        result: AutosaveRequestResult,
-        nowNanos: Long,
-    ): AutosaveSchedule =
-        when (result) {
-            is AutosaveRequestResult.Published -> this
-
-            AutosaveRequestResult.Deferred -> deferred(nowNanos, policy)
-
-            AutosaveRequestResult.NoCapture,
-            AutosaveRequestResult.OfferPending,
-            AutosaveRequestResult.Unavailable,
-            AutosaveRequestResult.Stale,
-            AutosaveRequestResult.GenerationExhausted,
-            AutosaveRequestResult.IdentityExhausted,
-            is AutosaveRequestResult.Failed,
-            is AutosaveRequestResult.Uncertain,
-            -> suspendedUntilGate()
-        }
+    ): AutosaveSchedule = withTimeoutOrNull(waitNanos.nanoseconds) { awaitChange(previous) } ?: previous
 }

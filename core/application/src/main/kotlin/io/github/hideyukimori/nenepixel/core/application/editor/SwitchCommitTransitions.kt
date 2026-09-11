@@ -203,7 +203,7 @@ internal object SwitchCommitTransitions {
                 .withRecovery(RuntimeRecoveryState.Clear(ExpectedRecoveryLineage.Present(outcome.generation)))
                 .finished(lastOutcome)
         return PersistenceTransition(
-            advanced.withAutosave(AutosaveTracking.initial(advanced.runtimeGeneration)),
+            advanced.withAutosave(AutosaveTracking.initial()),
             PersistenceRequestResult.Completed(lastOutcome),
             RuntimeOwnerEffect.ReplaceOwners(permit.candidate),
         )

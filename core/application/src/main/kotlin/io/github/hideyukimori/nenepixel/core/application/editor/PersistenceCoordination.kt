@@ -57,7 +57,18 @@ internal data class PersistenceCoordination(
     fun withActive(operation: ActivePersistenceOperation?): PersistenceCoordination = copy(activeOperation = operation)
 
     fun withRecovery(state: RuntimeRecoveryState): PersistenceCoordination =
-        copy(recovery = recovery.copy(state = state))
+        copy(
+            recovery =
+                recovery.copy(
+                    state = state,
+                    autosave =
+                        if (state is RuntimeRecoveryState.Unknown) {
+                            recovery.autosave.withoutPublishedState()
+                        } else {
+                            recovery.autosave
+                        },
+                ),
+        )
 
     fun withInspection(inFlight: Boolean): PersistenceCoordination =
         copy(recovery = recovery.copy(inspectionInFlight = inFlight))
@@ -104,7 +115,7 @@ internal data class PersistenceCoordination(
                 RecoveryTracking(
                     RuntimeRecoveryState.Initializing,
                     false,
-                    AutosaveTracking.initial(INITIAL_RUNTIME_GENERATION),
+                    AutosaveTracking.initial(),
                 ),
                 PersistenceLastOutcome.None,
             )

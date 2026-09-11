@@ -1,11 +1,14 @@
 package io.github.hideyukimori.nenepixel.core.application.persistence
 
 public data class AutosaveProjection internal constructor(
-    public val pendingRevision: Long?,
-    public val publishedRevision: Long?,
-    public val publishing: Boolean,
+    public val pendingStateToken: AutosaveStateToken?,
+    public val publishedStateToken: AutosaveStateToken?,
+    public val publishingStateToken: AutosaveStateToken?,
     public val lastOutcome: AutosaveLastOutcome,
-)
+) {
+    public val publishing: Boolean
+        get() = publishingStateToken != null
+}
 
 public sealed interface AutosaveLastOutcome {
     public data object None : AutosaveLastOutcome

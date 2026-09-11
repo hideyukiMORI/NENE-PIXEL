@@ -140,7 +140,9 @@ Owns behavior coordination:
   one loaded/recovered runtime-install protocol
 - one runtime-owned mutable operation flow exposed only as a read-only derived projection
 - bounded persistence ordering: one active physical operation and at most one coalesced latest
-  autosave capture, published as a recovery Candidate on an explicit platform request
+  autosave capture identified by runtime generation and exact history position, published as a
+  recovery Candidate on an explicit platform request; opaque equality tokens let the scheduler
+  observe state changes without exposing history or document ownership
 
 It does not know Compose, Android, SQL, files, project-format bytes/codecs, JSON libraries, storage
 URIs, or automation protocols. It may use platform-neutral coroutines for suspend ports, its read-only

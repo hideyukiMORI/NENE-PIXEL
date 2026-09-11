@@ -81,10 +81,12 @@ public class EditorRuntime private constructor(
     private fun executeLocked(command: DocumentCommand): CommandResult {
         val result = owners.commandGateway.execute(command)
         if (result is CommandResult.Applied) {
+            val commandState = owners.commandGateway.runtimeState
             coordination =
                 AutosaveTransitions.recordCapture(
                     coordination,
-                    owners.commandGateway.runtimeState.documentState,
+                    commandState.documentState,
+                    commandState.historyPosition,
                 )
             publishProjectionsLocked()
         }

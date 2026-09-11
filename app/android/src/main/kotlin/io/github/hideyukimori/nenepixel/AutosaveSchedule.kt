@@ -1,5 +1,8 @@
 package io.github.hideyukimori.nenepixel
 
+import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveRequestResult
+import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveStateToken
+
 /**
  * The pure decision part of the ADR 0018 autosave scheduler: given the latest [AutosaveObservation]
  * and a monotonic nanosecond reading, it answers how long to wait before the next
@@ -9,12 +12,16 @@ internal data class AutosaveSchedule(
     val observation: AutosaveObservation,
     val quietDeadlineNanos: Long?,
     val capDeadlineNanos: Long?,
-    val suspended: Boolean,
+    private val suspension: Suspension,
+    private val requestedStateToken: AutosaveStateToken?,
 ) {
+    val suspended: Boolean
+        get() = suspension != Suspension.None
+
     /**
      * Folds one sample into the schedule. A new capture restarts the quiet window; a completed
-     * publication restarts both windows; a lifecycle flush makes the request due immediately; a
-     * changed gate releases a suspended schedule.
+     * publication restarts the quiet window; a lifecycle flush makes the request due immediately;
+     * a changed gate releases a suspended schedule.
      */
     fun observed(
         sample: AutosaveObservation,
@@ -22,15 +29,35 @@ internal data class AutosaveSchedule(
         policy: AutosavePolicy,
     ): AutosaveSchedule =
         when {
-            sample.pendingRevision == null -> AutosaveSchedule(sample, null, null, false)
-            sample.flushes != observation.flushes -> AutosaveSchedule(sample, nowNanos, nowNanos, false)
-            else -> retimed(sample, nowNanos, policy)
+            !sample.states.requestable -> {
+                AutosaveSchedule(
+                    sample,
+                    null,
+                    null,
+                    suspensionAfter(sample),
+                    requestAfter(sample),
+                )
+            }
+
+            sample.flushes != observation.flushes -> {
+                AutosaveSchedule(
+                    sample,
+                    nowNanos,
+                    nowNanos,
+                    Suspension.None,
+                    requestAfter(sample),
+                )
+            }
+
+            else -> {
+                retimed(sample, nowNanos, policy)
+            }
         }
 
     /** Nanoseconds to wait before the next request, `0` when it is due, `null` when none is wanted. */
     fun dueNanos(nowNanos: Long): Long? =
         when {
-            observation.pendingRevision == null || suspended -> null
+            !observation.states.requestable || suspended -> null
             else -> (deadlineNanos() - nowNanos).coerceAtLeast(0L)
         }
 
@@ -50,32 +77,76 @@ internal data class AutosaveSchedule(
     }
 
     /** Stops requesting until the persistence-operation gate changes or a lifecycle flush arrives. */
-    fun suspendedUntilGate(): AutosaveSchedule = copy(suspended = true)
+    fun suspendedUntilGate(): AutosaveSchedule = copy(suspension = Suspension.Gate)
+
+    fun startedRequest(): AutosaveSchedule = copy(requestedStateToken = observation.states.pending)
+
+    fun applied(
+        result: AutosaveRequestResult,
+        requestedStateToken: AutosaveStateToken,
+        nowNanos: Long,
+        policy: AutosavePolicy,
+    ): AutosaveSchedule {
+        if (this.requestedStateToken != requestedStateToken) return this
+        val completedRequest = copy(requestedStateToken = null)
+        return when (result) {
+            is AutosaveRequestResult.Published,
+            AutosaveRequestResult.NoCapture,
+            -> completedRequest.copy(suspension = Suspension.Observation)
+
+            AutosaveRequestResult.Deferred -> completedRequest.deferred(nowNanos, policy)
+
+            AutosaveRequestResult.OfferPending,
+            AutosaveRequestResult.Unavailable,
+            AutosaveRequestResult.Stale,
+            AutosaveRequestResult.GenerationExhausted,
+            AutosaveRequestResult.IdentityExhausted,
+            is AutosaveRequestResult.Failed,
+            is AutosaveRequestResult.Uncertain,
+            -> completedRequest.suspendedUntilGate()
+        }
+    }
 
     private fun retimed(
         sample: AutosaveObservation,
         nowNanos: Long,
         policy: AutosavePolicy,
     ): AutosaveSchedule {
-        val published = sample.publishedRevision != observation.publishedRevision
-        val captured = sample.pendingRevision != observation.pendingRevision
+        val previousStates = observation.states
+        val currentStates = sample.states
+        val published = currentStates.published != previousStates.published
+        val completed = previousStates.publishing != null && currentStates.publishing == null
+        val captured = currentStates.pending != previousStates.pending
         return AutosaveSchedule(
             observation = sample,
             quietDeadlineNanos =
-                if (published || captured || quietDeadlineNanos == null) {
-                    nowNanos + policy.quietNanos
-                } else {
-                    quietDeadlineNanos
-                },
+                deadlineAfterChange(
+                    changed = published || completed || captured,
+                    current = quietDeadlineNanos,
+                    nowNanos = nowNanos,
+                    intervalNanos = policy.quietNanos,
+                ),
             capDeadlineNanos =
-                if (published || capDeadlineNanos == null) {
-                    nowNanos + policy.latencyCapNanos
-                } else {
-                    capDeadlineNanos
-                },
-            suspended = suspended && sample.gate == observation.gate,
+                deadlineAfterChange(
+                    changed = previousDeadlineConsumed(previousStates, currentStates, published),
+                    current = capDeadlineNanos,
+                    nowNanos = nowNanos,
+                    intervalNanos = policy.latencyCapNanos,
+                ),
+            suspension = suspensionAfter(sample),
+            requestedStateToken = requestAfter(sample),
         )
     }
+
+    private fun suspensionAfter(sample: AutosaveObservation): Suspension =
+        when (suspension) {
+            Suspension.None -> Suspension.None
+            Suspension.Gate -> if (sample.gate == observation.gate) Suspension.Gate else Suspension.None
+            Suspension.Observation -> if (sample == observation) Suspension.Observation else Suspension.None
+        }
+
+    private fun requestAfter(sample: AutosaveObservation): AutosaveStateToken? =
+        if (sample.gate == observation.gate) requestedStateToken else null
 
     private fun deadlineNanos(): Long =
         listOfNotNull(quietDeadlineNanos, capDeadlineNanos).minOrNull() ?: Long.MAX_VALUE
@@ -83,10 +154,41 @@ internal data class AutosaveSchedule(
     companion object {
         fun idle(): AutosaveSchedule =
             AutosaveSchedule(
-                observation = AutosaveObservation(null, null, null, 0L),
+                observation =
+                    AutosaveObservation(
+                        states = AutosaveStateObservation(null, null, null),
+                        gate = null,
+                        flushes = 0L,
+                    ),
                 quietDeadlineNanos = null,
                 capDeadlineNanos = null,
-                suspended = false,
+                suspension = Suspension.None,
+                requestedStateToken = null,
             )
     }
+
+    internal enum class Suspension { None, Gate, Observation }
 }
+
+private fun previousDeadlineConsumed(
+    previous: AutosaveStateObservation,
+    current: AutosaveStateObservation,
+    publishedChanged: Boolean,
+): Boolean {
+    val previousPending = previous.pending
+    if (previousPending == null || previousPending == current.pending) return false
+    return previousPending == current.publishing || publishedConsumed(previousPending, current, publishedChanged)
+}
+
+private fun publishedConsumed(
+    previousPending: AutosaveStateToken,
+    current: AutosaveStateObservation,
+    publishedChanged: Boolean,
+): Boolean = publishedChanged && previousPending == current.published
+
+private fun deadlineAfterChange(
+    changed: Boolean,
+    current: Long?,
+    nowNanos: Long,
+    intervalNanos: Long,
+): Long = if (changed || current == null) nowNanos + intervalNanos else current

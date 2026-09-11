@@ -26,8 +26,9 @@ One concept has one canonical name. New synonyms in code are prohibited. Add or 
 | `RecoveryRecord` | The one app-private versioned AtomicFile envelope containing either a last-safe Candidate v1 payload or Retired marker with conditional generation identity | project file, autosave journal, timestamp winner |
 | `RecoveryGeneration` | Validated positive identity stored in a RecoveryRecord and advanced by each verified Candidate or Retired publication | Revision, runtime generation, timestamp |
 | `ExpectedRecoveryLineage` | Closed Missing or Present(RecoveryGeneration) precondition for one conditional retirement; Missing compares as virtual zero without creating RecoveryGeneration(0) | nullable generation, unchecked Long |
-| `AutosaveCapture` | Application-owned immutable latest committed DocumentState, its Revision, and its RuntimeGeneration waiting for one Candidate publication | autosave queue, dirty flag, DocumentCleanCheckpoint |
-| `AutosaveProjection` | Read-only pending revision, published revision, active publication, and last autosave outcome derived from the sole EditorRuntime-owned autosave state | mutable UI autosave flag, adapter state |
+| `AutosaveCapture` | Application-owned immutable latest committed DocumentState and its exact runtime-generation/history-position identity waiting for one Candidate publication | autosave queue, revision-only identity, DocumentCleanCheckpoint |
+| `AutosaveStateToken` | Opaque immutable equality token for one runtime generation and internal HistoryPosition, created only by application ownership | Revision, numeric public lineage, persisted identity |
+| `AutosaveProjection` | Read-only pending/published/publishing state tokens and last autosave outcome derived from the sole EditorRuntime-owned autosave state | mutable UI autosave flag, adapter state |
 | `AutosavePolicy` | The one app-module value holding the ADR 0018 quiet window and latency cap read by the autosave scheduler | debounce constant in core, adapter timeout, periodic timer |
 | `ViewportZoom` | Validated finite fit-relative viewport factor in the closed range 1.0 through 64.0 | raw scale Double, saved zoom |
 | `ViewportCenter` | Validated finite preferred center in continuous document-edge coordinates | screen pan, surface offset |

@@ -27,18 +27,22 @@ internal class PersistenceAutosaveFlow(
 
     suspend fun retryAfterPublication(attempt: suspend () -> PersistenceRequestResult): PersistenceRequestResult {
         val first = attempt()
-        return if (first == PersistenceRequestResult.Busy && awaitActivePublication()) attempt() else first
+        return if (first == PersistenceRequestResult.Busy) {
+            awaitActivePublication()
+            attempt()
+        } else {
+            first
+        }
     }
 
-    private suspend fun awaitActivePublication(): Boolean {
-        val handle = operations.activePublication() ?: return false
+    private suspend fun awaitActivePublication() {
+        val handle = operations.activePublication() ?: return
         val completion = completions.getOrPut(handle) { CompletableDeferred() }
         if (operations.activePublication() == handle) {
             completion.await()
         } else {
             completions.remove(handle, completion)
         }
-        return true
     }
 
     /**
