@@ -53,7 +53,8 @@ internal class Fixture(
     val runtime = EditorRuntime.create(canvas(4, 4), palette(red, green), ids)
     val storage = FakeProjectStoragePort()
     val recovery = FakeRecoveryRecordPort(inspection)
-    val workflow = EditorPersistenceWorkflow.create(runtime, storage, recovery)
+    val exporter = FakePngExportPort()
+    val workflow = EditorPersistenceWorkflow.create(runtime, storage, recovery, exporter)
 
     suspend fun initialize() {
         assertEquals(RecoveryInitializationResult.Ready, workflow.initializeRecovery())

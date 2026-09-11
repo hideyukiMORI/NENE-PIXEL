@@ -3,13 +3,10 @@ package io.github.hideyukimori.nenepixel.adapters.persistence
 import io.github.hideyukimori.nenepixel.core.application.persistence.PartialOutputCleanup
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectStorageFailure
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectTransportPhase
-import io.github.hideyukimori.nenepixel.core.projectformat.ProjectFormatBytes
-import io.github.hideyukimori.nenepixel.core.projectformat.ProjectFormatResult
-import io.github.hideyukimori.nenepixel.core.projectformat.ProjectFormatV1Codec
 import kotlinx.coroutines.CancellationException
 import java.io.OutputStream
 
-internal class ProjectDocumentWriter(
+internal class FreshDocumentWriter(
     private val content: ProjectContentAccess,
     private val reader: ProjectDocumentReader,
 ) {
@@ -87,23 +84,9 @@ internal class ProjectDocumentWriter(
         expectedBytes: ByteArray,
     ): ProjectStorageFailure? =
         if (actualBytes.contentEquals(expectedBytes)) {
-            validateDecodable(actualBytes)
+            null
         } else {
             ProjectStorageFailure.ReadBackMismatch
-        }
-
-    private fun validateDecodable(bytes: ByteArray): ProjectStorageFailure? =
-        when (val carrier = ProjectFormatBytes.create(bytes)) {
-            is ProjectFormatResult.Rejected -> {
-                ProjectStorageRejectionMapper.map(carrier.rejection)
-            }
-
-            is ProjectFormatResult.Accepted -> {
-                when (val decoded = ProjectFormatV1Codec.decode(carrier.value)) {
-                    is ProjectFormatResult.Accepted -> null
-                    is ProjectFormatResult.Rejected -> ProjectStorageRejectionMapper.map(decoded.rejection)
-                }
-            }
         }
 
     private companion object {

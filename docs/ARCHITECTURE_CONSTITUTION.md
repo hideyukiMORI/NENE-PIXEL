@@ -50,7 +50,8 @@ Externally visible domain and application state MUST be immutable. `PixelSnapsho
 privately own defensive packed primitive storage that is never mutated after construction and is
 never exposed; any bulk read returns a copy. `:core:project-format` codecs and
 `:adapters:persistence` transports MAY use bounded, privately owned mutable byte buffers only for one
-project file or versioned recovery record at the declared codec/transport boundary. Untrusted bytes
+project file, versioned recovery record, or bounded PNG export under ADR 0019 at the declared
+codec/transport boundary. PNG scratch is confined to `:adapters:persistence`. Untrusted bytes
 remain local to that boundary until typed validation succeeds. An encoded value owns immutable bytes
 after construction, caller-owned arrays are copied, and owned buffers never escape. These byte
 buffers are not document or pixel truth and MUST NOT become a pixel-operation work surface, shared

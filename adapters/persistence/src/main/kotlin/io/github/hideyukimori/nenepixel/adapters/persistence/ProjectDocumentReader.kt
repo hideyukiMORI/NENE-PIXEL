@@ -8,6 +8,7 @@ import java.io.InputStream
 
 internal class ProjectDocumentReader(
     private val content: ProjectContentAccess,
+    private val maximumByteCount: Int = ProjectFormatBytes.MAX_FILE_BYTE_COUNT,
 ) {
     fun read(
         location: ProjectLocation,
@@ -23,7 +24,7 @@ internal class ProjectDocumentReader(
         purpose: ProjectReadPurpose,
         knownByteCount: Long?,
     ): ProjectReadResult =
-        if (knownByteCount != null && knownByteCount > ProjectFormatBytes.MAX_FILE_BYTE_COUNT) {
+        if (knownByteCount != null && knownByteCount > maximumByteCount) {
             ProjectReadResult.Failed(ProjectStorageFailure.ResourceLimitExceeded)
         } else {
             open(location, purpose, knownByteCount)
@@ -83,7 +84,12 @@ internal class ProjectDocumentReader(
         knownByteCount: Long?,
         phase: ProjectTransportPhase,
     ): ProjectReadResult =
-        when (val result = ProjectAccessResult.of(phase) { BoundedStreamReader.read(input, knownByteCount, MAX) }) {
+        when (
+            val result =
+                ProjectAccessResult.of(phase) {
+                    BoundedStreamReader.read(input, knownByteCount, maximumByteCount)
+                }
+        ) {
             is ProjectAccessResult.Failed -> ProjectReadResult.Failed(result.failure)
             is ProjectAccessResult.Value -> mapBoundedRead(result.value)
         }
@@ -106,10 +112,6 @@ internal class ProjectDocumentReader(
                 ProjectReadResult.Failed(ProjectStorageFailure.PrematureEnd)
             }
         }
-
-    private companion object {
-        const val MAX: Int = ProjectFormatBytes.MAX_FILE_BYTE_COUNT
-    }
 }
 
 internal sealed interface ProjectReadResult {

@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.pm.ProviderInfo
 import android.database.Cursor
 import android.database.MatrixCursor
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
 import android.os.ParcelFileDescriptor
@@ -15,6 +16,7 @@ import android.util.AtomicFile
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.github.hideyukimori.nenepixel.core.application.persistence.ExpectedRecoveryLineage
+import io.github.hideyukimori.nenepixel.core.application.persistence.PngExportOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectLoadOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectSaveOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryInspection
@@ -57,6 +59,41 @@ public class AndroidPersistenceFunctionalTest {
                 assertEquals(ProjectLoadOutcome.Loaded(document), adapter.load())
             } finally {
                 projectFile.delete()
+                directory.delete()
+            }
+        }
+
+    @Test
+    public fun actualResolverExportsPngWithExactUnpremultipliedPixel() =
+        runBlocking {
+            val context = ApplicationProvider.getApplicationContext<Context>()
+            val directory = Files.createTempDirectory(context.noBackupFilesDir.toPath(), "png-export-").toFile()
+            val output = File(directory, "drawing.png")
+            val provider = SingleProjectContentProvider(output)
+            provider.attachInfo(context, ProviderInfo().also { it.authority = AUTHORITY })
+            val resolver = ContentResolver.wrap(provider)
+            val adapter =
+                AndroidPngExportAdapter.create(
+                    resolver,
+                    FixedAndroidPicker(Uri.parse("content://$AUTHORITY/png")),
+                    Dispatchers.IO,
+                )
+            val source = minimalDocument()
+            val snapshot =
+                created(PixelSnapshot.createPackedRgba8888(source.size, source.revision, intArrayOf(0x11223301)))
+            try {
+                assertEquals(PngExportOutcome.Exported, adapter.export(DocumentState.create(source.id, snapshot)))
+                val options = BitmapFactory.Options().apply { inPremultiplied = false }
+                val decoded = checkNotNull(BitmapFactory.decodeFile(output.absolutePath, options))
+                try {
+                    assertEquals(1, decoded.width)
+                    assertEquals(1, decoded.height)
+                    assertEquals(0x01112233, decoded.getPixel(0, 0))
+                } finally {
+                    decoded.recycle()
+                }
+            } finally {
+                output.delete()
                 directory.delete()
             }
         }
@@ -119,7 +156,8 @@ public class AndroidPersistenceFunctionalTest {
 private class FixedAndroidPicker(
     private val uri: Uri,
 ) : ProjectDocumentPicker {
-    override suspend fun createDocument(suggestedName: String): ProjectPickerResult = ProjectPickerResult.Selected(uri)
+    override suspend fun createDocument(request: DocumentCreationRequest): ProjectPickerResult =
+        ProjectPickerResult.Selected(uri)
 
     override suspend fun openDocument(): ProjectPickerResult = ProjectPickerResult.Selected(uri)
 }

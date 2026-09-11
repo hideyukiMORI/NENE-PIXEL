@@ -1,7 +1,7 @@
 package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
@@ -12,6 +12,7 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveLas
 import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveProjection
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceConfirmationReason
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceConfirmationRequest
+import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceFailure
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceLastOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationHandle
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationPhase
@@ -27,7 +28,7 @@ internal fun PersistenceControls(
 ) {
     val idle = operation.phase is PersistenceOperationPhase.Idle
     val switchAvailable = idle && operation.recoveryStatus.isAvailableForDocumentSwitch()
-    Row(horizontalArrangement = Arrangement.spacedBy(PERSISTENCE_SPACING)) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(PERSISTENCE_SPACING)) {
         Button(
             enabled = idle && operation.recoveryStatus !is RecoveryStatus.Initializing,
             onClick = callbacks::onSaveAs,
@@ -38,6 +39,9 @@ internal fun PersistenceControls(
             Text("Load")
         }
         NewDocumentControls(canvasSize = canvasSize, callbacks = callbacks, enabled = switchAvailable)
+        Button(enabled = idle, onClick = callbacks::onExportPng) {
+            Text("Export PNG")
+        }
         operation.phase.cancellableOperation()?.let { handle ->
             Button(onClick = { callbacks.onCancel(handle) }) {
                 Text("Cancel operation")
@@ -73,6 +77,8 @@ private fun DiscardConfirmationDialog(
 
 private fun PersistenceOperationPhase.cancellableOperation(): PersistenceOperationHandle? =
     when (this) {
+        is PersistenceOperationPhase.Exporting -> operation
+
         is PersistenceOperationPhase.Saving -> operation
 
         is PersistenceOperationPhase.Loading -> operation
@@ -94,24 +100,27 @@ internal fun PersistenceOperationProjection.statusText(autosave: AutosaveProject
     when (phase) {
         PersistenceOperationPhase.Initializing -> "Checking recovery data"
         PersistenceOperationPhase.Idle -> idleStatusText(autosave)
+        is PersistenceOperationPhase.Exporting -> "Exporting PNG"
         is PersistenceOperationPhase.Saving -> "Saving project"
         is PersistenceOperationPhase.Loading -> "Loading project"
         is PersistenceOperationPhase.NeedsConfirmation -> "Waiting for confirmation"
         is PersistenceOperationPhase.Switching -> "Switching document"
-        is PersistenceOperationPhase.Cancelling -> "Cancelling project operation"
+        is PersistenceOperationPhase.Cancelling -> "Cancelling operation"
         is PersistenceOperationPhase.Discarding -> "Discarding recovery data"
     }
 
 private fun PersistenceOperationProjection.idleStatusText(autosave: AutosaveProjection): String =
     when {
+        (lastOutcome as? PersistenceLastOutcome.Failed)?.failure is PersistenceFailure.PngExport -> "PNG export failed"
         recoveryStatus is RecoveryStatus.Unknown -> "Recovery data is unavailable"
         recoveryStatus is RecoveryStatus.UnadoptedCandidate -> "Recovery data will be preserved"
         autosave.lastOutcome is AutosaveLastOutcome.Failed -> "Autosave failed"
         autosave.lastOutcome is AutosaveLastOutcome.Uncertain -> "Autosave result is uncertain"
+        lastOutcome is PersistenceLastOutcome.PngExported -> "PNG exported"
         lastOutcome is PersistenceLastOutcome.Saved -> "Project saved"
         lastOutcome is PersistenceLastOutcome.Loaded -> "Project loaded"
         lastOutcome is PersistenceLastOutcome.NewDocumentCreated -> "New document created"
-        lastOutcome is PersistenceLastOutcome.Cancelled -> "Project operation cancelled"
+        lastOutcome is PersistenceLastOutcome.Cancelled -> "Operation cancelled"
         lastOutcome is PersistenceLastOutcome.Failed -> "Project operation failed"
         lastOutcome is PersistenceLastOutcome.None -> "Project storage ready"
         else -> "Project storage ready"

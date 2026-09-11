@@ -1,8 +1,8 @@
 package io.github.hideyukimori.nenepixel.core.application.persistence
 
+import io.github.hideyukimori.nenepixel.core.application.editor.DocumentOutputStart
 import io.github.hideyukimori.nenepixel.core.application.editor.RecoveryInspectionStart
 import io.github.hideyukimori.nenepixel.core.application.editor.RuntimeSaveOperations
-import io.github.hideyukimori.nenepixel.core.application.editor.SaveStart
 import io.github.hideyukimori.nenepixel.core.application.editor.SaveTransportCompletion
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
@@ -25,10 +25,10 @@ internal class PersistenceSaveFlow(
 
     private suspend fun attemptSave(): PersistenceRequestResult =
         when (val start = operations.beginSave()) {
-            is SaveStart.Started -> save(start)
-            SaveStart.Busy -> PersistenceRequestResult.Busy
-            SaveStart.RecoveryUnavailable -> PersistenceRequestResult.RecoveryUnavailable
-            SaveStart.IdentityExhausted -> identityExhaustedResult()
+            is DocumentOutputStart.Started -> save(start)
+            DocumentOutputStart.Busy -> PersistenceRequestResult.Busy
+            DocumentOutputStart.RecoveryUnavailable -> PersistenceRequestResult.RecoveryUnavailable
+            DocumentOutputStart.IdentityExhausted -> identityExhaustedResult()
         }
 
     private suspend fun inspectRecovery(): RecoveryInitializationResult =
@@ -41,7 +41,7 @@ internal class PersistenceSaveFlow(
             throw cancelled
         }
 
-    private suspend fun save(start: SaveStart.Started): PersistenceRequestResult =
+    private suspend fun save(start: DocumentOutputStart.Started): PersistenceRequestResult =
         try {
             applyTransport(start, projectStorage.save(start.document))
         } catch (cancelled: CancellationException) {
@@ -50,7 +50,7 @@ internal class PersistenceSaveFlow(
         }
 
     private suspend fun applyTransport(
-        start: SaveStart.Started,
+        start: DocumentOutputStart.Started,
         outcome: ProjectSaveOutcome,
     ): PersistenceRequestResult =
         when (val completion = operations.completeSaveTransport(start.handle, outcome)) {

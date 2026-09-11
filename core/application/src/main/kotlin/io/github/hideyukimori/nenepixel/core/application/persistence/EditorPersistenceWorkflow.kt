@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.StateFlow
 public class EditorPersistenceWorkflow private constructor(
     private val runtime: EditorRuntime,
     private val flows: PersistenceFlows,
+    private val pngExport: PersistencePngExportFlow,
 ) {
     public val operation: StateFlow<PersistenceOperationProjection>
         get() = runtime.persistenceOperation
@@ -17,6 +18,8 @@ public class EditorPersistenceWorkflow private constructor(
     public suspend fun initializeRecovery(): RecoveryInitializationResult = flows.save.initializeRecovery()
 
     public suspend fun saveAs(): PersistenceRequestResult = flows.save.saveAs()
+
+    public suspend fun exportPng(): PersistenceRequestResult = pngExport.exportPng()
 
     public suspend fun load(): PersistenceRequestResult = flows.switch.load()
 
@@ -40,6 +43,7 @@ public class EditorPersistenceWorkflow private constructor(
             runtime: EditorRuntime,
             projectStorage: ProjectStoragePort,
             recoveryRecord: RecoveryRecordPort,
+            pngExport: PngExportPort,
         ): EditorPersistenceWorkflow {
             val autosave = PersistenceAutosaveFlow(runtime.autosaveOperations, recoveryRecord)
             return EditorPersistenceWorkflow(
@@ -50,6 +54,7 @@ public class EditorPersistenceWorkflow private constructor(
                     autosave,
                     PersistenceRecoveryFlow(runtime.recoveryOperations, recoveryRecord),
                 ),
+                PersistencePngExportFlow(runtime.pngExportOperations, pngExport, autosave),
             )
         }
     }

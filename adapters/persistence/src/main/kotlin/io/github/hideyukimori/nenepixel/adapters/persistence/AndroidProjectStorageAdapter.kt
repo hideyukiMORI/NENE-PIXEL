@@ -10,21 +10,19 @@ import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.projectformat.ProjectFormatBytes
 import io.github.hideyukimori.nenepixel.core.projectformat.ProjectFormatResult
 import io.github.hideyukimori.nenepixel.core.projectformat.ProjectFormatV1Codec
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 
 public class AndroidProjectStorageAdapter private constructor(
     private val reader: ProjectDocumentReader,
-    private val writer: ProjectDocumentWriter,
+    private val output: FreshDocumentOutput,
     private val picker: ProjectPickerAccess,
     private val ioDispatcher: CoroutineDispatcher,
 ) : ProjectStoragePort {
     override suspend fun save(document: DocumentState): ProjectSaveOutcome =
         when (val prepared = withContext(ioDispatcher) { encodeAndValidate(document) }) {
             is ProjectPreparation.Prepared -> {
-                pickDestination(prepared.bytes)
+                savePrepared(prepared.bytes)
             }
 
             ProjectPreparation.Invalid -> {
@@ -35,54 +33,25 @@ public class AndroidProjectStorageAdapter private constructor(
             }
         }
 
+    private suspend fun savePrepared(bytes: ByteArray): ProjectSaveOutcome =
+        when (
+            val result =
+                output.write(
+                    DocumentCreationRequest(DEFAULT_PROJECT_NAME, DocumentOutputFormat.PROJECT),
+                    bytes,
+                )
+        ) {
+            FreshOutputResult.Written -> ProjectSaveOutcome.Saved
+            FreshOutputResult.Cancelled -> ProjectSaveOutcome.Cancelled
+            is FreshOutputResult.Failed -> ProjectSaveOutcome.Failed(result.failure, result.cleanup)
+        }
+
     override suspend fun load(): ProjectLoadOutcome =
         when (val result = picker.openDocument()) {
             is InternalPickerResult.Selected -> loadSelected(result.location)
             InternalPickerResult.Cancelled -> ProjectLoadOutcome.Cancelled
             is InternalPickerResult.Failed -> ProjectLoadOutcome.Failed(result.failure)
         }
-
-    private suspend fun pickDestination(expectedBytes: ByteArray): ProjectSaveOutcome =
-        when (val result = picker.createDocument(DEFAULT_PROJECT_NAME)) {
-            is InternalPickerResult.Selected -> {
-                saveSelected(result.location, expectedBytes)
-            }
-
-            InternalPickerResult.Cancelled -> {
-                ProjectSaveOutcome.Cancelled
-            }
-
-            is InternalPickerResult.Failed -> {
-                ProjectSaveOutcome.Failed(result.failure, PartialOutputCleanup.NOT_NEEDED)
-            }
-        }
-
-    private suspend fun saveSelected(
-        location: ProjectLocation,
-        expectedBytes: ByteArray,
-    ): ProjectSaveOutcome =
-        try {
-            withContext(ioDispatcher) {
-                writeVerified(location, expectedBytes)
-            }
-        } catch (cancelled: CancellationException) {
-            withContext(NonCancellable + ioDispatcher) {
-                writer.deleteOutput(location)
-            }
-            throw cancelled
-        }
-
-    private fun writeVerified(
-        location: ProjectLocation,
-        expectedBytes: ByteArray,
-    ): ProjectSaveOutcome {
-        val failure = writer.writeAndVerify(location, expectedBytes)
-        return if (failure == null) {
-            ProjectSaveOutcome.Saved
-        } else {
-            ProjectSaveOutcome.Failed(failure, writer.deleteOutput(location))
-        }
-    }
 
     private suspend fun loadSelected(location: ProjectLocation): ProjectLoadOutcome =
         withContext(ioDispatcher) {
@@ -148,7 +117,12 @@ public class AndroidProjectStorageAdapter private constructor(
             ioDispatcher: CoroutineDispatcher,
         ): ProjectStoragePort {
             val reader = ProjectDocumentReader(content)
-            return AndroidProjectStorageAdapter(reader, ProjectDocumentWriter(content, reader), picker, ioDispatcher)
+            return AndroidProjectStorageAdapter(
+                reader,
+                FreshDocumentOutput(FreshDocumentWriter(content, reader), picker, ioDispatcher),
+                picker,
+                ioDispatcher,
+            )
         }
     }
 }

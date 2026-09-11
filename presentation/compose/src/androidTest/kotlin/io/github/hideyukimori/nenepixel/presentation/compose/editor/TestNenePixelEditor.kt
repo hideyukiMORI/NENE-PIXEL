@@ -48,9 +48,14 @@ private class TestPersistenceHost(
             controller.runtime,
             TestProjectStoragePort,
             recovery,
+            pngExport =
+                io.github.hideyukimori.nenepixel.core.application.persistence.PngExportPort {
+                    io.github.hideyukimori.nenepixel.core.application.persistence.PngExportOutcome.Cancelled
+                },
         )
     val callbacks =
         EditorPersistenceCallbacks.create(
+            exportPng = {},
             saveAs = { complete { workflow.saveAs() } },
             load = { complete { workflow.load() } },
             createNewDocument = { request -> complete { workflow.createNewDocument(request) } },

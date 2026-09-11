@@ -39,6 +39,13 @@ internal object CancellationTransitions {
         active: ActivePersistenceOperation,
     ): PersistenceTransition<PersistenceCancellationResult> =
         when (active) {
+            is ActivePersistenceOperation.Export -> {
+                PersistenceTransition(
+                    coordination.withActive(active.copy(phase = ExportPhase.Cancelling)),
+                    PersistenceCancellationResult.CancellationStarted,
+                )
+            }
+
             is ActivePersistenceOperation.Save -> {
                 PersistenceTransition(
                     coordination.withActive(active.copy(phase = SavePhase.Cancelling)),
@@ -85,6 +92,10 @@ internal object CancellationTransitions {
         return when {
             active == null || active.handle != handle -> {
                 PersistenceTransition(coordination, PersistenceRequestResult.Stale)
+            }
+
+            active is ActivePersistenceOperation.Export -> {
+                coordination.cancelled()
             }
 
             active is ActivePersistenceOperation.Save && active.phase != SavePhase.Cleanup -> {

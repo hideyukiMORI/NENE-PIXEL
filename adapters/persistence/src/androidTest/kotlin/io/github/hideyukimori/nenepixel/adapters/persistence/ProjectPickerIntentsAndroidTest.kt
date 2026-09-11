@@ -15,12 +15,27 @@ import org.junit.runner.RunWith
 public class ProjectPickerIntentsAndroidTest {
     @Test
     public fun createIntentHasCanonicalActionMimeCategoryAndExtension() {
-        val intent = ProjectPickerIntents.createDocument("drawing")
+        val intent =
+            ProjectPickerIntents.createDocument(
+                DocumentCreationRequest("drawing", DocumentOutputFormat.PROJECT),
+            )
 
         assertEquals(Intent.ACTION_CREATE_DOCUMENT, intent.action)
         assertEquals("application/octet-stream", intent.type)
         assertTrue(intent.categories?.contains(Intent.CATEGORY_OPENABLE) == true)
         assertEquals("drawing.nenepixel", intent.getStringExtra(Intent.EXTRA_TITLE))
+    }
+
+    @Test
+    public fun pngIntentHasExactMimeAndDoesNotDuplicateExtension() {
+        val intent =
+            ProjectPickerIntents.createDocument(
+                DocumentCreationRequest("drawing.PNG", DocumentOutputFormat.PNG),
+            )
+        assertEquals(Intent.ACTION_CREATE_DOCUMENT, intent.action)
+        assertEquals("image/png", intent.type)
+        assertEquals("drawing.PNG", intent.getStringExtra(Intent.EXTRA_TITLE))
+        assertTrue(intent.categories?.contains(Intent.CATEGORY_OPENABLE) == true)
     }
 
     @Test

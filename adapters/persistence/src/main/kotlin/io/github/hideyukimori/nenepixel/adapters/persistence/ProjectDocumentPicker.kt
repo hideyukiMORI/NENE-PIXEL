@@ -4,7 +4,7 @@ import android.net.Uri
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectStorageFailure
 
 public interface ProjectDocumentPicker {
-    public suspend fun createDocument(suggestedName: String): ProjectPickerResult
+    public suspend fun createDocument(request: DocumentCreationRequest): ProjectPickerResult
 
     public suspend fun openDocument(): ProjectPickerResult
 }
@@ -22,7 +22,7 @@ public sealed interface ProjectPickerResult {
 }
 
 internal interface ProjectPickerAccess {
-    suspend fun createDocument(suggestedName: String): InternalPickerResult
+    suspend fun createDocument(request: DocumentCreationRequest): InternalPickerResult
 
     suspend fun openDocument(): InternalPickerResult
 }
@@ -30,8 +30,8 @@ internal interface ProjectPickerAccess {
 internal class AndroidProjectPickerAccess(
     private val picker: ProjectDocumentPicker,
 ) : ProjectPickerAccess {
-    override suspend fun createDocument(suggestedName: String): InternalPickerResult =
-        picker.createDocument(suggestedName).toInternal()
+    override suspend fun createDocument(request: DocumentCreationRequest): InternalPickerResult =
+        picker.createDocument(request).toInternal()
 
     override suspend fun openDocument(): InternalPickerResult = picker.openDocument().toInternal()
 
