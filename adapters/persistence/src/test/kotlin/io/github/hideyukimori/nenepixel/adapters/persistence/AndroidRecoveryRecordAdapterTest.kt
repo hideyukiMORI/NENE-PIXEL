@@ -3,6 +3,7 @@ package io.github.hideyukimori.nenepixel.adapters.persistence
 import io.github.hideyukimori.nenepixel.core.application.persistence.ExpectedRecoveryLineage
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryInspection
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryInspectionFailure
+import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryPublicationOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRetirementFailure
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRetirementOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRollbackOutcome
@@ -257,6 +258,122 @@ internal class AndroidRecoveryRecordAdapterTest {
                 RecoveryInspection.Failed(RecoveryInspectionFailure.CLOSE_FAILED),
                 adapter(closeFailed).inspect(),
             )
+        }
+
+    @Test
+    fun `missing lineage publishes and verifies a real candidate generation one`() =
+        runBlocking {
+            val file = MemoryRecoveryAtomicFile()
+            val adapter = adapter(file)
+            val document = PersistenceTestValues.minimalDocument
+
+            val result = adapter.publishCandidate(ExpectedRecoveryLineage.Missing, document)
+
+            assertEquals(
+                RecoveryPublicationOutcome.Published(PersistenceTestValues.generation(1L)),
+                result,
+            )
+            assertEquals(1, file.startCalls)
+            assertEquals(1, file.syncCalls)
+            assertEquals(1, file.finishCalls)
+            assertEquals(0, file.failCalls)
+            assertArrayEquals(encodedCandidate(1L), file.bytes)
+            assertEquals(
+                RecoveryInspection.Candidate(PersistenceTestValues.generation(1L), document),
+                adapter.inspect(),
+            )
+        }
+
+    @Test
+    fun `candidate publication on a mismatched lineage is stale without a write`() =
+        runBlocking {
+            val file = MemoryRecoveryAtomicFile(encodedCandidate(2L))
+
+            val result =
+                adapter(file).publishCandidate(
+                    ExpectedRecoveryLineage.Present(PersistenceTestValues.generation(1L)),
+                    PersistenceTestValues.minimalDocument,
+                )
+
+            assertSame(RecoveryPublicationOutcome.Stale, result)
+            assertEquals(0, file.startCalls)
+        }
+
+    @Test
+    fun `candidate publication rolls back a failed write`() =
+        runBlocking {
+            val file = MemoryRecoveryAtomicFile(fault = RecoveryFault.WRITE)
+
+            val result =
+                adapter(file).publishCandidate(
+                    ExpectedRecoveryLineage.Missing,
+                    PersistenceTestValues.minimalDocument,
+                )
+
+            assertEquals(
+                RecoveryPublicationOutcome.Failed(
+                    RecoveryRetirementFailure.WRITE,
+                    RecoveryRollbackOutcome.COMPLETED,
+                ),
+                result,
+            )
+            assertEquals(1, file.failCalls)
+        }
+
+    @Test
+    fun `candidate read-back mismatch after finish is uncertain without rollback claim`() =
+        runBlocking {
+            val file = MemoryRecoveryAtomicFile(fault = RecoveryFault.READ_BACK_MISMATCH)
+
+            val result =
+                adapter(file).publishCandidate(
+                    ExpectedRecoveryLineage.Missing,
+                    PersistenceTestValues.minimalDocument,
+                )
+
+            assertEquals(
+                RecoveryPublicationOutcome.Uncertain(
+                    RecoveryRetirementFailure.READ_BACK_MISMATCH,
+                    RecoveryRollbackOutcome.NOT_NEEDED,
+                ),
+                result,
+            )
+            assertEquals(0, file.failCalls)
+        }
+
+    @Test
+    fun `maximum document publishes and reads back as the same candidate`() =
+        runBlocking {
+            val file = MemoryRecoveryAtomicFile()
+            val adapter = adapter(file)
+            val document = PersistenceTestValues.maximumDocument()
+
+            val result = adapter.publishCandidate(ExpectedRecoveryLineage.Missing, document)
+
+            assertEquals(
+                RecoveryPublicationOutcome.Published(PersistenceTestValues.generation(1L)),
+                result,
+            )
+            assertEquals(RecoveryRecordCodec.MAX_RECORD_BYTE_COUNT, file.bytes?.size)
+            assertEquals(
+                RecoveryInspection.Candidate(PersistenceTestValues.generation(1L), document),
+                adapter.inspect(),
+            )
+        }
+
+    @Test
+    fun `candidate publication at the maximum generation is exhausted without a write`() =
+        runBlocking {
+            val file = MemoryRecoveryAtomicFile(encodedRetired(Long.MAX_VALUE))
+
+            val result =
+                adapter(file).publishCandidate(
+                    ExpectedRecoveryLineage.Present(PersistenceTestValues.generation(Long.MAX_VALUE)),
+                    PersistenceTestValues.minimalDocument,
+                )
+
+            assertSame(RecoveryPublicationOutcome.GenerationExhausted, result)
+            assertEquals(0, file.startCalls)
         }
 
     private fun adapter(file: RecoveryAtomicFileAccess) =

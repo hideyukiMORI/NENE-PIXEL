@@ -28,10 +28,10 @@ internal object ConfirmationPolicy {
         pending: PendingSwitch,
         dirty: Boolean,
     ): PersistenceConfirmationReason =
-        if (pending is PendingSwitch.Prepared) {
-            sourceChangedReason(coordination)
-        } else {
-            currentReason(coordination, dirty)
+        when (pending) {
+            is PendingSwitch.Recover -> PersistenceConfirmationReason.DISCARD_CURRENT_CHANGES
+            is PendingSwitch.Prepared -> sourceChangedReason(coordination)
+            else -> currentReason(coordination, dirty)
         }
 
     private fun currentReason(

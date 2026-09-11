@@ -1,7 +1,7 @@
 # ADR 0018: Bounded autosave debounce, coalescing, and lifecycle flush contract
 
 - Status: accepted
-- Date: 2026-09-10
+- Date: 2026-09-11
 - Issue: #87
 - Affected rules: `ARC-011`, `CMD-001`, `QLT-006`, `QLT-011`, `QLT-013`, `QLT-015`
 
@@ -40,10 +40,15 @@ Facts on `main` `9978dcf` that shape the rule:
 
 Every committed command result that changes the document, including committed undo and redo,
 records one immutable autosave capture in the runtime's persistence coordination: the current
-`DocumentState` reference and its revision, tagged with the runtime generation. Recording replaces
-any earlier pending capture; the pending set is therefore never larger than one. A committed result
-that leaves the document at the last published revision records nothing. Core exposes a read-only
-autosave projection (pending revision, published revision, active publication, last outcome) as a
+`DocumentState` reference and its exact internal `HistoryPosition`, tagged with the runtime generation.
+Recording replaces any earlier pending capture; the pending set is therefore never larger than one.
+The runtime generation and history position together identify a captured state. Revision is never
+used as this identity: an abandoned and a replacement branch can have the same revision.
+A committed return to the exact published state clears the pending capture only when no active
+persistence operation can replace or retire that Candidate. During an active operation the latest
+capture is retained, including an undo to the previously published state.
+Core exposes a read-only
+autosave projection (opaque pending/published/publishing state tokens and last outcome) as a
 `StateFlow` next to the existing persistence projection. Core creates no scope, dispatcher, or
 timer and reads no wall time; it receives explicit `publishLatestCapture` requests from the
 platform and answers with typed results.
@@ -52,7 +57,7 @@ platform and answers with typed results.
 
 `publishLatestCapture` takes the pending capture, encodes and fully validates it before
 `AtomicFile.startWrite`, publishes it as a Candidate through the same ordered writer, generation,
-and read-back verification that P3-03 uses for Retired, and then marks that revision as published.
+and read-back verification that P3-03 uses for Retired, and then marks that exact state as published.
 A newer capture that arrives while a publication is active waits as the single latest capture and
 is published by the next request; it is never lost and never published twice. A publication is one
 persistence operation under the existing one-active lease:
@@ -60,11 +65,42 @@ persistence operation under the existing one-active lease:
 - A user operation (Save As, load, new document, confirm, cancel) requested while a Candidate
   publication is active waits for that publication to reach its outcome; the wait is bounded by the
   publication cost measured by the evidence protocol below and never blocks drawing.
+  The bounded retry rechecks a busy request even if the publication completes between the initial
+  busy result and registration of the wait. This adds no user-operation queue or unbounded retry.
 - A `publishLatestCapture` request while a user operation is active returns a typed `Deferred`
   result, keeps the capture pending, and leaves scheduling to the platform.
+- While a startup Candidate is still offered and undecided, `publishLatestCapture` returns a typed
+  `OfferPending` result and keeps the capture pending: autosave never overwrites the previous
+  session's unsaved work before the user accepts or declines it, matching the explicit-save rule of
+  ADR 0014 that preserves an unadopted Candidate. The platform stops requesting until the offer is
+  resolved.
 - A verified explicit save at a clean boundary retires the matching generation as ADR 0014 already
-  requires; a pending capture whose revision equals the saved revision is dropped, a newer pending
-  capture stays pending.
+  requires; only a pending capture matching the saved runtime generation and history position is
+  dropped. Every different pending state remains, including a replacement branch at the same
+  revision. Successful retirement invalidates the published Candidate identity. Stale, uncertain,
+  or inspected lineage that cannot prove that Candidate also invalidates it.
+  The exact saved capture is dropped at verified Save As completion even when an unadopted
+  Candidate or unavailable lineage prevents recovery cleanup. Cleanup completion applies the
+  same exact match again if a capture returned to the saved position while cleanup was in flight.
+
+### State identity correction (2026-09-11)
+
+Review of the unmerged implementation found that revision-based suppression and completion could
+discard an unsaved replacement branch, or discard an undo performed while a different state was
+being published. This correction restores CMD-008 and ADR 0014's exact-position semantics before
+merge. One opaque immutable `AutosaveStateToken` represents runtime generation plus the existing
+internal `HistoryPosition`; application constructors alone create it. Equality is its only public
+identity operation. It exposes no numeric lineage, document, mutable state, or serialized form.
+`AutosaveProjection` supplies these tokens to the platform scheduler, which compares them rather
+than revisions. No second history counter or document snapshot is retained for published identity.
+The publishing token identifies the capture held by the existing active operation; it is a derived
+projection, not another capture or queue.
+
+Regression evidence must cover same-revision replacement branches before and during publication,
+return to a previous published state during publication, save cleanup overlapping a replacement
+branch or undo, retirement followed by an undo to the former Candidate, and scheduler observation
+of a changed token with an unchanged revision. Schema bytes, writer generation, and pixel/history
+semantics are unchanged.
 
 ### Timing (platform, clock owner)
 
@@ -77,29 +113,48 @@ exactly these three rules with the constants fixed here:
 | Latency cap | `AUTOSAVE_LATENCY_CAP_MS = 5_000` | Request publication no later than 5,000 ms after the oldest still-unpublished capture, even while captures keep arriving. |
 | Lifecycle flush | none | On the activity `ON_STOP` event, request publication immediately if a capture is pending; the request runs on the ViewModel scope so it survives configuration changes. |
 
-The scheduler issues at most one outstanding request at a time. After a publication completes with a
-still-pending newer capture, the quiet window restarts from that completion; the latency cap keeps
-counting from the oldest unpublished capture. Both constants live in one `AutosavePolicy` value in
-the app module and are the only autosave numbers in the code base.
+The scheduler issues at most one outstanding request at a time. One structured observer continues
+folding projection changes and monotonic clock readings into the scheduler's single private immutable
+deadline state while its request coroutine awaits publication. A capture already being published is
+excluded from the next-request deadline. The first distinct pending capture starts its cap when
+observed, and later coalesced captures retain that cap. If observation skips the intermediate start
+event, the publishing/published token still identifies which prior pending deadline was consumed.
+After publication completes with a still-pending newer capture, the quiet window restarts from that
+completion, while an already established cap for that distinct pending capture is retained. There
+is no second document owner, clock in core, unmanaged job, or concurrent publication request.
+A request result cannot suspend a newer observation. If publication completes before its projection
+is observed, the scheduler waits for that observation instead of repeatedly requesting the old state.
+When a request is deferred because a user operation holds the persistence lease, the scheduler
+retries one quiet window later and the cap resumes from that retry, so an active user operation
+never turns the cap into an immediate re-request loop. Both timing constants live in one
+`AutosavePolicy` value in the app module and are the only autosave timing numbers in the code base.
 
 ### Bounds and product consequence
 
-With these constants, one process death loses at most the edits of the last 5 s of continuous
-drawing, or of the last 1 s after a pause, plus any publication that was in flight. The writer is
-invoked at most once per second while drawing pauses and at most once per five seconds under
-continuous drawing, so the maximum steady write pressure is one 262 KB record per second and
-normally far less. The evidence protocol below must show that one maximum publication on the
+While publication is eligible and the platform scheduler executes, these constants request a save
+after 1 s of quiet or by the 5 s continuous-drawing cap, plus any publication already in flight.
+They are scheduling targets, not a hard process-death loss guarantee: an undecided recovery offer,
+an active user operation, unavailable storage/lineage, or a suspended/killed process can prevent
+publication. `ON_STOP` requests a flush but cannot guarantee completion before process death.
+Steady-state writes normally follow the quiet window or latency cap; lifecycle flush may request
+an earlier write. The evidence protocol below must show that one maximum publication on the
 reference device costs well under the quiet window; if the measured maximum exceeds 250 ms, the
-constants are re-derived before implementation as `AUTOSAVE_QUIET_MS = ceil(4 × max / 500) × 500`
+constants are re-derived before merge as `AUTOSAVE_QUIET_MS = ceil(4 × max / 500) × 500`
 and `AUTOSAVE_LATENCY_CAP_MS = ceil(20 × max / 500) × 500`, and this section is amended by a
 dated paragraph rather than by rewriting the table.
+
+2026-09-12 observation: the single authorized v2 run on iPlay80miniPro / Android 16 observed
+135.757769 ms to 147.071808 ms across the twenty maximum-document samples. The observed maximum
+is below the predeclared 250 ms re-derivation boundary, so the 1,000 ms quiet window and 5,000 ms
+cap remain unchanged. The [raw observation and artifact identity](../quality/M3_AUTOSAVE_PUBLICATION_EVIDENCE.md#result)
+are retained; this decision makes no worst-case latency or process-death completion guarantee.
 
 ### Evidence
 
 Before Candidate publication code merges, one bounded device observation is collected under
 [M3 Autosave Publication Evidence](../quality/M3_AUTOSAVE_PUBLICATION_EVIDENCE.md): one invocation on
 the reference device, two fixed groups (maximum 256 × 256 document, minimum 1 × 1 document), five
-unreported warmups plus twenty measured samples each of the complete Candidate publication through
+warmups excluded from summary statistics plus twenty measured samples each of the Candidate publication through
 the real `android.util.AtomicFile` adapter, descriptive minimum and maximum only, no PASS or FAIL
 verdict, no speedup claim. Its only decision use is the constant re-derivation rule above.
 
@@ -143,8 +198,9 @@ the operation they bound, and the derivation rule must be declared before collec
 
 ### Benefits
 
-- One concrete rule with three constants and one derivation rule, testable without a clock in core.
-- Loss on process death is bounded to seconds and stated in product terms.
+- One concrete policy with two timing constants, a lifecycle trigger, and one derivation rule,
+  testable without a clock in core.
+- Eligible scheduling targets and the conditions that can delay recovery are stated in product terms.
 - Write pressure is bounded independently of drawing speed.
 - The lifecycle flush covers the common background-death case that debounce alone misses.
 

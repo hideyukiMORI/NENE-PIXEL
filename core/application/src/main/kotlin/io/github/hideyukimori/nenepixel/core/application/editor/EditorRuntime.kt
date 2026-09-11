@@ -4,6 +4,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.command.Comman
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandResult
 import io.github.hideyukimori.nenepixel.core.application.document.command.DocumentCommand
 import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryPosition
+import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveProjection
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationProjection
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceAction
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceActionRejection
@@ -28,9 +29,13 @@ public class EditorRuntime private constructor(
     private var coordination: PersistenceCoordination = PersistenceCoordination.initial()
     private val mutablePersistenceOperation: MutableStateFlow<PersistenceOperationProjection> =
         MutableStateFlow(PersistenceProjectionMapper.project(coordination))
+    private val mutableAutosave: MutableStateFlow<AutosaveProjection> =
+        MutableStateFlow(PersistenceProjectionMapper.projectAutosave(coordination))
 
     internal val saveOperations: RuntimeSaveOperations = RuntimeSaveOperations(this)
     internal val switchOperations: RuntimeSwitchOperations = RuntimeSwitchOperations(this)
+    internal val autosaveOperations: RuntimeAutosaveOperations = RuntimeAutosaveOperations(this)
+    internal val recoveryOperations: RuntimeRecoveryOperations = RuntimeRecoveryOperations(this)
 
     public val state: EditorRuntimeState
         get() = synchronized(runtimeLock) { owners.toState() }
@@ -38,12 +43,14 @@ public class EditorRuntime private constructor(
     internal val persistenceOperation: StateFlow<PersistenceOperationProjection> =
         mutablePersistenceOperation.asStateFlow()
 
+    internal val autosaveProjection: StateFlow<AutosaveProjection> = mutableAutosave.asStateFlow()
+
     public fun execute(command: DocumentCommand): CommandResult =
         synchronized(runtimeLock) {
             if (coordination.activeOperation.isSwitching()) {
                 CommandResult.Failed(CommandFailure.PersistenceBusy)
             } else {
-                owners.commandGateway.execute(command)
+                executeLocked(command)
             }
         }
 
@@ -64,9 +71,32 @@ public class EditorRuntime private constructor(
             val transition = block(RuntimeTransaction())
             coordination = transition.next
             applyEffectLocked(transition.effect)
-            mutablePersistenceOperation.value = PersistenceProjectionMapper.project(coordination)
+            publishProjectionsLocked()
             transition.result
         }
+
+    internal fun <R> read(block: (RuntimeTransaction) -> R): R =
+        synchronized(runtimeLock) { block(RuntimeTransaction()) }
+
+    private fun executeLocked(command: DocumentCommand): CommandResult {
+        val result = owners.commandGateway.execute(command)
+        if (result is CommandResult.Applied) {
+            val commandState = owners.commandGateway.runtimeState
+            coordination =
+                AutosaveTransitions.recordCapture(
+                    coordination,
+                    commandState.documentState,
+                    commandState.historyPosition,
+                )
+            publishProjectionsLocked()
+        }
+        return result
+    }
+
+    private fun publishProjectionsLocked() {
+        mutablePersistenceOperation.value = PersistenceProjectionMapper.project(coordination)
+        mutableAutosave.value = PersistenceProjectionMapper.projectAutosave(coordination)
+    }
 
     private fun reduceWorkspaceLocked(action: WorkspaceAction): WorkspaceReductionResult {
         val result = workspaceReducer.reduce(owners.workspaceState, action)

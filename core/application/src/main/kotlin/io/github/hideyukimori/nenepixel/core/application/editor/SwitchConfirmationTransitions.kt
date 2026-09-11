@@ -107,7 +107,20 @@ internal object SwitchConfirmationTransitions {
             is PendingSwitch.Prepared -> {
                 prepared(coordination, operation.handle, pending, context.source)
             }
+
+            is PendingSwitch.Recover -> {
+                adopted(RecoveryAdoptionTransitions.adopt(coordination, pending.candidate))
+            }
         }
+
+    private fun adopted(
+        transition: PersistenceTransition<PersistenceRequestResult>,
+    ): PersistenceTransition<SwitchContinuation> =
+        PersistenceTransition(
+            transition.next,
+            SwitchContinuation.Result(transition.result),
+            transition.effect,
+        )
 
     private fun ready(
         coordination: PersistenceCoordination,

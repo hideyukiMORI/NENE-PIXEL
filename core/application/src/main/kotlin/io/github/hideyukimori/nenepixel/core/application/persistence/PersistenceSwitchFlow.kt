@@ -15,11 +15,12 @@ internal class PersistenceSwitchFlow(
     private val operations: RuntimeSwitchOperations,
     private val projectStorage: ProjectStoragePort,
     private val recoveryRecord: RecoveryRecordPort,
+    private val autosave: PersistenceAutosaveFlow,
 ) {
-    suspend fun load(): PersistenceRequestResult = applyStart(operations.beginLoad())
+    suspend fun load(): PersistenceRequestResult = autosave.retryAfterPublication { applyStart(operations.beginLoad()) }
 
     suspend fun createNewDocument(request: NewDocumentRequestResult): PersistenceRequestResult =
-        applyStart(operations.beginNewDocument(request))
+        autosave.retryAfterPublication { applyStart(operations.beginNewDocument(request)) }
 
     suspend fun confirm(request: PersistenceConfirmationRequest): PersistenceRequestResult =
         applyContinuation(operations.confirmSwitch(request))

@@ -13,6 +13,7 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectStor
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryGeneration
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryGenerationResult
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryInspection
+import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryPublicationOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRecordPort
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRetirementOutcome
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
@@ -30,6 +31,7 @@ internal fun TestNenePixelEditor(
     NenePixelEditor(
         renderStates = controller.renderStates,
         persistenceOperations = persistence.workflow.operation,
+        autosaveStates = persistence.workflow.autosave,
         callbacks = controller.callbacks,
         persistenceCallbacks = persistence.callbacks,
         modifier = modifier,
@@ -57,6 +59,11 @@ private class TestPersistenceHost(
                 workflow.cancel(operation)
                 controller.synchronizeWithRuntime()
             },
+            acceptRecovery = {
+                workflow.acceptRecovery()
+                controller.synchronizeWithRuntime()
+            },
+            declineRecovery = { complete { workflow.declineRecovery() } },
         )
 
     suspend fun initialize() {
@@ -86,6 +93,14 @@ private class TestRecoveryRecordPort : RecoveryRecordPort {
     override suspend fun retire(expected: ExpectedRecoveryLineage): RecoveryRetirementOutcome {
         generation += 1L
         return RecoveryRetirementOutcome.Retired(generation(generation))
+    }
+
+    override suspend fun publishCandidate(
+        expected: ExpectedRecoveryLineage,
+        document: DocumentState,
+    ): RecoveryPublicationOutcome {
+        generation += 1L
+        return RecoveryPublicationOutcome.Published(generation(generation))
     }
 
     private fun generation(value: Long): RecoveryGeneration =

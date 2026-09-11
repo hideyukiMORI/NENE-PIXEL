@@ -18,6 +18,7 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.ExpectedRec
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectLoadOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectSaveOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryInspection
+import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryPublicationOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRetirementOutcome
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentId
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
@@ -72,6 +73,25 @@ public class AndroidPersistenceFunctionalTest {
                 assertTrue(retired is RecoveryRetirementOutcome.Retired)
                 val generation = (retired as RecoveryRetirementOutcome.Retired).generation
                 assertEquals(RecoveryInspection.Retired(generation), adapter.inspect())
+            } finally {
+                directory.listFiles()?.forEach { it.delete() }
+                directory.delete()
+            }
+        }
+
+    @Test
+    public fun actualAtomicFilePublishesAndReadsBackCandidateRecord() =
+        runBlocking {
+            val context = ApplicationProvider.getApplicationContext<Context>()
+            val directory = Files.createTempDirectory(context.noBackupFilesDir.toPath(), "recovery-candidate-").toFile()
+            val atomicFile = AtomicFile(File(directory, "nene-pixel-recovery-v1"))
+            val adapter = AndroidRecoveryRecordAdapter.create(atomicFile, Dispatchers.IO)
+            val document = minimalDocument()
+            try {
+                val published = adapter.publishCandidate(ExpectedRecoveryLineage.Missing, document)
+                assertTrue(published is RecoveryPublicationOutcome.Published)
+                val generation = (published as RecoveryPublicationOutcome.Published).generation
+                assertEquals(RecoveryInspection.Candidate(generation, document), adapter.inspect())
             } finally {
                 directory.listFiles()?.forEach { it.delete() }
                 directory.delete()

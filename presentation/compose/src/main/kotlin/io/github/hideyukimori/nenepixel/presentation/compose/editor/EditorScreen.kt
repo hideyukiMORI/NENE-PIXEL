@@ -24,6 +24,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.github.hideyukimori.nenepixel.core.application.editor.DocumentDirtyState
+import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveProjection
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationPhase
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationProjection
 import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
@@ -36,6 +37,7 @@ import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 internal fun EditorScreen(
     renderState: State<EditorRenderState>,
     persistenceOperation: PersistenceOperationProjection,
+    autosave: AutosaveProjection,
     callbacks: EditorCallbacks,
     persistenceCallbacks: EditorPersistenceCallbacks,
     modifier: Modifier,
@@ -53,7 +55,12 @@ internal fun EditorScreen(
             ) {
                 Text(text = "NENE-PIXEL", style = MaterialTheme.typography.headlineSmall)
                 SelectionControls(renderState, callbacks)
-                DocumentControls(renderState, persistenceOperation, callbacks, persistenceCallbacks)
+                DocumentControls(
+                    renderState = renderState,
+                    persistence = DocumentPersistenceInputs(persistenceOperation, autosave),
+                    callbacks = callbacks,
+                    persistenceCallbacks = persistenceCallbacks,
+                )
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier.fillMaxWidth().weight(1f),
@@ -93,7 +100,7 @@ private fun SelectionControls(
 @Composable
 private fun DocumentControls(
     renderState: State<EditorRenderState>,
-    persistenceOperation: PersistenceOperationProjection,
+    persistence: DocumentPersistenceInputs,
     callbacks: EditorCallbacks,
     persistenceCallbacks: EditorPersistenceCallbacks,
 ) {
@@ -104,8 +111,8 @@ private fun DocumentControls(
                 DocumentInputs(current.snapshot.size, current.canUndo, current.canRedo, current.dirtyState)
             }
         }
-    PersistenceControls(persistenceOperation, inputs.canvasSize, persistenceCallbacks)
-    DocumentStatusRow(inputs.dirtyState, persistenceOperation)
+    PersistenceControls(persistence.operation, inputs.canvasSize, persistenceCallbacks)
+    DocumentStatusRow(inputs.dirtyState, persistence.operation, persistence.autosave, persistenceCallbacks)
     HistoryControls(
         canUndo = inputs.canUndo,
         canRedo = inputs.canRedo,
@@ -159,6 +166,11 @@ private data class SelectionInputs(
     val palette: Palette,
     val activePaletteIndex: PaletteIndex,
     val activeTool: DrawingTool,
+)
+
+private data class DocumentPersistenceInputs(
+    val operation: PersistenceOperationProjection,
+    val autosave: AutosaveProjection,
 )
 
 private data class DocumentInputs(

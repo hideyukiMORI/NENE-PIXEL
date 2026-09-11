@@ -197,13 +197,13 @@ internal object SwitchCommitTransitions {
                 SwitchKind.Loaded -> PersistenceLastOutcome.Loaded
                 SwitchKind.NewDocument -> PersistenceLastOutcome.NewDocumentCreated
             }
-        val next =
+        val advanced =
             coordination
                 .advanceRuntimeGeneration()
                 .withRecovery(RuntimeRecoveryState.Clear(ExpectedRecoveryLineage.Present(outcome.generation)))
                 .finished(lastOutcome)
         return PersistenceTransition(
-            next,
+            advanced.withAutosave(AutosaveTracking.initial()),
             PersistenceRequestResult.Completed(lastOutcome),
             RuntimeOwnerEffect.ReplaceOwners(permit.candidate),
         )

@@ -11,6 +11,8 @@ public class EditorPersistenceCallbacks private constructor(
     private val createNewDocument: (NewDocumentRequestResult) -> Unit,
     private val confirm: (PersistenceConfirmationRequest) -> Unit,
     private val cancel: (PersistenceOperationHandle) -> Unit,
+    private val acceptRecovery: () -> Unit,
+    private val declineRecovery: () -> Unit,
 ) {
     internal fun onSaveAs() {
         saveAs()
@@ -43,6 +45,14 @@ public class EditorPersistenceCallbacks private constructor(
         cancel(operation)
     }
 
+    internal fun onAcceptRecovery() {
+        acceptRecovery()
+    }
+
+    internal fun onDeclineRecovery() {
+        declineRecovery()
+    }
+
     public companion object {
         public fun create(
             saveAs: () -> Unit,
@@ -50,6 +60,17 @@ public class EditorPersistenceCallbacks private constructor(
             createNewDocument: (NewDocumentRequestResult) -> Unit,
             confirm: (PersistenceConfirmationRequest) -> Unit,
             cancel: (PersistenceOperationHandle) -> Unit,
-        ): EditorPersistenceCallbacks = EditorPersistenceCallbacks(saveAs, load, createNewDocument, confirm, cancel)
+            acceptRecovery: () -> Unit,
+            declineRecovery: () -> Unit,
+        ): EditorPersistenceCallbacks =
+            EditorPersistenceCallbacks(
+                saveAs,
+                load,
+                createNewDocument,
+                confirm,
+                cancel,
+                acceptRecovery,
+                declineRecovery,
+            )
     }
 }

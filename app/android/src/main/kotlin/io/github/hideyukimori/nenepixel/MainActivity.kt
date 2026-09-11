@@ -39,10 +39,20 @@ public class MainActivity : ComponentActivity() {
             NenePixelEditor(
                 renderStates = model.controller.renderStates,
                 persistenceOperations = model.persistenceOperations,
+                autosaveStates = model.autosaveStates,
                 callbacks = model.controller.callbacks,
                 persistenceCallbacks = model.persistenceCallbacks,
             )
         }
+    }
+
+    /**
+     * ADR 0018 places the autosave lifecycle flush on `ON_STOP`, the last reliable event before a
+     * background process death. The request itself runs on the retained ViewModel scope.
+     */
+    override fun onStop() {
+        super.onStop()
+        editorModel.flushAutosave()
     }
 
     private fun launchPicker(

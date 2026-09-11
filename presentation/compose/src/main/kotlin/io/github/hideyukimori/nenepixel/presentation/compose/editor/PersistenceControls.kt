@@ -8,6 +8,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
+import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveLastOutcome
+import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveProjection
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceConfirmationReason
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceConfirmationRequest
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceLastOutcome
@@ -75,6 +77,8 @@ private fun PersistenceOperationPhase.cancellableOperation(): PersistenceOperati
 
         is PersistenceOperationPhase.Loading -> operation
 
+        is PersistenceOperationPhase.Discarding -> operation
+
         PersistenceOperationPhase.Idle,
         PersistenceOperationPhase.Initializing,
         is PersistenceOperationPhase.NeedsConfirmation,
@@ -86,21 +90,24 @@ private fun PersistenceOperationPhase.cancellableOperation(): PersistenceOperati
 internal fun RecoveryStatus.isAvailableForDocumentSwitch(): Boolean =
     this is RecoveryStatus.Clear || this is RecoveryStatus.UnadoptedCandidate
 
-internal fun PersistenceOperationProjection.statusText(): String =
+internal fun PersistenceOperationProjection.statusText(autosave: AutosaveProjection): String =
     when (phase) {
         PersistenceOperationPhase.Initializing -> "Checking recovery data"
-        PersistenceOperationPhase.Idle -> idleStatusText()
+        PersistenceOperationPhase.Idle -> idleStatusText(autosave)
         is PersistenceOperationPhase.Saving -> "Saving project"
         is PersistenceOperationPhase.Loading -> "Loading project"
         is PersistenceOperationPhase.NeedsConfirmation -> "Waiting for confirmation"
         is PersistenceOperationPhase.Switching -> "Switching document"
         is PersistenceOperationPhase.Cancelling -> "Cancelling project operation"
+        is PersistenceOperationPhase.Discarding -> "Discarding recovery data"
     }
 
-private fun PersistenceOperationProjection.idleStatusText(): String =
+private fun PersistenceOperationProjection.idleStatusText(autosave: AutosaveProjection): String =
     when {
         recoveryStatus is RecoveryStatus.Unknown -> "Recovery data is unavailable"
         recoveryStatus is RecoveryStatus.UnadoptedCandidate -> "Recovery data will be preserved"
+        autosave.lastOutcome is AutosaveLastOutcome.Failed -> "Autosave failed"
+        autosave.lastOutcome is AutosaveLastOutcome.Uncertain -> "Autosave result is uncertain"
         lastOutcome is PersistenceLastOutcome.Saved -> "Project saved"
         lastOutcome is PersistenceLastOutcome.Loaded -> "Project loaded"
         lastOutcome is PersistenceLastOutcome.NewDocumentCreated -> "New document created"

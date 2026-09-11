@@ -29,7 +29,10 @@ internal object RecoveryInspectionTransitions {
 
             else -> {
                 PersistenceTransition(
-                    coordination.withInspection(true).withRecovery(RuntimeRecoveryState.Initializing),
+                    coordination
+                        .withAutosave(coordination.autosave.withoutPublishedState())
+                        .withInspection(true)
+                        .withRecovery(RuntimeRecoveryState.Initializing),
                     RecoveryInspectionStart.Started,
                 )
             }
