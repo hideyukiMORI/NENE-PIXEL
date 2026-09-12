@@ -1,10 +1,10 @@
 package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -20,14 +20,14 @@ internal fun DocumentStatusRow(
     autosave: AutosaveProjection,
     callbacks: EditorPersistenceCallbacks,
 ) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
+    FlowRow(
         horizontalArrangement = Arrangement.spacedBy(STATUS_SPACING),
     ) {
         if (operation.offersRecovery()) {
             RecoveryOffer(enabled = operation.recoveryOfferEnabled(), callbacks = callbacks)
         } else {
             Text(
+                style = MaterialTheme.typography.labelSmall,
                 text =
                     when (dirtyState) {
                         DocumentDirtyState.Clean -> "No unsaved changes"
@@ -36,6 +36,7 @@ internal fun DocumentStatusRow(
                 modifier = Modifier.semantics { contentDescription = "Document dirty status" },
             )
             Text(
+                style = MaterialTheme.typography.labelSmall,
                 text = operation.statusText(autosave),
                 modifier = Modifier.semantics { contentDescription = "Project operation status" },
             )

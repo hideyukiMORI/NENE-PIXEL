@@ -28,6 +28,7 @@ internal fun NewDocumentControls(
     canvasSize: CanvasSize,
     callbacks: EditorPersistenceCallbacks,
     enabled: Boolean,
+    submitted: () -> Unit,
 ) {
     val state = remember { NewDocumentControlState() }
     NewDocumentButton(enabled = enabled, onClick = { state.open(canvasSize) })
@@ -39,9 +40,9 @@ internal fun NewDocumentControls(
                     onWidthChanged = { value -> state.widthInput = value },
                     onHeightChanged = { value -> state.heightInput = value },
                     onCreate = {
-                        state.accept(
-                            callbacks.onCreateNewDocument(state.widthInput, state.heightInput),
-                        )
+                        val result = callbacks.onCreateNewDocument(state.widthInput, state.heightInput)
+                        state.accept(result)
+                        if (result == NewDocumentSubmission.Submitted) submitted()
                     },
                     onCancel = state::cancel,
                 ),
@@ -54,7 +55,7 @@ private fun NewDocumentButton(
     enabled: Boolean,
     onClick: () -> Unit,
 ) {
-    Button(enabled = enabled, onClick = onClick) {
+    Button(colors = editorButtonColors(), enabled = enabled, onClick = onClick) {
         Text("New document")
     }
 }
@@ -83,7 +84,7 @@ private fun NewDocumentDialog(
             }
         },
         confirmButton = {
-            Button(onClick = callbacks.onCreate) {
+            Button(colors = editorButtonColors(), onClick = callbacks.onCreate) {
                 Text("Create")
             }
         },

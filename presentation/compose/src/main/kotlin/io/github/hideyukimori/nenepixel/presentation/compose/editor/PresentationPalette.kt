@@ -1,10 +1,18 @@
 package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
 import androidx.compose.ui.graphics.Color
+import io.github.hideyukimori.nenepixel.core.application.workspace.EditorTheme
 
 internal object PresentationPalette {
-    val editorBackground: Color = Color(0xFFF1F1F4)
+    fun canvasSurround(theme: EditorTheme): Color =
+        when (theme) {
+            EditorTheme.Dark -> darkSurround
+            EditorTheme.Light -> lightSurround
+        }
+
     val canvasBackground: Color = Color.White
+    private val darkSurround: Color = Color(0xFF292929)
+    private val lightSurround: Color = Color(0xFFBDBDBD)
     val grid: Color = Color.Black.copy(alpha = GRID_ALPHA)
     val eraserPreview: Color = Color(0xFF30343B).copy(alpha = ERASER_PREVIEW_ALPHA)
 

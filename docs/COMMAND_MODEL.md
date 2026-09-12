@@ -33,10 +33,16 @@ Examples:
 - `SetHoveredPixelAction`
 - `ShowStrokePreviewAction`
 - `DismissDialogAction`
+- `SetAppearance`
 
 If a fact must survive save/load or participate in undo, it belongs to `DocumentState`. If not, it belongs to `WorkspaceState`. A fact must never exist authoritatively in both.
 
 ## Canonical flow
+
+ADR 0020 adds `WorkspaceAction.SetAppearance` for session theme, tablet layout and physical control
+edge. `WorkspaceState.appearance` is the single owner; setting it cancels active preview atomically.
+It is undo-neutral and preserved through new/load/recovery runtime installation via the reducer.
+Only a fresh process resets appearance to Dark/Tabletop/Right; project files never store it.
 
 ```text
 Touch / Stylus / Mouse / Keyboard

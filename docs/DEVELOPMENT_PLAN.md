@@ -66,6 +66,12 @@ Production-domain work starts only after P0-01 through P0-05 pass. P0-06 closes 
 | P3-04 | Implement safe autosave and recovery | P3-03 | Focused debounce/coalescing decision, Candidate publication, recovery acceptance, interruption, ordering, and last-safe evidence using the P3-03 record/writer |
 | P3-05 | Implement exact PNG export | P2-08 | Golden pixel comparison and failure tests |
 | P3-06 | Complete durable MVP acceptance | P3-04, P3-05 | All `MVP_SCOPE.md` journeys and M3 exit evidence |
+| P3-07 | Adopt the tablet editor shell | P3-04, P3-05 | ADR 0020 workspace appearance, dark/light and bottom/side controls, functional device geometry and lifecycle evidence |
+
+hide requested P3-07 before final P3-06 acceptance on 2026-09-12. It reorganizes existing MVP controls
+and adds session appearance only; it does not open M4 or close the M3 acceptance gate. P3-06 uses the
+resulting final shell for its integrated journey. Palette-indexed document editing and later
+animation, tile/map and reference-image features retain their separate contract decisions.
 
 ## Later work packages
 

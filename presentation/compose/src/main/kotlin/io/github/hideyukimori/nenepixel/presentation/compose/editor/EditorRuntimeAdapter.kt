@@ -106,6 +106,7 @@ internal class EditorRuntimeAdapter(
             canUndo = state.historyAvailability.canUndo,
             canRedo = state.historyAvailability.canRedo,
             dirtyState = state.dirtyState,
+            appearance = state.workspaceState.appearance,
         )
     }
 

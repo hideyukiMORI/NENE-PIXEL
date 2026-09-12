@@ -1,6 +1,8 @@
 package io.github.hideyukimori.nenepixel.core.application.workspace
 
 public sealed interface WorkspaceNoChangeReason {
+    public data object AppearanceAlreadySet : WorkspaceNoChangeReason
+
     public data object ActivePaletteEntryAlreadySelected : WorkspaceNoChangeReason
 
     public data object ActiveToolAlreadySelected : WorkspaceNoChangeReason

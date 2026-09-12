@@ -2,22 +2,27 @@ package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
@@ -29,22 +34,26 @@ internal fun PaletteControls(
     palette: Palette,
     activePaletteIndex: PaletteIndex,
     callbacks: EditorCallbacks,
+    dismiss: () -> Unit,
 ) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(PALETTE_LABEL_SPACING),
-    ) {
-        Text(text = "Palette")
-        LazyRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(PALETTE_ENTRY_SPACING, Alignment.CenterHorizontally),
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+            "${palette.entryCount} colors · Select a drawing color",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        LazyVerticalGrid(
+            state = rememberLazyGridState(initialFirstVisibleItemIndex = activePaletteIndex.value),
+            columns = GridCells.Adaptive(56.dp),
+            modifier = Modifier.fillMaxSize().semantics { contentDescription = "Palette colors" },
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            items(palette.entries(), key = { entry -> entry.index.value }) { entry ->
-                PaletteEntryControl(
-                    entry = entry,
-                    selected = entry.index == activePaletteIndex,
-                    onClick = { callbacks.onSelectPaletteEntry(entry.index) },
-                )
+            items(palette.entries(), key = { it.index.value }) { entry ->
+                PaletteEntryControl(entry, entry.index == activePaletteIndex) {
+                    callbacks.onSelectPaletteEntry(entry.index)
+                    dismiss()
+                }
             }
         }
     }
@@ -56,30 +65,31 @@ private fun PaletteEntryControl(
     selected: Boolean,
     onClick: () -> Unit,
 ) {
-    val borderWidth = if (selected) SELECTED_BORDER_WIDTH else UNSELECTED_BORDER_WIDTH
-    val borderColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
-    val description =
-        "Palette color ${entry.index.value + 1}, " +
-            "RGBA ${entry.color.red.value}, ${entry.color.green.value}, " +
-            "${entry.color.blue.value}, ${entry.color.alpha.value}"
-    androidx.compose.foundation.layout.Box(
+    val borderColor = if (selected) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.outline
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
         modifier =
             Modifier
-                .size(PALETTE_ENTRY_SIZE)
-                .semantics {
-                    contentDescription = description
-                    this.selected = selected
-                }.border(borderWidth, borderColor, PALETTE_ENTRY_SHAPE)
-                .padding(PALETTE_ENTRY_INSET)
-                .background(entry.color.toComposeColor(), PALETTE_ENTRY_SHAPE)
-                .clickable(onClick = onClick),
-    )
+                .size(56.dp)
+                .selectable(selected, role = Role.Button, onClick = onClick)
+                .semantics { contentDescription = entry.description() }
+                .border(if (selected) 3.dp else 1.dp, borderColor, RoundedCornerShape(4.dp))
+                .padding(4.dp),
+    ) {
+        Box(Modifier.fillMaxWidth().weight(1f).background(entry.color.toComposeColor())) {
+            if (selected) {
+                Text(
+                    "✓",
+                    color = Color.White,
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.align(Alignment.TopEnd).background(Color.Black).padding(horizontal = 2.dp),
+                )
+            }
+        }
+        Text("${entry.index.value + 1}", style = MaterialTheme.typography.labelSmall)
+    }
 }
 
-private val PALETTE_ENTRY_SHAPE = RoundedCornerShape(4.dp)
-private val PALETTE_ENTRY_SIZE = 40.dp
-private val PALETTE_ENTRY_SPACING = 4.dp
-private val PALETTE_LABEL_SPACING = 4.dp
-private val PALETTE_ENTRY_INSET = 2.dp
-private val SELECTED_BORDER_WIDTH = 3.dp
-private val UNSELECTED_BORDER_WIDTH = 1.dp
+private fun PaletteEntry.description(): String =
+    "Palette color ${index.value + 1}, " +
+        "RGBA ${color.red.value}, ${color.green.value}, ${color.blue.value}, ${color.alpha.value}"

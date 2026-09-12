@@ -1,6 +1,7 @@
 package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
 import io.github.hideyukimori.nenepixel.core.application.editor.DocumentDirtyState
+import io.github.hideyukimori.nenepixel.core.application.workspace.EditorAppearance
 import io.github.hideyukimori.nenepixel.core.application.workspace.ToolGesture
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportState
 import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
@@ -20,6 +21,7 @@ public class EditorRenderState internal constructor(
     public val canUndo: Boolean,
     public val canRedo: Boolean,
     public val dirtyState: DocumentDirtyState,
+    public val appearance: EditorAppearance,
 ) {
     public val activeColor: PixelColor
         get() =
@@ -40,18 +42,29 @@ public class EditorRenderState internal constructor(
                     viewport == other.viewport &&
                     canUndo == other.canUndo &&
                     canRedo == other.canRedo &&
-                    dirtyState == other.dirtyState
+                    dirtyState == other.dirtyState &&
+                    appearance == other.appearance
             )
 
     override fun hashCode(): Int =
-        listOf(snapshot, palette, activePaletteIndex, activeTool, preview, viewport, canUndo, canRedo, dirtyState)
-            .fold(INITIAL_HASH) { hash, value -> hash * HASH_MULTIPLIER + (value?.hashCode() ?: 0) }
+        listOf(
+            snapshot,
+            palette,
+            activePaletteIndex,
+            activeTool,
+            preview,
+            viewport,
+            canUndo,
+            canRedo,
+            dirtyState,
+            appearance,
+        ).fold(INITIAL_HASH) { hash, value -> hash * HASH_MULTIPLIER + (value?.hashCode() ?: 0) }
 
     override fun toString(): String =
         "EditorRenderState(" +
             "snapshot=$snapshot, palette=$palette, activePaletteIndex=$activePaletteIndex, activeTool=$activeTool, " +
             "preview=$preview, viewport=$viewport, " +
-            "canUndo=$canUndo, canRedo=$canRedo, dirtyState=$dirtyState)"
+            "canUndo=$canUndo, canRedo=$canRedo, dirtyState=$dirtyState, appearance=$appearance)"
 
     private companion object {
         const val INITIAL_HASH: Int = 1

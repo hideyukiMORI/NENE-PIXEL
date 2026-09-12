@@ -135,6 +135,7 @@ Owns behavior coordination:
 - validated workspace viewport values and the portable canonical forward/inverse transform
 - bounded linear history, dual-budget eviction, exact-position undo/redo, and clean-checkpoint coordination
 - query projections
+- workspace-owned session appearance, with Compose-only panel visibility and scroll/focus mechanics (ADR 0020)
 - ports for persistence, clocks, identifiers, and future external effects
 - private immutable save capture/candidate, runtime/operation identity, checked completion, and the
   one loaded/recovered runtime-install protocol

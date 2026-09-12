@@ -119,7 +119,13 @@ public class EditorRuntime private constructor(
             }
 
             is RuntimeOwnerEffect.ReplaceOwners -> {
-                owners = effect.owners
+                val appearance = owners.workspaceState.appearance
+                val workspace =
+                    workspaceReducer.reduce(
+                        effect.owners.workspaceState,
+                        WorkspaceAction.SetAppearance(appearance),
+                    )
+                owners = effect.owners.copy(workspaceState = workspace.nextState)
             }
         }
     }

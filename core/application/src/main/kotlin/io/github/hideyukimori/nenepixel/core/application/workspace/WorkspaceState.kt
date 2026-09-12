@@ -10,20 +10,25 @@ public class WorkspaceState private constructor(
     public val activeTool: DrawingTool,
     public val viewport: ViewportState,
     public val preview: ToolGesture?,
+    public val appearance: EditorAppearance,
 ) {
     internal fun withActivePaletteIndex(activePaletteIndex: PaletteIndex): WorkspaceState =
-        WorkspaceState(activePaletteIndex, activeTool, viewport, preview)
+        WorkspaceState(activePaletteIndex, activeTool, viewport, preview, appearance)
 
     internal fun withActiveTool(activeTool: DrawingTool): WorkspaceState =
-        WorkspaceState(activePaletteIndex, activeTool, viewport, preview)
+        WorkspaceState(activePaletteIndex, activeTool, viewport, preview, appearance)
 
     internal fun withPreview(preview: ToolGesture): WorkspaceState =
-        WorkspaceState(activePaletteIndex, activeTool, viewport, preview)
+        WorkspaceState(activePaletteIndex, activeTool, viewport, preview, appearance)
 
-    internal fun withoutPreview(): WorkspaceState = WorkspaceState(activePaletteIndex, activeTool, viewport, null)
+    internal fun withoutPreview(): WorkspaceState =
+        WorkspaceState(activePaletteIndex, activeTool, viewport, null, appearance)
 
     internal fun withViewport(viewport: ViewportState): WorkspaceState =
-        WorkspaceState(activePaletteIndex, activeTool, viewport, null)
+        WorkspaceState(activePaletteIndex, activeTool, viewport, null, appearance)
+
+    internal fun withAppearance(appearance: EditorAppearance): WorkspaceState =
+        WorkspaceState(activePaletteIndex, activeTool, viewport, null, appearance)
 
     override fun equals(other: Any?): Boolean =
         this === other ||
@@ -32,7 +37,8 @@ public class WorkspaceState private constructor(
                     activePaletteIndex == other.activePaletteIndex &&
                     activeTool == other.activeTool &&
                     viewport == other.viewport &&
-                    preview == other.preview
+                    preview == other.preview &&
+                    appearance == other.appearance
             )
 
     override fun hashCode(): Int =
@@ -40,16 +46,23 @@ public class WorkspaceState private constructor(
             ((activePaletteIndex.hashCode() * HASH_MULTIPLIER) + activeTool.hashCode()) * HASH_MULTIPLIER +
                 viewport.hashCode()
         ) *
-            HASH_MULTIPLIER + (preview?.hashCode() ?: 0)
+            HASH_MULTIPLIER + (preview?.hashCode() ?: 0) + appearance.hashCode()
 
     override fun toString(): String =
         "WorkspaceState(" +
-            "activePaletteIndex=$activePaletteIndex, activeTool=$activeTool, viewport=$viewport, preview=$preview)"
+            "activePaletteIndex=$activePaletteIndex, activeTool=$activeTool, viewport=$viewport, " +
+            "preview=$preview, appearance=$appearance)"
 
     public companion object {
         private const val HASH_MULTIPLIER: Int = 31
 
         public fun create(canvas: CanvasSize): WorkspaceState =
-            WorkspaceState(PaletteIndex.first, DrawingTool.Pencil, ViewportState.initial(canvas), null)
+            WorkspaceState(
+                PaletteIndex.first,
+                DrawingTool.Pencil,
+                ViewportState.initial(canvas),
+                null,
+                EditorAppearance.initial,
+            )
     }
 }

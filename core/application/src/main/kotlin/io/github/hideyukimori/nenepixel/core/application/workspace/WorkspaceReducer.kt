@@ -15,6 +15,7 @@ public class WorkspaceReducer private constructor(
         action: WorkspaceAction,
     ): WorkspaceReductionResult =
         when (action) {
+            is WorkspaceAction.SetAppearance -> setAppearance(state, action.appearance)
             is WorkspaceAction.SelectPaletteEntry -> selectPaletteEntry(state, action)
             is WorkspaceAction.SelectTool -> selectTool(state, action)
             is WorkspaceAction.BeginGesturePreview -> beginGesturePreview(state, action)
@@ -177,4 +178,14 @@ private fun Palette.selectedEntry(state: WorkspaceState): PaletteEntry =
     when (val result = entryAt(state.activePaletteIndex)) {
         is DomainValueResult.Created -> result.value
         is DomainValueResult.Rejected -> error("Workspace palette selection is invalid: ${result.rejection}")
+    }
+
+private fun setAppearance(
+    state: WorkspaceState,
+    appearance: EditorAppearance,
+): WorkspaceReductionResult =
+    if (state.appearance == appearance && state.preview == null) {
+        WorkspaceReductionResult.Unchanged(state, WorkspaceNoChangeReason.AppearanceAlreadySet)
+    } else {
+        WorkspaceReductionResult.Reduced(state.withAppearance(appearance))
     }

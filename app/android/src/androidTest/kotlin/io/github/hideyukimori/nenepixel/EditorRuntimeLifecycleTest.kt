@@ -72,7 +72,13 @@ internal class EditorRuntimeLifecycleTest {
     fun configurationRecreationRetainsTheOnlyDocumentAndWorkspaceOwners() {
         createDocument(width = "5", height = "3")
         composeRule.onNodeWithContentDescription("Eraser tool").performClick()
+        composeRule.onNodeWithContentDescription("Open palette").performClick()
         composeRule.onNodeWithContentDescription(SECOND_PALETTE_DESCRIPTION).performClick()
+        composeRule.onNodeWithContentDescription("Appearance").performClick()
+        composeRule.onNodeWithContentDescription("Theme: Light").performClick()
+        composeRule.onNodeWithContentDescription("Layout: Handheld").performClick()
+        composeRule.onNodeWithContentDescription("Control edge: Left").performClick()
+        composeRule.onNodeWithContentDescription("Close panel").performClick()
         composeRule.waitForIdle()
         lateinit var runtime: EditorRuntime
         lateinit var document: DocumentState
@@ -124,6 +130,7 @@ internal class EditorRuntimeLifecycleTest {
         width: String,
         height: String,
     ) {
+        composeRule.onNodeWithContentDescription("File").performClick()
         composeRule.waitUntil {
             composeRule
                 .onAllNodes(hasText("New document") and isEnabled())
