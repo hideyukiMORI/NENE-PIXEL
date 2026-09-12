@@ -93,6 +93,22 @@ One concept has one canonical name. New synonyms in code are prohibited. Add or 
 | `PngBytes` | Adapter-internal immutable bounded PNG encoding with defensive bulk copies | mutable pixel surface, project file |
 | `DocumentCreationRequest` | Typed fresh-destination request selecting PROJECT or PNG and a suggested filename | existing URI, raw MIME selection |
 
+## Indexed palette target and interchange (ADR 0022)
+
+The current M3 RGBA/tool-palette terms above describe the delivered editor until atomic cutover.
+
+| Term | Canonical meaning | Not an alias for |
+| --- | --- | --- |
+| `PaletteDefinition` | Immutable Palette plus validated defaultIndex, 2–256 actual entries; interchange value and target indexed-document definition | active swatch, generic JSON DTO |
+| `defaultIndex` | Slot used to fill a new indexed canvas and by Eraser; may be nontransparent | active Pencil selection, transparency sentinel |
+| `PaletteEditSession` | Workspace-owned bounded draft timeline tied to exact source generation/history position | document history, Compose-owned document copy |
+| `ReplacePaletteCommand` | Atomic target command committing definition and complete pixel mapping | immediate import side effect |
+| `PaletteJsonBytes` | Defensive bounded palette-file bytes, maximum-plus-one probe | ProjectFormatBytes, unbounded input string |
+| `PaletteJsonCodec` | The no-I/O palette JSON v1 mapping to/from PaletteDefinition | project codec, runtime mutation path |
+| `ConversionRequired` | Uninstalled exact source needs explicit lossy conversion to fit indexed limits | successful lossless migration, editable RGBA compatibility mode |
+
+Target command/session names are introduced only in their consuming implementation Issue.
+
 ## Reserved state verbs
 
 - `create`: construct a new validated value/entity through its canonical factory

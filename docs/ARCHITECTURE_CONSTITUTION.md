@@ -75,6 +75,14 @@ The pixel engine MUST:
 
 Local mutation elsewhere requires a waiver. This rule exists to preserve interactive performance without spreading mutation through the architecture.
 
+ADR 0022 extends the same narrow codec permission to Palette JSON v1: bounded private byte/text
+buffers, string/collection builders and parse cursors for one 16,384-byte envelope (plus one-byte
+oversize probe). They never become pixel workspaces or another palette owner. PaletteDefinition
+references the existing immutable Palette. Its definition/default validation remains in domain.
+The indexed document/patch storage and uninstalled immutable legacy-import raster described by
+that ADR become applicable only at its atomic runtime cutover; until then M3 remains the only
+editable representation. No simultaneous editable RGBA/indexed document paths are permitted.
+
 ### ARC-006 — Explicit composition
 
 Dependencies MUST be supplied at composition roots. Service locators, reflective discovery, runtime classpath scanning, ambient singletons, and mutable global registries are prohibited.

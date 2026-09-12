@@ -60,3 +60,4 @@ An ADR must include:
 | [0019](0019-exact-png-export.md) | accepted | Deterministic exact RGBA PNG and one fresh-output/physical-operation path |
 | [0020](0020-tablet-editor-appearance.md) | accepted | One workspace appearance owner, aubergine themes and bottom/physical-side tablet controls |
 | [0021](0021-app-language-resources.md) | accepted | App language ownership, localized resources and stable UI test identities |
+| [0022](0022-indexed-palette-and-migration.md) | accepted | Indexed palette target, atomic draft/document history, explicit v1 conversion and bounded palette JSON |
