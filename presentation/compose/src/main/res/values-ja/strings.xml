@@ -99,4 +99,18 @@
     <plurals name="palette_count">
         <item quantity="other">%1$d色 · 描く色を選択</item>
     </plurals>
+    <string name="mvp_information">このバージョンについて</string>
+    <string name="close_information">閉じる</string>
+    <string name="mvp_scope_title">描画できる範囲</string>
+    <string name="mvp_scope">オフラインで使える、1フレーム・1レイヤーの編集ツールです。縦・横それぞれ%1$d～%2$dピクセルで作成できます。色は固定パレットから選びます。パレット編集、複数レイヤー、アニメーション、PNG読み込みは今後の対応です。</string>
+    <string name="mvp_save_title">別名で保存</string>
+    <string name="mvp_save">保存するたびに新しい作品ファイルを作成し、既存のファイルは上書きしません。編集を続けるには .nenepixel ファイルを残してください。保存に失敗すると、新しく作られた不完全なファイルが残る場合があります。保存先やクラウドの後の障害までは防げません。</string>
+    <string name="mvp_history_title">履歴と開き直し</string>
+    <string name="mvp_history">元に戻す・やり直す履歴は最大%1$d操作で、変更量が多いと保存できる操作数が減ります。保存しても現在の履歴は残りますが、開き直しや復元では履歴が空になります。倍率、ツール、外観は作品ファイルに保存されません。</string>
+    <string name="mvp_recovery_title">未保存の作業</string>
+    <string name="mvp_recovery">最後に自動保存が完了した内容を、確認してから復元できます。保存が中断すると、直前の変更が残らない場合があります。復元の確認中やファイル操作中は、自動保存が待機することがあります。アンインストールやアプリデータの削除で、復旧用のデータは消えます。</string>
+    <string name="mvp_png_title">PNG書き出し</string>
+    <string name="mvp_png">画素と透過をそのままPNGに書き出します。書き出しても作品を保存した扱いにはなりません。PNGは他の用途で使う画像で、編集用の作品ファイルの代わりにはなりません。</string>
+    <string name="mvp_compatibility_title">作品の互換性</string>
+    <string name="mvp_compatibility">保存形式v1の作品を読み書きします。新しい形式、壊れたファイル、上限を超えるファイルは、現在の作業を置き換えずに拒否します。将来の形式変更では、v1の絵を保つための移行手順を先に定めます。</string>
 </resources>
