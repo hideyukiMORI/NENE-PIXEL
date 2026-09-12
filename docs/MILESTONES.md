@@ -134,7 +134,10 @@ Expand the proven durable document model for structured pixel-art work.
 
 ### Exit criteria
 
-- project-format migration preserves all M3 documents
+- project-format migration preserves exact M3 source data and RGBA semantics; ADR 0022 makes
+  nonrepresentable (>256 distinct RGBA) sources explicit read-only conversion candidates, never
+  silently reduced migrated documents. Only explicit reduction creates a dirty derived work;
+  original source and recovery preservation remain mandatory
 - every new operation follows command/change-set/history semantics
 - layer/frame operations remain deterministic and bounded
 - animation preview never becomes a second timing authority for document data

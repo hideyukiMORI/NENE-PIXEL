@@ -296,6 +296,19 @@ Viewport pan and zoom enter only through `WorkspaceAction.SetViewport`. The redu
 
 Presentation may own pointer identifiers and the local one-pointer/two-pointer/suppressed phase needed to translate raw events. It MUST derive mapping from the current workspace viewport and current Document canvas through the canonical core `ViewportTransform`; it MUST NOT retain an authoritative matrix, viewport snapshot, or alternate rounding rule. After a second or additional pointer interrupts drawing, drawing resumes only after all pointers are up and a fresh gesture begins.
 
+## Indexed palette target (ADR 0022)
+
+The M3 behavior above remains active until the atomic indexed runtime cutover. The accepted M4
+target in [ADR 0022](adr/0022-indexed-palette-and-migration.md) places PaletteDefinition in
+DocumentState and selection plus one bounded PaletteEditSession in WorkspaceState. Draft actions
+never change saved truth. Applying its complete validated mapping uses one ReplacePaletteCommand,
+including recorded palette/default/index transitions, selection reconciliation, invalidation and
+autosave. Palette-only and same-RGBA/different-slot changes are real changes; many-to-one mappings
+retain exact before indices for undo. Source preconditions include runtime generation and exact
+HistoryPosition; revision alone is insufficient. The target byte and changed-pixel history budgets,
+gesture cancellation, legacy conversion-required branch and fresh derived-work identity are defined
+there. No live indexed command is introduced by the preceding palette-value/JSON preparation.
+
 ## Canonical result vocabulary
 
 Concrete names may be introduced through the first implementation ADR, but the result algebra must remain closed:

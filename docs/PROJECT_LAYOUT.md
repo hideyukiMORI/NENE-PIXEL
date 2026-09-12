@@ -168,6 +168,17 @@ ADR 0015 fixes its first public boundary to one `ProjectFormatBytes` carrier, on
 probe while the codec separately enforces the valid-file maximum. Pixel mapping reaches the existing
 domain snapshot factory only after complete structural and checksum validation.
 
+ADR 0022 adds one separate `palette` codec package here for PaletteJsonBytes, PaletteJsonCodec and
+closed format outcomes under [Palette JSON v1](PALETTE_JSON_V1.md). It maps to the domain
+PaletteDefinition, contains no I/O/Android/JSON dependency, and does not make application depend on
+this module. Domain Palette continues owning colors; PaletteDefinition supplies validated document
+default semantics. No parallel tool-color list or raw JSON node crosses a public domain/app boundary.
+
+The later indexed cutover changes document ownership and all consumers together. Legacy RGBA import
+is bounded uninstalled input with a typed lossless/conversion-required outcome, never an alternative
+editable runtime. Future frames, tiles/maps and reference images use the boundaries in ADR 0022;
+no empty module or unused frame API is introduced by palette preparation.
+
 ### `:presentation:compose`
 
 Owns display and interaction translation:

@@ -16,7 +16,7 @@ The roadmap grows from an executable constraint system to a minimal vertical sli
 | M1 — Minimal Vertical Slice | One stroke travels through the complete canonical path | Draw and undo on a fixed test canvas | First internal command contract |
 | M2 — Core Drawing | Coherent single-frame, single-layer editor | Create, draw, erase, choose color, pan/zoom, undo/redo | Stable core editing vocabulary |
 | M3 — Durable MVP | Documents survive process/device lifecycle and can be exported | Save, load, recover, export PNG | Project format v1 |
-| M4 — Structured Pixel Art | Multi-layer and animation-oriented documents | Layers, frames, preview, selection/transform | Expanded document/command contract |
+| M4 — Structured Pixel Art | Indexed palettes, multi-layer and animation-oriented documents | Palette editing/JSON/recoloring, layers, frames, preview, selection/transform | Expanded document/command contract and compatible indexed storage |
 | M5 — Android Beta | Measured, accessible, recoverable distributable build | Installable beta suitable for real work | Compatibility and release policy |
 | M6 — Automation Boundary | Controlled external operation through the same command gateway | Optional MCP/HTTP automation with approval | Versioned external contract; OpenAPI only if HTTP exists |
 
@@ -37,6 +37,11 @@ Requires the M2 document model, command semantics, pixel representation, and lim
 ### Gate C — Layers and frames may expand the model
 
 Requires M3 migration and recovery tests. New structured-editing concepts must not invalidate saved MVP documents.
+
+M3 evidence is recorded in [the durable MVP exit proof](quality/M3_EXIT_PROOF.md). ADR 0022 begins
+M4 with indexed palette contracts and a staged preparation / atomic runtime-storage cutover.
+Exact original preservation is mandatory; a v1 source with more than 256 distinct RGBA colors is
+an explicit read-only conversion candidate, never silently reduced or marked clean after recovery.
 
 ### Gate D — External automation may begin
 

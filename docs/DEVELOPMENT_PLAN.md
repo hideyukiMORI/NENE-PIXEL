@@ -77,9 +77,29 @@ and adds session appearance only; it does not open M4 or close the M3 acceptance
 resulting final shell for its integrated journey. Palette-indexed document editing and later
 animation, tile/map and reference-image features retain their separate contract decisions.
 
+## M4 initial work packages
+
+M3 entry evidence is [the durable MVP exit proof](quality/M3_EXIT_PROOF.md), #89 / PR #104.
+ADR 0022 / #101 accepts this first palette-oriented portion of M4 after that gate; it does not
+claim M4 layers/frames are already planned in implementation detail or complete.
+
+| ID | Work package | Depends on | Required evidence |
+| --- | --- | --- | --- |
+| P4-00 | Accept indexed palette, history and migration contract (#101) | P3-06 | Accepted ADR 0022, palette JSON contract, explicit legacy-preservation policy and focused Issues |
+| P4-01 | Define 2–256-color palette and bounded JSON codec (#105) | P4-00 | Domain ownership/boundaries, exact JSON golden/round-trip/error/resource tests, bounded host evidence |
+| P4-02 | Cut over document/engine/history/rendering/storage to indexed pixels (#106) | P4-01 | Exact v2 compatibility ADR first; shared inverse, palette-only invalidation, old-file/recovery preservation, functional and prospectively accepted affected performance evidence |
+| P4-03 | Add palette draft editor/history, remap preview and JSON SAF UI (#107) | P4-02 | Atomic apply/cancel/stale contracts, bounded transport, localized tablet/lifecycle verification |
+| P4-04 | Add exact-slot eyedropper and extensible long-press selection (#108) | P4-02, P4-03 integration | Typed workspace ownership, gesture arbitration, one-finger and accessible alternate selection evidence |
+
+Preparation keeps the sole M3 editable path. P4-02 changes every live consumer together, with no
+parallel editable RGBA document or provisional indexed-to-v1 writer. Further M4 layer/frame work
+is refined after these contracts and interaction results; PNG import, animation, tiles/maps and
+reference-image requirements remain recorded in ADR 0022 without unused APIs.
+
 ## Later work packages
 
-M4 through M6 are decomposed only when their entry gate is near. Creating detailed Issues earlier would imply requirements that the MVP has not yet tested.
+Remaining M4 work and M5 through M6 are decomposed only when their entry gate is near. Creating
+detailed Issues earlier would imply requirements that the preceding product has not yet tested.
 
 The next-milestone planning Issue must:
 

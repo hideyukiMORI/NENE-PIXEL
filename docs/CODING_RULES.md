@@ -171,6 +171,11 @@ locale-independent. This refines KOT-017/018 without adding a second state owner
 
 Serialization/database DTOs stay in their owning adapter or project-format module. Mapping to domain types occurs once at the boundary. Domain models MUST NOT contain persistence, JSON, database, or Android annotations.
 
+Palette JSON v1 follows ADR 0022: its schema-specific bounded reader stays private to project-format,
+and its public value is the domain PaletteDefinition contract, not untyped JSON nodes.
+Typed parse/value errors are localized only at presentation. No general-purpose parser API or
+unbounded recursive data model is authorized by the small interchange grammar.
+
 ### KOT-021 — Generated code is reproducible
 
 Generated files MUST:
