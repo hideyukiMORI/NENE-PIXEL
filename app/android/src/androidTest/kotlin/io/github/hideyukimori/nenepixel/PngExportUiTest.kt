@@ -7,6 +7,7 @@ import android.view.KeyEvent
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isEnabled
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.lifecycle.ViewModelProvider
@@ -23,6 +24,7 @@ internal class PngExportUiTest {
 
     @Test
     fun exportActionOpensAndroidPickerAndCancellationPreservesDocument() {
+        composeRule.onNodeWithContentDescription("File").performClick()
         composeRule.waitUntil {
             composeRule.onAllNodes(hasText("Export PNG") and isEnabled()).fetchSemanticsNodes().size ==
                 1
@@ -51,6 +53,7 @@ internal class PngExportUiTest {
         }
         assertEquals(PersistenceLastOutcome.Cancelled, model.persistenceOperations.value.lastOutcome)
         assertEquals(before, model.runtime.state)
+        composeRule.onNodeWithContentDescription("File").performClick()
         composeRule.onNodeWithText("Export PNG").assertExists()
     }
 

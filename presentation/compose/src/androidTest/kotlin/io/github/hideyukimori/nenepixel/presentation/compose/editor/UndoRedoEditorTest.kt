@@ -1,5 +1,7 @@
 package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.test.TouchInjectionScope
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotSelected
@@ -7,15 +9,17 @@ import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.percentOffset
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
 import io.github.hideyukimori.nenepixel.core.application.editor.DocumentIdSource
 import io.github.hideyukimori.nenepixel.core.application.editor.EditorRuntime
+import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportSurface
+import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportValueResult
 import io.github.hideyukimori.nenepixel.core.domain.color.ColorChannel
 import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentId
@@ -33,6 +37,8 @@ import org.junit.Rule
 import org.junit.Test
 
 internal class UndoRedoEditorTest {
+    private lateinit var activeController: EditorController
+
     @get:Rule
     val composeRule = createComposeRule()
 
@@ -51,8 +57,8 @@ internal class UndoRedoEditorTest {
             .onNodeWithContentDescription("16 by 16 pixel canvas")
             .performTouchInput {
                 swipe(
-                    start = percentOffset(START_PERCENT, START_PERCENT),
-                    end = percentOffset(END_PERCENT, END_PERCENT),
+                    start = documentOffset(START_PERCENT, START_PERCENT),
+                    end = documentOffset(END_PERCENT, END_PERCENT),
                     durationMillis = SWIPE_DURATION_MILLIS,
                 )
             }
@@ -91,7 +97,7 @@ internal class UndoRedoEditorTest {
         }
 
         touchPixel(FIRST_PIXEL_PERCENT)
-        composeRule.onNodeWithContentDescription(SECOND_PALETTE_DESCRIPTION).performClick()
+        selectSecondColor()
         touchPixel(SECOND_PIXEL_PERCENT)
         composeRule.waitForIdle()
 
@@ -126,11 +132,11 @@ internal class UndoRedoEditorTest {
         composeRule
             .onNodeWithContentDescription("16 by 16 pixel canvas")
             .performTouchInput {
-                down(pointerId = 0, position = percentOffset(0.20f, 0.20f))
-                moveTo(pointerId = 0, position = percentOffset(0.30f, 0.30f))
-                down(pointerId = 1, position = percentOffset(0.80f, 0.80f))
-                moveTo(pointerId = 0, position = percentOffset(0.15f, 0.15f))
-                moveTo(pointerId = 1, position = percentOffset(0.85f, 0.85f))
+                down(pointerId = 0, position = documentOffset(0.20f, 0.20f))
+                moveTo(pointerId = 0, position = documentOffset(0.30f, 0.30f))
+                down(pointerId = 1, position = documentOffset(0.80f, 0.80f))
+                moveTo(pointerId = 0, position = documentOffset(0.15f, 0.15f))
+                moveTo(pointerId = 1, position = documentOffset(0.85f, 0.85f))
                 up(pointerId = 0)
                 up(pointerId = 1)
             }
@@ -147,8 +153,8 @@ internal class UndoRedoEditorTest {
             .onNodeWithContentDescription("16 by 16 pixel canvas")
             .performTouchInput {
                 swipe(
-                    start = percentOffset(START_PERCENT, START_PERCENT),
-                    end = percentOffset(END_PERCENT, END_PERCENT),
+                    start = documentOffset(AFTER_ZOOM_START_PERCENT, AFTER_ZOOM_START_PERCENT),
+                    end = documentOffset(AFTER_ZOOM_END_PERCENT, AFTER_ZOOM_END_PERCENT),
                     durationMillis = SWIPE_DURATION_MILLIS,
                 )
             }
@@ -214,15 +220,18 @@ internal class UndoRedoEditorTest {
             TestNenePixelEditor(controller)
         }
 
+        composeRule.onNodeWithContentDescription("Open palette").performClick()
         composeRule.onNodeWithContentDescription(FIRST_PALETTE_DESCRIPTION).assertIsSelected()
         composeRule.onNodeWithContentDescription(SECOND_PALETTE_DESCRIPTION).assertIsNotSelected()
         val before = controller.renderState.snapshot
 
-        composeRule.onNodeWithContentDescription(SECOND_PALETTE_DESCRIPTION).performClick()
+        selectSecondColor()
         composeRule.waitForIdle()
 
+        composeRule.onNodeWithContentDescription("Open palette").performClick()
         composeRule.onNodeWithContentDescription(FIRST_PALETTE_DESCRIPTION).assertIsNotSelected()
         composeRule.onNodeWithContentDescription(SECOND_PALETTE_DESCRIPTION).assertIsSelected()
+        composeRule.onNodeWithContentDescription("Close panel").performClick()
         assertEquals(EXACT_PALETTE_RGBA, controller.renderState.activeColor.toPackedRgba8888())
         assertSame(before, controller.renderState.snapshot)
         assertFalse(controller.renderState.canUndo)
@@ -249,7 +258,7 @@ internal class UndoRedoEditorTest {
         }
 
         composeRule.onNodeWithContentDescription("Eraser tool").performClick()
-        composeRule.onNodeWithContentDescription(SECOND_PALETTE_DESCRIPTION).performClick()
+        selectSecondColor()
         openNewDocumentDialog()
         replaceDimensions(width = "3", height = "2")
         composeRule.onNodeWithText("Create").performClick()
@@ -258,6 +267,7 @@ internal class UndoRedoEditorTest {
         composeRule.onNodeWithText("Create new document").assertDoesNotExist()
         composeRule.onNodeWithContentDescription("3 by 2 pixel canvas").assertExists()
         composeRule.onNodeWithContentDescription("Pencil tool").assertIsSelected()
+        composeRule.onNodeWithContentDescription("Open palette").performClick()
         composeRule.onNodeWithContentDescription(FIRST_PALETTE_DESCRIPTION).assertIsSelected()
         assertEquals(2, ids.callCount)
         assertEquals(3, controller.renderState.snapshot.size.width.value)
@@ -310,7 +320,38 @@ internal class UndoRedoEditorTest {
         assertSame(beforeWorkspace, controller.workspaceState)
     }
 
+    private fun selectSecondColor() {
+        if (composeRule.onAllNodesWithContentDescription("Close panel").fetchSemanticsNodes().isEmpty()) {
+            composeRule.onNodeWithContentDescription("Open palette").performClick()
+        }
+        composeRule.onNodeWithContentDescription(SECOND_PALETTE_DESCRIPTION).performClick()
+    }
+
+    private fun TouchInjectionScope.documentOffset(
+        x: Float,
+        y: Float,
+    ): Offset {
+        val current = activeController.renderState
+        val surface =
+            when (val result = ViewportSurface.create(width, height, composeRule.density.density.toDouble())) {
+                is ViewportValueResult.Created -> result.value
+                is ViewportValueResult.Rejected -> error("Invalid test surface: ${result.rejection}")
+            }
+        val transform = checkNotNull(createViewportTransform(current.snapshot.size, surface, current.viewport))
+        val pixel =
+            pixelPosition(
+                (x * current.snapshot.size.width.value).toInt(),
+                (
+                    y *
+                        current.snapshot.size.height.value
+                ).toInt(),
+            )
+        val bounds = checkNotNull(transform.surfaceBounds(pixel))
+        return Offset(((bounds.left + bounds.right) / 2.0).toFloat(), ((bounds.top + bounds.bottom) / 2.0).toFloat())
+    }
+
     private fun openNewDocumentDialog() {
+        composeRule.onNodeWithContentDescription("File").performClick()
         composeRule.waitUntil {
             composeRule
                 .onAllNodes(hasText("New document") and isEnabled())
@@ -329,7 +370,7 @@ internal class UndoRedoEditorTest {
         composeRule
             .onNodeWithContentDescription("16 by 16 pixel canvas")
             .performTouchInput {
-                down(position = percentOffset(percent, FIRST_PIXEL_PERCENT))
+                down(position = documentOffset(percent, FIRST_PIXEL_PERCENT))
                 up()
             }
     }
@@ -356,9 +397,10 @@ internal class UndoRedoEditorTest {
                         color(1, 2, 3, alpha = 4),
                     ),
                 ).requiredValue()
-        return EditorController.create(
-            EditorRuntime.create(size, palette, documentIdSource),
-        )
+        return EditorController
+            .create(
+                EditorRuntime.create(size, palette, documentIdSource),
+            ).also { activeController = it }
     }
 
     private fun color(
@@ -384,6 +426,8 @@ internal class UndoRedoEditorTest {
         const val CANVAS_EDGE: Int = 16
         const val CHANNEL_MIN: Int = 0
         const val CHANNEL_MAX: Int = 255
+        const val AFTER_ZOOM_START_PERCENT: Float = 0.45f
+        const val AFTER_ZOOM_END_PERCENT: Float = 0.55f
         const val START_PERCENT: Float = 0.05f
         const val END_PERCENT: Float = 0.25f
         const val FIRST_PIXEL_PERCENT: Float = 0.03f

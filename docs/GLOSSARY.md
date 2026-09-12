@@ -10,6 +10,10 @@ One concept has one canonical name. New synonyms in code are prohibited. Add or 
 | `DocumentId` | Validated 32-character lowercase hexadecimal identity of one Document | document key, UUID string |
 | `DocumentState` | Immutable saved and undoable truth of a Document | editor state, model data |
 | `WorkspaceState` | Immutable ephemeral editor/session state not saved in the Document | temporary document, UI model |
+| `EditorAppearance` | Workspace-owned session theme, tablet layout and physical control edge changed through SetAppearance | Compose theme flag, project preference |
+| `EditorTheme` | Closed Dark or Light appearance selection | system theme Boolean |
+| `EditorLayout` | Closed Tabletop bottom controls or Handheld side controls selection | device orientation, tablet Boolean |
+| `EditorControlEdge` | Physical Left or Right control and drawer edge independent of text direction | RTL alignment, dominant-hand Boolean |
 | `EditorRuntime` | Application owner of the current CommandGateway, WorkspaceState, clean checkpoint, persistence coordination, and derived projections | view model, controller, session |
 | `NewDocumentRequest` | Validated canvas request created once from raw width and height text before allocation | width/height integers, form state |
 | `DocumentIdSource` | Core-owned port that supplies a validated identity without core random or process reads | UUID call in core, ID string |

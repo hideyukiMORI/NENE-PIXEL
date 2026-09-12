@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -52,6 +53,7 @@ internal fun PixelCanvas(
     Canvas(
         modifier =
             modifier
+                .clipToBounds()
                 .semantics { contentDescription = canvasSize.accessibilityDescription() }
                 .viewportPointerInput(callbacks),
     ) {
@@ -59,7 +61,7 @@ internal fun PixelCanvas(
         val canvas = current.snapshot.size
         val surface = createViewportSurface() ?: return@Canvas
         val geometry = geometries.resolve(canvas, surface, current.viewport) ?: return@Canvas
-        drawCanvasMargins(geometry.destination)
+        drawCanvasMargins(geometry.destination, PresentationPalette.canvasSurround(current.appearance.theme))
         drawPixels(geometry.destination, pixels.render(current.snapshot), pixelPaint)
         drawPreview(geometry.transform, current.preview)
         drawGrid(geometry)
@@ -81,31 +83,34 @@ private class RenderedBitmapCache(
     }
 }
 
-private fun DrawScope.drawCanvasMargins(destination: RectF) {
+private fun DrawScope.drawCanvasMargins(
+    destination: RectF,
+    surround: Color,
+) {
     val coveredLeft = destination.left.coerceIn(0f, size.width)
     val coveredRight = destination.right.coerceIn(0f, size.width)
     val coveredTop = destination.top.coerceIn(0f, size.height)
     val coveredBottom = destination.bottom.coerceIn(0f, size.height)
     if (coveredLeft > 0f) {
-        drawRect(PresentationPalette.canvasBackground, size = Size(coveredLeft, size.height))
+        drawRect(surround, size = Size(coveredLeft, size.height))
     }
     if (coveredRight < size.width) {
         drawRect(
-            PresentationPalette.canvasBackground,
+            surround,
             topLeft = Offset(coveredRight, 0f),
             size = Size(size.width - coveredRight, size.height),
         )
     }
     if (coveredTop > 0f && coveredRight > coveredLeft) {
         drawRect(
-            PresentationPalette.canvasBackground,
+            surround,
             topLeft = Offset(coveredLeft, 0f),
             size = Size(coveredRight - coveredLeft, coveredTop),
         )
     }
     if (coveredBottom < size.height && coveredRight > coveredLeft) {
         drawRect(
-            PresentationPalette.canvasBackground,
+            surround,
             topLeft = Offset(coveredLeft, coveredBottom),
             size = Size(coveredRight - coveredLeft, size.height - coveredBottom),
         )

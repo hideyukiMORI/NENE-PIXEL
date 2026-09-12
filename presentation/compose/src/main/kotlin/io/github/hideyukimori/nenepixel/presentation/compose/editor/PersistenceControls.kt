@@ -25,29 +25,52 @@ internal fun PersistenceControls(
     operation: PersistenceOperationProjection,
     canvasSize: CanvasSize,
     callbacks: EditorPersistenceCallbacks,
+    submitted: () -> Unit,
 ) {
     val idle = operation.phase is PersistenceOperationPhase.Idle
     val switchAvailable = idle && operation.recoveryStatus.isAvailableForDocumentSwitch()
     FlowRow(horizontalArrangement = Arrangement.spacedBy(PERSISTENCE_SPACING)) {
         Button(
+            colors = editorButtonColors(),
             enabled = idle && operation.recoveryStatus !is RecoveryStatus.Initializing,
-            onClick = callbacks::onSaveAs,
+            onClick = {
+                callbacks.onSaveAs()
+                submitted()
+            },
         ) {
             Text("Save As")
         }
-        Button(enabled = switchAvailable, onClick = callbacks::onLoad) {
+        Button(colors = editorButtonColors(), enabled = switchAvailable, onClick = {
+            callbacks.onLoad()
+            submitted()
+        }) {
             Text("Load")
         }
-        NewDocumentControls(canvasSize = canvasSize, callbacks = callbacks, enabled = switchAvailable)
-        Button(enabled = idle, onClick = callbacks::onExportPng) {
+        NewDocumentControls(
+            canvasSize = canvasSize,
+            callbacks = callbacks,
+            enabled = switchAvailable,
+            submitted = submitted,
+        )
+        Button(colors = editorButtonColors(), enabled = idle, onClick = {
+            callbacks.onExportPng()
+            submitted()
+        }) {
             Text("Export PNG")
         }
         operation.phase.cancellableOperation()?.let { handle ->
-            Button(onClick = { callbacks.onCancel(handle) }) {
+            Button(colors = editorButtonColors(), onClick = { callbacks.onCancel(handle) }) {
                 Text("Cancel operation")
             }
         }
     }
+}
+
+@Composable
+internal fun PersistenceConfirmation(
+    operation: PersistenceOperationProjection,
+    callbacks: EditorPersistenceCallbacks,
+) {
     (operation.phase as? PersistenceOperationPhase.NeedsConfirmation)?.let { phase ->
         DiscardConfirmationDialog(phase.request, callbacks)
     }
@@ -63,7 +86,7 @@ private fun DiscardConfirmationDialog(
         title = { Text("Discard current work?") },
         text = { Text(request.reason.confirmationMessage()) },
         confirmButton = {
-            Button(onClick = { callbacks.onConfirm(request) }) {
+            Button(colors = editorButtonColors(), onClick = { callbacks.onConfirm(request) }) {
                 Text("Discard and continue")
             }
         },

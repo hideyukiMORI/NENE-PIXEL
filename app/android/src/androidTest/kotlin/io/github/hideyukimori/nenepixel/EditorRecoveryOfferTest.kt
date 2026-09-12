@@ -52,7 +52,7 @@ internal class EditorRecoveryOfferTest {
     fun lifecycleStopPublishesTheLatestCaptureAsARecoveryCandidate() {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             composeRule.waitForIdle()
-            drawFirstPixel()
+            drawCanvasCenter()
             val drawn = documentPixels(scenario)
 
             scenario.moveToState(Lifecycle.State.CREATED)
@@ -69,7 +69,7 @@ internal class EditorRecoveryOfferTest {
         var drawn = IntArray(0)
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             composeRule.waitForIdle()
-            drawFirstPixel()
+            drawCanvasCenter()
             drawn = documentPixels(scenario)
             scenario.moveToState(Lifecycle.State.CREATED)
             awaitCandidate()
@@ -99,11 +99,11 @@ internal class EditorRecoveryOfferTest {
         }
     }
 
-    private fun drawFirstPixel() {
+    private fun drawCanvasCenter() {
         composeRule
             .onNodeWithContentDescription(CANVAS_DESCRIPTION)
             .performTouchInput {
-                down(position = percentOffset(FIRST_PIXEL_PERCENT, FIRST_PIXEL_PERCENT))
+                down(position = percentOffset(CANVAS_CENTER_PERCENT, CANVAS_CENTER_PERCENT))
                 up()
             }
         composeRule.waitForIdle()
@@ -152,7 +152,7 @@ internal class EditorRecoveryOfferTest {
         const val CANVAS_DESCRIPTION: String = "16 by 16 pixel canvas"
         const val RECOVERY_OFFER_DESCRIPTION: String = "Recovery offer"
         const val RECOVER_DESCRIPTION: String = "Recover unsaved work"
-        const val FIRST_PIXEL_PERCENT: Float = 0.03f
+        const val CANVAS_CENTER_PERCENT: Float = 0.5f
         const val OFFER_TIMEOUT_MILLIS: Long = 10_000L
         const val POLL_MILLIS: Long = 100L
     }

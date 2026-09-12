@@ -1,5 +1,6 @@
 package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
+import io.github.hideyukimori.nenepixel.core.application.workspace.EditorAppearance
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportGesture
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportSurface
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportSurfacePoint
@@ -17,6 +18,7 @@ public class EditorCallbacks internal constructor(
     private val redo: () -> EditorRenderState,
     private val selectTool: (DrawingTool) -> EditorRenderState,
     private val selectPaletteEntry: (PaletteIndex) -> EditorRenderState,
+    private val setAppearance: (EditorAppearance) -> EditorRenderState,
 ) {
     internal fun onPointerDown(
         surface: ViewportSurface,
@@ -49,4 +51,6 @@ public class EditorCallbacks internal constructor(
     internal fun onSelectTool(tool: DrawingTool): EditorRenderState = selectTool(tool)
 
     internal fun onSelectPaletteEntry(index: PaletteIndex): EditorRenderState = selectPaletteEntry(index)
+
+    internal fun onSetAppearance(appearance: EditorAppearance): EditorRenderState = setAppearance(appearance)
 }

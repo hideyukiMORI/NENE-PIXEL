@@ -7,6 +7,10 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 
 public sealed interface WorkspaceAction {
+    public data class SetAppearance(
+        public val appearance: EditorAppearance,
+    ) : WorkspaceAction
+
     public data class SelectPaletteEntry(
         public val index: PaletteIndex,
     ) : WorkspaceAction

@@ -38,6 +38,9 @@ public class EditorController private constructor(
             selectPaletteEntry = { index ->
                 publish(adapter.reduce(WorkspaceAction.SelectPaletteEntry(index)).renderState)
             },
+            setAppearance = { appearance ->
+                publish(adapter.reduce(WorkspaceAction.SetAppearance(appearance)).renderState)
+            },
         )
 
     public fun synchronizeWithRuntime() {
