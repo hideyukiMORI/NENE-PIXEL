@@ -56,8 +56,8 @@ One concept has one canonical name. New synonyms in code are prohibited. Add or 
 | `PixelColor` | Straight sRGB red, green, blue, and alpha U8 values; hidden RGB at alpha zero is significant | premultiplied color, packed color, Android Color |
 | `PixelBlank` | Canonical transparent-black `PixelColor` `(0,0,0,0)` written by erasing and used for a blank new canvas | white background, alpha-only clear |
 | `PixelLimits` | One conservative MVP policy: axis 256, area 65,536, raw stroke 262,144, patch 65,536, history 64, retained changes 524,288 | device memory check, adapter-local maximum |
-| `Palette` | Immutable ordered tool configuration containing 1 through 32 exact PixelColor entries | DocumentState palette, mutable color list |
-| `PaletteLimits` | One deterministic tool-palette policy whose maximum entry count is 32 | screen-size-dependent palette cap, PixelLimits |
+| `Palette` | Immutable ordered value containing 1 through 256 exact PixelColor entries; the sole color-list owner for current tool configuration and PaletteDefinition | duplicate color storage, mutable color list |
+| `PaletteLimits` | One deterministic palette policy with maximum 256 entries and definition minimum 2; lower-level tool Palette still admits one entry | screen-size-dependent palette cap, PixelLimits |
 | `PaletteIndex` | Non-negative typed position used for closed lookup and active Palette selection | palette Int, color index |
 | `PaletteEntry` | Derived immutable Palette slot with its typed index and exact PixelColor | color id, mutable swatch data |
 | `Revision` | Non-negative version of the exact committed DocumentState; canonical undo restores the recorded prior revision | global event sequence, timestamp |
@@ -105,6 +105,8 @@ The current M3 RGBA/tool-palette terms above describe the delivered editor until
 | `ReplacePaletteCommand` | Atomic target command committing definition and complete pixel mapping | immediate import side effect |
 | `PaletteJsonBytes` | Defensive bounded palette-file bytes, maximum-plus-one probe | ProjectFormatBytes, unbounded input string |
 | `PaletteJsonCodec` | The no-I/O palette JSON v1 mapping to/from PaletteDefinition | project codec, runtime mutation path |
+| `PaletteJsonResult` | Closed accepted/rejected result for palette carrier construction and definition decoding | nullable parse result, Boolean success |
+| `PaletteJsonRejection` | Closed format, syntax, encoding, resource or domain-definition failure from the palette codec | localized message, I/O failure |
 | `ConversionRequired` | Uninstalled exact source needs explicit lossy conversion to fit indexed limits | successful lossless migration, editable RGBA compatibility mode |
 
 Target command/session names are introduced only in their consuming implementation Issue.
