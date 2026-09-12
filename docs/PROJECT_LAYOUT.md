@@ -121,6 +121,11 @@ Owns performance-sensitive raster behavior:
 
 This is the only controlled mutation enclave. Its public API returns domain `PixelSnapshot` values and flat packed `PixelPatch` values with shared directional inverses and never leaks owned storage.
 
+ADR 0023 adds bounded palette-to-palette remapping in its `palette` package. PaletteRemapPlanner
+returns a complete domain PaletteRemap through closed planning outcomes. It has no live runtime or
+document mutation entry point. Its private permutation/matching workspace stays in pixel-engine;
+the immutable remap references existing PaletteDefinition values and owns only its bounded mapping.
+
 ### `:core:application`
 
 Owns behavior coordination:

@@ -100,6 +100,10 @@ The current M3 RGBA/tool-palette terms above describe the delivered editor until
 | Term | Canonical meaning | Not an alias for |
 | --- | --- | --- |
 | `PaletteDefinition` | Immutable Palette plus validated defaultIndex, 2–256 actual entries; interchange value and target indexed-document definition | active swatch, generic JSON DTO |
+| `PaletteRemap` | Complete immutable old-slot→new-slot mapping bound to exact source/target definitions, created through one domain factory | partial draft, pixel patch, inverse history, runtime token |
+| `PaletteRemapPlanner` | Pixel-engine algorithm producing the same validated remap for number/nearest/explicit replacement, reorder or deletion | UI mapping logic, command handler, generic converter |
+| `PaletteRemapResult` | Closed planned/rejected outcome of the bounded palette planner | command result, document commit |
+| `PaletteRemapRejection` | Domain mapping rejection or invalid reorder/deletion input | file error, stale runtime token |
 | `defaultIndex` | Slot used to fill a new indexed canvas and by Eraser; may be nontransparent | active Pencil selection, transparency sentinel |
 | `PaletteEditSession` | Workspace-owned bounded draft timeline tied to exact source generation/history position | document history, Compose-owned document copy |
 | `ReplacePaletteCommand` | Atomic target command committing definition and complete pixel mapping | immediate import side effect |

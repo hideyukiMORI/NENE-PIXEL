@@ -88,6 +88,17 @@ public sealed interface DomainValueRejection {
         public val entryCount: Int,
     ) : DomainValueRejection
 
+    public data class PaletteRemapSizeMismatch internal constructor(
+        public val expectedCount: Int,
+        public val attemptedCount: Int,
+    ) : DomainValueRejection
+
+    public data class PaletteRemapDestinationOutsidePalette internal constructor(
+        public val sourceIndex: PaletteIndex,
+        public val destinationIndex: PaletteIndex,
+        public val targetEntryCount: Int,
+    ) : DomainValueRejection
+
     public data class NegativeRevision internal constructor(
         public val attemptedValue: Long,
     ) : DomainValueRejection
