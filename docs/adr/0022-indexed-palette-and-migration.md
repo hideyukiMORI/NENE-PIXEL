@@ -230,6 +230,8 @@ claims and tests together. Current historical evidence is not rewritten as index
 1. P4-01 / #105 adds PaletteDefinition and bounded palette JSON only; current M3 editing is unchanged.
 2. P4-02 / #106 first accepts exact v2/recovery compatibility and prospective measurement contracts,
    then performs the single indexed runtime/storage cutover including safe legacy conversion UX.
+   Its extracted prerequisite P4-02a / #111 implements complete palette mapping algorithms under
+   ADR 0023 first, without changing live document/storage consumers or emitting v2 bytes.
 3. P4-03 / #107 connects draft editing/history, mapping preview and JSON SAF transport to that runtime.
 4. P4-04 / #108 adds exact-slot eyedropper and extensible long-press selection to the resulting shell.
 

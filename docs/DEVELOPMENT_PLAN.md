@@ -87,7 +87,8 @@ claim M4 layers/frames are already planned in implementation detail or complete.
 | --- | --- | --- | --- |
 | P4-00 | Accept indexed palette, history and migration contract (#101) | P3-06 | Accepted ADR 0022, palette JSON contract, explicit legacy-preservation policy and focused Issues |
 | P4-01 | Define 2–256-color palette and bounded JSON codec (#105) | P4-00 | Domain ownership/boundaries, exact JSON golden/round-trip/error/resource tests, bounded host evidence |
-| P4-02 | Cut over document/engine/history/rendering/storage to indexed pixels (#106) | P4-01 | Exact v2 compatibility ADR first; shared inverse, palette-only invalidation, old-file/recovery preservation, functional and prospectively accepted affected performance evidence |
+| P4-02a | Implement complete palette remapping plans (#111) | P4-01 | Number/nearest/explicit/reorder/delete contracts, defensive complete maps and bounded host evidence |
+| P4-02 | Cut over document/engine/history/rendering/storage to indexed pixels (#106) | P4-02a | Exact v2 compatibility ADR first; shared inverse, palette-only invalidation, old-file/recovery preservation, functional and prospectively accepted affected performance evidence |
 | P4-03 | Add palette draft editor/history, remap preview and JSON SAF UI (#107) | P4-02 | Atomic apply/cancel/stale contracts, bounded transport, localized tablet/lifecycle verification |
 | P4-04 | Add exact-slot eyedropper and extensible long-press selection (#108) | P4-02, P4-03 integration | Typed workspace ownership, gesture arbitration, one-finger and accessible alternate selection evidence |
 
