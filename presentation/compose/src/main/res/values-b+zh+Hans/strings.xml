@@ -99,4 +99,18 @@
     <plurals name="palette_count">
         <item quantity="other">%1$d种颜色 · 选择绘画颜色</item>
     </plurals>
+    <string name="mvp_information">关于此版本</string>
+    <string name="close_information">关闭</string>
+    <string name="mvp_scope_title">绘画范围</string>
+    <string name="mvp_scope">可离线使用，支持单帧、单图层。画布宽高各为%1$d～%2$d像素。颜色从固定调色板中选择；调色板编辑、多图层、动画和PNG导入尚未提供。</string>
+    <string name="mvp_save_title">另存为</string>
+    <string name="mvp_save">每次保存都会创建新的项目文件，不覆盖已有文件。要继续编辑，请保留 .nenepixel 文件。保存失败时可能留下新建的不完整文件；保存位置或云端后续发生的故障仍可能影响文件。</string>
+    <string name="mvp_history_title">历史记录与重新打开</string>
+    <string name="mvp_history">撤销和重做最多保留%1$d次操作；修改量较大时，可保留的操作次数会减少。保存后当前历史记录仍在，但重新打开或恢复时历史记录为空。缩放、工具和外观不会存入项目文件。</string>
+    <string name="mvp_recovery_title">未保存的作品</string>
+    <string name="mvp_recovery">可以在确认后恢复最后一次完成自动保存的内容。保存中断时，最新修改可能丢失。尚未处理的恢复提示或正在进行的文件操作可能延迟自动保存。卸载应用或清除应用数据会删除恢复数据。</string>
+    <string name="mvp_png_title">导出PNG</string>
+    <string name="mvp_png">PNG完整保留像素和透明度。导出不会将项目标记为已保存。PNG是供其他用途使用的图像，不能代替可编辑的项目文件。</string>
+    <string name="mvp_compatibility_title">项目兼容性</string>
+    <string name="mvp_compatibility">此版本读写v1项目格式。更新的格式、损坏或超出限制的文件会被拒绝，不会替换当前作品。未来更改格式前，必须先制定保留v1作品的迁移方案。</string>
 </resources>

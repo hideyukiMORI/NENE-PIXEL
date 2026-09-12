@@ -10,10 +10,11 @@ Human memory and code-review attention are not enforcement mechanisms. The Kotli
 
 ## Status
 
-Milestones 0 through 2 are complete. The executable foundation, touch-to-command vertical slice,
-and bounded core-drawing editor have passed their documented exit criteria. Milestone 3 begins with
-the project-format, storage, and recovery decision in `P3-01`; later implementation must follow its
-focused work-package order.
+Milestones 0 through 3 have documented technical acceptance: the first internal MVP supports
+single-frame drawing, durable v1 projects, explicit recovery and exact PNG export. See the
+[M3 exit proof](docs/quality/M3_EXIT_PROOF.md) and [MVP user guide / release notes](docs/MVP_USER_GUIDE.md).
+Required merge checks and current work remain authoritative in GitHub Issues. Structured palette,
+layer and animation work enters through focused M4 design and migration decisions.
 
 ## Canonical documents
 

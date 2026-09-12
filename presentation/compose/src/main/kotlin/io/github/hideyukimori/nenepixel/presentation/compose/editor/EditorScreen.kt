@@ -198,6 +198,7 @@ private fun PanelContent(
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(top = 12.dp),
                 )
+                MvpInformationControls()
             }
         }
     }

@@ -100,4 +100,18 @@
         <item quantity="one">%1$d color · Select a drawing color</item>
         <item quantity="other">%1$d colors · Select a drawing color</item>
     </plurals>
+    <string name="mvp_information">About this version</string>
+    <string name="close_information">Close</string>
+    <string name="mvp_scope_title">Drawing</string>
+    <string name="mvp_scope">An offline editor for one frame and one layer. Width and height range (pixels): %1$d–%2$d. Choose colors from the fixed palette; palette editing, layers, animation and PNG import are not available yet.</string>
+    <string name="mvp_save_title">Save As</string>
+    <string name="mvp_save">Each save creates a new project file. Existing files are never overwritten. Keep a .nenepixel file to continue editing. A failed save may leave a newly created incomplete file; storage-provider or cloud failures can still affect saved files later.</string>
+    <string name="mvp_history_title">Undo and reopening</string>
+    <string name="mvp_history">History capacity: %1$d. Large changes reduce the number of retained operations. Saving keeps the current history, but reopening or recovering starts with empty history. Zoom, tools and appearance are not stored in project files.</string>
+    <string name="mvp_recovery_title">Unsaved work</string>
+    <string name="mvp_recovery">Recovery offers the last completed autosave and asks before adopting it. The latest edits may be lost if saving is interrupted. An undecided recovery offer or an active file operation can delay autosave. Uninstalling or clearing app data removes recovery data.</string>
+    <string name="mvp_png_title">PNG export</string>
+    <string name="mvp_png">PNG keeps the exact pixels and transparency. Exporting does not mark the project as saved. PNG is an image for use elsewhere, not a replacement for the editable project file.</string>
+    <string name="mvp_compatibility_title">Project compatibility</string>
+    <string name="mvp_compatibility">This version reads and writes project format v1. Newer, damaged or oversized files are rejected without replacing the open work. Future format changes must preserve v1 artwork through an explicit migration policy.</string>
 </resources>
