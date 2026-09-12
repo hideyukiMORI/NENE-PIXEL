@@ -178,6 +178,13 @@ JSON framework. Unknown/duplicate keys and unsupported forms fail typed, nesting
 UTF-8 is validated. This deliberate small grammar keeps duplicate-field rejection, resource bounds
 and domain-free serialization without a compiler plugin or externally visible JSON object model.
 
+Implementation clarification (2026-09-13, #105): schema parsing uses closed results, never thrown
+parse-abort exceptions. The standard library's strict UTF-8 decoder reports malformed bytes by
+CharacterCodingException; the codec catches only that documented decoding fault at its first owned
+boundary and returns InvalidUtf8, as ARC-010 already requires for library decoding exceptions.
+This permits no general catch, exception-based schema parser, or escaping expected failure. It also
+avoids a replacement-decoding/re-encoding strategy whose temporary buffer could exceed the envelope.
+
 The document palette is shared by future frames; palette changes affect all frames. FrameId/TileId
 are stable references independent of order/filename, and a future manifest can expose directory-like
 exports without making sequence filenames the editable identity. Tiles/maps reference stable assets

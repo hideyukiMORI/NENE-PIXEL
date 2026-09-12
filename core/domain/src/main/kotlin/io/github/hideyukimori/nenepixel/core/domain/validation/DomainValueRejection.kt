@@ -73,6 +73,11 @@ public sealed interface DomainValueRejection {
 
     public data object EmptyPalette : DomainValueRejection
 
+    public data class PaletteBelowDefinitionMinimum internal constructor(
+        public val attemptedCount: Int,
+        public val minimum: Int,
+    ) : DomainValueRejection
+
     public data class PaletteAboveSupportedMaximum internal constructor(
         public val attemptedCount: Int,
         public val maximum: Int,
