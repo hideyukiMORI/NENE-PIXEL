@@ -32,10 +32,10 @@ internal class PencilUndoBaselineProfile {
             startActivityAndWait()
 
             val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
-            device.awaitObject(By.text(CLEAN_LABEL))
-            device.awaitObject(By.desc(PENCIL_DESCRIPTION))
+            device.awaitObject(By.res(CLEAN_LABEL))
+            device.awaitObject(By.res(PENCIL_DESCRIPTION))
             device.awaitObject(undoButton(enabled = false))
-            val canvas = device.awaitObject(By.desc(CANVAS_DESCRIPTION))
+            val canvas = device.awaitObject(By.res(CANVAS_DESCRIPTION))
             val bounds = canvas.visibleBounds
             check(bounds.width() > 0 && bounds.height() > 0) { "Canvas bounds must be non-empty: $bounds" }
 
@@ -43,9 +43,9 @@ internal class PencilUndoBaselineProfile {
             val y = bounds.top + bounds.height() / (CANVAS_HEIGHT * 2)
             check(device.click(x, y)) { "Pencil input was not accepted at ($x, $y)." }
 
-            device.awaitObject(By.text(DIRTY_LABEL))
+            device.awaitObject(By.res(DIRTY_LABEL))
             device.awaitObject(undoButton(enabled = true)).click(CANONICAL_UNDO_TAP_DURATION_MILLIS)
-            device.awaitObject(By.text(CLEAN_LABEL))
+            device.awaitObject(By.res(CLEAN_LABEL))
             device.awaitObject(undoButton(enabled = false))
         }
     }
@@ -63,16 +63,15 @@ internal class PencilUndoBaselineProfile {
             "Timed out waiting for UI object matching $selector."
         }
 
-    private fun undoButton(enabled: Boolean): BySelector =
-        By.clickable(true).enabled(enabled).hasDescendant(By.text(UNDO_LABEL))
+    private fun undoButton(enabled: Boolean): BySelector = By.clickable(true).enabled(enabled).res(UNDO_LABEL)
 
     private companion object {
         const val APPLICATION_PACKAGE = "io.github.hideyukimori.nenepixel"
-        const val CANVAS_DESCRIPTION = "16 by 16 pixel canvas"
-        const val PENCIL_DESCRIPTION = "Pencil tool"
-        const val CLEAN_LABEL = "No unsaved changes"
-        const val DIRTY_LABEL = "Unsaved changes"
-        const val UNDO_LABEL = "Undo"
+        const val CANVAS_DESCRIPTION = "editor_canvas_16_16"
+        const val PENCIL_DESCRIPTION = "editor_pencil_tool"
+        const val CLEAN_LABEL = "editor_clean_document"
+        const val DIRTY_LABEL = "editor_dirty_document"
+        const val UNDO_LABEL = "editor_undo"
         const val CANVAS_WIDTH = 16
         const val CANVAS_HEIGHT = 16
         const val UI_TIMEOUT_MILLIS = 5_000L

@@ -25,6 +25,9 @@ public class MainActivity : ComponentActivity() {
             EditorRuntimeViewModel.factory(application),
         )[EditorRuntimeViewModel::class.java]
     }
+    private val languageModel: AppLanguageViewModel by lazy(LazyThreadSafetyMode.NONE) {
+        ViewModelProvider(this, AppLanguageViewModel.factory(application))[AppLanguageViewModel::class.java]
+    }
     private val createProjectLauncher: ActivityResultLauncher<DocumentCreationRequest> =
         registerForActivityResult(CreateProjectDocumentContract()) { result ->
             editorModel.pickerBroker.completeCreate(result)
@@ -48,14 +51,22 @@ public class MainActivity : ComponentActivity() {
             LaunchedEffect(pickerRequest.value) {
                 pickerRequest.value?.let { request -> launchPicker(request, model.pickerBroker) }
             }
-            NenePixelEditor(
-                renderStates = model.controller.renderStates,
-                persistenceOperations = model.persistenceOperations,
-                autosaveStates = model.autosaveStates,
-                callbacks = model.controller.callbacks,
-                persistenceCallbacks = model.persistenceCallbacks,
-            )
+            LocalizedAppLanguage(languageModel.controller.controls) {
+                NenePixelEditor(
+                    renderStates = model.controller.renderStates,
+                    persistenceOperations = model.persistenceOperations,
+                    autosaveStates = model.autosaveStates,
+                    callbacks = model.controller.callbacks,
+                    persistenceCallbacks = model.persistenceCallbacks,
+                    language = languageModel.controller.controls,
+                )
+            }
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        languageModel.controller.refresh()
     }
 
     /**

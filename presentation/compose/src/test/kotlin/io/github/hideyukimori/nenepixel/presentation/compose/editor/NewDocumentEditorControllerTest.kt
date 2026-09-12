@@ -1,5 +1,7 @@
 package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
+import io.github.hideyukimori.nenepixel.core.application.editor.NewDocumentDimension
+import io.github.hideyukimori.nenepixel.core.application.editor.NewDocumentRejection
 import io.github.hideyukimori.nenepixel.core.application.editor.NewDocumentRequestResult
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
@@ -27,7 +29,18 @@ internal class NewDocumentEditorControllerTest {
         val result = callbacks.onCreateNewDocument("257", "4")
         val rejected = assertInstanceOf(NewDocumentSubmission.Rejected::class.java, result)
 
-        assertEquals("Width must be between 1 and 256.", rejected.userMessage)
+        val reason =
+            assertInstanceOf(
+                NewDocumentRejection.OutsideSupportedRange::class.java,
+                rejected.rejection,
+            )
+        assertEquals(
+            NewDocumentDimension.Width,
+            reason.dimension,
+        )
+        assertEquals(257, reason.attemptedValue)
+        assertEquals(1, reason.minimum)
+        assertEquals(256, reason.maximum)
         assertEquals(emptyList<NewDocumentRequestResult>(), submitted)
     }
 

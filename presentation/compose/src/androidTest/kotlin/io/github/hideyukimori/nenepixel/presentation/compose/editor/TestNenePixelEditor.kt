@@ -18,6 +18,7 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRec
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRetirementOutcome
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 
 @Composable
@@ -34,6 +35,14 @@ internal fun TestNenePixelEditor(
         autosaveStates = persistence.workflow.autosave,
         callbacks = controller.callbacks,
         persistenceCallbacks = persistence.callbacks,
+        language =
+            remember {
+                AppLanguageControls(
+                    MutableStateFlow(AppLanguageSettings(AppLanguage.System, AppLanguageStatus.Ready)),
+                    {},
+                    {},
+                )
+            },
         modifier = modifier,
     )
 }

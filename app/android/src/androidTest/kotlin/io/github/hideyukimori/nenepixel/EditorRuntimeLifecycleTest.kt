@@ -2,11 +2,10 @@ package io.github.hideyukimori.nenepixel
 
 import android.os.Bundle
 import android.os.Process
-import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.isEnabled
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
-import androidx.compose.ui.test.onNodeWithContentDescription
-import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
 import androidx.lifecycle.ViewModelProvider
@@ -65,20 +64,20 @@ internal class EditorRuntimeLifecycleTest {
             assertEquals(DrawingTool.Pencil, state.workspaceState.activeTool)
             assertEquals(0, state.workspaceState.activePaletteIndex.value)
         }
-        composeRule.onNodeWithContentDescription("16 by 16 pixel canvas").assertExists()
+        composeRule.onNodeWithTag("editor_canvas_16_16").assertExists()
     }
 
     @Test
     fun configurationRecreationRetainsTheOnlyDocumentAndWorkspaceOwners() {
         createDocument(width = "5", height = "3")
-        composeRule.onNodeWithContentDescription("Eraser tool").performClick()
-        composeRule.onNodeWithContentDescription("Open palette").performClick()
-        composeRule.onNodeWithContentDescription(SECOND_PALETTE_DESCRIPTION).performClick()
-        composeRule.onNodeWithContentDescription("Appearance").performClick()
-        composeRule.onNodeWithContentDescription("Theme: Light").performClick()
-        composeRule.onNodeWithContentDescription("Layout: Handheld").performClick()
-        composeRule.onNodeWithContentDescription("Control edge: Left").performClick()
-        composeRule.onNodeWithContentDescription("Close panel").performClick()
+        composeRule.onNodeWithTag("editor_eraser_tool").performClick()
+        composeRule.onNodeWithTag("editor_open_palette").performClick()
+        composeRule.onNodeWithTag(SECOND_PALETTE_DESCRIPTION).performClick()
+        composeRule.onNodeWithTag("editor_appearance").performClick()
+        composeRule.onNodeWithTag("editor_light").performClick()
+        composeRule.onNodeWithTag("editor_handheld").performClick()
+        composeRule.onNodeWithTag("editor_left").performClick()
+        composeRule.onNodeWithTag("editor_close_panel").performClick()
         composeRule.waitForIdle()
         lateinit var runtime: EditorRuntime
         lateinit var document: DocumentState
@@ -104,14 +103,14 @@ internal class EditorRuntimeLifecycleTest {
             assertEquals(DrawingTool.Eraser, retained.runtime.state.workspaceState.activeTool)
             assertEquals(1, retained.runtime.state.workspaceState.activePaletteIndex.value)
         }
-        composeRule.onNodeWithContentDescription("5 by 3 pixel canvas").assertExists()
+        composeRule.onNodeWithTag("editor_canvas_5_3").assertExists()
     }
 
     @Test
     fun emulatorNewDocumentCreationSmokeUsesValidatedMaximumBoundary() {
         createDocument(width = "256", height = "1")
 
-        composeRule.onNodeWithContentDescription("256 by 1 pixel canvas").assertExists()
+        composeRule.onNodeWithTag("editor_canvas_256_1").assertExists()
         composeRule.activityRule.scenario.onActivity { activity ->
             val state = activity.editorModel().runtime.state
             assertEquals(256, state.documentState.size.width.value)
@@ -130,19 +129,19 @@ internal class EditorRuntimeLifecycleTest {
         width: String,
         height: String,
     ) {
-        composeRule.onNodeWithContentDescription("File").performClick()
+        composeRule.onNodeWithTag("editor_file").performClick()
         composeRule.waitUntil {
             composeRule
-                .onAllNodes(hasText("New document") and isEnabled())
+                .onAllNodes(hasTestTag("editor_new_document") and isEnabled())
                 .fetchSemanticsNodes()
                 .size == 1
         }
-        composeRule.onNodeWithText("New document").performClick()
+        composeRule.onNodeWithTag("editor_new_document").performClick()
         composeRule.waitForIdle()
-        composeRule.onNodeWithText("Create new document").assertExists()
-        composeRule.onNodeWithContentDescription("Document width").performTextReplacement(width)
-        composeRule.onNodeWithContentDescription("Document height").performTextReplacement(height)
-        composeRule.onNodeWithText("Create").performClick()
+        composeRule.onNodeWithTag("editor_create_document_title").assertExists()
+        composeRule.onNodeWithTag("editor_document_width").performTextReplacement(width)
+        composeRule.onNodeWithTag("editor_document_height").performTextReplacement(height)
+        composeRule.onNodeWithTag("editor_create").performClick()
         composeRule.waitForIdle()
     }
 
@@ -153,6 +152,6 @@ internal class EditorRuntimeLifecycleTest {
         const val PROCESS_ID_STATUS_CODE: Int = 2
         const val PROCESS_ID_STATUS_KEY: String = "m2ProcessStagePid"
         const val PRIOR_PROCESS_ID_ARGUMENT: String = "m2PriorProcessId"
-        const val SECOND_PALETTE_DESCRIPTION: String = "Palette color 2, RGBA 0, 0, 0, 255"
+        const val SECOND_PALETTE_DESCRIPTION: String = "editor_palette_entry_2"
     }
 }

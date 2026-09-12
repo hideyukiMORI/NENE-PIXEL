@@ -4,11 +4,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.res.stringResource
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationPhase
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationProjection
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryStatus
+import io.github.hideyukimori.nenepixel.presentation.compose.R
 
 /**
  * The ADR 0018 startup offer for an unadopted recovery Candidate. It replaces the two status texts
@@ -20,22 +20,22 @@ internal fun RecoveryOffer(
     callbacks: EditorPersistenceCallbacks,
 ) {
     Text(
-        text = "Unsaved work from the last session",
-        modifier = Modifier.semantics { contentDescription = RECOVERY_OFFER_DESCRIPTION },
+        text = stringResource(R.string.unsaved_session),
+        modifier = Modifier.editorDescription(R.string.recovery_offer),
     )
     TextButton(
         enabled = enabled,
         onClick = callbacks::onAcceptRecovery,
-        modifier = Modifier.semantics { contentDescription = RECOVER_DESCRIPTION },
+        modifier = Modifier.editorDescription(R.string.recover_unsaved),
     ) {
-        Text("Recover")
+        Text(stringResource(R.string.recover))
     }
     TextButton(
         enabled = enabled,
         onClick = callbacks::onDeclineRecovery,
-        modifier = Modifier.semantics { contentDescription = DISCARD_DESCRIPTION },
+        modifier = Modifier.editorDescription(R.string.discard_unsaved),
     ) {
-        Text("Discard")
+        Text(stringResource(R.string.discard))
     }
 }
 
@@ -44,7 +44,3 @@ internal fun PersistenceOperationProjection.offersRecovery(): Boolean =
 
 /** Adoption and decline both need the operation lease, so the offer waits out any active operation. */
 internal fun PersistenceOperationProjection.recoveryOfferEnabled(): Boolean = phase is PersistenceOperationPhase.Idle
-
-internal const val RECOVERY_OFFER_DESCRIPTION: String = "Recovery offer"
-internal const val RECOVER_DESCRIPTION: String = "Recover unsaved work"
-internal const val DISCARD_DESCRIPTION: String = "Discard unsaved work"

@@ -67,6 +67,10 @@ Production-domain work starts only after P0-01 through P0-05 pass. P0-06 closes 
 | P3-05 | Implement exact PNG export | P2-08 | Golden pixel comparison and failure tests |
 | P3-06 | Complete durable MVP acceptance | P3-04, P3-05 | All `MVP_SCOPE.md` journeys and M3 exit evidence |
 | P3-07 | Adopt the tablet editor shell | P3-04, P3-05 | ADR 0020 workspace appearance, dark/light and bottom/side controls, functional device geometry and lifecycle evidence |
+| P3-08 | Localize UI and retain app language | P3-07 | English/Japanese/Simplified Chinese resources, platform settings and locale-independent test identities (#102), [evidence](quality/M3_LOCALIZATION_EVIDENCE.md) |
+
+hide requested P3-08 after testing P3-07 on 2026-09-12. It localizes the existing editor before
+P3-06 acceptance, without changing document semantics or opening M4.
 
 hide requested P3-07 before final P3-06 acceptance on 2026-09-12. It reorganizes existing MVP controls
 and adds session appearance only; it does not open M4 or close the M3 acceptance gate. P3-06 uses the

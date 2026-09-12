@@ -21,17 +21,20 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.unit.dp
 import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveProjection
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationProjection
 import io.github.hideyukimori.nenepixel.core.application.workspace.EditorAppearance
 import io.github.hideyukimori.nenepixel.core.application.workspace.EditorControlEdge
 import io.github.hideyukimori.nenepixel.core.application.workspace.EditorLayout
+import io.github.hideyukimori.nenepixel.presentation.compose.R
 
 @Composable
 internal fun EditorScreen(
@@ -41,9 +44,10 @@ internal fun EditorScreen(
     callbacks: EditorCallbacks,
     persistenceCallbacks: EditorPersistenceCallbacks,
     modifier: Modifier,
+    language: AppLanguageControls,
 ) {
     val appearance by remember(renderState) { derivedStateOf { renderState.value.appearance } }
-    var panel by remember { mutableStateOf<EditorPanel?>(null) }
+    var panel by rememberSaveable { mutableStateOf<EditorPanel?>(null) }
     val openPanel: (EditorPanel) -> Unit = {
         callbacks.onPointerCancel()
         panel = it
@@ -52,8 +56,14 @@ internal fun EditorScreen(
         remember(persistenceOperation, autosave, persistenceCallbacks) {
             EditorStorageInputs(persistenceOperation, autosave, persistenceCallbacks)
         }
-    MaterialTheme(colorScheme = appearance.theme.colorScheme()) {
-        Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+    MaterialTheme(colorScheme = appearance.theme.colorScheme(), typography = localizedTypography()) {
+        Surface(
+            modifier =
+                modifier.fillMaxSize().semantics {
+                    testTagsAsResourceId = true
+                },
+            color = MaterialTheme.colorScheme.background,
+        ) {
             Column(Modifier.safeDrawingPadding()) {
                 EditorHeader(renderState, openPanel)
                 Box(Modifier.weight(1f)) {
@@ -63,7 +73,7 @@ internal fun EditorScreen(
             }
             panel?.let { current ->
                 EditorPanelSurface(EditorPanelPlacement(current, appearance.controlEdge), { panel = null }) {
-                    PanelContent(current, EditorPanelInputs(renderState, callbacks, storage)) { panel = null }
+                    PanelContent(current, EditorPanelInputs(renderState, callbacks, storage, language)) { panel = null }
                 }
             }
             PersistenceConfirmation(persistenceOperation, persistenceCallbacks)
@@ -78,29 +88,27 @@ private fun EditorHeader(
 ) {
     val size by remember(state) { derivedStateOf { state.value.snapshot.size } }
     Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text("NENE-PIXEL", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
         Text(
-            "${size.width.value} × ${size.height.value}",
+            stringResource(R.string.app_title),
+            style = MaterialTheme.typography.titleSmall,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            stringResource(R.string.canvas_dimensions, size.width.value, size.height.value),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         IconButton(
             onClick = { openPanel(EditorPanel.File) },
             modifier =
-                Modifier.semantics {
-                    contentDescription =
-                        "File"
-                },
+                Modifier.editorDescription(R.string.file),
         ) {
             EditorSymbol(EditorIcon.File)
         }
         IconButton(
             onClick = { openPanel(EditorPanel.Appearance) },
             modifier =
-                Modifier.semantics {
-                    contentDescription =
-                        "Appearance"
-                },
+                Modifier.editorDescription(R.string.appearance),
         ) {
             EditorSymbol(EditorIcon.Settings)
         }
@@ -179,14 +187,14 @@ private fun PanelContent(
         }
 
         EditorPanel.Appearance -> {
-            AppearanceControls(state.appearance, inputs.callbacks)
+            AppearanceControls(state.appearance, inputs.callbacks, inputs.language)
         }
 
         EditorPanel.File -> {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 PersistenceControls(inputs.storage.operation, state.snapshot.size, inputs.storage.callbacks, dismiss)
                 Text(
-                    inputs.storage.operation.statusText(inputs.storage.autosave),
+                    stringResource(inputs.storage.operation.statusResource(inputs.storage.autosave)),
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(top = 12.dp),
                 )
@@ -205,4 +213,5 @@ private data class EditorPanelInputs(
     val state: State<EditorRenderState>,
     val callbacks: EditorCallbacks,
     val storage: EditorStorageInputs,
+    val language: AppLanguageControls,
 )

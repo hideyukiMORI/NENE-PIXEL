@@ -18,8 +18,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import io.github.hideyukimori.nenepixel.core.application.workspace.ToolGesture
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportGridVisibility
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportState
@@ -31,6 +29,7 @@ import io.github.hideyukimori.nenepixel.core.domain.drawing.StrokeEffect
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
+import io.github.hideyukimori.nenepixel.presentation.compose.R
 import io.github.hideyukimori.nenepixel.presentation.compose.input.viewportPointerInput
 
 @Composable
@@ -54,8 +53,12 @@ internal fun PixelCanvas(
         modifier =
             modifier
                 .clipToBounds()
-                .semantics { contentDescription = canvasSize.accessibilityDescription() }
-                .viewportPointerInput(callbacks),
+                .editorDescription(
+                    R.string.canvas_description,
+                    canvasSize.width.value,
+                    canvasSize.height.value,
+                    identity = "editor_canvas_${canvasSize.width.value}_${canvasSize.height.value}",
+                ).viewportPointerInput(callbacks),
     ) {
         val current = renderState.value
         val canvas = current.snapshot.size

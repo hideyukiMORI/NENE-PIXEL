@@ -222,6 +222,10 @@ reported canvas bounds, and exercises Pencil followed by Undo. It does not impor
 presentation implementation, access document state directly, classify code for a startup profile,
 or ship in the application runtime.
 
+ADR 0021 places the app-language adapter and retained controller in `:app:android`. The public
+immutable language projection/callback and localized resource rendering live in `:presentation:compose`;
+core does not receive Android locale or resource IDs.
+
 ## Source-set rules
 
 - Core modules SHOULD use Kotlin Multiplatform-compatible APIs where practical.
@@ -243,3 +247,5 @@ Forbidden package names:
 - `base` without a named abstraction contract
 
 Cross-module access must use the declared public API. Importing another module's `internal`, generated, test-fixture, or implementation package is prohibited.
+
+The app composition root owns localized Android Context/Configuration and layout direction (ADR 0021).

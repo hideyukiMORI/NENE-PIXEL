@@ -13,9 +13,7 @@ import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createComposeRule
-import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.unit.Dp
@@ -73,12 +71,12 @@ internal class EditorScreenLayoutTest {
         assertTrue("Portrait canvas height", (canvas.bottom - canvas.top).value >= 750f)
         assertContained(rootBounds(), canvas)
         dockBounds().forEach { assertContained(rootBounds(), it) }
-        composeRule.onNodeWithContentDescription("File").performClick()
-        listOf("Save As", "Load", "New document", "Export PNG").forEach {
-            composeRule.onNodeWithText(it).assertIsDisplayed()
+        composeRule.onNodeWithTag("editor_file").performClick()
+        listOf("editor_save_as", "editor_load", "editor_new_document", "editor_export_png").forEach {
+            composeRule.onNodeWithTag(it).assertIsDisplayed()
         }
-        composeRule.onNodeWithContentDescription("Close panel").performClick()
-        composeRule.onNodeWithText("No unsaved changes").assertIsDisplayed()
+        composeRule.onNodeWithTag("editor_close_panel").performClick()
+        composeRule.onNodeWithTag("editor_clean_document").assertIsDisplayed()
     }
 
     @Test
@@ -113,18 +111,18 @@ internal class EditorScreenLayoutTest {
         val controller = controller()
         setEditorContent(controller, 600.dp, 400.dp)
         val before = controller.renderState.snapshot
-        composeRule.onNodeWithContentDescription("Appearance").performClick()
-        composeRule.onNodeWithContentDescription("Theme: Light").performClick()
-        composeRule.onNodeWithContentDescription("Theme: Light").assertIsSelected()
-        composeRule.onNodeWithContentDescription("Layout: Handheld").performClick()
-        composeRule.onNodeWithContentDescription("Control edge: Left").performClick()
-        composeRule.onNodeWithContentDescription("Close panel").performClick()
+        composeRule.onNodeWithTag("editor_appearance").performClick()
+        composeRule.onNodeWithTag("editor_light").performClick()
+        composeRule.onNodeWithTag("editor_light").assertIsSelected()
+        composeRule.onNodeWithTag("editor_handheld").performClick()
+        composeRule.onNodeWithTag("editor_left").performClick()
+        composeRule.onNodeWithTag("editor_close_panel").performClick()
         assertEquals(EditorTheme.Light, controller.renderState.appearance.theme)
         assertEquals(EditorLayout.Handheld, controller.renderState.appearance.layout)
         assertEquals(EditorControlEdge.Left, controller.renderState.appearance.controlEdge)
-        composeRule.onNodeWithContentDescription("Open palette").performClick()
-        composeRule.onNodeWithContentDescription(FIRST_PALETTE_DESCRIPTION).assertIsSelected().performClick()
-        composeRule.onNodeWithContentDescription("Close panel").assertDoesNotExist()
+        composeRule.onNodeWithTag("editor_open_palette").performClick()
+        composeRule.onNodeWithTag(FIRST_PALETTE_DESCRIPTION).assertIsSelected().performClick()
+        composeRule.onNodeWithTag("editor_close_panel").assertDoesNotExist()
         assertSame(before, controller.renderState.snapshot)
     }
 
@@ -139,7 +137,7 @@ internal class EditorScreenLayoutTest {
         controller.callbacks.onSetAppearance(appearance)
         setEditorContent(controller, 600.dp, 400.dp)
         val root = rootBounds()
-        val tool = composeRule.onNodeWithContentDescription("Pencil tool").getUnclippedBoundsInRoot()
+        val tool = composeRule.onNodeWithTag("editor_pencil_tool").getUnclippedBoundsInRoot()
         val x = with(composeRule.density) { (tool.right - root.left - 2.dp).roundToPx() }
         val y = with(composeRule.density) { ((tool.top + tool.bottom) / 2 - root.top).roundToPx() }
         val before = composeRule.onNodeWithTag(ROOT_TAG).captureToImage().toPixelMap()[x, y]
@@ -162,13 +160,13 @@ internal class EditorScreenLayoutTest {
         val controller = controller(paletteCount = 32)
         setEditorContent(controller, 600.dp, 400.dp)
         val before = controller.renderState.snapshot
-        composeRule.onNodeWithContentDescription("Open palette").performClick()
-        composeRule.onNodeWithContentDescription("Palette colors").performScrollToIndex(31)
-        composeRule.onNodeWithContentDescription(LAST_PALETTE_DESCRIPTION).assertIsDisplayed().performClick()
+        composeRule.onNodeWithTag("editor_open_palette").performClick()
+        composeRule.onNodeWithTag("editor_palette_colors").performScrollToIndex(31)
+        composeRule.onNodeWithTag(LAST_PALETTE_DESCRIPTION).assertIsDisplayed().performClick()
         assertEquals(31, controller.renderState.activePaletteIndex.value)
         assertSame(before, controller.renderState.snapshot)
-        composeRule.onNodeWithContentDescription("Open palette").performClick()
-        composeRule.onNodeWithContentDescription(LAST_PALETTE_DESCRIPTION).assertIsDisplayed().assertIsSelected()
+        composeRule.onNodeWithTag("editor_open_palette").performClick()
+        composeRule.onNodeWithTag(LAST_PALETTE_DESCRIPTION).assertIsDisplayed().assertIsSelected()
     }
 
     private fun setEditorContent(
@@ -187,13 +185,13 @@ internal class EditorScreenLayoutTest {
 
     private fun canvasBounds(): DpRect =
         composeRule
-            .onNodeWithContentDescription(CANVAS_DESCRIPTION)
+            .onNodeWithTag(CANVAS_DESCRIPTION)
             .assertIsDisplayed()
             .getUnclippedBoundsInRoot()
 
     private fun dockBounds(): List<DpRect> =
-        listOf("Pencil tool", "Eraser tool", "Undo", "Redo", "Open palette").map {
-            composeRule.onNodeWithContentDescription(it).assertIsDisplayed().getUnclippedBoundsInRoot()
+        listOf("editor_pencil_tool", "editor_eraser_tool", "editor_undo", "editor_redo", "editor_open_palette").map {
+            composeRule.onNodeWithTag(it).assertIsDisplayed().getUnclippedBoundsInRoot()
         }
 
     private fun assertContained(
@@ -235,14 +233,14 @@ internal class EditorScreenLayoutTest {
         }
 
     private companion object {
-        const val LAST_PALETTE_DESCRIPTION: String = "Palette color 32, RGBA 255, 0, 0, 255"
+        const val LAST_PALETTE_DESCRIPTION: String = "editor_palette_entry_32"
         const val ROOT_TAG: String = "fixed editor root"
         const val DOCUMENT_WIDTH: Int = 3
         const val DOCUMENT_HEIGHT: Int = 2
         const val CHANNEL_MIN: Int = 0
         const val CHANNEL_MAX: Int = 255
-        const val CANVAS_DESCRIPTION: String = "3 by 2 pixel canvas"
-        const val FIRST_PALETTE_DESCRIPTION: String = "Palette color 1, RGBA 255, 0, 0, 255"
+        const val CANVAS_DESCRIPTION: String = "editor_canvas_3_2"
+        const val FIRST_PALETTE_DESCRIPTION: String = "editor_palette_entry_1"
     }
 }
 

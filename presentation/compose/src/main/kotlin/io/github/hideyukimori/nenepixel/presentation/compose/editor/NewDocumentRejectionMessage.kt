@@ -1,25 +1,29 @@
 package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
 import io.github.hideyukimori.nenepixel.core.application.editor.NewDocumentDimension
 import io.github.hideyukimori.nenepixel.core.application.editor.NewDocumentRejection
+import io.github.hideyukimori.nenepixel.presentation.compose.R
 
-internal fun NewDocumentRejection.toUserMessage(): String {
-    val name = dimension.displayName()
+@Composable
+internal fun NewDocumentRejection.userMessage(): String {
+    val name = stringResource(dimension.labelResource())
     return when (this) {
         is NewDocumentRejection.Required -> {
-            "$name is required."
+            stringResource(R.string.required_dimension, name)
         }
 
         is NewDocumentRejection.NotDecimalInteger -> {
-            "$name must be a whole number."
+            stringResource(R.string.integer_dimension, name)
         }
 
         is NewDocumentRejection.IntegerOverflow -> {
-            "$name is too large."
+            stringResource(R.string.overflow_dimension, name)
         }
 
         is NewDocumentRejection.OutsideSupportedRange -> {
-            "$name must be between $minimum and $maximum."
+            stringResource(R.string.range_dimension, name, minimum, maximum)
         }
     }
 }
@@ -33,8 +37,8 @@ private val NewDocumentRejection.dimension: NewDocumentDimension
             is NewDocumentRejection.OutsideSupportedRange -> dimension
         }
 
-private fun NewDocumentDimension.displayName(): String =
+internal fun NewDocumentDimension.labelResource(): Int =
     when (this) {
-        NewDocumentDimension.Width -> "Width"
-        NewDocumentDimension.Height -> "Height"
+        NewDocumentDimension.Width -> R.string.width
+        NewDocumentDimension.Height -> R.string.height
     }

@@ -105,3 +105,10 @@ One concept has one canonical name. New synonyms in code are prohibited. Add or 
 - `persist` / `load`: adapter-level durable storage operations
 
 Avoid vague verbs such as `process`, `handle`, `update`, `do`, and `manage` unless the canonical contract gives them a narrower explicit meaning. Command handler methods use the one method name chosen by the initial application API ADR.
+
+## App language (ADR 0021)
+
+`AppPreferences` are app/platform settings independent of the open document. `AppLanguage` is the
+closed System/English/Japanese/SimplifiedChinese selection. `AppLanguageSettings` is its read-only
+UI projection with operation status; platform storage is the authority. A localized resource context
+is disposable display configuration derived from the selected language and host configuration.

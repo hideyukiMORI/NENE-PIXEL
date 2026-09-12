@@ -59,3 +59,4 @@ An ADR must include:
 | [0018](0018-bounded-autosave-debounce-contract.md) | accepted | Bounded autosave capture, 1 s quiet window, 5 s latency cap, `ON_STOP` flush, and one device publication evidence lane |
 | [0019](0019-exact-png-export.md) | accepted | Deterministic exact RGBA PNG and one fresh-output/physical-operation path |
 | [0020](0020-tablet-editor-appearance.md) | accepted | One workspace appearance owner, aubergine themes and bottom/physical-side tablet controls |
+| [0021](0021-app-language-resources.md) | accepted | App language ownership, localized resources and stable UI test identities |

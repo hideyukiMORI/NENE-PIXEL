@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -14,14 +13,22 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import io.github.hideyukimori.nenepixel.core.application.editor.NewDocumentDimension
+import io.github.hideyukimori.nenepixel.core.application.editor.NewDocumentRejection
+import io.github.hideyukimori.nenepixel.core.application.editor.NewDocumentRequest
+import io.github.hideyukimori.nenepixel.core.application.editor.NewDocumentRequestResult
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
+import io.github.hideyukimori.nenepixel.presentation.compose.R
 
 @Composable
 internal fun NewDocumentControls(
@@ -30,7 +37,7 @@ internal fun NewDocumentControls(
     enabled: Boolean,
     submitted: () -> Unit,
 ) {
-    val state = remember { NewDocumentControlState() }
+    val state = rememberSaveable(saver = NewDocumentControlState.Saver) { NewDocumentControlState() }
     NewDocumentButton(enabled = enabled, onClick = { state.open(canvasSize) })
     if (state.dialogVisible) {
         NewDocumentDialog(
@@ -55,9 +62,7 @@ private fun NewDocumentButton(
     enabled: Boolean,
     onClick: () -> Unit,
 ) {
-    Button(colors = editorButtonColors(), enabled = enabled, onClick = onClick) {
-        Text("New document")
-    }
+    EditorActionButton(R.string.new_document, enabled, onClick)
 }
 
 @Composable
@@ -66,31 +71,21 @@ private fun NewDocumentDialog(
     callbacks: NewDocumentDialogCallbacks,
 ) {
     AlertDialog(
+        modifier = Modifier.semantics { testTagsAsResourceId = true },
         onDismissRequest = callbacks.onCancel,
-        title = { Text("Create new document") },
-        text = {
-            Column {
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    DimensionField("Width", state.widthInput, callbacks.onWidthChanged, Modifier.weight(1f))
-                    DimensionField("Height", state.heightInput, callbacks.onHeightChanged, Modifier.weight(1f))
-                }
-                state.rejectionMessage?.let { message ->
-                    Text(
-                        text = message,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(top = ERROR_TOP_PADDING),
-                    )
-                }
-            }
+        title = {
+            Text(
+                stringResource(R.string.create_document_title),
+                modifier = Modifier.editorDescription(R.string.create_document_title),
+            )
         },
+        text = { NewDocumentFields(state, callbacks) },
         confirmButton = {
-            Button(colors = editorButtonColors(), onClick = callbacks.onCreate) {
-                Text("Create")
-            }
+            EditorActionButton(R.string.create, onClick = callbacks.onCreate)
         },
         dismissButton = {
-            TextButton(onClick = callbacks.onCancel) {
-                Text("Cancel")
+            TextButton(onClick = callbacks.onCancel, modifier = Modifier.editorDescription(R.string.cancel)) {
+                Text(stringResource(R.string.cancel))
             }
         },
     )
@@ -98,7 +93,7 @@ private fun NewDocumentDialog(
 
 @Composable
 private fun DimensionField(
-    label: String,
+    dimension: NewDocumentDimension,
     value: String,
     onValueChanged: (String) -> Unit,
     modifier: Modifier,
@@ -106,13 +101,18 @@ private fun DimensionField(
     OutlinedTextField(
         value = value,
         onValueChange = onValueChanged,
-        label = { Text(label) },
+        label = { Text(stringResource(dimension.labelResource())) },
         singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         modifier =
             modifier
                 .padding(horizontal = FIELD_HORIZONTAL_PADDING)
-                .semantics { contentDescription = "Document ${label.lowercase()}" },
+                .editorDescription(
+                    when (dimension) {
+                        NewDocumentDimension.Width -> R.string.document_width
+                        NewDocumentDimension.Height -> R.string.document_height
+                    },
+                ),
     )
 }
 
@@ -122,7 +122,7 @@ private val ERROR_TOP_PADDING = 8.dp
 private data class NewDocumentDialogState(
     val widthInput: String,
     val heightInput: String,
-    val rejectionMessage: String?,
+    val rejection: NewDocumentRejection?,
 )
 
 private data class NewDocumentDialogCallbacks(
@@ -136,15 +136,38 @@ private class NewDocumentControlState {
     var dialogVisible by mutableStateOf(false)
     var widthInput by mutableStateOf("")
     var heightInput by mutableStateOf("")
-    private var rejectionMessage by mutableStateOf<String?>(null)
+    private var rejection by mutableStateOf<NewDocumentRejection?>(null)
 
     val dialogState: NewDocumentDialogState
-        get() = NewDocumentDialogState(widthInput, heightInput, rejectionMessage)
+        get() = NewDocumentDialogState(widthInput, heightInput, rejection)
+
+    companion object {
+        val Saver =
+            listSaver<NewDocumentControlState, Any>(
+                save = { listOf(it.dialogVisible, it.widthInput, it.heightInput, it.rejection != null) },
+                restore = { saved ->
+                    NewDocumentControlState().apply {
+                        dialogVisible = saved[0] as Boolean
+                        widthInput = saved[1] as String
+                        heightInput = saved[2] as String
+                        if (saved[3] as Boolean) {
+                            rejection =
+                                (
+                                    NewDocumentRequest.create(
+                                        widthInput,
+                                        heightInput,
+                                    ) as? NewDocumentRequestResult.Rejected
+                                )?.rejection
+                        }
+                    }
+                },
+            )
+    }
 
     fun open(canvasSize: CanvasSize) {
         widthInput = canvasSize.width.value.toString()
         heightInput = canvasSize.height.value.toString()
-        rejectionMessage = null
+        rejection = null
         dialogVisible = true
     }
 
@@ -155,13 +178,43 @@ private class NewDocumentControlState {
             }
 
             is NewDocumentSubmission.Rejected -> {
-                rejectionMessage = submission.userMessage
+                rejection = submission.rejection
             }
         }
     }
 
     fun cancel() {
         dialogVisible = false
-        rejectionMessage = null
+        rejection = null
+    }
+}
+
+@Composable
+private fun NewDocumentFields(
+    state: NewDocumentDialogState,
+    callbacks: NewDocumentDialogCallbacks,
+) {
+    Column {
+        Row(modifier = Modifier.fillMaxWidth()) {
+            DimensionField(
+                NewDocumentDimension.Width,
+                state.widthInput,
+                callbacks.onWidthChanged,
+                Modifier.weight(1f),
+            )
+            DimensionField(
+                NewDocumentDimension.Height,
+                state.heightInput,
+                callbacks.onHeightChanged,
+                Modifier.weight(1f),
+            )
+        }
+        state.rejection?.let { rejection ->
+            Text(
+                text = rejection.userMessage(),
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(top = ERROR_TOP_PADDING).testTag("editor_dimension_rejection"),
+            )
+        }
     }
 }

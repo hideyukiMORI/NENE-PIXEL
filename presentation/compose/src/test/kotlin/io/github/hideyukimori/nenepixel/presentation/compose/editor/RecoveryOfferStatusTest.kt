@@ -20,6 +20,7 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceRedu
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.presentation.compose.EditorFixture
 import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestValues
+import io.github.hideyukimori.nenepixel.presentation.compose.R
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -53,7 +54,7 @@ internal class RecoveryOfferStatusTest {
 
         val operation = workflow.operation.value
         assertFalse(operation.offersRecovery())
-        assertEquals("Project storage ready", operation.statusText(workflow.autosave.value))
+        assertEquals(R.string.storage_ready, operation.statusResource(workflow.autosave.value))
     }
 
     @Test
@@ -67,7 +68,7 @@ internal class RecoveryOfferStatusTest {
 
         val operation = workflow.operation.value
         assertFalse(operation.offersRecovery())
-        assertEquals("Autosave failed", operation.statusText(workflow.autosave.value))
+        assertEquals(R.string.autosave_failed, operation.statusResource(workflow.autosave.value))
     }
 
     private fun workflow(

@@ -19,13 +19,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import io.github.hideyukimori.nenepixel.core.application.workspace.EditorControlEdge
+import io.github.hideyukimori.nenepixel.presentation.compose.R
 
 internal enum class EditorPanel { Palette, File, Appearance }
 
@@ -40,14 +42,15 @@ internal fun EditorPanelSurface(
     dismiss: () -> Unit,
     content: @Composable () -> Unit,
 ) {
+    val title = stringResource(placement.panel.titleResource())
     Dialog(onDismissRequest = dismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Box(modifier = Modifier.fillMaxSize()) {
+        Box(modifier = Modifier.fillMaxSize().semantics { testTagsAsResourceId = true }) {
             Box(
                 Modifier
                     .fillMaxSize()
                     .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.45f))
                     .clickable(onClick = dismiss)
-                    .semantics { contentDescription = "Dismiss panel" },
+                    .editorDescription(R.string.dismiss_panel),
             )
             Surface(
                 modifier =
@@ -57,7 +60,7 @@ internal fun EditorPanelSurface(
                         .widthIn(max = 360.dp)
                         .fillMaxWidth()
                         .fillMaxHeight()
-                        .semantics { paneTitle = placement.panel.name },
+                        .semantics { paneTitle = title },
                 shape = RoundedCornerShape(8.dp),
                 color = MaterialTheme.colorScheme.surface,
             ) {
@@ -76,8 +79,12 @@ private fun PanelHeader(
     dismiss: () -> Unit,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-        Text(panel.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-        IconButton(onClick = dismiss, modifier = Modifier.semantics { contentDescription = "Close panel" }) {
+        Text(
+            stringResource(panel.titleResource()),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.weight(1f),
+        )
+        IconButton(onClick = dismiss, modifier = Modifier.editorDescription(R.string.close_panel)) {
             EditorSymbol(EditorIcon.Close)
         }
     }
@@ -87,4 +94,11 @@ private fun EditorPanelPlacement.alignment(): Alignment =
     when (edge) {
         EditorControlEdge.Left -> AbsoluteAlignment.CenterLeft
         EditorControlEdge.Right -> AbsoluteAlignment.CenterRight
+    }
+
+private fun EditorPanel.titleResource(): Int =
+    when (this) {
+        EditorPanel.Palette -> R.string.palette
+        EditorPanel.File -> R.string.file
+        EditorPanel.Appearance -> R.string.appearance
     }

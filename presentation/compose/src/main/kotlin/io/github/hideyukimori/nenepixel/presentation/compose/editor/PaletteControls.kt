@@ -21,13 +21,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteEntry
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
+import io.github.hideyukimori.nenepixel.presentation.compose.R
 
 @Composable
 internal fun PaletteControls(
@@ -38,14 +39,14 @@ internal fun PaletteControls(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(
-            "${palette.entryCount} colors · Select a drawing color",
+            pluralStringResource(R.plurals.palette_count, palette.entryCount, palette.entryCount),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         LazyVerticalGrid(
             state = rememberLazyGridState(initialFirstVisibleItemIndex = activePaletteIndex.value),
             columns = GridCells.Adaptive(56.dp),
-            modifier = Modifier.fillMaxSize().semantics { contentDescription = "Palette colors" },
+            modifier = Modifier.fillMaxSize().editorDescription(R.string.palette_colors),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -72,8 +73,19 @@ private fun PaletteEntryControl(
             Modifier
                 .size(56.dp)
                 .selectable(selected, role = Role.Button, onClick = onClick)
-                .semantics { contentDescription = entry.description() }
-                .border(if (selected) 3.dp else 1.dp, borderColor, RoundedCornerShape(4.dp))
+                .editorDescription(
+                    R.string.palette_entry,
+                    entry.index.value + 1,
+                    entry.color.red.value
+                        .toInt(),
+                    entry.color.green.value
+                        .toInt(),
+                    entry.color.blue.value
+                        .toInt(),
+                    entry.color.alpha.value
+                        .toInt(),
+                    identity = "editor_palette_entry_${entry.index.value + 1}",
+                ).border(if (selected) 3.dp else 1.dp, borderColor, RoundedCornerShape(4.dp))
                 .padding(4.dp),
     ) {
         Box(Modifier.fillMaxWidth().weight(1f).background(entry.color.toComposeColor())) {
@@ -86,10 +98,6 @@ private fun PaletteEntryControl(
                 )
             }
         }
-        Text("${entry.index.value + 1}", style = MaterialTheme.typography.labelSmall)
+        Text(stringResource(R.string.entry_number, entry.index.value + 1), style = MaterialTheme.typography.labelSmall)
     }
 }
-
-private fun PaletteEntry.description(): String =
-    "Palette color ${index.value + 1}, " +
-        "RGBA ${color.red.value}, ${color.green.value}, ${color.blue.value}, ${color.alpha.value}"

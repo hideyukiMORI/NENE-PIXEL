@@ -63,8 +63,6 @@ internal fun pixelPosition(
     y: Int,
 ): PixelPosition = PixelPosition.create(PixelX.create(x).requiredValue(), PixelY.create(y).requiredValue())
 
-internal fun CanvasSize.accessibilityDescription(): String = "${width.value} by ${height.value} pixel canvas"
-
 private fun <T> DomainValueResult<T>.requiredValue(): T =
     when (this) {
         is DomainValueResult.Created -> value
