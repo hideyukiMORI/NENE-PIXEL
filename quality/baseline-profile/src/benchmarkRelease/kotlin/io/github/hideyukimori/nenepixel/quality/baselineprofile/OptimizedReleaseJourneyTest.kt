@@ -29,7 +29,7 @@ internal class OptimizedReleaseJourneyTest {
         device.awaitObject(toolControl(PENCIL_DESCRIPTION, checked = true))
         device.awaitObject(historyButton(UNDO_LABEL, enabled = false))
         device.awaitObject(historyButton(REDO_LABEL, enabled = false))
-        val canvas = device.awaitObject(By.desc(CANVAS_DESCRIPTION))
+        val canvas = device.awaitObject(By.res(CANVAS_DESCRIPTION))
         val bounds = canvas.visibleBounds
         check(bounds.width() > 0 && bounds.height() > 0) { "Canvas bounds must be non-empty: $bounds" }
 
@@ -37,12 +37,12 @@ internal class OptimizedReleaseJourneyTest {
         val y = bounds.top + bounds.height() / (CANVAS_HEIGHT * 2)
         check(device.click(x, y)) { "Pencil input was not accepted at ($x, $y)." }
 
-        device.awaitObject(By.text(DIRTY_LABEL))
+        device.awaitObject(By.res(DIRTY_LABEL))
         device.awaitObject(historyButton(UNDO_LABEL, enabled = true)).click(HISTORY_TAP_DURATION_MILLIS)
-        device.awaitObject(By.text(CLEAN_LABEL))
+        device.awaitObject(By.res(CLEAN_LABEL))
         device.awaitObject(historyButton(UNDO_LABEL, enabled = false))
         device.awaitObject(historyButton(REDO_LABEL, enabled = true)).click(HISTORY_TAP_DURATION_MILLIS)
-        device.awaitObject(By.text(DIRTY_LABEL))
+        device.awaitObject(By.res(DIRTY_LABEL))
         device.awaitObject(historyButton(UNDO_LABEL, enabled = true))
         device.awaitObject(historyButton(REDO_LABEL, enabled = false))
     }
@@ -52,7 +52,7 @@ internal class OptimizedReleaseJourneyTest {
         val device = launchEditor()
         device.awaitObject(paletteEntry(SECOND_PALETTE_DESCRIPTION, checked = false)).click()
         device.awaitObject(paletteEntry(SECOND_PALETTE_DESCRIPTION, checked = true))
-        val canvas = device.awaitObject(By.desc(CANVAS_DESCRIPTION))
+        val canvas = device.awaitObject(By.res(CANVAS_DESCRIPTION))
         val bounds = canvas.visibleBounds
         val insetX = bounds.width() / (CANVAS_WIDTH * 2)
         val insetY = bounds.height() / (CANVAS_HEIGHT * 2)
@@ -66,7 +66,7 @@ internal class OptimizedReleaseJourneyTest {
             ),
         ) { "The long Pencil stroke was not accepted." }
         device.waitForIdle()
-        device.awaitObject(By.text(DIRTY_LABEL))
+        device.awaitObject(By.res(DIRTY_LABEL))
 
         device.awaitObject(toolControl(ERASER_DESCRIPTION, checked = false)).click()
         device.awaitObject(toolControl(ERASER_DESCRIPTION, checked = true))
@@ -81,10 +81,10 @@ internal class OptimizedReleaseJourneyTest {
         ) { "The overlapping Eraser stroke was not accepted." }
         device.waitForIdle()
         device.awaitObject(historyButton(UNDO_LABEL, enabled = true)).click(HISTORY_TAP_DURATION_MILLIS)
-        device.awaitObject(By.text(DIRTY_LABEL))
+        device.awaitObject(By.res(DIRTY_LABEL))
         device.awaitObject(historyButton(REDO_LABEL, enabled = true))
         device.awaitObject(historyButton(UNDO_LABEL, enabled = true)).click(HISTORY_TAP_DURATION_MILLIS)
-        device.awaitObject(By.text(CLEAN_LABEL))
+        device.awaitObject(By.res(CLEAN_LABEL))
         device.awaitObject(historyButton(UNDO_LABEL, enabled = false))
         device.awaitObject(historyButton(REDO_LABEL, enabled = true))
     }
@@ -105,11 +105,11 @@ internal class OptimizedReleaseJourneyTest {
                 device.awaitObject(dimensionField(DOCUMENT_HEIGHT_DESCRIPTION)).text == "2",
         ) { "Document dimensions changed before Create." }
         device.awaitObject(appButton(CREATE_LABEL)).click()
-        check(device.wait(Until.gone(By.pkg(APPLICATION_PACKAGE).text(CREATE_DOCUMENT_TITLE)), UI_TIMEOUT_MILLIS)) {
+        check(device.wait(Until.gone(By.pkg(APPLICATION_PACKAGE).res(CREATE_DOCUMENT_TITLE)), UI_TIMEOUT_MILLIS)) {
             "The new-document dialog did not close after Create."
         }
-        device.awaitObject(By.desc(NEW_CANVAS_DESCRIPTION))
-        device.awaitObject(By.text(CLEAN_LABEL))
+        device.awaitObject(By.res(NEW_CANVAS_DESCRIPTION))
+        device.awaitObject(By.res(CLEAN_LABEL))
         device.awaitObject(toolControl(PENCIL_DESCRIPTION, checked = true))
         device.awaitObject(paletteEntry(FIRST_PALETTE_DESCRIPTION, checked = true))
         device.awaitObject(historyButton(UNDO_LABEL, enabled = false))
@@ -124,8 +124,8 @@ internal class OptimizedReleaseJourneyTest {
             check(device.waitForRotation(changedRotation, UI_TIMEOUT_MILLIS)) {
                 "Orientation did not change from $originalRotation to $changedRotation."
             }
-            device.awaitObject(By.desc(NEW_CANVAS_DESCRIPTION))
-            device.awaitObject(By.text(CLEAN_LABEL))
+            device.awaitObject(By.res(NEW_CANVAS_DESCRIPTION))
+            device.awaitObject(By.res(CLEAN_LABEL))
             device.awaitObject(historyButton(UNDO_LABEL, enabled = false))
             device.awaitObject(historyButton(REDO_LABEL, enabled = false))
         }
@@ -142,7 +142,7 @@ internal class OptimizedReleaseJourneyTest {
         check("Error:" !in startOutput && "Exception" !in startOutput) {
             "The optimized release did not start: $startOutput"
         }
-        device.awaitObject(By.text(CLEAN_LABEL))
+        device.awaitObject(By.res(CLEAN_LABEL))
         return device
     }
 
@@ -154,17 +154,17 @@ internal class OptimizedReleaseJourneyTest {
     private fun historyButton(
         label: String,
         enabled: Boolean,
-    ): BySelector = By.clickable(true).enabled(enabled).hasDescendant(By.text(label))
+    ): BySelector = By.clickable(true).enabled(enabled).res(label)
 
     private fun paletteEntry(
         description: String,
         checked: Boolean,
-    ): BySelector = By.desc(description).checkable(true).checked(checked)
+    ): BySelector = By.res(description).checkable(true).checked(checked)
 
     private fun toolControl(
         description: String,
         checked: Boolean,
-    ): BySelector = By.checkable(true).checked(checked).hasDescendant(By.desc(description))
+    ): BySelector = By.checkable(true).checked(checked).res(description)
 
     private fun UiDevice.readAutoRotation(): Boolean {
         val value = executeShellCommand("settings get system accelerometer_rotation").trim()
@@ -219,21 +219,21 @@ internal class OptimizedReleaseJourneyTest {
 
     private companion object {
         const val ACTIVITY_NAME = "$APPLICATION_PACKAGE/.MainActivity"
-        const val CANVAS_DESCRIPTION = "16 by 16 pixel canvas"
-        const val PENCIL_DESCRIPTION = "Pencil tool"
-        const val ERASER_DESCRIPTION = "Eraser tool"
-        const val FIRST_PALETTE_DESCRIPTION = "Palette color 1, RGBA 255, 0, 0, 255"
-        const val SECOND_PALETTE_DESCRIPTION = "Palette color 2, RGBA 0, 0, 0, 255"
-        const val NEW_DOCUMENT_LABEL = "New document"
-        const val DOCUMENT_WIDTH_DESCRIPTION = "Document width"
-        const val DOCUMENT_HEIGHT_DESCRIPTION = "Document height"
-        const val CREATE_LABEL = "Create"
-        const val CREATE_DOCUMENT_TITLE = "Create new document"
-        const val NEW_CANVAS_DESCRIPTION = "3 by 2 pixel canvas"
-        const val CLEAN_LABEL = "No unsaved changes"
-        const val DIRTY_LABEL = "Unsaved changes"
-        const val UNDO_LABEL = "Undo"
-        const val REDO_LABEL = "Redo"
+        const val CANVAS_DESCRIPTION = "editor_canvas_16_16"
+        const val PENCIL_DESCRIPTION = "editor_pencil_tool"
+        const val ERASER_DESCRIPTION = "editor_eraser_tool"
+        const val FIRST_PALETTE_DESCRIPTION = "editor_palette_entry_1"
+        const val SECOND_PALETTE_DESCRIPTION = "editor_palette_entry_2"
+        const val NEW_DOCUMENT_LABEL = "editor_new_document"
+        const val DOCUMENT_WIDTH_DESCRIPTION = "editor_document_width"
+        const val DOCUMENT_HEIGHT_DESCRIPTION = "editor_document_height"
+        const val CREATE_LABEL = "editor_create"
+        const val CREATE_DOCUMENT_TITLE = "editor_create_document_title"
+        const val NEW_CANVAS_DESCRIPTION = "editor_canvas_3_2"
+        const val CLEAN_LABEL = "editor_clean_document"
+        const val DIRTY_LABEL = "editor_dirty_document"
+        const val UNDO_LABEL = "editor_undo"
+        const val REDO_LABEL = "editor_redo"
         const val CANVAS_WIDTH = 16
         const val CANVAS_HEIGHT = 16
         const val UI_TIMEOUT_MILLIS = 5_000L
@@ -254,7 +254,7 @@ private fun appButton(label: String): BySelector =
         .pkg(APPLICATION_PACKAGE)
         .clickable(true)
         .enabled(true)
-        .hasDescendant(By.text(label))
+        .res(label)
 
 private fun dimensionField(description: String): BySelector =
     By
@@ -262,7 +262,7 @@ private fun dimensionField(description: String): BySelector =
         .clazz("android.widget.EditText")
         .clickable(true)
         .enabled(true)
-        .hasDescendant(By.desc(description))
+        .res(description)
 
 private fun UiDevice.waitForRotation(
     expected: Int,

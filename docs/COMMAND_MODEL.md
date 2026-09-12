@@ -35,7 +35,11 @@ Examples:
 - `DismissDialogAction`
 - `SetAppearance`
 
-If a fact must survive save/load or participate in undo, it belongs to `DocumentState`. If not, it belongs to `WorkspaceState`. A fact must never exist authoritatively in both.
+If an editor fact must survive project save/load or participate in undo, it belongs to `DocumentState`.
+Other editor/session facts belong to `WorkspaceState`. A fact must never exist authoritatively in both.
+Platform-wide app language is the separate `AppPreferences` boundary of ADR 0021; it has no
+document command and never changes project or workspace truth. Its request cancels preview through
+the existing workspace action before applying the setting.
 
 ## Canonical flow
 

@@ -25,14 +25,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import io.github.hideyukimori.nenepixel.core.application.workspace.EditorLayout
 import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
+import io.github.hideyukimori.nenepixel.presentation.compose.R
 
 @Composable
 internal fun EditorToolDock(
@@ -68,15 +69,15 @@ private fun DockButtons(
     callbacks: EditorCallbacks,
     openPalette: () -> Unit,
 ) {
-    DockButton(DockControl("Pencil", EditorIcon.Pencil, inputs.activeTool == DrawingTool.Pencil)) {
+    DockButton(DockControl(R.string.pencil, EditorIcon.Pencil, inputs.activeTool == DrawingTool.Pencil)) {
         callbacks.onSelectTool(DrawingTool.Pencil)
     }
-    DockButton(DockControl("Eraser", EditorIcon.Eraser, inputs.activeTool == DrawingTool.Eraser)) {
+    DockButton(DockControl(R.string.eraser, EditorIcon.Eraser, inputs.activeTool == DrawingTool.Eraser)) {
         callbacks.onSelectTool(DrawingTool.Eraser)
     }
-    DockButton(DockControl("Undo", EditorIcon.Undo, enabled = inputs.canUndo)) { callbacks.onUndo() }
-    DockButton(DockControl("Redo", EditorIcon.Redo, enabled = inputs.canRedo)) { callbacks.onRedo() }
-    DockButton(DockControl("Palette", EditorIcon.Palette), inputs.activeColor, openPalette)
+    DockButton(DockControl(R.string.undo, EditorIcon.Undo, enabled = inputs.canUndo)) { callbacks.onUndo() }
+    DockButton(DockControl(R.string.redo, EditorIcon.Redo, enabled = inputs.canRedo)) { callbacks.onRedo() }
+    DockButton(DockControl(R.string.palette, EditorIcon.Palette), inputs.activeColor, openPalette)
 }
 
 @Composable
@@ -85,6 +86,7 @@ private fun DockButton(
     activeColor: PixelColor? = null,
     onClick: () -> Unit,
 ) {
+    val colorDescription = activeColor.activeDescription()
     val scheme = MaterialTheme.colorScheme
     val foreground =
         (if (control.selected) scheme.onPrimaryContainer else scheme.onSurface)
@@ -101,13 +103,9 @@ private fun DockButton(
                 .background(
                     background,
                 ).selectable(control.selected, enabled = control.enabled, role = Role.Button, onClick = onClick)
+                .editorDescription(control.descriptionResource())
                 .semantics {
-                    contentDescription = control.description()
-                    activeColor?.let { color ->
-                        stateDescription =
-                            "Active RGBA ${color.red.value}, ${color.green.value}, " +
-                            "${color.blue.value}, ${color.alpha.value}"
-                    }
+                    colorDescription?.let { stateDescription = it }
                 }.padding(4.dp),
     ) {
         androidx.compose.runtime.CompositionLocalProvider(
@@ -117,7 +115,7 @@ private fun DockButton(
             DockSymbol(control.icon, activeColor)
         }
         Text(
-            control.label,
+            stringResource(control.label),
             style = MaterialTheme.typography.labelSmall,
             color = foreground,
         )
@@ -150,15 +148,28 @@ private data class DockInputs(
 )
 
 private data class DockControl(
-    val label: String,
+    val label: Int,
     val icon: EditorIcon,
     val selected: Boolean = false,
     val enabled: Boolean = true,
 ) {
-    fun description(): String =
+    fun descriptionResource(): Int =
         when (icon) {
-            EditorIcon.Pencil, EditorIcon.Eraser -> "$label tool"
-            EditorIcon.Palette -> "Open palette"
+            EditorIcon.Pencil -> R.string.pencil_tool
+            EditorIcon.Eraser -> R.string.eraser_tool
+            EditorIcon.Palette -> R.string.open_palette
             EditorIcon.Undo, EditorIcon.Redo, EditorIcon.File, EditorIcon.Settings, EditorIcon.Close -> label
         }
 }
+
+@Composable
+private fun PixelColor?.activeDescription(): String? =
+    this?.let { color ->
+        stringResource(
+            R.string.active_rgba,
+            color.red.value.toInt(),
+            color.green.value.toInt(),
+            color.blue.value.toInt(),
+            color.alpha.value.toInt(),
+        )
+    }

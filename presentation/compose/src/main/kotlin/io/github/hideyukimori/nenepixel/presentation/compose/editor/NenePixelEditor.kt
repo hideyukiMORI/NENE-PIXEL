@@ -14,17 +14,24 @@ public fun NenePixelEditor(
     autosaveStates: StateFlow<AutosaveProjection>,
     callbacks: EditorCallbacks,
     persistenceCallbacks: EditorPersistenceCallbacks,
+    language: AppLanguageControls,
     modifier: Modifier = Modifier,
 ) {
     val renderState = renderStates.collectAsState()
     val persistenceOperation = persistenceOperations.collectAsState()
     val autosave = autosaveStates.collectAsState()
-    EditorScreen(
-        renderState = renderState,
-        persistenceOperation = persistenceOperation.value,
-        autosave = autosave.value,
-        callbacks = callbacks,
-        persistenceCallbacks = persistenceCallbacks,
-        modifier = modifier,
-    )
+    val languageSettings = language.settings.collectAsState()
+    if (languageSettings.value.status == AppLanguageStatus.Loading) {
+        LanguageLoadingScreen()
+    } else {
+        EditorScreen(
+            renderState = renderState,
+            persistenceOperation = persistenceOperation.value,
+            autosave = autosave.value,
+            callbacks = callbacks,
+            persistenceCallbacks = persistenceCallbacks,
+            modifier = modifier,
+            language = language,
+        )
+    }
 }

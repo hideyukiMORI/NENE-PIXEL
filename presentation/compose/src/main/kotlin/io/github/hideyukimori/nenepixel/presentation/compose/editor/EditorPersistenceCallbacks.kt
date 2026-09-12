@@ -38,7 +38,7 @@ public class EditorPersistenceCallbacks private constructor(
             }
 
             is NewDocumentRequestResult.Rejected -> {
-                NewDocumentSubmission.Rejected(request.rejection.toUserMessage())
+                NewDocumentSubmission.Rejected(request.rejection)
             }
         }
 

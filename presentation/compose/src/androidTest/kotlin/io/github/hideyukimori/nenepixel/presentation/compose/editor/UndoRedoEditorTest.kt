@@ -6,16 +6,17 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
-import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.isEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
-import androidx.compose.ui.test.onNodeWithContentDescription
-import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
+import androidx.test.platform.app.InstrumentationRegistry
 import io.github.hideyukimori.nenepixel.core.application.editor.DocumentIdSource
 import io.github.hideyukimori.nenepixel.core.application.editor.EditorRuntime
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportSurface
@@ -28,6 +29,7 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasWidth
 import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
+import io.github.hideyukimori.nenepixel.presentation.compose.R
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -50,11 +52,11 @@ internal class UndoRedoEditorTest {
             TestNenePixelEditor(controller)
         }
 
-        composeRule.onNodeWithText("Undo").assertIsNotEnabled()
-        composeRule.onNodeWithText("Redo").assertIsNotEnabled()
-        composeRule.onNodeWithText("No unsaved changes").assertExists()
+        composeRule.onNodeWithTag("editor_undo").assertIsNotEnabled()
+        composeRule.onNodeWithTag("editor_redo").assertIsNotEnabled()
+        composeRule.onNodeWithTag("editor_clean_document").assertExists()
         composeRule
-            .onNodeWithContentDescription("16 by 16 pixel canvas")
+            .onNodeWithTag("editor_canvas_16_16")
             .performTouchInput {
                 swipe(
                     start = documentOffset(START_PERCENT, START_PERCENT),
@@ -68,8 +70,8 @@ internal class UndoRedoEditorTest {
         assertEquals(1L, drawn.snapshot.revision.value)
         assertTrue(drawn.canUndo)
         assertFalse(drawn.canRedo)
-        composeRule.onNodeWithText("Unsaved changes").assertExists()
-        composeRule.onNodeWithText("Undo").assertIsEnabled().performClick()
+        composeRule.onNodeWithTag("editor_dirty_document").assertExists()
+        composeRule.onNodeWithTag("editor_undo").assertIsEnabled().performClick()
         composeRule.waitForIdle()
 
         val undone = controller.renderState
@@ -77,8 +79,8 @@ internal class UndoRedoEditorTest {
         assertEquals(0L, undone.snapshot.revision.value)
         assertFalse(undone.canUndo)
         assertTrue(undone.canRedo)
-        composeRule.onNodeWithText("No unsaved changes").assertExists()
-        composeRule.onNodeWithText("Redo").assertIsEnabled().performClick()
+        composeRule.onNodeWithTag("editor_clean_document").assertExists()
+        composeRule.onNodeWithTag("editor_redo").assertIsEnabled().performClick()
         composeRule.waitForIdle()
 
         val redone = controller.renderState
@@ -86,7 +88,7 @@ internal class UndoRedoEditorTest {
         assertEquals(1L, redone.snapshot.revision.value)
         assertTrue(redone.canUndo)
         assertFalse(redone.canRedo)
-        composeRule.onNodeWithText("Unsaved changes").assertExists()
+        composeRule.onNodeWithTag("editor_dirty_document").assertExists()
     }
 
     @Test
@@ -102,23 +104,23 @@ internal class UndoRedoEditorTest {
         composeRule.waitForIdle()
 
         assertEquals(2L, controller.renderState.snapshot.revision.value)
-        composeRule.onNodeWithText("Undo").assertIsEnabled().performClick()
+        composeRule.onNodeWithTag("editor_undo").assertIsEnabled().performClick()
         composeRule.waitForIdle()
-        composeRule.onNodeWithText("Undo").assertIsEnabled()
-        composeRule.onNodeWithText("Redo").assertIsEnabled()
-        composeRule.onNodeWithText("Unsaved changes").assertExists()
+        composeRule.onNodeWithTag("editor_undo").assertIsEnabled()
+        composeRule.onNodeWithTag("editor_redo").assertIsEnabled()
+        composeRule.onNodeWithTag("editor_dirty_document").assertExists()
 
-        composeRule.onNodeWithText("Undo").performClick()
+        composeRule.onNodeWithTag("editor_undo").performClick()
         composeRule.waitForIdle()
-        composeRule.onNodeWithText("Undo").assertIsNotEnabled()
-        composeRule.onNodeWithText("Redo").assertIsEnabled()
-        composeRule.onNodeWithText("No unsaved changes").assertExists()
+        composeRule.onNodeWithTag("editor_undo").assertIsNotEnabled()
+        composeRule.onNodeWithTag("editor_redo").assertIsEnabled()
+        composeRule.onNodeWithTag("editor_clean_document").assertExists()
 
         touchPixel(THIRD_PIXEL_PERCENT)
         composeRule.waitForIdle()
-        composeRule.onNodeWithText("Undo").assertIsEnabled()
-        composeRule.onNodeWithText("Redo").assertIsNotEnabled()
-        composeRule.onNodeWithText("Unsaved changes").assertExists()
+        composeRule.onNodeWithTag("editor_undo").assertIsEnabled()
+        composeRule.onNodeWithTag("editor_redo").assertIsNotEnabled()
+        composeRule.onNodeWithTag("editor_dirty_document").assertExists()
     }
 
     @Test
@@ -130,7 +132,7 @@ internal class UndoRedoEditorTest {
         }
 
         composeRule
-            .onNodeWithContentDescription("16 by 16 pixel canvas")
+            .onNodeWithTag("editor_canvas_16_16")
             .performTouchInput {
                 down(pointerId = 0, position = documentOffset(0.20f, 0.20f))
                 moveTo(pointerId = 0, position = documentOffset(0.30f, 0.30f))
@@ -150,7 +152,7 @@ internal class UndoRedoEditorTest {
         assertFalse(transformed.canRedo)
 
         composeRule
-            .onNodeWithContentDescription("16 by 16 pixel canvas")
+            .onNodeWithTag("editor_canvas_16_16")
             .performTouchInput {
                 swipe(
                     start = documentOffset(AFTER_ZOOM_START_PERCENT, AFTER_ZOOM_START_PERCENT),
@@ -170,8 +172,8 @@ internal class UndoRedoEditorTest {
             TestNenePixelEditor(controller)
         }
 
-        composeRule.onNodeWithContentDescription("Pencil tool").assertIsSelected()
-        composeRule.onNodeWithContentDescription("Eraser tool").assertIsNotSelected()
+        composeRule.onNodeWithTag("editor_pencil_tool").assertIsSelected()
+        composeRule.onNodeWithTag("editor_eraser_tool").assertIsNotSelected()
         touchFirstPixel()
         composeRule.waitForIdle()
 
@@ -179,10 +181,10 @@ internal class UndoRedoEditorTest {
         assertEquals(1L, drawn.snapshot.revision.value)
         assertTrue(drawn.snapshot.copyPackedRgba8888().any { pixel -> pixel != PixelColor.blank.toPackedRgba8888() })
 
-        composeRule.onNodeWithContentDescription("Eraser tool").performClick()
+        composeRule.onNodeWithTag("editor_eraser_tool").performClick()
         composeRule.waitForIdle()
-        composeRule.onNodeWithContentDescription("Eraser tool").assertIsSelected()
-        composeRule.onNodeWithContentDescription("Pencil tool").assertIsNotSelected()
+        composeRule.onNodeWithTag("editor_eraser_tool").assertIsSelected()
+        composeRule.onNodeWithTag("editor_pencil_tool").assertIsNotSelected()
         assertEquals(drawn.snapshot, controller.renderState.snapshot)
 
         touchFirstPixel()
@@ -203,14 +205,14 @@ internal class UndoRedoEditorTest {
             TestNenePixelEditor(controller)
         }
 
-        composeRule.onNodeWithContentDescription("Eraser tool").performClick()
+        composeRule.onNodeWithTag("editor_eraser_tool").performClick()
         touchFirstPixel()
         composeRule.waitForIdle()
 
         assertEquals(0L, controller.renderState.snapshot.revision.value)
         assertFalse(controller.renderState.canUndo)
         assertFalse(controller.renderState.canRedo)
-        composeRule.onNodeWithText("Undo").assertIsNotEnabled()
+        composeRule.onNodeWithTag("editor_undo").assertIsNotEnabled()
     }
 
     @Test
@@ -220,18 +222,18 @@ internal class UndoRedoEditorTest {
             TestNenePixelEditor(controller)
         }
 
-        composeRule.onNodeWithContentDescription("Open palette").performClick()
-        composeRule.onNodeWithContentDescription(FIRST_PALETTE_DESCRIPTION).assertIsSelected()
-        composeRule.onNodeWithContentDescription(SECOND_PALETTE_DESCRIPTION).assertIsNotSelected()
+        composeRule.onNodeWithTag("editor_open_palette").performClick()
+        composeRule.onNodeWithTag(FIRST_PALETTE_DESCRIPTION).assertIsSelected()
+        composeRule.onNodeWithTag(SECOND_PALETTE_DESCRIPTION).assertIsNotSelected()
         val before = controller.renderState.snapshot
 
         selectSecondColor()
         composeRule.waitForIdle()
 
-        composeRule.onNodeWithContentDescription("Open palette").performClick()
-        composeRule.onNodeWithContentDescription(FIRST_PALETTE_DESCRIPTION).assertIsNotSelected()
-        composeRule.onNodeWithContentDescription(SECOND_PALETTE_DESCRIPTION).assertIsSelected()
-        composeRule.onNodeWithContentDescription("Close panel").performClick()
+        composeRule.onNodeWithTag("editor_open_palette").performClick()
+        composeRule.onNodeWithTag(FIRST_PALETTE_DESCRIPTION).assertIsNotSelected()
+        composeRule.onNodeWithTag(SECOND_PALETTE_DESCRIPTION).assertIsSelected()
+        composeRule.onNodeWithTag("editor_close_panel").performClick()
         assertEquals(EXACT_PALETTE_RGBA, controller.renderState.activeColor.toPackedRgba8888())
         assertSame(before, controller.renderState.snapshot)
         assertFalse(controller.renderState.canUndo)
@@ -257,18 +259,18 @@ internal class UndoRedoEditorTest {
             TestNenePixelEditor(controller)
         }
 
-        composeRule.onNodeWithContentDescription("Eraser tool").performClick()
+        composeRule.onNodeWithTag("editor_eraser_tool").performClick()
         selectSecondColor()
         openNewDocumentDialog()
         replaceDimensions(width = "3", height = "2")
-        composeRule.onNodeWithText("Create").performClick()
+        composeRule.onNodeWithTag("editor_create").performClick()
         composeRule.waitForIdle()
 
-        composeRule.onNodeWithText("Create new document").assertDoesNotExist()
-        composeRule.onNodeWithContentDescription("3 by 2 pixel canvas").assertExists()
-        composeRule.onNodeWithContentDescription("Pencil tool").assertIsSelected()
-        composeRule.onNodeWithContentDescription("Open palette").performClick()
-        composeRule.onNodeWithContentDescription(FIRST_PALETTE_DESCRIPTION).assertIsSelected()
+        composeRule.onNodeWithTag("editor_create_document_title").assertDoesNotExist()
+        composeRule.onNodeWithTag("editor_canvas_3_2").assertExists()
+        composeRule.onNodeWithTag("editor_pencil_tool").assertIsSelected()
+        composeRule.onNodeWithTag("editor_open_palette").performClick()
+        composeRule.onNodeWithTag(FIRST_PALETTE_DESCRIPTION).assertIsSelected()
         assertEquals(2, ids.callCount)
         assertEquals(3, controller.renderState.snapshot.size.width.value)
         assertEquals(2, controller.renderState.snapshot.size.height.value)
@@ -289,11 +291,18 @@ internal class UndoRedoEditorTest {
 
         openNewDocumentDialog()
         replaceDimensions(width = "257", height = "2")
-        composeRule.onNodeWithText("Create").performClick()
+        composeRule.onNodeWithTag("editor_create").performClick()
         composeRule.waitForIdle()
 
-        composeRule.onNodeWithText("Width must be between 1 and 256.").assertExists()
-        composeRule.onNodeWithText("Create new document").assertExists()
+        composeRule
+            .onNodeWithTag(
+                "editor_dimension_rejection",
+            ).assertTextEquals(
+                InstrumentationRegistry.getInstrumentation().targetContext.resources.let { resources ->
+                    resources.getString(R.string.range_dimension, resources.getString(R.string.width), 1, 256)
+                },
+            ).assertExists()
+        composeRule.onNodeWithTag("editor_create_document_title").assertExists()
         assertEquals(1, ids.callCount)
         assertSame(beforeDocument, controller.documentState)
         assertSame(beforeWorkspace, controller.workspaceState)
@@ -311,20 +320,20 @@ internal class UndoRedoEditorTest {
 
         openNewDocumentDialog()
         replaceDimensions(width = "64", height = "32")
-        composeRule.onNodeWithText("Cancel").performClick()
+        composeRule.onNodeWithTag("editor_cancel").performClick()
         composeRule.waitForIdle()
 
-        composeRule.onNodeWithText("Create new document").assertDoesNotExist()
+        composeRule.onNodeWithTag("editor_create_document_title").assertDoesNotExist()
         assertEquals(1, ids.callCount)
         assertSame(beforeDocument, controller.documentState)
         assertSame(beforeWorkspace, controller.workspaceState)
     }
 
     private fun selectSecondColor() {
-        if (composeRule.onAllNodesWithContentDescription("Close panel").fetchSemanticsNodes().isEmpty()) {
-            composeRule.onNodeWithContentDescription("Open palette").performClick()
+        if (composeRule.onAllNodesWithContentDescription("editor_close_panel").fetchSemanticsNodes().isEmpty()) {
+            composeRule.onNodeWithTag("editor_open_palette").performClick()
         }
-        composeRule.onNodeWithContentDescription(SECOND_PALETTE_DESCRIPTION).performClick()
+        composeRule.onNodeWithTag(SECOND_PALETTE_DESCRIPTION).performClick()
     }
 
     private fun TouchInjectionScope.documentOffset(
@@ -351,15 +360,15 @@ internal class UndoRedoEditorTest {
     }
 
     private fun openNewDocumentDialog() {
-        composeRule.onNodeWithContentDescription("File").performClick()
+        composeRule.onNodeWithTag("editor_file").performClick()
         composeRule.waitUntil {
             composeRule
-                .onAllNodes(hasText("New document") and isEnabled())
+                .onAllNodes(hasTestTag("editor_new_document") and isEnabled())
                 .fetchSemanticsNodes()
                 .size == 1
         }
-        composeRule.onNodeWithText("New document").performClick()
-        composeRule.onNodeWithText("Create new document").assertExists()
+        composeRule.onNodeWithTag("editor_new_document").performClick()
+        composeRule.onNodeWithTag("editor_create_document_title").assertExists()
     }
 
     private fun touchFirstPixel() {
@@ -368,7 +377,7 @@ internal class UndoRedoEditorTest {
 
     private fun touchPixel(percent: Float) {
         composeRule
-            .onNodeWithContentDescription("16 by 16 pixel canvas")
+            .onNodeWithTag("editor_canvas_16_16")
             .performTouchInput {
                 down(position = documentOffset(percent, FIRST_PIXEL_PERCENT))
                 up()
@@ -379,8 +388,8 @@ internal class UndoRedoEditorTest {
         width: String,
         height: String,
     ) {
-        composeRule.onNodeWithContentDescription("Document width").performTextReplacement(width)
-        composeRule.onNodeWithContentDescription("Document height").performTextReplacement(height)
+        composeRule.onNodeWithTag("editor_document_width").performTextReplacement(width)
+        composeRule.onNodeWithTag("editor_document_height").performTextReplacement(height)
     }
 
     private fun controller(documentIdSource: DocumentIdSource = CountingDocumentIdSource()): EditorController {
@@ -435,8 +444,8 @@ internal class UndoRedoEditorTest {
         const val THIRD_PIXEL_PERCENT: Float = 0.15f
         const val SWIPE_DURATION_MILLIS: Long = 300L
         const val EXACT_PALETTE_RGBA: Int = 0x01020304
-        const val FIRST_PALETTE_DESCRIPTION: String = "Palette color 1, RGBA 255, 0, 0, 255"
-        const val SECOND_PALETTE_DESCRIPTION: String = "Palette color 2, RGBA 1, 2, 3, 4"
+        const val FIRST_PALETTE_DESCRIPTION: String = "editor_palette_entry_1"
+        const val SECOND_PALETTE_DESCRIPTION: String = "editor_palette_entry_2"
     }
 }
 

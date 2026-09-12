@@ -9,8 +9,12 @@ val applicationPackage = "io.github.hideyukimori.nenepixel"
 android {
     namespace = applicationPackage
 
+    androidResources { generateLocaleConfig = true }
+    bundle { language { enableSplit = false } }
+
     defaultConfig {
         applicationId = applicationPackage
+        resourceConfigurations += listOf("en", "ja", "b+zh+Hans")
         targetSdk = 37
         versionCode = 1
         versionName = "0.1.0"
@@ -67,6 +71,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.runtime)
+    implementation(libs.androidx.compose.ui)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
 }

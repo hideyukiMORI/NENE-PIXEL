@@ -158,6 +158,13 @@ Moving state into `remember` to avoid the canonical reducer or command route is 
 
 Compose side-effect APIs must use stable, semantically correct keys and call a named application/presentation function. Hidden persistence or document mutation inside a Compose effect is prohibited.
 
+### Localized display text (ADR 0021)
+
+User-facing text and accessibility descriptions use Android resources with typed outcome mapping in
+presentation. Enum names, concatenated prose and hardcoded translated labels are not UI contracts.
+Stable test tags are separate from translated semantics. File/schema/technical identifiers remain
+locale-independent. This refines KOT-017/018 without adding a second state owner.
+
 ## Serialization and generated code
 
 ### KOT-020 — DTOs are not domain models

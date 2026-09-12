@@ -3,9 +3,9 @@ package io.github.hideyukimori.nenepixel
 import android.content.Context
 import android.os.SystemClock
 import android.util.AtomicFile
-import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
-import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.percentOffset
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
@@ -79,13 +79,13 @@ internal class EditorRecoveryOfferTest {
             composeRule.waitForIdle()
             composeRule.waitUntil(OFFER_TIMEOUT_MILLIS) {
                 composeRule
-                    .onAllNodes(hasContentDescription(RECOVERY_OFFER_DESCRIPTION))
+                    .onAllNodes(hasTestTag(RECOVERY_OFFER_DESCRIPTION))
                     .fetchSemanticsNodes()
                     .size == 1
             }
             assertNotEquals(drawn.toList(), documentPixels(scenario).toList())
 
-            composeRule.onNodeWithContentDescription(RECOVER_DESCRIPTION).performClick()
+            composeRule.onNodeWithTag(RECOVER_DESCRIPTION).performClick()
             composeRule.waitForIdle()
 
             scenario.onActivity { activity ->
@@ -95,13 +95,13 @@ internal class EditorRecoveryOfferTest {
                 assertEquals(HistoryAvailability.None, state.historyAvailability)
                 assertEquals(DocumentDirtyState.Dirty, state.dirtyState)
             }
-            composeRule.onNodeWithContentDescription(RECOVERY_OFFER_DESCRIPTION).assertDoesNotExist()
+            composeRule.onNodeWithTag(RECOVERY_OFFER_DESCRIPTION).assertDoesNotExist()
         }
     }
 
     private fun drawCanvasCenter() {
         composeRule
-            .onNodeWithContentDescription(CANVAS_DESCRIPTION)
+            .onNodeWithTag(CANVAS_DESCRIPTION)
             .performTouchInput {
                 down(position = percentOffset(CANVAS_CENTER_PERCENT, CANVAS_CENTER_PERCENT))
                 up()
@@ -149,9 +149,9 @@ internal class EditorRecoveryOfferTest {
 
     private companion object {
         const val RECOVERY_FILE_NAME: String = "nene-pixel-recovery-v1"
-        const val CANVAS_DESCRIPTION: String = "16 by 16 pixel canvas"
-        const val RECOVERY_OFFER_DESCRIPTION: String = "Recovery offer"
-        const val RECOVER_DESCRIPTION: String = "Recover unsaved work"
+        const val CANVAS_DESCRIPTION: String = "editor_canvas_16_16"
+        const val RECOVERY_OFFER_DESCRIPTION: String = "editor_recovery_offer"
+        const val RECOVER_DESCRIPTION: String = "editor_recover_unsaved"
         const val CANVAS_CENTER_PERCENT: Float = 0.5f
         const val OFFER_TIMEOUT_MILLIS: Long = 10_000L
         const val POLL_MILLIS: Long = 100L

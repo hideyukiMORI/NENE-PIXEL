@@ -41,8 +41,14 @@ Every state value MUST belong to exactly one of these categories:
 | `DocumentState` | Saved and undoable project truth | application command runtime | `DocumentCommand` only |
 | `WorkspaceState` | Ephemeral editor/session state | workspace reducer | `WorkspaceAction` only |
 | `RenderCache` | Derived, disposable acceleration data | renderer/pixel engine | internal cache API only |
+| `AppPreferences` | Platform-wide settings independent of the open document | app/platform setting boundary | typed app-setting request only |
 
 The same fact MUST NOT be independently stored in more than one category. Derived state must be recomputed or cached with explicit invalidation.
+
+ADR 0021 introduces only app language in `AppPreferences`. Android's app locale (API33+) or the
+legacy app-private preference (API26–32) is its version-selected backing. UI receives an immutable
+projection; core never reads locale or platform storage. This category does not bypass editor
+commands/actions or authorize unrelated preferences.
 
 ### ARC-005 — Controlled mutation enclave
 

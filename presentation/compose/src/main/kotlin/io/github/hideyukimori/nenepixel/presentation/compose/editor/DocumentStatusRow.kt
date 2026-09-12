@@ -6,12 +6,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.github.hideyukimori.nenepixel.core.application.editor.DocumentDirtyState
 import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveProjection
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationProjection
+import io.github.hideyukimori.nenepixel.presentation.compose.R
 
 @Composable
 internal fun DocumentStatusRow(
@@ -30,15 +30,23 @@ internal fun DocumentStatusRow(
                 style = MaterialTheme.typography.labelSmall,
                 text =
                     when (dirtyState) {
-                        DocumentDirtyState.Clean -> "No unsaved changes"
-                        DocumentDirtyState.Dirty -> "Unsaved changes"
+                        DocumentDirtyState.Clean -> stringResource(R.string.clean_document)
+                        DocumentDirtyState.Dirty -> stringResource(R.string.dirty_document)
                     },
-                modifier = Modifier.semantics { contentDescription = "Document dirty status" },
+                modifier =
+                    Modifier.editorDescription(
+                        R.string.dirty_status,
+                        identity =
+                            when (dirtyState) {
+                                DocumentDirtyState.Clean -> "editor_clean_document"
+                                DocumentDirtyState.Dirty -> "editor_dirty_document"
+                            },
+                    ),
             )
             Text(
                 style = MaterialTheme.typography.labelSmall,
-                text = operation.statusText(autosave),
-                modifier = Modifier.semantics { contentDescription = "Project operation status" },
+                text = stringResource(operation.statusResource(autosave)),
+                modifier = Modifier.editorDescription(R.string.operation_status),
             )
         }
     }
