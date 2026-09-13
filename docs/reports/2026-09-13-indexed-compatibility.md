@@ -149,3 +149,20 @@ preservation, immutable APK/profile/preflight identities, all accepted performan
 required quality CI remain outstanding. Device contact so far only started the ADB server and
 read the device inventory; no app data, app install, setting or measurement was changed.
 This checkpoint does not close Issue #106 or claim device/performance PASS. Waivers: none.
+
+## End-of-day functional checkpoint
+
+The subsequent physical-device checks passed all 18 selected persistence, bitmap, conversion-dialog,
+lifecycle and recovery tests. The existing durable journey then passed its five isolated stages,
+including real system file picking, saved-byte preservation, PNG export, interrupted recovery and
+three-language information UI. The selected-test wrapper's summary-writing failure is retained;
+its successful raw JUnit output was independently bound to four installed APK byte copies without
+rerunning those tests. Exact evidence and artifact identities are in the
+[daily report](2026-09-13-indexed-cutover.md) and [handoff](2026-09-13-indexed-cutover-handoff.md).
+
+The original 20 durable device files were restored and verified, including the install-managed
+profile marker whose change correctly stopped the first restoration before mutation. Test outputs
+remain separately archived. After launch the original 1,089-byte recovery record still matched its
+preserved hash, and its recovery offer was left unadopted. Performance collection remains unstarted
+and explicitly blocked at admission pending the documented integration review gaps. At hide's
+request, work stops after the daily report and handoff are finalized. Issue #106 remains open.
