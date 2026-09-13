@@ -19,7 +19,9 @@ internal class AcceptanceFixture {
     fun requireIsolation() {
         assumeTrue("Run only with the documented isolated device protocol", arguments.getString("m3Isolated") == "true")
         require(id.matches(Regex("[a-z0-9-]{1,35}")))
-        check(File(context.noBackupFilesDir, "issue-89-user-recovery-20260912").isDirectory)
+        val guard = arguments.getString("m3PreservationGuard").orEmpty()
+        require(guard.matches(Regex("issue-[0-9]+-user-recovery-[a-z0-9-]+")))
+        check(File(context.noBackupFilesDir, guard).isDirectory)
     }
 
     fun recordProcess(

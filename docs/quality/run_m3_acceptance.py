@@ -14,7 +14,7 @@ import subprocess
 
 def main():
     parser = argparse.ArgumentParser()
-    for name in ('adb', 'serial', 'evidence-id', 'output', 'app-apk', 'test-apk'):
+    for name in ('adb', 'serial', 'evidence-id', 'output', 'app-apk', 'test-apk', 'preservation-manifest'):
         parser.add_argument('--' + name, required=True)
     args = parser.parse_args()
     assert re.fullmatch(r'[a-z0-9-]{1,35}', args.evidence_id)
@@ -37,8 +37,19 @@ def main():
         assert result.returncode == 0, label
         return result.stdout
 
-    guard = 'no_backup/issue-89-user-recovery-20260912'
+    preservation_bytes = Path(args.preservation_manifest).read_bytes()
+    preservation = json.loads(preservation_bytes)
+    assert preservation['schema'] == 'nene-pixel-device-preservation-v1'
+    assert preservation['state'] == 'preserved' and preservation['serial'] == args.serial
+    assert preservation['package'] == package
+    guard = preservation['guard']
+    assert re.fullmatch(r'no_backup/issue-[0-9]+-user-recovery-[a-z0-9-]+', guard)
+    (output / 'preservation-input.json').write_bytes(preservation_bytes)
     call('guard', 'shell', 'run-as', package, 'test', '-d', guard)
+    for name, identity in preservation['recovery'].items():
+        assert re.fullmatch(r'no_backup/nene-pixel-recovery-v1(?:\.new|\.bak)?', name)
+        raw = call('guard-' + Path(name).name, 'exec-out', 'run-as', package, 'cat', guard + '/' + Path(name).name)
+        assert len(raw) == identity['bytes'] and hashlib.sha256(raw).hexdigest() == identity['sha256']
     identity = {}
     for name, path in [('app', args.app_apk), ('test', args.test_apk)]:
         raw = Path(path).read_bytes()
@@ -59,6 +70,7 @@ def main():
             call(stage + '-stop', 'shell', 'am', 'force-stop', package)
             result = call(stage, 'shell', 'am', 'instrument', '-w', '-r', '-e', 'class', test,
                           '-e', 'm3Isolated', 'true', '-e', 'm3EvidenceId', args.evidence_id,
+                          '-e', 'm3PreservationGuard', guard.removeprefix('no_backup/'),
                           package + '.test/androidx.test.runner.AndroidJUnitRunner', timeout=180)
             assert re.search(rb'OK \(1 test\)', result), result.decode('utf-8', errors='replace')
             print(stage + ': PASS', flush=True)
