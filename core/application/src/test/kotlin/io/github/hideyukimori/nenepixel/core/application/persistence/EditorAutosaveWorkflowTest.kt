@@ -526,7 +526,15 @@ internal class EditorAutosaveWorkflowTest {
 
     private suspend fun directSaveFixtures(): List<Fixture> {
         val recoveryDocument = state(canvas(2, 2), documentId = documentId('a'))
-        val candidate = Fixture(RecoveryInspection.Candidate(generation(9), recoveryDocument))
+        val candidate =
+            Fixture(
+                RecoveryInspection.Candidate(
+                    generation(9),
+                    io.github.hideyukimori.nenepixel.core.domain.document.DocumentImportSource.Current(
+                        recoveryDocument,
+                    ),
+                ),
+            )
         candidate.initialize()
         val unavailable = Fixture(RecoveryInspection.Failed(RecoveryInspectionFailure.CORRUPT))
         assertInstanceOf(RecoveryInitializationResult.Failed::class.java, unavailable.workflow.initializeRecovery())

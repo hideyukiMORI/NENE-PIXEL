@@ -8,4 +8,5 @@ public object PixelLimits {
     public const val MAX_PATCH_CHANGES: Int = 65_536
     public const val MAX_HISTORY_ENTRIES: Int = 64
     public const val MAX_RETAINED_CHANGES: Int = 524_288
+    public const val MAX_RETAINED_PAYLOAD_BYTES: Long = 8_388_608L
 }

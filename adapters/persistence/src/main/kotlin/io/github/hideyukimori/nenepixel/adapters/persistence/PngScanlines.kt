@@ -1,14 +1,14 @@
 package io.github.hideyukimori.nenepixel.adapters.persistence
 
-import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
+import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import java.nio.ByteBuffer
 import java.util.zip.Adler32
 
 internal object PngScanlines {
-    fun encode(snapshot: PixelSnapshot): ByteArray {
-        val rowBytes = CHANNEL_COUNT * snapshot.size.width.value + 1
-        val height = snapshot.size.height.value
-        val raw = filteredRows(snapshot, rowBytes)
+    fun encode(document: DocumentState): ByteArray {
+        val rowBytes = CHANNEL_COUNT * document.size.width.value + 1
+        val height = document.size.height.value
+        val raw = filteredRows(document, rowBytes)
         val output = ByteBuffer.allocate(ZLIB_OVERHEAD + raw.size + BLOCK_OVERHEAD * height)
         output.put(ZLIB_METHOD).put(ZLIB_FLAGS)
         repeat(height) { row ->
@@ -25,17 +25,23 @@ internal object PngScanlines {
     }
 
     private fun filteredRows(
-        snapshot: PixelSnapshot,
+        document: DocumentState,
         rowBytes: Int,
     ): ByteArray {
-        val pixels = snapshot.copyPackedRgba8888()
-        val width = snapshot.size.width.value
-        return ByteArray(rowBytes * snapshot.size.height.value) { offset ->
+        val indices = document.snapshot.copyPackedIndices()
+        val colors =
+            document.definition.palette
+                .entries()
+                .map { it.color.toPackedRgba8888() }
+                .toIntArray()
+        val width = document.size.width.value
+        return ByteArray(rowBytes * document.size.height.value) { offset ->
             val columnByte = offset % rowBytes
             if (columnByte == 0) {
                 0
             } else {
-                val pixel = pixels[(offset / rowBytes) * width + (columnByte - 1) / CHANNEL_COUNT]
+                val position = (offset / rowBytes) * width + (columnByte - 1) / CHANNEL_COUNT
+                val pixel = colors[indices[position].toInt() and U8_MASK]
                 val shift = (CHANNEL_COUNT - 1 - (columnByte - 1) % CHANNEL_COUNT) * BYTE_BITS
                 (pixel ushr shift).toByte()
             }
@@ -51,6 +57,7 @@ internal object PngScanlines {
 
     private const val CHANNEL_COUNT: Int = 4
     private const val BYTE_BITS: Int = 8
+    private const val U8_MASK: Int = 0xff
     private const val ZLIB_OVERHEAD: Int = 6
     private const val BLOCK_OVERHEAD: Int = 5
     private const val ZLIB_METHOD: Byte = 0x78

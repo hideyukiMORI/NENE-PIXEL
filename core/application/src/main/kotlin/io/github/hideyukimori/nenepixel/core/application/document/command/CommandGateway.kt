@@ -10,9 +10,11 @@ public class CommandGateway private constructor(
     initialState: DocumentState,
 ) {
     private val executionLock: Any = Any()
+    private val sourceOwner: CommandSourceOwner = CommandSourceOwner()
     private var currentState: DocumentState = initialState
     private var history: BoundedLinearHistory = BoundedLinearHistory.empty()
     private val applyStrokeCommandHandler: ApplyStrokeCommandHandler = ApplyStrokeCommandHandler()
+    private val replacePaletteCommandHandler: ReplacePaletteCommandHandler = ReplacePaletteCommandHandler()
     private val undoCommandHandler: UndoCommandHandler = UndoCommandHandler()
     private val redoCommandHandler: RedoCommandHandler = RedoCommandHandler()
 
@@ -23,22 +25,67 @@ public class CommandGateway private constructor(
                     documentState = currentState,
                     historyAvailability = history.availability,
                     historyPosition = history.currentPosition,
-                    historyEntryCount = history.entryCount,
-                    retainedHistoryChangeCount = history.retainedChangeCount,
+                    retention =
+                        HistoryRetentionSummary(
+                            entryCount = history.entryCount,
+                            changeCount = history.retainedChangeCount,
+                            byteCount = history.retainedByteCount,
+                        ),
                 )
             }
+
+    public fun captureSource(): CommandSourceAdmission =
+        synchronized(executionLock) { CommandSourceAdmission(sourceOwner, currentState, history.currentPosition) }
 
     public fun execute(command: DocumentCommand): CommandResult =
         synchronized(executionLock) {
             when (command) {
-                is ApplyStrokeCommand -> executeApplyStroke(command)
-                is UndoCommand -> executeUndo(command)
-                is RedoCommand -> executeRedo(command)
+                is ApplyStrokeCommand -> {
+                    executeAdmitted(command.admission) {
+                        applyStrokeCommandHandler.execute(currentState, command)
+                    }
+                }
+
+                is ReplacePaletteCommand -> {
+                    executeAdmitted(command.admission) {
+                        replacePaletteCommandHandler.execute(currentState, command)
+                    }
+                }
+
+                is UndoCommand -> {
+                    executeUndo(command)
+                }
+
+                is RedoCommand -> {
+                    executeRedo(command)
+                }
             }
         }
 
-    private fun executeApplyStroke(command: ApplyStrokeCommand): CommandResult =
-        when (val result = applyStrokeCommandHandler.execute(currentState, command)) {
+    private fun executeAdmitted(
+        admission: CommandSourceAdmission,
+        transition: () -> DocumentTransitionResult,
+    ): CommandResult =
+        when {
+            admission.owner !== sourceOwner -> {
+                CommandResult.Rejected(RejectionReason.SourceOwnerMismatch)
+            }
+
+            admission.document.id != currentState.id -> {
+                CommandResult.Rejected(RejectionReason.TargetDocumentMismatch(admission.document.id, currentState.id))
+            }
+
+            admission.position != history.currentPosition -> {
+                CommandResult.Rejected(RejectionReason.SourceHistoryMismatch)
+            }
+
+            else -> {
+                executeForward(transition())
+            }
+        }
+
+    private fun executeForward(result: DocumentTransitionResult): CommandResult =
+        when (result) {
             is DocumentTransitionResult.Created -> {
                 val applied = CommandResult.Applied(result.transition.changeSet)
                 when (val append = history.append(applied)) {
@@ -106,5 +153,9 @@ private fun HistoryAppendRejection.toReason(): RejectionReason =
 
         HistoryAppendRejection.PositionExhausted -> {
             RejectionReason.HistoryPositionExhausted
+        }
+
+        is HistoryAppendRejection.EntryAboveRetainedPayloadMaximum -> {
+            RejectionReason.HistoryEntryAboveRetainedPayloadMaximum(attemptedBytes, maximum)
         }
     }

@@ -1,5 +1,6 @@
 package io.github.hideyukimori.nenepixel.core.application.workspace
 
+import io.github.hideyukimori.nenepixel.core.application.document.command.CommandSourceAdmission
 import io.github.hideyukimori.nenepixel.core.domain.drawing.Stroke
 import io.github.hideyukimori.nenepixel.core.domain.drawing.StrokeEffect
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
@@ -13,12 +14,15 @@ import kotlin.math.max
 
 public class ToolGesture private constructor(
     public val canvas: CanvasSize,
-    private val latestSample: GestureSample,
-    private val sampleCount: Int,
-    private val sampleHash: Int,
-    public val positionCount: Int,
+    private val path: GesturePath,
     public val effect: StrokeEffect,
+    internal val admission: CommandSourceAdmission,
 ) {
+    private val latestSample: GestureSample get() = path.latestSample
+    private val sampleCount: Int get() = path.sampleCount
+    private val sampleHash: Int get() = path.sampleHash
+    public val positionCount: Int get() = path.positionCount
+
     internal val lastPosition: PixelPosition
         get() = latestSample.position
 
@@ -39,11 +43,15 @@ public class ToolGesture private constructor(
             ToolGestureExtensionResult.Extended(
                 ToolGesture(
                     canvas = canvas,
-                    latestSample = GestureSample(position, latestSample),
-                    sampleCount = sampleCount + 1,
-                    sampleHash = sampleHash * HASH_MULTIPLIER + position.hashCode(),
-                    positionCount = attemptedCount.toInt(),
+                    path =
+                        GesturePath(
+                            latestSample = GestureSample(position, latestSample),
+                            sampleCount = sampleCount + 1,
+                            sampleHash = sampleHash * HASH_MULTIPLIER + position.hashCode(),
+                            positionCount = attemptedCount.toInt(),
+                        ),
                     effect = effect,
+                    admission = admission,
                 ),
             )
         }
@@ -70,6 +78,7 @@ public class ToolGesture private constructor(
                 other is ToolGesture &&
                     canvas == other.canvas &&
                     effect == other.effect &&
+                    admission === other.admission &&
                     sampleCount == other.sampleCount &&
                     positionCount == other.positionCount &&
                     sampleHash == other.sampleHash &&
@@ -102,17 +111,23 @@ public class ToolGesture private constructor(
             canvas: CanvasSize,
             position: PixelPosition,
             effect: StrokeEffect,
+            admission: CommandSourceAdmission,
         ): ToolGesture =
             ToolGesture(
                 canvas = canvas,
-                latestSample = GestureSample(position, null),
-                sampleCount = 1,
-                sampleHash = position.hashCode(),
-                positionCount = 1,
+                path = GesturePath(GestureSample(position, null), 1, position.hashCode(), 1),
                 effect = effect,
+                admission = admission,
             )
     }
 }
+
+private class GesturePath(
+    val latestSample: GestureSample,
+    val sampleCount: Int,
+    val sampleHash: Int,
+    val positionCount: Int,
+)
 
 private class GestureSample(
     val position: PixelPosition,

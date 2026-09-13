@@ -30,9 +30,9 @@ internal data class P2AndroidRunIdentity(
             )
         }
 
-        const val CANDIDATE_ID_ARGUMENT: String = "nene.p2.candidateId"
-        const val RUN_INDEX_ARGUMENT: String = "nene.p2.runIndex"
-        const val SOURCE_COMMIT_ARGUMENT: String = "nene.p2.sourceCommit"
+        const val CANDIDATE_ID_ARGUMENT: String = "nene.p4.commandRole"
+        const val RUN_INDEX_ARGUMENT: String = "nene.p4.commandRunIndex"
+        const val SOURCE_COMMIT_ARGUMENT: String = "nene.p4.measurementBuildCommit"
         private val SOURCE_COMMIT_PATTERN: Regex = Regex("[0-9a-f]{40}")
     }
 }

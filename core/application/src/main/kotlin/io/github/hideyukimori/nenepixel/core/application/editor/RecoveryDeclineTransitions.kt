@@ -17,10 +17,33 @@ internal sealed interface RecoveryDeclineStart {
     data class Result(
         val result: PersistenceRequestResult,
     ) : RecoveryDeclineStart
+
+    data class LegacyRequired(
+        val operation: PersistenceOperationHandle,
+    ) : RecoveryDeclineStart
 }
 
 internal object RecoveryDeclineTransitions {
-    fun begin(coordination: PersistenceCoordination): PersistenceTransition<RecoveryDeclineStart> {
+    fun begin(
+        coordination: PersistenceCoordination,
+        context: SwitchContext,
+    ): PersistenceTransition<RecoveryDeclineStart> {
+        if (coordination.recoveryState is RuntimeRecoveryState.LegacyCandidate) {
+            val transition =
+                LegacyImportTransitions.startRecovery(
+                    coordination,
+                    context,
+                    LegacyImportPurpose.DeclineRecovery,
+                )
+            val result = transition.result
+            val start =
+                if (result is PersistenceRequestResult.LegacyConversionRequired) {
+                    RecoveryDeclineStart.LegacyRequired(result.operation)
+                } else {
+                    RecoveryDeclineStart.Result(result)
+                }
+            return PersistenceTransition(transition.next, start, transition.effect)
+        }
         val candidate = coordination.recoveryState as? RuntimeRecoveryState.Candidate
         return when {
             coordination.activeOperation != null || coordination.inspectionInFlight -> {
@@ -33,6 +56,46 @@ internal object RecoveryDeclineTransitions {
 
             else -> {
                 start(coordination, ExpectedRecoveryLineage.Present(candidate.generation))
+            }
+        }
+    }
+
+    fun beginVerifiedLegacy(
+        coordination: PersistenceCoordination,
+        handle: PersistenceOperationHandle,
+    ): PersistenceTransition<RecoveryDeclineStart> {
+        val operation = coordination.activeOperation as? ActivePersistenceOperation.Switch.LegacyImport
+        val recovery = coordination.recoveryState as? RuntimeRecoveryState.LegacyCandidate
+        val origin = operation?.origin
+        return when {
+            operation == null || operation.handle != handle -> {
+                PersistenceTransition(coordination, RecoveryDeclineStart.Result(PersistenceRequestResult.Stale))
+            }
+
+            operation.purpose != LegacyImportPurpose.DeclineRecovery ||
+                operation.phase !is LegacyImportPhase.Required -> {
+                PersistenceTransition(coordination, RecoveryDeclineStart.Result(PersistenceRequestResult.TooLate))
+            }
+
+            !operation.originalCopyVerified -> {
+                PersistenceTransition(
+                    coordination,
+                    RecoveryDeclineStart.Result(PersistenceRequestResult.OriginalCopyRequired),
+                )
+            }
+
+            recovery == null || origin !is LegacyImportSourceOrigin.Recovery ||
+                origin.generation != recovery.generation ||
+                operation.candidate.source !== recovery.candidate.source -> {
+                PersistenceTransition(coordination, RecoveryDeclineStart.Result(PersistenceRequestResult.Stale))
+            }
+
+            else -> {
+                val expected = ExpectedRecoveryLineage.Present(recovery.generation)
+                PersistenceTransition(
+                    coordination.withActive(ActivePersistenceOperation.RecoveryDecline(handle, expected)),
+                    RecoveryDeclineStart.Started(handle, expected),
+                )
             }
         }
     }

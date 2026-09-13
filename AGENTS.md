@@ -28,6 +28,7 @@ Before proposing or changing production code, read all of the following:
 13. `docs/MVP_SCOPE.md`
 14. `docs/DEVELOPMENT_PLAN.md`
 15. `docs/API_STRATEGY.md`
+16. `docs/PROJECT_FORMAT_V2.md`
 
 Read the active GitHub Issue, relevant accepted ADRs, and active waivers after the documents above.
 

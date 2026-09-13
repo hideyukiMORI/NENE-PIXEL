@@ -7,6 +7,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import io.github.hideyukimori.nenepixel.core.application.persistence.EditorPersistenceWorkflow
 import io.github.hideyukimori.nenepixel.core.application.persistence.ExpectedRecoveryLineage
+import io.github.hideyukimori.nenepixel.core.application.persistence.LegacyReductionHandle
+import io.github.hideyukimori.nenepixel.core.application.persistence.LegacySourceCopyOutcome
+import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationHandle
+import io.github.hideyukimori.nenepixel.core.application.persistence.PersistencePorts
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectLoadOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectSaveOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectStoragePort
@@ -17,7 +21,10 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryPub
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRecordPort
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRetirementOutcome
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
+import io.github.hideyukimori.nenepixel.core.domain.document.LegacyRgbaSource
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 
@@ -25,9 +32,21 @@ import kotlinx.coroutines.launch
 internal fun TestNenePixelEditor(
     controller: EditorController,
     modifier: Modifier = Modifier,
+    projectStorage: ProjectStoragePort = TestProjectStoragePort,
+    presets: LegacyPalettePresets? = null,
+    recoveryRecord: RecoveryRecordPort? = null,
 ) {
     val scope = rememberCoroutineScope()
-    val persistence = remember(controller, scope) { TestPersistenceHost(controller, scope) }
+    val persistence =
+        remember(controller, scope, projectStorage, presets) {
+            TestPersistenceHost(
+                controller,
+                scope,
+                projectStorage,
+                presets ?: defaultPresets(controller),
+                recoveryRecord ?: TestRecoveryRecordPort(),
+            )
+        }
     LaunchedEffect(persistence) { persistence.initialize() }
     NenePixelEditor(
         renderStates = controller.renderStates,
@@ -47,37 +66,65 @@ internal fun TestNenePixelEditor(
     )
 }
 
+private fun defaultPresets(controller: EditorController): LegacyPalettePresets =
+    controller.renderState.definition.let { definition ->
+        LegacyPalettePresets(definition, definition, definition)
+    }
+
 private class TestPersistenceHost(
     private val controller: EditorController,
     private val scope: CoroutineScope,
+    projectStorage: ProjectStoragePort,
+    presets: LegacyPalettePresets,
+    recovery: RecoveryRecordPort,
 ) {
-    private val recovery = TestRecoveryRecordPort()
     val workflow =
         EditorPersistenceWorkflow.create(
             controller.runtime,
-            TestProjectStoragePort,
-            recovery,
-            pngExport =
+            PersistencePorts(
+                projectStorage,
+                recovery,
                 io.github.hideyukimori.nenepixel.core.application.persistence.PngExportPort {
                     io.github.hideyukimori.nenepixel.core.application.persistence.PngExportOutcome.Cancelled
                 },
+            ),
+            Dispatchers.Unconfined,
         )
     val callbacks =
         EditorPersistenceCallbacks.create(
-            exportPng = {},
-            saveAs = { complete { workflow.saveAs() } },
-            load = { complete { workflow.load() } },
-            createNewDocument = { request -> complete { workflow.createNewDocument(request) } },
-            confirm = { request -> complete { workflow.confirm(request) } },
-            cancel = { operation ->
-                workflow.cancel(operation)
-                controller.synchronizeWithRuntime()
-            },
-            acceptRecovery = {
-                workflow.acceptRecovery()
-                controller.synchronizeWithRuntime()
-            },
-            declineRecovery = { complete { workflow.declineRecovery() } },
+            ProjectFileCallbacks(
+                exportPng = {},
+                saveAs = { complete { workflow.saveAs() } },
+                load = { complete { workflow.load() } },
+                createNewDocument = { request -> complete { workflow.createNewDocument(request) } },
+            ),
+            PersistenceDecisionCallbacks(
+                confirm = { request -> complete { workflow.confirm(request) } },
+                cancel = { operation: PersistenceOperationHandle ->
+                    workflow.cancel(operation)
+                    controller.synchronizeWithRuntime()
+                },
+                acceptRecovery = {
+                    workflow.acceptRecovery()
+                    controller.synchronizeWithRuntime()
+                },
+                declineRecovery = { complete { workflow.declineRecovery() } },
+            ),
+            LegacyConversionCallbacks(
+                copyOriginal = { operation: PersistenceOperationHandle ->
+                    complete { workflow.legacyImport.copySource(operation) }
+                },
+                preview = { operation: PersistenceOperationHandle, definition: PaletteDefinition ->
+                    complete { workflow.legacyImport.previewSource(operation, definition) }
+                },
+                accept = { handle: LegacyReductionHandle ->
+                    complete { workflow.legacyImport.acceptReduction(handle) }
+                },
+                declineRecovery = { operation: PersistenceOperationHandle ->
+                    complete { workflow.legacyImport.declineRecovery(operation) }
+                },
+            ),
+            presets = presets,
         )
 
     suspend fun initialize() {
@@ -97,12 +144,17 @@ private data object TestProjectStoragePort : ProjectStoragePort {
     override suspend fun save(document: DocumentState): ProjectSaveOutcome = ProjectSaveOutcome.Cancelled
 
     override suspend fun load(): ProjectLoadOutcome = ProjectLoadOutcome.Cancelled
+
+    override suspend fun copyLegacySource(source: LegacyRgbaSource): LegacySourceCopyOutcome =
+        LegacySourceCopyOutcome.Cancelled
 }
 
-private class TestRecoveryRecordPort : RecoveryRecordPort {
+private class TestRecoveryRecordPort(
+    private val inspection: RecoveryInspection = RecoveryInspection.Missing,
+) : RecoveryRecordPort {
     private var generation: Long = 0L
 
-    override suspend fun inspect(): RecoveryInspection = RecoveryInspection.Missing
+    override suspend fun inspect(): RecoveryInspection = inspection
 
     override suspend fun retire(expected: ExpectedRecoveryLineage): RecoveryRetirementOutcome {
         generation += 1L

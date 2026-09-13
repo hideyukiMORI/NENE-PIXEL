@@ -237,24 +237,33 @@ internal class ViewportEditorControllerTest {
     ): DirectOutcome {
         var workspace = fixture.initialWorkspace
         if (tool != workspace.activeTool) {
-            workspace = fixture.reducer.reduce(workspace, WorkspaceAction.SelectTool(tool)).nextState
+            workspace =
+                fixture.reducer
+                    .reduce(workspace, WorkspaceAction.SelectTool(tool), fixture.runtime.captureSource())
+                    .nextState
         }
         workspace =
             fixture.reducer
                 .reduce(
                     workspace,
                     WorkspaceAction.BeginGesturePreview(fixture.initialDocument.size, samples.first()),
+                    fixture.runtime.captureSource(),
                 ).nextState
         samples.drop(1).forEach { sample ->
-            workspace = fixture.reducer.reduce(workspace, WorkspaceAction.ExtendGesturePreview(sample)).nextState
+            workspace =
+                fixture.reducer
+                    .reduce(workspace, WorkspaceAction.ExtendGesturePreview(sample), fixture.runtime.captureSource())
+                    .nextState
         }
-        val prepared = fixture.reducer.reduce(workspace, WorkspaceAction.PrepareGestureCommit)
+        val prepared =
+            fixture.reducer
+                .reduce(workspace, WorkspaceAction.PrepareGestureCommit, fixture.runtime.captureSource())
         val commit = assertInstanceOf(WorkspaceReductionResult.CommitPrepared::class.java, prepared)
         val target = fixture.runtime.state.documentState
         return DirectOutcome(
             commandResult =
                 fixture.runtime.execute(
-                    ApplyStrokeCommand.create(target.id, target.revision, commit.stroke),
+                    ApplyStrokeCommand.create(fixture.runtime.captureSource(), commit.stroke),
                 ),
             workspaceState = commit.nextState,
         )

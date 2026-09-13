@@ -8,7 +8,7 @@ One concept has one canonical name. New synonyms in code are prohibited. Add or 
 | --- | --- | --- |
 | `Document` | The complete user-created pixel project as a product concept | project data, canvas file, workspace |
 | `DocumentId` | Validated 32-character lowercase hexadecimal identity of one Document | document key, UUID string |
-| `DocumentState` | Immutable saved and undoable truth of a Document | editor state, model data |
+| `DocumentState` | Immutable saved and undoable DocumentId, PaletteDefinition and indexed PixelSnapshot, validated together | editor state, model data |
 | `WorkspaceState` | Immutable ephemeral editor/session state not saved in the Document | temporary document, UI model |
 | `EditorAppearance` | Workspace-owned session theme, tablet layout and physical control edge changed through SetAppearance | Compose theme flag, project preference |
 | `EditorTheme` | Closed Dark or Light appearance selection | system theme Boolean |
@@ -23,11 +23,13 @@ One concept has one canonical name. New synonyms in code are prohibited. Add or 
 | `PersistenceOperation` | One runtime-owned capture/completion or load/install coordination sequence with an opaque identity, one physical-operation lease, and typed busy/stale/cancelling outcomes | adapter job, UI Boolean, DocumentCommand |
 | `PersistenceOperationProjection` | Read-only immutable phase, last outcome, and recovery status derived from the sole EditorRuntime-owned persistence state | mutable UI operation flag, adapter state |
 | `Project Format v1` | The exact bounded `.nenepixel` byte contract in `PROJECT_FORMAT_V1.md` for DocumentId, Revision, CanvasSize, and straight-sRGB RGBA8 pixels | domain model serialization, recovery envelope, external API |
-| `ProjectFormatBytes` | Defensively owned bounded bytes carrying one v1 file or its maximum-plus-one validation probe | ByteArray API, stream, mutable buffer, validated document |
+| `ProjectFormatBytes` | Defensively owned bounded bytes carrying one v1/v2 file or the retained v1 maximum-plus-one validation probe | ByteArray API, stream, mutable buffer, validated document |
+| `Project Format v2` | Exact indexed document byte contract in PROJECT_FORMAT_V2.md, including ordered palette/default and U8 raster | RGBA v1 writer, JSON palette file |
+| `ProjectFormatCodec` | One no-I/O read-v1/read-v2, write-v2 document boundary; exact legacy-source encoding is restricted to original copying | public per-version document writer, import planner |
 | `ProjectFormatVersion` | Meaning-bearing unsigned 16-bit project-format wire version used in typed diagnostics | schema Int, app version |
-| `ProjectFormatResult` | Closed accepted/rejected result shared by bounded-byte construction and v1 decoding | nullable result, exception, Boolean success |
-| `ProjectFormatRejection` | Closed reachable reason that project-format bytes or v1 decoding are rejected | I/O failure, generic parse error, error string |
-| `RecoveryRecord` | The one app-private versioned AtomicFile envelope containing either a last-safe Candidate v1 payload or Retired marker with conditional generation identity | project file, autosave journal, timestamp winner |
+| `ProjectFormatResult` | Closed accepted/rejected result shared by bounded-byte construction and explicit v1/v2 decoding | nullable result, exception, Boolean success |
+| `ProjectFormatRejection` | Closed reachable reason that project-format bytes or version decoding are rejected | I/O failure, generic parse error, error string |
+| `RecoveryRecord` | One app-private AtomicFile envelope with version-matched Candidate project payload or Retired marker and conditional generation identity; read v1/v2, write v2 | project file, autosave journal, timestamp winner |
 | `RecoveryGeneration` | Validated positive identity stored in a RecoveryRecord and advanced by each verified Candidate or Retired publication | Revision, runtime generation, timestamp |
 | `ExpectedRecoveryLineage` | Closed Missing or Present(RecoveryGeneration) precondition for one conditional retirement; Missing compares as virtual zero without creating RecoveryGeneration(0) | nullable generation, unchecked Long |
 | `AutosaveCapture` | Application-owned immutable latest committed DocumentState and its exact runtime-generation/history-position identity waiting for one Candidate publication | autosave queue, revision-only identity, DocumentCleanCheckpoint |
@@ -54,35 +56,36 @@ One concept has one canonical name. New synonyms in code are prohibited. Add or 
 | `PixelRegion` | Canvas-contained rectangular region with half-open right/bottom bounds | rect when domain meaning is intended |
 | `ColorChannel` | One unsigned 8-bit semantic RGBA channel | color byte, channel Int |
 | `PixelColor` | Straight sRGB red, green, blue, and alpha U8 values; hidden RGB at alpha zero is significant | premultiplied color, packed color, Android Color |
-| `PixelBlank` | Canonical transparent-black `PixelColor` `(0,0,0,0)` written by erasing and used for a blank new canvas | white background, alpha-only clear |
-| `PixelLimits` | One conservative MVP policy: axis 256, area 65,536, raw stroke 262,144, patch 65,536, history 64, retained changes 524,288 | device memory check, adapter-local maximum |
-| `Palette` | Immutable ordered value containing 1 through 256 exact PixelColor entries; the sole color-list owner for current tool configuration and PaletteDefinition | duplicate color storage, mutable color list |
-| `PaletteLimits` | One deterministic palette policy with maximum 256 entries and definition minimum 2; lower-level tool Palette still admits one entry | screen-size-dependent palette cap, PixelLimits |
+| `PixelBlank` | Exact transparent-black PixelColor `(0,0,0,0)`; indexed fill/erase uses the document defaultIndex, which may name another color | implicit erase target, alpha-only clear |
+| `PixelLimits` | One conservative MVP policy: axis 256, area 65,536, raw stroke 262,144, patch 65,536, history 64, retained changes 524,288 and logical payload 8 MiB | device memory check, adapter-local maximum |
+| `Palette` | Immutable ordered value containing 1 through 256 exact PixelColor entries; sole color-list owner referenced by PaletteDefinition | duplicate color storage, mutable color list |
+| `PaletteLimits` | One deterministic palette policy with maximum 256 entries and definition minimum 2; a lower-level one-entry Palette is never a document definition | screen-size-dependent palette cap, PixelLimits |
 | `PaletteIndex` | Non-negative typed position used for closed lookup and active Palette selection | palette Int, color index |
 | `PaletteEntry` | Derived immutable Palette slot with its typed index and exact PixelColor | color id, mutable swatch data |
 | `Revision` | Non-negative version of the exact committed DocumentState; canonical undo restores the recorded prior revision | global event sequence, timestamp |
 | `Layer` | An ordered document element contributing pixels/visibility | plane, sheet |
 | `Frame` | One animation frame containing an ordered layer state | page, image |
 | `PixelSurface` | Pixel-engine private mutable flat packed work surface for a bounded raster | Android Bitmap, domain snapshot |
-| `PixelSnapshot` | Domain-owned immutable row-major semantic pixels at one revision, privately stored as packed `RRGGBBAA` | exposed buffer, Android Bitmap |
-| `PixelPatch` | Pixel-engine-owned row-major packed before/after changes with one shared directional inverse payload | materialized inverse, diff, delta |
+| `PixelSnapshot` | Domain-owned immutable canvas/revision and packed row-major U8 indices, with no second palette owner | exposed buffer, RGBA raster, Android Bitmap |
+| `PixelPatch` | Pixel-engine-owned row-major I32 positions and U8 before/after index changes with one shared directional inverse payload | materialized inverse, diff, delta |
 | `Stroke` | One committed drawing gesture with a defined tool/path/style | line when it includes the complete drawing operation |
 | `DrawingTool` | Closed workspace-selectable Pencil or Eraser identity | brush string, UI-local selected tool |
-| `StrokeEffect` | Gesture-captured document replacement effect: Paint with exact PixelColor or Erase to PixelBlank | handler choice, UI color |
-| `ToolGesture` | Application-owned bounded sampled gesture with canonical document-pixel interpolation before commit | command, raw surface path, Compose-owned stroke |
+| `StrokeEffect` | Closed Paint or Erase intent carrying the gesture-captured target PaletteIndex | handler choice, current UI color |
+| `ToolGesture` | Application-owned bounded sampled gesture retaining its captured effect and gateway admission through canonical interpolation and commit | command, raw surface path, Compose-owned stroke |
 | `DocumentCommand` | Typed request to perform one atomic saved/undoable operation | event, action, intent |
 | `WorkspaceAction` | Typed request to change ephemeral WorkspaceState, including active tool and PaletteIndex | command, UI event |
 | `CommandHandler` | The single application component implementing one command | manager, processor |
 | `CommandGateway` | The only entry point for executing DocumentCommand values | bus when no asynchronous/distributed bus exists |
 | `CommandResult` | Closed applied/rejected/failed outcome returned by command execution | nullable result, Boolean success |
 | `DocumentTransition` | Pure description of the next DocumentState and its ChangeSet | mutation callback, update result |
-| `ChangeSet` | Complete committed transition record used by state, history, and invalidation | result data, diff |
+| `ChangeSet` | Complete committed palette/default and optional indexed transition, exact revisions and shared inverse used by state/history/invalidation | result data, diff |
 | `RejectionReason` | Expected typed reason a validly formed command cannot apply | error string, exception |
 | `CommandFailure` | Typed external/runtime failure while executing a command | rejection, false |
 | `DomainValueResult` | Closed created/rejected result returned by invariant-bearing domain factories | nullable value, thrown validation error |
 | `HistoryEntry` | Undo/redo record derived from one committed ChangeSet | callback, snapshot stack item |
-| `BoundedLinearHistory` | Gateway-owned ordered HistoryEntry list with one between-entry cursor and oldest-first dual-budget eviction | undo stack plus redo stack, snapshot history |
-| `HistoryPosition` | Internal runtime-local identity restored with a history cursor and used by clean and persistence preconditions | Revision, audit sequence, persisted lineage |
+| `BoundedLinearHistory` | Gateway-owned ordered HistoryEntry list with one between-entry cursor and oldest-first entry/change/logical-byte eviction | undo stack plus redo stack, snapshot history |
+| `HistoryPosition` | Internal runtime-local identity restored with a history cursor and used by clean, persistence and prepared-command preconditions | Revision, audit sequence, persisted lineage |
+| `CommandSourceAdmission` | Non-constructible gateway-issued owner/document/exact-position token with immutable planning base | snapshot reference identity, revision-only command input |
 | `HistoryAvailability` | Closed none, undo-only, redo-only, or undo-and-redo projection derived from the history cursor | mutually exclusive stack flag, two UI-owned Booleans |
 | `Port` | Core-owned interface for a required outside capability | service interface, gateway when it is not command execution |
 | `Adapter` | Boundary implementation or translator connected to a Port | manager, integration helper |
@@ -93,25 +96,30 @@ One concept has one canonical name. New synonyms in code are prohibited. Add or 
 | `PngBytes` | Adapter-internal immutable bounded PNG encoding with defensive bulk copies | mutable pixel surface, project file |
 | `DocumentCreationRequest` | Typed fresh-destination request selecting PROJECT or PNG and a suggested filename | existing URI, raw MIME selection |
 
-## Indexed palette target and interchange (ADR 0022)
+## Indexed palette and preserved import (ADR 0022/0024)
 
-The current M3 RGBA/tool-palette terms above describe the delivered editor until atomic cutover.
+The #106 cutover adopts the indexed document and compatibility vocabulary atomically. Palette draft
+editing remains #107; target-only session types are introduced with their consuming implementation.
 
 | Term | Canonical meaning | Not an alias for |
 | --- | --- | --- |
-| `PaletteDefinition` | Immutable Palette plus validated defaultIndex, 2–256 actual entries; interchange value and target indexed-document definition | active swatch, generic JSON DTO |
+| `PaletteDefinition` | Immutable Palette plus validated defaultIndex, 2–256 actual entries; document-owned definition and interchange value | active swatch, generic JSON DTO |
 | `PaletteRemap` | Complete immutable old-slot→new-slot mapping bound to exact source/target definitions, created through one domain factory | partial draft, pixel patch, inverse history, runtime token |
 | `PaletteRemapPlanner` | Pixel-engine algorithm producing the same validated remap for number/nearest/explicit replacement, reorder or deletion | UI mapping logic, command handler, generic converter |
 | `PaletteRemapResult` | Closed planned/rejected outcome of the bounded palette planner | command result, document commit |
 | `PaletteRemapRejection` | Domain mapping rejection or invalid reorder/deletion input | file error, stale runtime token |
 | `defaultIndex` | Slot used to fill a new indexed canvas and by Eraser; may be nontransparent | active Pencil selection, transparency sentinel |
 | `PaletteEditSession` | Workspace-owned bounded draft timeline tied to exact source generation/history position | document history, Compose-owned document copy |
-| `ReplacePaletteCommand` | Atomic target command committing definition and complete pixel mapping | immediate import side effect |
+| `ReplacePaletteCommand` | Atomic source-admitted command committing definition and complete pixel mapping | immediate import side effect |
 | `PaletteJsonBytes` | Defensive bounded palette-file bytes, maximum-plus-one probe | ProjectFormatBytes, unbounded input string |
 | `PaletteJsonCodec` | The no-I/O palette JSON v1 mapping to/from PaletteDefinition | project codec, runtime mutation path |
 | `PaletteJsonResult` | Closed accepted/rejected result for palette carrier construction and definition decoding | nullable parse result, Boolean success |
 | `PaletteJsonRejection` | Closed format, syntax, encoding, resource or domain-definition failure from the palette codec | localized message, I/O failure |
 | `ConversionRequired` | Uninstalled exact source needs explicit lossy conversion to fit indexed limits | successful lossless migration, editable RGBA compatibility mode |
+| `LegacyRgbaSource` | Bounded immutable uninstalled exact v1 identity/revision/size/RGBA raster, never an editable runtime | DocumentState, mutable import buffer, format DTO |
+| `DocumentImportSource` | Closed Current(DocumentState) or Legacy(LegacyRgbaSource) value returned by validated load/recovery ports | serialized DTO, adapter-owned conversion policy |
+| `LegacySourceCopyOutcome` | Closed Copied/Cancelled/Failed result for exact original-project copy; Copied requires complete close/read-back | save checkpoint, picker success, reduced export |
+| `PersistencePorts` | Named composition input grouping existing project/recovery/PNG ports for one workflow | service locator, second persistence owner |
 
 Target command/session names are introduced only in their consuming implementation Issue.
 

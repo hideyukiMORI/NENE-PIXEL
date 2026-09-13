@@ -35,6 +35,8 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasHeight
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasWidth
 import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
@@ -205,7 +207,7 @@ internal class EditorScreenLayoutTest {
         )
     }
 
-    private fun controller(paletteCount: Int = 1): EditorController {
+    private fun controller(paletteCount: Int = 9): EditorController {
         val size =
             CanvasSize.create(
                 CanvasWidth.create(DOCUMENT_WIDTH).requiredValue(),
@@ -223,7 +225,13 @@ internal class EditorScreenLayoutTest {
                         )
                     },
                 ).requiredValue()
-        return EditorController.create(EditorRuntime.create(size, palette, FixedDocumentIdSource))
+        val definition =
+            PaletteDefinition
+                .create(
+                    palette,
+                    PaletteIndex.create(if (paletteCount >= 9) 8 else 0).requiredValue(),
+                ).requiredValue()
+        return EditorController.create(EditorRuntime.create(size, definition, FixedDocumentIdSource))
     }
 
     private fun <T> DomainValueResult<T>.requiredValue(): T =

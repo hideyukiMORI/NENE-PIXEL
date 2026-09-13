@@ -11,6 +11,11 @@ public sealed interface WorkspaceActionRejection {
 
     public data object NoActivePreview : WorkspaceActionRejection
 
+    public data class PreviewCanvasMismatch internal constructor(
+        public val expected: CanvasSize,
+        public val actual: CanvasSize,
+    ) : WorkspaceActionRejection
+
     public data class PaletteIndexOutsidePalette internal constructor(
         public val attemptedIndex: PaletteIndex,
         public val entryCount: Int,

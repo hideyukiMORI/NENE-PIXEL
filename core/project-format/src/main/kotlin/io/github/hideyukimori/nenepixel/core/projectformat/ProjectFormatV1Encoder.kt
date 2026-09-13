@@ -1,16 +1,16 @@
 package io.github.hideyukimori.nenepixel.core.projectformat
 
-import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
+import io.github.hideyukimori.nenepixel.core.domain.document.LegacyRgbaSource
 
 internal object ProjectFormatV1Encoder {
     private const val HEX_RADIX: Int = 16
     private const val HIGH_NIBBLE_SHIFT: Int = 4
 
-    fun encode(document: DocumentState): ProjectFormatBytes {
-        val byteCount = ProjectFormatV1Layout.expectedByteCount(document.size.pixelCount).toInt()
+    fun encode(source: LegacyRgbaSource): ProjectFormatBytes {
+        val byteCount = ProjectFormatV1Layout.expectedByteCount(source.size.pixelCount).toInt()
         val encoded = ByteArray(byteCount)
-        writeHeader(encoded, document)
-        writePixels(encoded, document.snapshot.copyPackedRgba8888())
+        writeHeader(encoded, source)
+        writePixels(encoded, source.copyPackedRgba8888())
         val checksumOffset = byteCount - Int.SIZE_BYTES
         val checksum = Crc32IsoHdlc.checksum(encoded, checksumOffset)
         ProjectFormatBigEndian.writeInt(encoded, checksumOffset, checksum.toInt())
@@ -19,7 +19,7 @@ internal object ProjectFormatV1Encoder {
 
     private fun writeHeader(
         destination: ByteArray,
-        document: DocumentState,
+        source: LegacyRgbaSource,
     ) {
         ProjectFormatV1Layout.writeMagic(destination)
         ProjectFormatBigEndian.writeUnsignedShort(
@@ -30,15 +30,15 @@ internal object ProjectFormatV1Encoder {
         ProjectFormatBigEndian.writeUnsignedShort(
             destination,
             ProjectFormatV1Layout.WIDTH_OFFSET,
-            document.size.width.value,
+            source.size.width.value,
         )
         ProjectFormatBigEndian.writeUnsignedShort(
             destination,
             ProjectFormatV1Layout.HEIGHT_OFFSET,
-            document.size.height.value,
+            source.size.height.value,
         )
-        writeDocumentId(destination, document.id.value)
-        ProjectFormatBigEndian.writeLong(destination, ProjectFormatV1Layout.REVISION_OFFSET, document.revision.value)
+        writeDocumentId(destination, source.id.value)
+        ProjectFormatBigEndian.writeLong(destination, ProjectFormatV1Layout.REVISION_OFFSET, source.revision.value)
     }
 
     private fun writeDocumentId(

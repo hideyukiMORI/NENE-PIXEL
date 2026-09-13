@@ -14,10 +14,10 @@ internal object ConfirmationPolicy {
     fun initialNeed(
         coordination: PersistenceCoordination,
         dirty: Boolean,
-    ): ConfirmationNeed = need(dirty, coordination.recoveryState is RuntimeRecoveryState.Candidate)
+    ): ConfirmationNeed = need(dirty, coordination.recoveryState.hasUnadoptedCandidate())
 
     fun sourceChangedReason(coordination: PersistenceCoordination): PersistenceConfirmationReason =
-        if (coordination.recoveryState is RuntimeRecoveryState.Candidate) {
+        if (coordination.recoveryState.hasUnadoptedCandidate()) {
             PersistenceConfirmationReason.SOURCE_CHANGED_AND_RECOVERY_CANDIDATE
         } else {
             PersistenceConfirmationReason.SOURCE_CHANGED
@@ -31,6 +31,7 @@ internal object ConfirmationPolicy {
         when (pending) {
             is PendingSwitch.Recover -> PersistenceConfirmationReason.DISCARD_CURRENT_CHANGES
             is PendingSwitch.Prepared -> sourceChangedReason(coordination)
+            is PendingSwitch.LegacyPrepared -> sourceChangedReason(coordination)
             else -> currentReason(coordination, dirty)
         }
 

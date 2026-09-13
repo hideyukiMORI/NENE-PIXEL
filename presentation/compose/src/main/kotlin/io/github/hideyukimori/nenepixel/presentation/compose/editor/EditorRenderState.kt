@@ -7,13 +7,14 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.View
 import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
 import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 
 public class EditorRenderState internal constructor(
     public val snapshot: PixelSnapshot,
-    public val palette: Palette,
+    public val definition: PaletteDefinition,
     public val activePaletteIndex: PaletteIndex,
     public val activeTool: DrawingTool,
     public val preview: ToolGesture?,
@@ -23,6 +24,9 @@ public class EditorRenderState internal constructor(
     public val dirtyState: DocumentDirtyState,
     public val appearance: EditorAppearance,
 ) {
+    public val palette: Palette
+        get() = definition.palette
+
     public val activeColor: PixelColor
         get() =
             when (val result = palette.entryAt(activePaletteIndex)) {
@@ -35,7 +39,7 @@ public class EditorRenderState internal constructor(
             (
                 other is EditorRenderState &&
                     snapshot == other.snapshot &&
-                    palette == other.palette &&
+                    definition == other.definition &&
                     activePaletteIndex == other.activePaletteIndex &&
                     activeTool == other.activeTool &&
                     preview == other.preview &&
@@ -49,7 +53,7 @@ public class EditorRenderState internal constructor(
     override fun hashCode(): Int =
         listOf(
             snapshot,
-            palette,
+            definition,
             activePaletteIndex,
             activeTool,
             preview,

@@ -7,7 +7,9 @@ import java.util.zip.CRC32
 internal object RecoveryRecordLayout {
     const val MAX_RECORD_BYTE_COUNT: Int = 262_209
     const val MAX_PROBE_BYTE_COUNT: Int = MAX_RECORD_BYTE_COUNT + 1
-    const val VERSION: Int = 1
+    const val V1_VERSION: Int = 1
+    const val V2_VERSION: Int = 2
+    const val WRITE_VERSION: Int = V2_VERSION
     const val VERSION_OFFSET: Int = 8
     const val STATE_OFFSET: Int = 10
     const val GENERATION_OFFSET: Int = 11
@@ -15,18 +17,22 @@ internal object RecoveryRecordLayout {
     const val CHECKSUM_BYTE_COUNT: Int = 4
     const val HEADER_BYTE_COUNT: Int = PAYLOAD_OFFSET + CHECKSUM_BYTE_COUNT
     const val RETIRED_BYTE_COUNT: Int = HEADER_BYTE_COUNT
-    const val MIN_CANDIDATE_BYTE_COUNT: Int = 69
+    const val V1_MIN_CANDIDATE_BYTE_COUNT: Int = 69
+    const val V2_MIN_CANDIDATE_BYTE_COUNT: Int = 77
+    const val V2_MAX_CANDIDATE_BYTE_COUNT: Int = 66_628
     const val CANDIDATE_STATE: Int = 1
     const val RETIRED_STATE: Int = 2
 
     fun encode(
+        version: Int,
         state: Int,
         generation: RecoveryGeneration,
         payload: ByteArray,
     ): ByteArray {
         val bytes = ByteArray(PAYLOAD_OFFSET + payload.size + CHECKSUM_BYTE_COUNT)
         MAGIC.copyInto(bytes)
-        RecoveryRecordBigEndian.writeUnsignedShort(bytes, VERSION_OFFSET, VERSION)
+        require(version == V1_VERSION || version == V2_VERSION)
+        RecoveryRecordBigEndian.writeUnsignedShort(bytes, VERSION_OFFSET, version)
         bytes[STATE_OFFSET] = state.toByte()
         RecoveryRecordBigEndian.writeLong(bytes, GENERATION_OFFSET, generation.value)
         payload.copyInto(bytes, PAYLOAD_OFFSET)

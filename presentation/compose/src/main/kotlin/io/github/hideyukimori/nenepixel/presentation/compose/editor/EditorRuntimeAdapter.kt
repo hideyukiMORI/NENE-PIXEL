@@ -89,8 +89,7 @@ internal class EditorRuntimeAdapter(
     }
 
     private fun execute(preparation: WorkspaceReductionResult.CommitPrepared): CommandResult {
-        val target = runtime.state.documentState
-        val command = ApplyStrokeCommand.create(target.id, target.revision, preparation.stroke)
+        val command = ApplyStrokeCommand.create(preparation.admission, preparation.stroke)
         return runtime.execute(command)
     }
 
@@ -98,7 +97,7 @@ internal class EditorRuntimeAdapter(
         val state = runtime.state
         return EditorRenderState(
             snapshot = state.documentState.snapshot,
-            palette = runtime.palette,
+            definition = state.documentState.definition,
             activePaletteIndex = state.workspaceState.activePaletteIndex,
             activeTool = state.workspaceState.activeTool,
             preview = state.workspaceState.preview,

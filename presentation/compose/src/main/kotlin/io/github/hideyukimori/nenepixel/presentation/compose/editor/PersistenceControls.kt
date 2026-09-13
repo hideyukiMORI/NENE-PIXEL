@@ -62,6 +62,9 @@ internal fun PersistenceConfirmation(
     (operation.phase as? PersistenceOperationPhase.NeedsConfirmation)?.let { phase ->
         DiscardConfirmationDialog(phase.request, callbacks)
     }
+    (operation.phase as? PersistenceOperationPhase.NeedsLegacyConfirmation)?.let { phase ->
+        DiscardConfirmationDialog(phase.request, callbacks)
+    }
 }
 
 @Composable
@@ -113,6 +116,12 @@ private fun PersistenceOperationPhase.cancellableOperation(): PersistenceOperati
         is PersistenceOperationPhase.NeedsConfirmation,
         is PersistenceOperationPhase.Switching,
         is PersistenceOperationPhase.Cancelling,
+        is PersistenceOperationPhase.CancellingLegacyImport,
+        is PersistenceOperationPhase.NeedsLegacyConfirmation,
+        is PersistenceOperationPhase.LegacyConversionRequired,
+        is PersistenceOperationPhase.CopyingLegacySource,
+        is PersistenceOperationPhase.ReducingLegacySource,
+        is PersistenceOperationPhase.PreparingLegacyAdoption,
         -> null
     }
 
@@ -120,7 +129,7 @@ internal fun RecoveryStatus.isAvailableForDocumentSwitch(): Boolean =
     this is RecoveryStatus.Clear || this is RecoveryStatus.UnadoptedCandidate
 
 internal fun PersistenceOperationProjection.statusResource(autosave: AutosaveProjection): Int =
-    when (phase) {
+    when (val current = phase) {
         PersistenceOperationPhase.Initializing -> R.string.checking_recovery
         PersistenceOperationPhase.Idle -> idleStatusResource(autosave)
         is PersistenceOperationPhase.Exporting -> R.string.exporting_png
@@ -130,6 +139,7 @@ internal fun PersistenceOperationProjection.statusResource(autosave: AutosavePro
         is PersistenceOperationPhase.Switching -> R.string.switching_document
         is PersistenceOperationPhase.Cancelling -> R.string.cancelling_operation
         is PersistenceOperationPhase.Discarding -> R.string.discarding_recovery
+        is PersistenceOperationPhase.LegacyImport -> current.conversionStatusResource()
     }
 
 private fun PersistenceOperationProjection.idleStatusResource(autosave: AutosaveProjection): Int =
@@ -142,7 +152,7 @@ private fun PersistenceOperationProjection.idleStatusResource(autosave: Autosave
             R.string.recovery_unavailable
         }
 
-        recoveryStatus is RecoveryStatus.UnadoptedCandidate -> {
+        offersRecovery() -> {
             R.string.recovery_preserved
         }
 
@@ -154,33 +164,31 @@ private fun PersistenceOperationProjection.idleStatusResource(autosave: Autosave
             R.string.autosave_uncertain
         }
 
-        lastOutcome is PersistenceLastOutcome.PngExported -> {
-            R.string.png_exported
-        }
-
-        lastOutcome is PersistenceLastOutcome.Saved -> {
-            R.string.project_saved
-        }
-
-        lastOutcome is PersistenceLastOutcome.Loaded -> {
-            R.string.project_loaded
-        }
-
-        lastOutcome is PersistenceLastOutcome.NewDocumentCreated -> {
-            R.string.new_document_created
-        }
-
-        lastOutcome is PersistenceLastOutcome.Cancelled -> {
-            R.string.operation_cancelled
-        }
-
-        lastOutcome is PersistenceLastOutcome.Failed -> {
-            R.string.operation_failed
-        }
-
         else -> {
-            R.string.storage_ready
+            lastOutcome.completedStatusResource()
         }
+    }
+
+private fun PersistenceLastOutcome.completedStatusResource(): Int =
+    when (this) {
+        PersistenceLastOutcome.PngExported -> R.string.png_exported
+
+        is PersistenceLastOutcome.Saved -> R.string.project_saved
+
+        PersistenceLastOutcome.Loaded -> R.string.project_loaded
+
+        PersistenceLastOutcome.LegacyConverted -> R.string.legacy_converted
+
+        PersistenceLastOutcome.NewDocumentCreated -> R.string.new_document_created
+
+        PersistenceLastOutcome.Cancelled -> R.string.operation_cancelled
+
+        is PersistenceLastOutcome.Failed -> R.string.operation_failed
+
+        PersistenceLastOutcome.None,
+        PersistenceLastOutcome.Recovered,
+        PersistenceLastOutcome.RecoveryDeclined,
+        -> R.string.storage_ready
     }
 
 private fun PersistenceConfirmationReason.confirmationResource(): Int =

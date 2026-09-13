@@ -72,9 +72,9 @@ internal fun publishAutosaveEvidenceReport(
     reservation.status.writeText(if (complete) COMPLETE_STATUS else INVALID_STATUS)
 }
 
-private const val LOG_TAG: String = "nene-p3-autosave-evidence"
-private const val OUTPUT_FILE_NAME: String = "m3-autosave-publication-device-v2.csv"
-private const val STATUS_FILE_NAME: String = "m3-autosave-publication-device-v2.status"
-private const val HEADER_ROW: String = "schema,group,index,kind,elapsed_ns,generation,outcome"
+private const val LOG_TAG: String = "nene-p4-publication-evidence"
+private const val OUTPUT_FILE_NAME: String = "p4-indexed-publication-device-candidate-v1.csv"
+private const val STATUS_FILE_NAME: String = "p4-indexed-publication-device-candidate-v1.status"
+private const val HEADER_ROW: String = "schema,role,group,index,kind,elapsed_ns,generation,outcome"
 private const val COMPLETE_STATUS: String = "complete"
 private const val INVALID_STATUS: String = "invalid"

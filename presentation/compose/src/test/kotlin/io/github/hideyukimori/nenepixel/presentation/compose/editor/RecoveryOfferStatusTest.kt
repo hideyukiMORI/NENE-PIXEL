@@ -4,6 +4,8 @@ import io.github.hideyukimori.nenepixel.core.application.document.command.ApplyS
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandResult
 import io.github.hideyukimori.nenepixel.core.application.persistence.EditorPersistenceWorkflow
 import io.github.hideyukimori.nenepixel.core.application.persistence.ExpectedRecoveryLineage
+import io.github.hideyukimori.nenepixel.core.application.persistence.LegacySourceCopyOutcome
+import io.github.hideyukimori.nenepixel.core.application.persistence.PersistencePorts
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectLoadOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectSaveOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectStoragePort
@@ -18,9 +20,12 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRol
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceAction
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReductionResult
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
+import io.github.hideyukimori.nenepixel.core.domain.document.DocumentImportSource
+import io.github.hideyukimori.nenepixel.core.domain.document.LegacyRgbaSource
 import io.github.hideyukimori.nenepixel.presentation.compose.EditorFixture
 import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestValues
 import io.github.hideyukimori.nenepixel.presentation.compose.R
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -77,12 +82,14 @@ internal class RecoveryOfferStatusTest {
     ): EditorPersistenceWorkflow =
         EditorPersistenceWorkflow.create(
             fixture.runtime,
-            CancellingProjectStoragePort,
-            recoveryRecord,
-            pngExport =
+            PersistencePorts(
+                CancellingProjectStoragePort,
+                recoveryRecord,
                 io.github.hideyukimori.nenepixel.core.application.persistence.PngExportPort {
                     io.github.hideyukimori.nenepixel.core.application.persistence.PngExportOutcome.Cancelled
                 },
+            ),
+            Dispatchers.Unconfined,
         )
 
     private fun commitStroke(fixture: EditorFixture) {
@@ -94,15 +101,24 @@ internal class RecoveryOfferStatusTest {
                         fixture.initialDocument.size,
                         PresentationTestValues.position(0, 0),
                     ),
+                    fixture.runtime.captureSource(),
                 ).nextState
         val extended =
             fixture.reducer
-                .reduce(begun, WorkspaceAction.ExtendGesturePreview(PresentationTestValues.position(1, 0)))
-                .nextState
-        val prepared = fixture.reducer.reduce(extended, WorkspaceAction.PrepareGestureCommit)
+                .reduce(
+                    begun,
+                    WorkspaceAction.ExtendGesturePreview(PresentationTestValues.position(1, 0)),
+                    fixture.runtime.captureSource(),
+                ).nextState
+        val prepared =
+            fixture.reducer.reduce(
+                extended,
+                WorkspaceAction.PrepareGestureCommit,
+                fixture.runtime.captureSource(),
+            )
         val commit = assertInstanceOf(WorkspaceReductionResult.CommitPrepared::class.java, prepared)
         val target = fixture.runtime.state.documentState
-        val result = fixture.runtime.execute(ApplyStrokeCommand.create(target.id, target.revision, commit.stroke))
+        val result = fixture.runtime.execute(ApplyStrokeCommand.create(fixture.runtime.captureSource(), commit.stroke))
         assertInstanceOf(CommandResult.Applied::class.java, result)
     }
 }
@@ -111,12 +127,16 @@ private data object CancellingProjectStoragePort : ProjectStoragePort {
     override suspend fun save(document: DocumentState): ProjectSaveOutcome = ProjectSaveOutcome.Cancelled
 
     override suspend fun load(): ProjectLoadOutcome = ProjectLoadOutcome.Cancelled
+
+    override suspend fun copyLegacySource(source: LegacyRgbaSource): LegacySourceCopyOutcome =
+        LegacySourceCopyOutcome.Cancelled
 }
 
 private class StartupCandidateRecoveryRecordPort(
     private val document: DocumentState,
 ) : RecoveryRecordPort {
-    override suspend fun inspect(): RecoveryInspection = RecoveryInspection.Candidate(generation(1L), document)
+    override suspend fun inspect(): RecoveryInspection =
+        RecoveryInspection.Candidate(generation(1L), DocumentImportSource.Current(document))
 
     override suspend fun retire(expected: ExpectedRecoveryLineage): RecoveryRetirementOutcome =
         RecoveryRetirementOutcome.Retired(generation(2L))

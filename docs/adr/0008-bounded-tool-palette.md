@@ -7,6 +7,23 @@
   `CMD-002`, `CMD-005`, `CMD-009`, `CMD-010`, `CMD-012`, `KOT-001` through `KOT-008`,
   `KOT-015`, `KOT-017` through `KOT-019`, `QLT-006`, `QLT-008`
 
+## Indexed cutover refinement (2026-09-13, #106)
+
+[ADR 0022](0022-indexed-palette-and-migration.md) and
+[ADR 0024](0024-indexed-project-compatibility.md) replace the tool-configuration ownership below.
+DocumentState owns one PaletteDefinition with 2–256 ordered exact colors and a validated default.
+Palette remains the sole immutable color-list owner; its lower-level one-entry value is not a valid
+document definition. EditorRuntime and WorkspaceReducer no longer retain independent palettes.
+The app supplies an initial definition to fresh-document construction. WorkspaceState owns only
+selection; SelectPaletteEntry remains undo-neutral and validates against the current document.
+Pencil captures the selected index and Eraser captures the default. Displayed color is derived.
+
+ReplacePaletteCommand commits definition and index mapping through the sole command path. Selection
+is reconciled by the reducer in the same runtime lock: forward maps it, undo/redo keeps a valid
+selection or uses the restored default. Palette edits now affect revision/history/dirty/rendering/
+autosave; #107 adds the draft UI separately. The prior 32-entry/tool-only policy and no-persistence
+claims below are historical, not a second live palette mode. Post-v2 rollback follows ADR 0024.
+
 ## Context
 
 ADR 0005 fixes pixel truth as exact straight-sRGB RGBA8 values and identifies palette content as

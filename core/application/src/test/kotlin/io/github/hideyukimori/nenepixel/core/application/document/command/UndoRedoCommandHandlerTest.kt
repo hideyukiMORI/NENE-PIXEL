@@ -2,11 +2,11 @@ package io.github.hideyukimori.nenepixel.core.application.document.command
 
 import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryEntry
 import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryPosition
-import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.black
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.blackIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.canvas
-import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.green
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.greenIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.position
-import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.red
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.redIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.revision
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.state
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.stroke
@@ -95,7 +95,7 @@ internal class UndoRedoCommandHandlerTest {
     @Test
     fun `undo rejects a conflicting current pixel atomically`() {
         val fixture = historyFixture()
-        val conflicting = state(fixture.initial.size, revision(1L), listOf(green))
+        val conflicting = state(fixture.initial.size, revision(1L), listOf(greenIndex))
         val command = UndoCommand.create(conflicting.id, conflicting.revision)
 
         val result = UndoCommandHandler().execute(conflicting, command, fixture.entry)
@@ -103,15 +103,15 @@ internal class UndoRedoCommandHandlerTest {
         val reason = assertRejected(result)
         val mismatch = assertInstanceOf(RejectionReason.PixelBeforeValueMismatch::class.java, reason)
         assertEquals(position(0, 0), mismatch.position)
-        assertEquals(red, mismatch.expected)
-        assertEquals(green, mismatch.actual)
+        assertEquals(redIndex, mismatch.expected)
+        assertEquals(greenIndex, mismatch.actual)
         assertEquals(revision(1L), conflicting.revision)
     }
 
     @Test
     fun `redo rejects a conflicting current pixel atomically`() {
         val fixture = historyFixture()
-        val conflicting = state(fixture.initial.size, pixels = listOf(green))
+        val conflicting = state(fixture.initial.size, indices = listOf(greenIndex))
         val command = RedoCommand.create(conflicting.id, conflicting.revision)
 
         val result = RedoCommandHandler().execute(conflicting, command, fixture.entry)
@@ -119,8 +119,8 @@ internal class UndoRedoCommandHandlerTest {
         val reason = assertRejected(result)
         val mismatch = assertInstanceOf(RejectionReason.PixelBeforeValueMismatch::class.java, reason)
         assertEquals(position(0, 0), mismatch.position)
-        assertEquals(black, mismatch.expected)
-        assertEquals(green, mismatch.actual)
+        assertEquals(blackIndex, mismatch.expected)
+        assertEquals(greenIndex, mismatch.actual)
         assertEquals(revision(0L), conflicting.revision)
     }
 
@@ -129,9 +129,8 @@ internal class UndoRedoCommandHandlerTest {
         val gateway = CommandGateway.create(initial)
         val command =
             ApplyStrokeCommand.create(
-                initial.id,
-                initial.revision,
-                stroke(initial.size, listOf(position(0, 0)), red),
+                gateway.captureSource(),
+                stroke(initial.size, listOf(position(0, 0)), redIndex),
             )
         val result = gateway.execute(command)
         val appliedResult = assertInstanceOf(CommandResult.Applied::class.java, result)

@@ -6,45 +6,56 @@ import org.junit.jupiter.api.Test
 
 internal class HistoryRetentionPolicyTest {
     @Test
-    fun `entry cap retains the newest bounded suffix`() {
+    fun `entry cap retains newest suffix and all three budgets`() {
+        val entry = HistoryPayload(changeCount = 1, byteCount = 8)
         assertEquals(
-            HistoryRetentionResult.Retained(0, PixelLimits.MAX_HISTORY_ENTRIES - 1),
-            HistoryRetentionPolicy.retain(List(PixelLimits.MAX_HISTORY_ENTRIES - 1) { 1 }),
+            HistoryRetentionResult.Retained(0, PixelLimits.MAX_HISTORY_ENTRIES, 8L * PixelLimits.MAX_HISTORY_ENTRIES),
+            HistoryRetentionPolicy.retain(List(PixelLimits.MAX_HISTORY_ENTRIES) { entry }),
         )
         assertEquals(
-            HistoryRetentionResult.Retained(0, PixelLimits.MAX_HISTORY_ENTRIES),
-            HistoryRetentionPolicy.retain(List(PixelLimits.MAX_HISTORY_ENTRIES) { 1 }),
-        )
-        assertEquals(
-            HistoryRetentionResult.Retained(1, PixelLimits.MAX_HISTORY_ENTRIES),
-            HistoryRetentionPolicy.retain(List(PixelLimits.MAX_HISTORY_ENTRIES + 1) { 1 }),
+            HistoryRetentionResult.Retained(1, PixelLimits.MAX_HISTORY_ENTRIES, 8L * PixelLimits.MAX_HISTORY_ENTRIES),
+            HistoryRetentionPolicy.retain(List(PixelLimits.MAX_HISTORY_ENTRIES + 1) { entry }),
         )
     }
 
     @Test
-    fun `retained change cap evicts oldest entries deterministically`() {
-        val fullCanvasChangeCount = PixelLimits.MAX_CANVAS_PIXELS
-
+    fun `change and byte caps independently evict oldest entries`() {
+        val fullCanvas = HistoryPayload(PixelLimits.MAX_CANVAS_PIXELS, 1)
         assertEquals(
-            HistoryRetentionResult.Retained(0, PixelLimits.MAX_RETAINED_CHANGES),
-            HistoryRetentionPolicy.retain(List(8) { fullCanvasChangeCount }),
+            HistoryRetentionResult.Retained(1, PixelLimits.MAX_RETAINED_CHANGES, 8),
+            HistoryRetentionPolicy.retain(List(9) { fullCanvas }),
         )
+
+        val halfBytes = HistoryPayload(1, PixelLimits.MAX_RETAINED_PAYLOAD_BYTES / 2)
         assertEquals(
-            HistoryRetentionResult.Retained(1, PixelLimits.MAX_RETAINED_CHANGES),
-            HistoryRetentionPolicy.retain(List(9) { fullCanvasChangeCount }),
+            HistoryRetentionResult.Retained(1, 2, PixelLimits.MAX_RETAINED_PAYLOAD_BYTES),
+            HistoryRetentionPolicy.retain(List(3) { halfBytes }),
         )
     }
 
     @Test
-    fun `single entry above retained change cap is rejected with typed limit`() {
+    fun `unreachable single entry limits still reject as policy contracts`() {
         assertEquals(
             HistoryRetentionResult.Rejected(
-                HistoryRetentionRejection.EntryAboveRetainedChangeMaximum(
+                HistoryAppendRejection.EntryAboveRetainedChangeMaximum(
                     PixelLimits.MAX_RETAINED_CHANGES + 1,
                     PixelLimits.MAX_RETAINED_CHANGES,
                 ),
             ),
-            HistoryRetentionPolicy.retain(listOf(PixelLimits.MAX_RETAINED_CHANGES + 1)),
+            HistoryRetentionPolicy.retain(
+                listOf(HistoryPayload(PixelLimits.MAX_RETAINED_CHANGES + 1, 0)),
+            ),
+        )
+        assertEquals(
+            HistoryRetentionResult.Rejected(
+                HistoryAppendRejection.EntryAboveRetainedPayloadMaximum(
+                    PixelLimits.MAX_RETAINED_PAYLOAD_BYTES + 1,
+                    PixelLimits.MAX_RETAINED_PAYLOAD_BYTES,
+                ),
+            ),
+            HistoryRetentionPolicy.retain(
+                listOf(HistoryPayload(0, PixelLimits.MAX_RETAINED_PAYLOAD_BYTES + 1)),
+            ),
         )
     }
 }

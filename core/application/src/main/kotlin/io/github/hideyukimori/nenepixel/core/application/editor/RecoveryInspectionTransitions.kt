@@ -1,10 +1,11 @@
 package io.github.hideyukimori.nenepixel.core.application.editor
 
+import io.github.hideyukimori.nenepixel.core.application.persistence.ClassifiedImport
+import io.github.hideyukimori.nenepixel.core.application.persistence.ClassifiedRecoveryInspection
 import io.github.hideyukimori.nenepixel.core.application.persistence.ExpectedRecoveryLineage
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceFailure
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceLastOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryInitializationResult
-import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryInspection
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryInspectionFailure
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryUnavailableReason
 
@@ -40,7 +41,7 @@ internal object RecoveryInspectionTransitions {
 
     fun complete(
         coordination: PersistenceCoordination,
-        outcome: RecoveryInspection,
+        outcome: ClassifiedRecoveryInspection,
     ): PersistenceTransition<RecoveryInitializationResult> =
         if (!coordination.inspectionInFlight) {
             PersistenceTransition(coordination, RecoveryInitializationResult.AlreadyReady)
@@ -50,22 +51,30 @@ internal object RecoveryInspectionTransitions {
 
     private fun applyOutcome(
         coordination: PersistenceCoordination,
-        outcome: RecoveryInspection,
+        outcome: ClassifiedRecoveryInspection,
     ): PersistenceTransition<RecoveryInitializationResult> =
         when (outcome) {
-            RecoveryInspection.Missing -> {
+            ClassifiedRecoveryInspection.Missing -> {
                 ready(coordination, RuntimeRecoveryState.Clear(ExpectedRecoveryLineage.Missing))
             }
 
-            is RecoveryInspection.Retired -> {
+            is ClassifiedRecoveryInspection.Retired -> {
                 ready(coordination, RuntimeRecoveryState.Clear(ExpectedRecoveryLineage.Present(outcome.generation)))
             }
 
-            is RecoveryInspection.Candidate -> {
-                ready(coordination, RuntimeRecoveryState.Candidate(outcome.generation, outcome.document))
+            is ClassifiedRecoveryInspection.Candidate -> {
+                when (val source = outcome.source) {
+                    is ClassifiedImport.Current -> {
+                        ready(coordination, RuntimeRecoveryState.Candidate(outcome.generation, source.document))
+                    }
+
+                    is ClassifiedImport.Legacy -> {
+                        ready(coordination, RuntimeRecoveryState.LegacyCandidate(outcome.generation, source.candidate))
+                    }
+                }
             }
 
-            is RecoveryInspection.Failed -> {
+            is ClassifiedRecoveryInspection.Failed -> {
                 failed(coordination, outcome.failure)
             }
         }

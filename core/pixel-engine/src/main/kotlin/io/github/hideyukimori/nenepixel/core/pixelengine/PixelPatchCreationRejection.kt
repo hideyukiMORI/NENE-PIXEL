@@ -2,6 +2,7 @@ package io.github.hideyukimori.nenepixel.core.pixelengine
 
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 
 public sealed interface PixelPatchCreationRejection {
     public data object EmptyPatch : PixelPatchCreationRejection
@@ -24,5 +25,11 @@ public sealed interface PixelPatchCreationRejection {
 
     public data class UnchangedPixel internal constructor(
         public val position: PixelPosition,
+    ) : PixelPatchCreationRejection
+
+    public data class IndexAboveStorageMaximum internal constructor(
+        public val position: PixelPosition,
+        public val attemptedIndex: PaletteIndex,
+        public val maximum: Int,
     ) : PixelPatchCreationRejection
 }

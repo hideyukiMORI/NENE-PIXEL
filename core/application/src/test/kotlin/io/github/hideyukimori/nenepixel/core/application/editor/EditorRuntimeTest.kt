@@ -4,23 +4,28 @@ import io.github.hideyukimori.nenepixel.core.application.document.command.ApplyS
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandResult
 import io.github.hideyukimori.nenepixel.core.application.document.command.RedoCommand
 import io.github.hideyukimori.nenepixel.core.application.document.command.RejectionReason
+import io.github.hideyukimori.nenepixel.core.application.document.command.ReplacePaletteCommand
 import io.github.hideyukimori.nenepixel.core.application.document.command.UndoCommand
 import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryAvailability
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.black
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.blackIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.canvas
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.defaultDefinition
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.definition
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.eraserStroke
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.green
-import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.palette
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.greenIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.paletteIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.position
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.red
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.redIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.stroke
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceAction
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportState
-import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportValueResult
-import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportZoom
-import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentId
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteRemap
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelLimits
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -32,26 +37,50 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.fail
 
 internal class EditorRuntimeTest {
-    private val toolPalette = palette(red, green)
+    private val toolDefinition = defaultDefinition
+
+    @Test
+    fun `palette only command advances dirty history autosave and invalidates full canvas`() {
+        val runtime = EditorRuntime.create(canvas(2, 1), toolDefinition, SequentialDocumentIdSource())
+        val target = definition(blackIndex, black, red, black)
+        val remap =
+            PaletteRemap
+                .create(
+                    toolDefinition,
+                    target,
+                    listOf(blackIndex, redIndex, greenIndex),
+                ).value()
+
+        val result =
+            assertInstanceOf(
+                CommandResult.Applied::class.java,
+                runtime.execute(ReplacePaletteCommand.create(runtime.captureSource(), remap)),
+            )
+
+        assertEquals(1L, runtime.state.documentState.revision.value)
+        assertEquals(target, runtime.state.documentState.definition)
+        assertEquals(runtime.state.documentState.size, result.changeSet.renderInvalidation.size)
+        assertEquals(DocumentDirtyState.Dirty, runtime.state.dirtyState)
+        assertEquals(HistoryAvailability.UndoAvailable, runtime.state.historyAvailability)
+        assertNotEquals(null, runtime.autosaveProjection.value.pendingStateToken)
+    }
 
     @Test
     fun `initial runtime uses one canonical blank clean empty-history construction`() {
         val canvas = canvas(2, 3)
         val ids = SequentialDocumentIdSource()
 
-        val state = EditorRuntime.create(canvas, toolPalette, ids).state
+        val state = EditorRuntime.create(canvas, toolDefinition, ids).state
 
         assertEquals(1, ids.callCount)
         assertEquals(ids.first, state.documentState.id)
         assertEquals(canvas, state.documentState.size)
         assertEquals(0L, state.documentState.revision.value)
         assertEquals(
-            List(6) {
-                PixelColor.blank.toPackedRgba8888()
-            },
+            List(6) { 0 },
             state.documentState.snapshot
-                .copyPackedRgba8888()
-                .toList(),
+                .copyPackedIndices()
+                .map { it.toInt() and 0xff },
         )
         assertEquals(HistoryAvailability.None, state.historyAvailability)
         assertEquals(DocumentDirtyState.Clean, state.dirtyState)
@@ -63,16 +92,19 @@ internal class EditorRuntimeTest {
 
     @Test
     fun `applied command is dirty undo to checkpoint is clean and redo is dirty`() {
-        val runtime = EditorRuntime.create(canvas(2, 2), toolPalette, SequentialDocumentIdSource())
+        val runtime = EditorRuntime.create(canvas(2, 2), toolDefinition, SequentialDocumentIdSource())
         val initial = runtime.state
-        val wrongTarget = SequentialDocumentIdSource().second
-        val stroke = stroke(initial.documentState.size, listOf(position(0, 0)), red)
+        val foreignRuntime = EditorRuntime.create(canvas(2, 2), toolDefinition, SequentialDocumentIdSource())
+        val stroke = stroke(initial.documentState.size, listOf(position(0, 0)), redIndex)
 
         val rejected =
             runtime.execute(
-                ApplyStrokeCommand.create(wrongTarget, initial.documentState.revision, stroke),
+                ApplyStrokeCommand.create(foreignRuntime.captureSource(), stroke),
             )
-        assertInstanceOf(CommandResult.Rejected::class.java, rejected)
+        assertEquals(
+            RejectionReason.SourceOwnerMismatch,
+            assertInstanceOf(CommandResult.Rejected::class.java, rejected).reason,
+        )
         assertEquals(DocumentDirtyState.Clean, runtime.state.dirtyState)
 
         applyOnePixel(runtime)
@@ -95,16 +127,16 @@ internal class EditorRuntimeTest {
 
     @Test
     fun `replacement branch stays dirty even when revision equals abandoned state`() {
-        val runtime = EditorRuntime.create(canvas(2, 1), toolPalette, SequentialDocumentIdSource())
-        apply(runtime, position(0, 0), red)
+        val runtime = EditorRuntime.create(canvas(2, 1), toolDefinition, SequentialDocumentIdSource())
+        apply(runtime, position(0, 0), redIndex)
         val first = runtime.state.documentState
-        apply(runtime, position(1, 0), green)
+        apply(runtime, position(1, 0), greenIndex)
         val abandoned = runtime.state.documentState
         assertInstanceOf(
             CommandResult.Applied::class.java,
             runtime.execute(UndoCommand.create(abandoned.id, abandoned.revision)),
         )
-        apply(runtime, position(1, 0), red)
+        apply(runtime, position(1, 0), redIndex)
 
         assertEquals(abandoned.revision, runtime.state.documentState.revision)
         assertNotEquals(abandoned.snapshot, runtime.state.documentState.snapshot)
@@ -127,10 +159,10 @@ internal class EditorRuntimeTest {
 
     @Test
     fun `evicting the clean checkpoint keeps oldest reachable state dirty`() {
-        val runtime = EditorRuntime.create(canvas(1, 1), toolPalette, SequentialDocumentIdSource())
+        val runtime = EditorRuntime.create(canvas(1, 1), toolDefinition, SequentialDocumentIdSource())
 
         repeat(PixelLimits.MAX_HISTORY_ENTRIES + 1) { index ->
-            apply(runtime, position(0, 0), if (index % 2 == 0) red else green)
+            apply(runtime, position(0, 0), if (index % 2 == 0) redIndex else greenIndex)
         }
         repeat(PixelLimits.MAX_HISTORY_ENTRIES) {
             val current = runtime.state.documentState
@@ -147,13 +179,12 @@ internal class EditorRuntimeTest {
 
     @Test
     fun `already blank erase leaves clean runtime and empty history`() {
-        val runtime = EditorRuntime.create(canvas(2, 2), toolPalette, SequentialDocumentIdSource())
+        val runtime = EditorRuntime.create(canvas(2, 2), toolDefinition, SequentialDocumentIdSource())
         val initial = runtime.state
         val result =
             runtime.execute(
                 ApplyStrokeCommand.create(
-                    initial.documentState.id,
-                    initial.documentState.revision,
+                    runtime.captureSource(),
                     eraserStroke(initial.documentState.size, listOf(position(0, 0))),
                 ),
             )
@@ -167,7 +198,7 @@ internal class EditorRuntimeTest {
 
     @Test
     fun `palette selection changes no document history or dirty state`() {
-        val runtime = EditorRuntime.create(canvas(2, 2), toolPalette, SequentialDocumentIdSource())
+        val runtime = EditorRuntime.create(canvas(2, 2), toolDefinition, SequentialDocumentIdSource())
         val before = runtime.state
 
         runtime.reduce(WorkspaceAction.SelectPaletteEntry(paletteIndex(1)))
@@ -180,31 +211,24 @@ internal class EditorRuntimeTest {
     }
 
     private fun applyOnePixel(runtime: EditorRuntime) {
-        apply(runtime, position(0, 0), red)
+        apply(runtime, position(0, 0), redIndex)
     }
 
     private fun apply(
         runtime: EditorRuntime,
         position: io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition,
-        color: PixelColor,
+        index: PaletteIndex,
     ) {
         val target = runtime.state.documentState
         val result =
             runtime.execute(
                 ApplyStrokeCommand.create(
-                    target.id,
-                    target.revision,
-                    stroke(target.size, listOf(position), color),
+                    runtime.captureSource(),
+                    stroke(target.size, listOf(position), index),
                 ),
             )
         assertInstanceOf(CommandResult.Applied::class.java, result)
     }
-
-    private fun created(result: ViewportValueResult<ViewportZoom>): ViewportZoom =
-        when (result) {
-            is ViewportValueResult.Created -> result.value
-            is ViewportValueResult.Rejected -> fail("Viewport test value was rejected: ${result.rejection}")
-        }
 }
 
 private class SequentialDocumentIdSource : DocumentIdSource {
@@ -229,4 +253,10 @@ private fun documentId(character: Char): DocumentId =
     when (val result = DocumentId.create(character.toString().repeat(32))) {
         is DomainValueResult.Created -> result.value
         is DomainValueResult.Rejected -> fail("Document ID fixture was rejected: ${result.rejection}")
+    }
+
+private fun <T> DomainValueResult<T>.value(): T =
+    when (this) {
+        is DomainValueResult.Created -> value
+        is DomainValueResult.Rejected -> fail("Test value was rejected: $rejection")
     }

@@ -8,6 +8,19 @@
   `KOT-002`, `KOT-003`, `KOT-007`, `KOT-008`, `KOT-016` through `KOT-019`,
   `QLT-006` through `QLT-008`
 
+## Indexed cutover refinement (2026-09-13, #106)
+
+[ADR 0024](0024-indexed-project-compatibility.md) replaces the RGBA target payload below with
+`StrokeEffect.Paint(PaletteIndex)` and `Erase(PaletteIndex)`. ToolGesture captures the selected or
+document-default index and gateway-issued CommandSourceAdmission at BeginGesturePreview under the
+same runtime lock. Domain Stroke carries only the effect and path; application retains admission
+through CommitPrepared. ApplyStrokeCommand consumes it without rereading current state in an
+adapter. Actual palette membership is checked before rasterization. A same-RGBA/different-index
+change is effective, while the same index is a no-op. Palette replacement cancels gestures.
+Interpolation, raw-volume bounds and the single pencil/eraser raster/patch route below are unchanged.
+Descriptions of the prior RGBA effect and blank eraser below record the earlier implementation;
+indexed new/erase now uses defaultIndex, including its exact nontransparent color when applicable.
+
 ## Context
 
 The M1 drawing slice records only the pixel positions delivered by pointer events and gives every

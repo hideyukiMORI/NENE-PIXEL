@@ -2,6 +2,7 @@ package io.github.hideyukimori.nenepixel.core.application.persistence
 
 import io.github.hideyukimori.nenepixel.core.application.editor.EditorRuntime
 import io.github.hideyukimori.nenepixel.core.application.editor.NewDocumentRequestResult
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.StateFlow
 
 public class EditorPersistenceWorkflow private constructor(
@@ -14,6 +15,8 @@ public class EditorPersistenceWorkflow private constructor(
 
     public val autosave: StateFlow<AutosaveProjection>
         get() = runtime.autosaveProjection
+
+    public val legacyImport: LegacyImportWorkflow = LegacyImportWorkflow(flows.switch, flows.recovery)
 
     public suspend fun initializeRecovery(): RecoveryInitializationResult = flows.save.initializeRecovery()
 
@@ -41,20 +44,29 @@ public class EditorPersistenceWorkflow private constructor(
     public companion object {
         public fun create(
             runtime: EditorRuntime,
-            projectStorage: ProjectStoragePort,
-            recoveryRecord: RecoveryRecordPort,
-            pngExport: PngExportPort,
+            ports: PersistencePorts,
+            conversionDispatcher: CoroutineDispatcher,
         ): EditorPersistenceWorkflow {
-            val autosave = PersistenceAutosaveFlow(runtime.autosaveOperations, recoveryRecord)
+            val autosave = PersistenceAutosaveFlow(runtime.autosaveOperations, ports.recoveryRecord)
             return EditorPersistenceWorkflow(
                 runtime,
                 PersistenceFlows(
-                    PersistenceSaveFlow(runtime.saveOperations, projectStorage, recoveryRecord, autosave),
-                    PersistenceSwitchFlow(runtime.switchOperations, projectStorage, recoveryRecord, autosave),
+                    PersistenceSaveFlow(
+                        runtime.saveOperations,
+                        ports,
+                        autosave,
+                        conversionDispatcher,
+                    ),
+                    PersistenceSwitchFlow(
+                        runtime.switchOperations,
+                        ports,
+                        autosave,
+                        conversionDispatcher,
+                    ),
                     autosave,
-                    PersistenceRecoveryFlow(runtime.recoveryOperations, recoveryRecord),
+                    PersistenceRecoveryFlow(runtime.recoveryOperations, ports.recoveryRecord),
                 ),
-                PersistencePngExportFlow(runtime.pngExportOperations, pngExport, autosave),
+                PersistencePngExportFlow(runtime.pngExportOperations, ports.pngExport, autosave),
             )
         }
     }

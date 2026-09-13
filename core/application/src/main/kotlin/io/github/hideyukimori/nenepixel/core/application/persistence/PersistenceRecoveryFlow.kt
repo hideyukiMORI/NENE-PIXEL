@@ -15,6 +15,14 @@ internal class PersistenceRecoveryFlow(
         when (val start = operations.beginDecline()) {
             is RecoveryDeclineStart.Started -> retire(start)
             is RecoveryDeclineStart.Result -> start.result
+            is RecoveryDeclineStart.LegacyRequired -> PersistenceRequestResult.LegacyConversionRequired(start.operation)
+        }
+
+    suspend fun declineLegacyRecovery(operation: PersistenceOperationHandle): PersistenceRequestResult =
+        when (val start = operations.beginLegacyDecline(operation)) {
+            is RecoveryDeclineStart.Started -> retire(start)
+            is RecoveryDeclineStart.Result -> start.result
+            is RecoveryDeclineStart.LegacyRequired -> PersistenceRequestResult.LegacyConversionRequired(start.operation)
         }
 
     private suspend fun retire(start: RecoveryDeclineStart.Started): PersistenceRequestResult =

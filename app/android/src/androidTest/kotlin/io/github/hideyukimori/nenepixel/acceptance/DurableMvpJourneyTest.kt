@@ -25,6 +25,7 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.View
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportSurface
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportTransform
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportValueResult
+import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelX
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelY
@@ -69,7 +70,7 @@ internal class DurableMvpJourneyTest {
             val erased = state()
             assertPixels(recovered = false, revision = 3L)
             click("editor_undo")
-            assertEquals(0xff0000ff.toInt(), state().documentState.snapshot.copyPackedRgba8888()[10])
+            assertEquals(0xff0000ff.toInt(), state().documentState.visiblePixels()[10])
             assertEquals(HistoryAvailability.UndoAndRedoAvailable, state().historyAvailability)
             click("editor_redo")
             assertEquals(erased.documentState, state().documentState)
@@ -201,8 +202,10 @@ internal class DurableMvpJourneyTest {
         assertEquals(8, document.size.width.value)
         assertEquals(6, document.size.height.value)
         assertEquals(revision, document.revision.value)
-        assertArrayEquals(fixture.expectedPixels(recovered), document.snapshot.copyPackedRgba8888())
+        assertArrayEquals(fixture.expectedPixels(recovered), document.visiblePixels())
     }
+
+    private fun DocumentState.visiblePixels(): IntArray = documentSnapshotPixels(this)
 
     private fun touchPixel(
         x: Int,
@@ -281,8 +284,19 @@ internal class DurableMvpJourneyTest {
         }
     }
 
+    private fun documentSnapshotPixels(document: DocumentState): IntArray =
+        document.snapshot
+            .copyPackedIndices()
+            .map { packed ->
+                document.definition.palette
+                    .entries()[packed.toInt() and UBYTE_MASK]
+                    .color
+                    .toPackedRgba8888()
+            }.toIntArray()
+
     private companion object {
         const val TIMEOUT = 60_000L
         const val CANVAS = "editor_canvas_8_6"
+        const val UBYTE_MASK = 0xff
     }
 }

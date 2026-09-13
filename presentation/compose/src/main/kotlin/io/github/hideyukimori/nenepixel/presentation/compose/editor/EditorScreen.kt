@@ -77,6 +77,7 @@ internal fun EditorScreen(
                 }
             }
             PersistenceConfirmation(persistenceOperation, persistenceCallbacks)
+            LegacyConversionDialog(persistenceOperation, renderState.value.definition, persistenceCallbacks)
         }
     }
 }

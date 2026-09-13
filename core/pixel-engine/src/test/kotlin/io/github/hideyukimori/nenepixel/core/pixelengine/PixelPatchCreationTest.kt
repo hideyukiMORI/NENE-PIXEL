@@ -4,6 +4,7 @@ import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelLimits
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.black
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.canvas
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.green
+import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.index
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.position
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.red
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.region
@@ -15,6 +16,23 @@ import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Test
 
 internal class PixelPatchCreationTest {
+    @Test
+    fun `patch rejects an index above packed U8 storage`() {
+        val rejection =
+            creationRejected(
+                PixelPatch.create(
+                    canvas(1, 1),
+                    revision(0),
+                    listOf(PixelChange.create(position(0, 0), black, index(256))),
+                ),
+            )
+
+        assertEquals(
+            PixelPatchCreationRejection.IndexAboveStorageMaximum(position(0, 0), index(256), 255),
+            rejection,
+        )
+    }
+
     @Test
     fun `changes are defensively owned and canonicalized in row major order`() {
         val canvas = canvas(3, 2)

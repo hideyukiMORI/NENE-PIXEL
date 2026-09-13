@@ -1,15 +1,18 @@
 package io.github.hideyukimori.nenepixel.adapters.persistence
 
 import android.content.ContentResolver
+import io.github.hideyukimori.nenepixel.core.application.persistence.LegacySourceCopyOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.PartialOutputCleanup
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectLoadOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectSaveOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectStorageFailure
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectStoragePort
+import io.github.hideyukimori.nenepixel.core.domain.document.DocumentImportSource
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
+import io.github.hideyukimori.nenepixel.core.domain.document.LegacyRgbaSource
 import io.github.hideyukimori.nenepixel.core.projectformat.ProjectFormatBytes
+import io.github.hideyukimori.nenepixel.core.projectformat.ProjectFormatCodec
 import io.github.hideyukimori.nenepixel.core.projectformat.ProjectFormatResult
-import io.github.hideyukimori.nenepixel.core.projectformat.ProjectFormatV1Codec
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 
@@ -46,6 +49,33 @@ public class AndroidProjectStorageAdapter private constructor(
             is FreshOutputResult.Failed -> ProjectSaveOutcome.Failed(result.failure, result.cleanup)
         }
 
+    override suspend fun copyLegacySource(source: LegacyRgbaSource): LegacySourceCopyOutcome =
+        when (val prepared = withContext(ioDispatcher) { encodeAndValidateLegacySource(source) }) {
+            is ProjectPreparation.Prepared -> {
+                copyPrepared(prepared.bytes)
+            }
+
+            ProjectPreparation.Invalid -> {
+                LegacySourceCopyOutcome.Failed(
+                    ProjectStorageFailure.InvalidProject,
+                    PartialOutputCleanup.NOT_NEEDED,
+                )
+            }
+        }
+
+    private suspend fun copyPrepared(bytes: ByteArray): LegacySourceCopyOutcome =
+        when (
+            val result =
+                output.write(
+                    DocumentCreationRequest(DEFAULT_PROJECT_NAME, DocumentOutputFormat.PROJECT),
+                    bytes,
+                )
+        ) {
+            FreshOutputResult.Written -> LegacySourceCopyOutcome.Copied
+            FreshOutputResult.Cancelled -> LegacySourceCopyOutcome.Cancelled
+            is FreshOutputResult.Failed -> LegacySourceCopyOutcome.Failed(result.failure, result.cleanup)
+        }
+
     override suspend fun load(): ProjectLoadOutcome =
         when (val result = picker.openDocument()) {
             is InternalPickerResult.Selected -> loadSelected(result.location)
@@ -64,7 +94,7 @@ public class AndroidProjectStorageAdapter private constructor(
     private fun decodeLoaded(bytes: ByteArray): ProjectLoadOutcome =
         when (val carrier = ProjectFormatBytes.create(bytes)) {
             is ProjectFormatResult.Accepted -> {
-                when (val decoded = ProjectFormatV1Codec.decode(carrier.value)) {
+                when (val decoded = ProjectFormatCodec.decode(carrier.value)) {
                     is ProjectFormatResult.Accepted -> {
                         ProjectLoadOutcome.Loaded(decoded.value)
                     }
@@ -81,10 +111,27 @@ public class AndroidProjectStorageAdapter private constructor(
         }
 
     private fun encodeAndValidate(document: DocumentState): ProjectPreparation {
-        val encoded = ProjectFormatV1Codec.encode(document)
-        return when (val decoded = ProjectFormatV1Codec.decode(encoded)) {
+        val encoded = ProjectFormatCodec.encode(document)
+        return when (val decoded = ProjectFormatCodec.decode(encoded)) {
             is ProjectFormatResult.Accepted -> {
-                if (decoded.value == document) {
+                if (decoded.value == DocumentImportSource.Current(document)) {
+                    ProjectPreparation.Prepared(encoded.copyBytes())
+                } else {
+                    ProjectPreparation.Invalid
+                }
+            }
+
+            is ProjectFormatResult.Rejected -> {
+                ProjectPreparation.Invalid
+            }
+        }
+    }
+
+    private fun encodeAndValidateLegacySource(source: LegacyRgbaSource): ProjectPreparation {
+        val encoded = ProjectFormatCodec.encodeLegacySource(source)
+        return when (val decoded = ProjectFormatCodec.decode(encoded)) {
+            is ProjectFormatResult.Accepted -> {
+                if (decoded.value == DocumentImportSource.Legacy(source)) {
                     ProjectPreparation.Prepared(encoded.copyBytes())
                 } else {
                     ProjectPreparation.Invalid

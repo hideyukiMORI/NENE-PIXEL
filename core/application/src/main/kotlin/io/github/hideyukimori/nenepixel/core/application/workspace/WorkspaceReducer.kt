@@ -1,33 +1,65 @@
 package io.github.hideyukimori.nenepixel.core.application.workspace
 
+import io.github.hideyukimori.nenepixel.core.application.document.command.CommandSourceAdmission
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
 import io.github.hideyukimori.nenepixel.core.domain.drawing.StrokeEffect
 import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
-import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteEntry
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelLimits
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 
-public class WorkspaceReducer private constructor(
-    private val palette: Palette,
-) {
+public class WorkspaceReducer private constructor() {
     public fun reduce(
         state: WorkspaceState,
         action: WorkspaceAction,
+        source: CommandSourceAdmission,
     ): WorkspaceReductionResult =
         when (action) {
-            is WorkspaceAction.SetAppearance -> setAppearance(state, action.appearance)
-            is WorkspaceAction.SelectPaletteEntry -> selectPaletteEntry(state, action)
-            is WorkspaceAction.SelectTool -> selectTool(state, action)
-            is WorkspaceAction.BeginGesturePreview -> beginGesturePreview(state, action)
-            is WorkspaceAction.ExtendGesturePreview -> extendGesturePreview(state, action)
-            WorkspaceAction.CancelGesturePreview -> cancelGesturePreview(state)
-            WorkspaceAction.PrepareGestureCommit -> prepareGestureCommit(state)
-            is WorkspaceAction.SetViewport -> setViewport(state, action)
+            is WorkspaceAction.SetAppearance -> {
+                setAppearance(state, action.appearance)
+            }
+
+            is WorkspaceAction.SelectPaletteEntry -> {
+                selectPaletteEntry(
+                    state,
+                    action,
+                    source.document.definition.palette,
+                )
+            }
+
+            is WorkspaceAction.SelectTool -> {
+                selectTool(state, action)
+            }
+
+            is WorkspaceAction.BeginGesturePreview -> {
+                beginGesturePreview(state, action, source)
+            }
+
+            is WorkspaceAction.ExtendGesturePreview -> {
+                extendGesturePreview(state, action)
+            }
+
+            WorkspaceAction.CancelGesturePreview -> {
+                cancelGesturePreview(state)
+            }
+
+            WorkspaceAction.PrepareGestureCommit -> {
+                prepareGestureCommit(state)
+            }
+
+            is WorkspaceAction.SetViewport -> {
+                setViewport(state, action)
+            }
+
+            is ReconcileDocumentPalette -> {
+                reconcileDocumentPalette(state, action, source.document.definition.palette)
+            }
         }
 
     private fun selectPaletteEntry(
         state: WorkspaceState,
         action: WorkspaceAction.SelectPaletteEntry,
+        palette: Palette,
     ): WorkspaceReductionResult =
         when (palette.entryAt(action.index)) {
             is DomainValueResult.Rejected -> {
@@ -49,10 +81,15 @@ public class WorkspaceReducer private constructor(
     private fun beginGesturePreview(
         state: WorkspaceState,
         action: WorkspaceAction.BeginGesturePreview,
+        source: CommandSourceAdmission,
     ): WorkspaceReductionResult =
         when {
             state.preview != null -> {
                 rejected(state, WorkspaceActionRejection.PreviewAlreadyActive)
+            }
+
+            action.canvas != source.document.size -> {
+                rejected(state, WorkspaceActionRejection.PreviewCanvasMismatch(source.document.size, action.canvas))
             }
 
             !action.canvas.contains(action.position) -> {
@@ -60,7 +97,13 @@ public class WorkspaceReducer private constructor(
             }
 
             else -> {
-                val preview = ToolGesture.begin(action.canvas, action.position, state.strokeEffect(palette))
+                val preview =
+                    ToolGesture.begin(
+                        action.canvas,
+                        action.position,
+                        state.strokeEffect(source.document.definition),
+                        source,
+                    )
                 WorkspaceReductionResult.Reduced(state.withPreview(preview))
             }
         }
@@ -120,6 +163,7 @@ public class WorkspaceReducer private constructor(
             WorkspaceReductionResult.CommitPrepared(
                 nextState = state.withoutPreview(),
                 stroke = state.preview.prepareStroke(),
+                admission = state.preview.admission,
             )
         }
 
@@ -154,7 +198,7 @@ public class WorkspaceReducer private constructor(
     ): WorkspaceReductionResult = WorkspaceReductionResult.Rejected(state, rejection)
 
     public companion object {
-        public fun create(palette: Palette): WorkspaceReducer = WorkspaceReducer(palette)
+        public fun create(): WorkspaceReducer = WorkspaceReducer()
     }
 }
 
@@ -168,16 +212,27 @@ private fun selectTool(
         WorkspaceReductionResult.Reduced(state.withActiveTool(action.tool))
     }
 
-private fun WorkspaceState.strokeEffect(palette: Palette): StrokeEffect =
+private fun WorkspaceState.strokeEffect(definition: PaletteDefinition): StrokeEffect =
     when (activeTool) {
-        DrawingTool.Pencil -> StrokeEffect.Paint(palette.selectedEntry(this).color)
-        DrawingTool.Eraser -> StrokeEffect.Erase
+        DrawingTool.Pencil -> StrokeEffect.Paint(activePaletteIndex)
+        DrawingTool.Eraser -> StrokeEffect.Erase(definition.defaultIndex)
     }
 
-private fun Palette.selectedEntry(state: WorkspaceState): PaletteEntry =
-    when (val result = entryAt(state.activePaletteIndex)) {
-        is DomainValueResult.Created -> result.value
-        is DomainValueResult.Rejected -> error("Workspace palette selection is invalid: ${result.rejection}")
+private fun reconcileDocumentPalette(
+    state: WorkspaceState,
+    action: ReconcileDocumentPalette,
+    palette: Palette,
+): WorkspaceReductionResult =
+    when (val entry = palette.entryAt(action.index)) {
+        is DomainValueResult.Created -> {
+            WorkspaceReductionResult.Reduced(
+                state.withActivePaletteIndex(action.index).withoutPreview(),
+            )
+        }
+
+        is DomainValueResult.Rejected -> {
+            error("Document transition produced an invalid selection: ${entry.rejection}")
+        }
     }
 
 private fun setAppearance(

@@ -1,10 +1,12 @@
 package io.github.hideyukimori.nenepixel.core.application.editor
 
 import io.github.hideyukimori.nenepixel.core.application.persistence.ExpectedRecoveryLineage
+import io.github.hideyukimori.nenepixel.core.application.persistence.LegacySourcePreview
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryGeneration
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryStatus
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryUnavailableReason
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
+import io.github.hideyukimori.nenepixel.core.pixelengine.importing.LegacyImportResult
 
 internal sealed interface RuntimeRecoveryState {
     data object Initializing : RuntimeRecoveryState
@@ -16,6 +18,11 @@ internal sealed interface RuntimeRecoveryState {
     data class Candidate(
         val generation: RecoveryGeneration,
         val document: DocumentState,
+    ) : RuntimeRecoveryState
+
+    data class LegacyCandidate(
+        val generation: RecoveryGeneration,
+        val candidate: LegacyImportResult.ConversionRequired,
     ) : RuntimeRecoveryState
 
     data class Unknown(
@@ -43,16 +50,35 @@ internal sealed interface ExpectedLineageResult {
 
 internal fun RuntimeRecoveryState.toProjection(): RecoveryStatus =
     when (this) {
-        RuntimeRecoveryState.Initializing -> RecoveryStatus.Initializing
-        is RuntimeRecoveryState.Clear -> RecoveryStatus.Clear
-        is RuntimeRecoveryState.Candidate -> RecoveryStatus.UnadoptedCandidate
-        is RuntimeRecoveryState.Unknown -> RecoveryStatus.Unknown(reason)
+        RuntimeRecoveryState.Initializing -> {
+            RecoveryStatus.Initializing
+        }
+
+        is RuntimeRecoveryState.Clear -> {
+            RecoveryStatus.Clear
+        }
+
+        is RuntimeRecoveryState.Candidate -> {
+            RecoveryStatus.UnadoptedCandidate
+        }
+
+        is RuntimeRecoveryState.LegacyCandidate -> {
+            RecoveryStatus.UnadoptedLegacyCandidate(
+                LegacySourcePreview(candidate.source),
+                candidate.distinctColorCount,
+            )
+        }
+
+        is RuntimeRecoveryState.Unknown -> {
+            RecoveryStatus.Unknown(reason)
+        }
     }
 
 internal fun RuntimeRecoveryState.toSaveCapture(): SaveRecoveryCapture =
     when (this) {
         is RuntimeRecoveryState.Clear -> SaveRecoveryCapture.Clear(expected)
         is RuntimeRecoveryState.Candidate -> SaveRecoveryCapture.UnadoptedCandidate
+        is RuntimeRecoveryState.LegacyCandidate -> SaveRecoveryCapture.UnadoptedCandidate
         is RuntimeRecoveryState.Unknown -> SaveRecoveryCapture.Unavailable
         RuntimeRecoveryState.Initializing -> SaveRecoveryCapture.Unavailable
     }
@@ -69,13 +95,24 @@ internal fun RuntimeRecoveryState.expectedLineage(): ExpectedLineageResult =
             )
         }
 
+        is RuntimeRecoveryState.LegacyCandidate -> {
+            ExpectedLineageResult.Unavailable
+        }
+
         RuntimeRecoveryState.Initializing, is RuntimeRecoveryState.Unknown -> {
             ExpectedLineageResult.Unavailable
         }
     }
 
 internal fun RuntimeRecoveryState.isReady(): Boolean =
-    this is RuntimeRecoveryState.Clear || this is RuntimeRecoveryState.Candidate
+    this is RuntimeRecoveryState.Clear ||
+        this is RuntimeRecoveryState.Candidate ||
+        this is RuntimeRecoveryState.LegacyCandidate
 
 internal fun RuntimeRecoveryState.blocksSwitch(): Boolean =
-    this is RuntimeRecoveryState.Initializing || this is RuntimeRecoveryState.Unknown
+    this is RuntimeRecoveryState.Initializing ||
+        this is RuntimeRecoveryState.LegacyCandidate ||
+        this is RuntimeRecoveryState.Unknown
+
+internal fun RuntimeRecoveryState.hasUnadoptedCandidate(): Boolean =
+    this is RuntimeRecoveryState.Candidate || this is RuntimeRecoveryState.LegacyCandidate

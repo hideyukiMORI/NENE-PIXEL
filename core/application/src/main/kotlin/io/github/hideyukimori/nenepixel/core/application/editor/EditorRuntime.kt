@@ -2,10 +2,12 @@ package io.github.hideyukimori.nenepixel.core.application.editor
 
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandFailure
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandResult
+import io.github.hideyukimori.nenepixel.core.application.document.command.CommandSourceAdmission
 import io.github.hideyukimori.nenepixel.core.application.document.command.DocumentCommand
 import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryPosition
 import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveProjection
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationProjection
+import io.github.hideyukimori.nenepixel.core.application.workspace.ReconcileDocumentPalette
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceAction
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceActionRejection
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReducer
@@ -13,14 +15,13 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceRedu
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentId
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
-import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 public class EditorRuntime private constructor(
     private val documentIdSource: DocumentIdSource,
-    public val palette: Palette,
     private val workspaceReducer: WorkspaceReducer,
     initialOwners: RuntimeOwners,
 ) {
@@ -46,6 +47,9 @@ public class EditorRuntime private constructor(
         mutablePersistenceOperation.asStateFlow()
 
     internal val autosaveProjection: StateFlow<AutosaveProjection> = mutableAutosave.asStateFlow()
+
+    public fun captureSource(): CommandSourceAdmission =
+        synchronized(runtimeLock) { owners.commandGateway.captureSource() }
 
     public fun execute(command: DocumentCommand): CommandResult =
         synchronized(runtimeLock) {
@@ -83,6 +87,7 @@ public class EditorRuntime private constructor(
     private fun executeLocked(command: DocumentCommand): CommandResult {
         val result = owners.commandGateway.execute(command)
         if (result is CommandResult.Applied) {
+            reconcileSelectionLocked(command, result)
             val commandState = owners.commandGateway.runtimeState
             coordination =
                 AutosaveTransitions.recordCapture(
@@ -95,13 +100,29 @@ public class EditorRuntime private constructor(
         return result
     }
 
+    private fun reconcileSelectionLocked(
+        command: DocumentCommand,
+        result: CommandResult.Applied,
+    ) {
+        val nextIndex =
+            PaletteSelectionPolicy.afterApplied(
+                owners.workspaceState.activePaletteIndex,
+                owners.commandGateway.runtimeState.documentState.definition,
+                command,
+                result.changeSet.paletteTransition,
+            )
+        if (nextIndex != null) {
+            reduceWorkspaceLocked(ReconcileDocumentPalette(nextIndex))
+        }
+    }
+
     private fun publishProjectionsLocked() {
         mutablePersistenceOperation.value = PersistenceProjectionMapper.project(coordination)
         mutableAutosave.value = PersistenceProjectionMapper.projectAutosave(coordination)
     }
 
     private fun reduceWorkspaceLocked(action: WorkspaceAction): WorkspaceReductionResult {
-        val result = workspaceReducer.reduce(owners.workspaceState, action)
+        val result = workspaceReducer.reduce(owners.workspaceState, action, owners.commandGateway.captureSource())
         owners = owners.copy(workspaceState = result.nextState)
         return result
     }
@@ -124,6 +145,7 @@ public class EditorRuntime private constructor(
                     workspaceReducer.reduce(
                         effect.owners.workspaceState,
                         WorkspaceAction.SetAppearance(appearance),
+                        effect.owners.commandGateway.captureSource(),
                     )
                 owners = effect.owners.copy(workspaceState = workspace.nextState)
             }
@@ -146,26 +168,28 @@ public class EditorRuntime private constructor(
 
         fun documentId(): DocumentId = owners.documentId()
 
-        fun switchContext(): SwitchContext =
-            SwitchContext(
+        fun switchContext(): SwitchContext {
+            val definition = documentState().definition
+            return SwitchContext(
                 source = owners.sourceToken(coordination.runtimeGeneration),
                 dirty = owners.isDirty(),
-                newDocumentOwners = { request -> RuntimeOwners.create(request.canvas, documentIdSource) },
+                newDocumentOwners = { request -> RuntimeOwners.create(request.canvas, definition, documentIdSource) },
                 loadedOwners = { document -> RuntimeOwners.create(document) },
+                derivedOwners = { preview -> RuntimeOwners.createDerived(preview, documentIdSource) },
             )
+        }
     }
 
     public companion object {
         public fun create(
             initialCanvas: CanvasSize,
-            palette: Palette,
+            definition: PaletteDefinition,
             documentIdSource: DocumentIdSource,
         ): EditorRuntime =
             EditorRuntime(
                 documentIdSource,
-                palette,
-                WorkspaceReducer.create(palette),
-                RuntimeOwners.create(initialCanvas, documentIdSource),
+                WorkspaceReducer.create(),
+                RuntimeOwners.create(initialCanvas, definition, documentIdSource),
             )
     }
 }

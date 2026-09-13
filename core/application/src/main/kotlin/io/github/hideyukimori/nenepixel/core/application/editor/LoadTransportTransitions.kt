@@ -1,12 +1,15 @@
 package io.github.hideyukimori.nenepixel.core.application.editor
 
+import io.github.hideyukimori.nenepixel.core.application.persistence.ClassifiedImport
+import io.github.hideyukimori.nenepixel.core.application.persistence.ClassifiedProjectLoadOutcome
+import io.github.hideyukimori.nenepixel.core.application.persistence.LegacyCopyAttemptOutcome
+import io.github.hideyukimori.nenepixel.core.application.persistence.LegacySourcePreview
 import io.github.hideyukimori.nenepixel.core.application.persistence.PartialOutputCleanup
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceConfirmationRequest
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceFailure
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceLastOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationHandle
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceRequestResult
-import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectLoadOutcome
 
 internal sealed interface LoadTransportCompletion {
     data class Ready(
@@ -28,7 +31,7 @@ internal object LoadTransportTransitions {
     fun complete(
         coordination: PersistenceCoordination,
         handle: PersistenceOperationHandle,
-        outcome: ProjectLoadOutcome,
+        outcome: ClassifiedProjectLoadOutcome,
         context: SwitchContext,
     ): PersistenceTransition<LoadTransportCompletion> {
         val operation = coordination.activeOperation
@@ -54,23 +57,65 @@ internal object LoadTransportTransitions {
     private fun applyOutcome(
         coordination: PersistenceCoordination,
         operation: ActivePersistenceOperation.Switch.Loading,
-        outcome: ProjectLoadOutcome,
+        outcome: ClassifiedProjectLoadOutcome,
         context: SwitchContext,
     ): PersistenceTransition<LoadTransportCompletion> =
         when (outcome) {
-            is ProjectLoadOutcome.Loaded -> {
-                prepare(coordination, operation, context.loadedOwners(outcome.document), context)
+            is ClassifiedProjectLoadOutcome.Loaded -> {
+                when (val source = outcome.source) {
+                    is ClassifiedImport.Current -> {
+                        prepare(
+                            coordination,
+                            operation,
+                            context.loadedOwners(source.document),
+                            context,
+                        )
+                    }
+
+                    is ClassifiedImport.Legacy -> {
+                        legacyRequired(coordination, operation, source)
+                    }
+                }
             }
 
-            ProjectLoadOutcome.Cancelled -> {
+            ClassifiedProjectLoadOutcome.Cancelled -> {
                 cancelled(coordination)
             }
 
-            is ProjectLoadOutcome.Failed -> {
+            is ClassifiedProjectLoadOutcome.Failed -> {
                 val failure = PersistenceFailure.Storage(outcome.failure, PartialOutputCleanup.NOT_NEEDED)
                 completed(coordination, PersistenceLastOutcome.Failed(failure))
             }
         }
+
+    private fun legacyRequired(
+        coordination: PersistenceCoordination,
+        operation: ActivePersistenceOperation.Switch.Loading,
+        source: ClassifiedImport.Legacy,
+    ): PersistenceTransition<LoadTransportCompletion> {
+        val legacy =
+            ActivePersistenceOperation.Switch.LegacyImport(
+                identity =
+                    LegacyImportOperationIdentity(
+                        operation.handle,
+                        operation.consentedSource,
+                        LegacyImportSourceIdentity(),
+                        LegacyImportSourceOrigin.UserFile,
+                    ),
+                importSource = LegacyImportCandidate(source.candidate, LegacySourcePreview(source.candidate.source)),
+                preservation =
+                    LegacyImportPreservation(
+                        LegacyImportPurpose.Convert,
+                        false,
+                        LegacyCopyAttemptOutcome.NotAttempted,
+                    ),
+                destinationState = LegacyImportDestination(null, 0L, LegacyImportPhase.Required(null)),
+            )
+        return PersistenceTransition(
+            coordination.withActive(legacy),
+            LoadTransportCompletion.Result(PersistenceRequestResult.LegacyConversionRequired(operation.handle)),
+        )
+    }
 
     private fun prepare(
         coordination: PersistenceCoordination,
@@ -83,8 +128,7 @@ internal object LoadTransportTransitions {
                 ActivePersistenceOperation.Switch.Ready(
                     operation.handle,
                     context.source,
-                    candidate,
-                    SwitchKind.Loaded,
+                    PreparedSwitch(candidate, SwitchKind.Loaded, null),
                 )
             PersistenceTransition(coordination.withActive(ready), LoadTransportCompletion.Ready(operation.handle))
         } else {
@@ -104,7 +148,7 @@ internal object LoadTransportTransitions {
                     ActivePersistenceOperation.Switch.Confirming(
                         operation.handle,
                         context.source,
-                        PendingSwitch.Prepared(candidate, SwitchKind.Loaded),
+                        PendingSwitch.Prepared(candidate, SwitchKind.Loaded, null),
                         creation.request,
                     )
                 PersistenceTransition(

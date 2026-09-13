@@ -17,12 +17,18 @@ internal class FixedProjectPicker(
 }
 
 internal class MemoryProjectContent(
+    initialBytes: ByteArray? = null,
     private val knownByteCount: Long? = null,
     private val inputFactory: (() -> InputStream)? = null,
     private val outputFactory: (() -> OutputStream)? = null,
     private val readBackMutation: (ByteArray) -> Unit = {},
 ) : ProjectContentAccess {
     private val stored = ByteArrayOutputStream()
+
+    init {
+        initialBytes?.let(stored::write)
+    }
+
     var deleteResult: Int = 1
     var openInputCalls: Int = 0
         private set
@@ -34,6 +40,8 @@ internal class MemoryProjectContent(
         private set
     var outputClosed: Boolean = false
         private set
+
+    fun storedBytes(): ByteArray = stored.toByteArray()
 
     override fun knownByteCount(location: ProjectLocation): Long? = knownByteCount
 

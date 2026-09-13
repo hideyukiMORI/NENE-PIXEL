@@ -25,7 +25,7 @@ internal class RedoCommandHandler {
             }
 
             else -> {
-                DocumentTransition.create(currentState, historyEntry.changeSet.patch)
+                DocumentTransition.create(currentState, historyEntry.changeSet)
             }
         }
 

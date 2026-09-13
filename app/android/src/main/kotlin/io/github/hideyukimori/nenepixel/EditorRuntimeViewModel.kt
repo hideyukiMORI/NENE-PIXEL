@@ -16,9 +16,12 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.EditorPersi
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceCancellationResult
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationHandle
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationProjection
-import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceRequestResult
+import io.github.hideyukimori.nenepixel.core.application.persistence.PersistencePorts
 import io.github.hideyukimori.nenepixel.presentation.compose.editor.EditorController
 import io.github.hideyukimori.nenepixel.presentation.compose.editor.EditorPersistenceCallbacks
+import io.github.hideyukimori.nenepixel.presentation.compose.editor.LegacyConversionCallbacks
+import io.github.hideyukimori.nenepixel.presentation.compose.editor.PersistenceDecisionCallbacks
+import io.github.hideyukimori.nenepixel.presentation.compose.editor.ProjectFileCallbacks
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -38,16 +41,30 @@ internal class EditorRuntimeViewModel private constructor(
     val autosaveStates: StateFlow<AutosaveProjection> = persistence.autosave
     val persistenceCallbacks: EditorPersistenceCallbacks =
         EditorPersistenceCallbacks.create(
-            saveAs = { launchOperation(persistence::saveAs) },
-            exportPng = { launchOperation(persistence::exportPng) },
-            load = { launchOperation(persistence::load) },
-            createNewDocument = { request ->
-                launchOperation { persistence.createNewDocument(request) }
-            },
-            confirm = { request -> launchOperation { persistence.confirm(request) } },
-            cancel = ::cancel,
-            acceptRecovery = ::acceptRecovery,
-            declineRecovery = { launchOperation(persistence::declineRecovery) },
+            ProjectFileCallbacks(
+                exportPng = { launchOperation(persistence::exportPng) },
+                saveAs = { launchOperation(persistence::saveAs) },
+                load = { launchOperation(persistence::load) },
+                createNewDocument = { request -> launchOperation { persistence.createNewDocument(request) } },
+            ),
+            PersistenceDecisionCallbacks(
+                confirm = { request -> launchOperation { persistence.confirm(request) } },
+                cancel = ::cancel,
+                acceptRecovery = { launchOperation(persistence::acceptRecovery) },
+                declineRecovery = { launchOperation(persistence::declineRecovery) },
+            ),
+            LegacyConversionCallbacks(
+                copyOriginal = { handle -> launchOperation { persistence.legacyImport.copySource(handle) } },
+                preview = {
+                    handle,
+                    definition,
+                    ->
+                    launchOperation { persistence.legacyImport.previewSource(handle, definition) }
+                },
+                accept = { handle -> launchOperation { persistence.legacyImport.acceptReduction(handle) } },
+                declineRecovery = { handle -> launchOperation { persistence.legacyImport.declineRecovery(handle) } },
+            ),
+            createLegacyPalettePresets(),
         )
 
     init {
@@ -69,7 +86,7 @@ internal class EditorRuntimeViewModel private constructor(
         autosave.flush()
     }
 
-    private fun launchOperation(block: suspend () -> PersistenceRequestResult) {
+    private fun <T> launchOperation(block: suspend () -> T) {
         operationWorker.launch {
             try {
                 block()
@@ -77,15 +94,6 @@ internal class EditorRuntimeViewModel private constructor(
                 controller.synchronizeWithRuntime()
             }
         }
-    }
-
-    /**
-     * Recovery adoption is decided synchronously inside the runtime. A dirty document answers with a
-     * confirmation request that the existing dialog already renders from the operation projection.
-     */
-    private fun acceptRecovery() {
-        persistence.acceptRecovery()
-        controller.synchronizeWithRuntime()
     }
 
     private fun cancel(handle: PersistenceOperationHandle) {
@@ -124,9 +132,12 @@ internal class EditorRuntimeViewModel private constructor(
             val persistence =
                 EditorPersistenceWorkflow.create(
                     runtime,
-                    projectStorage,
-                    recoveryRecord,
-                    AndroidPngExportAdapter.create(application.contentResolver, pickerBroker, ioDispatcher),
+                    PersistencePorts(
+                        projectStorage,
+                        recoveryRecord,
+                        AndroidPngExportAdapter.create(application.contentResolver, pickerBroker, ioDispatcher),
+                    ),
+                    Dispatchers.Default,
                 )
             return EditorRuntimeViewModel(runtime, controller, pickerBroker, persistence)
         }

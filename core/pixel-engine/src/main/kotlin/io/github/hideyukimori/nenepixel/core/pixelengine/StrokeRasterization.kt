@@ -1,27 +1,39 @@
 package io.github.hideyukimori.nenepixel.core.pixelengine
 
-import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.drawing.Stroke
-import io.github.hideyukimori.nenepixel.core.domain.drawing.StrokeEffect
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 
 public fun rasterizeStroke(
     snapshot: PixelSnapshot,
     stroke: Stroke,
 ): StrokeRasterizationResult =
-    if (stroke.canvas != snapshot.size) {
-        rejected(StrokeRasterizationRejection.CanvasMismatch(stroke.canvas, snapshot.size))
-    } else {
-        rasterizeMatchingCanvas(snapshot, stroke)
+    when {
+        stroke.canvas != snapshot.size -> {
+            rejected(StrokeRasterizationRejection.CanvasMismatch(stroke.canvas, snapshot.size))
+        }
+
+        stroke.effect.targetIndex.value > U8_MASK -> {
+            rejected(
+                StrokeRasterizationRejection.TargetIndexAboveStorageMaximum(
+                    stroke.effect.targetIndex,
+                    U8_MASK,
+                ),
+            )
+        }
+
+        else -> {
+            rasterizeMatchingCanvas(snapshot, stroke)
+        }
     }
 
 private fun rasterizeMatchingCanvas(
     snapshot: PixelSnapshot,
     stroke: Stroke,
 ): StrokeRasterizationResult {
-    val target = stroke.effect.targetColor().toPackedRgba8888()
+    val targetValue = stroke.effect.targetIndex.value
+    val target = targetValue.toByte()
     val canvasPixels = snapshot.size.pixelCount.toInt()
-    val sourcePixels = snapshot.copyPackedRgba8888()
+    val sourcePixels = snapshot.copyPackedIndices()
     val collection =
         EffectivePositionCollector(
             canvasPixels = canvasPixels,
@@ -31,24 +43,18 @@ private fun rasterizeMatchingCanvas(
     return if (positions.isEmpty()) {
         StrokeRasterizationResult.NoChanges
     } else {
-        val before = IntArray(positions.size) { index -> sourcePixels[positions[index]] }
+        val before = ByteArray(positions.size) { index -> sourcePixels[positions[index]] }
         PixelPatch
-            .createFromValidatedPackedRgba8888(
+            .createFromValidatedPackedIndices(
                 snapshot.size,
                 snapshot.revision,
                 positions,
                 before,
-                IntArray(positions.size) { target },
+                ByteArray(positions.size) { target },
                 positionsAreContiguous = collection.positionsAreContiguous,
             ).toRasterizationResult()
     }
 }
-
-private fun StrokeEffect.targetColor(): PixelColor =
-    when (this) {
-        is StrokeEffect.Paint -> color
-        StrokeEffect.Erase -> PixelColor.blank
-    }
 
 private class EffectivePositionCollector(
     canvasPixels: Int,
@@ -63,8 +69,8 @@ private class EffectivePositionCollector(
 
     fun collect(
         stroke: Stroke,
-        sourcePixels: IntArray,
-        target: Int,
+        sourcePixels: ByteArray,
+        target: Byte,
     ): EffectivePositionCollection {
         repeat(stroke.positionCount) { pathIndex ->
             accept(stroke.rowMajorIndexAt(pathIndex), sourcePixels, target)
@@ -79,8 +85,8 @@ private class EffectivePositionCollector(
 
     private fun accept(
         index: Int,
-        sourcePixels: IntArray,
-        target: Int,
+        sourcePixels: ByteArray,
+        target: Byte,
     ) {
         if (seen[index]) return
         seen[index] = true
@@ -129,6 +135,10 @@ private fun PixelPatchCreationRejection.toRasterizationResult(): StrokeRasteriza
         is PixelPatchCreationRejection.UnchangedPixel -> {
             unexpectedPatchRejection(this)
         }
+
+        is PixelPatchCreationRejection.IndexAboveStorageMaximum -> {
+            unexpectedPatchRejection(this)
+        }
     }
 
 private fun unexpectedPatchRejection(rejection: PixelPatchCreationRejection): Nothing =
@@ -136,3 +146,5 @@ private fun unexpectedPatchRejection(rejection: PixelPatchCreationRejection): No
 
 private fun rejected(rejection: StrokeRasterizationRejection): StrokeRasterizationResult =
     StrokeRasterizationResult.Rejected(rejection)
+
+private const val U8_MASK: Int = 0xff

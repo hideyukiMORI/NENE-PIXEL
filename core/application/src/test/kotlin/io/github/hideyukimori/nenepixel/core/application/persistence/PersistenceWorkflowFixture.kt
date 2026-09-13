@@ -5,12 +5,15 @@ import io.github.hideyukimori.nenepixel.core.application.document.command.Comman
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandResult
 import io.github.hideyukimori.nenepixel.core.application.document.command.UndoCommand
 import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryAvailability
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.black
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.blackIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.canvas
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.definition
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.green
-import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.palette
-import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.paletteIndex
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.greenIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.position
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.red
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.redIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.revision
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.state
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.stroke
@@ -29,10 +32,12 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.View
 import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentId
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
+import io.github.hideyukimori.nenepixel.core.domain.document.LegacyRgbaSource
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
@@ -50,11 +55,16 @@ internal class Fixture(
     inspection: RecoveryInspection = RecoveryInspection.Missing,
 ) {
     val ids = SequentialDocumentIdSource()
-    val runtime = EditorRuntime.create(canvas(4, 4), palette(red, green), ids)
+    val runtime = EditorRuntime.create(canvas(4, 4), definition(blackIndex, black, red, green), ids)
     val storage = FakeProjectStoragePort()
     val recovery = FakeRecoveryRecordPort(inspection)
     val exporter = FakePngExportPort()
-    val workflow = EditorPersistenceWorkflow.create(runtime, storage, recovery, exporter)
+    val workflow =
+        EditorPersistenceWorkflow.create(
+            runtime,
+            PersistencePorts(storage, recovery, exporter),
+            Dispatchers.Unconfined,
+        )
 
     suspend fun initialize() {
         assertEquals(RecoveryInitializationResult.Ready, workflow.initializeRecovery())
@@ -64,6 +74,7 @@ internal class Fixture(
 internal class FakeProjectStoragePort : ProjectStoragePort {
     var saveHandler: suspend (DocumentState) -> ProjectSaveOutcome = { ProjectSaveOutcome.Cancelled }
     var loadHandler: suspend () -> ProjectLoadOutcome = { ProjectLoadOutcome.Cancelled }
+    var copyHandler: suspend (LegacyRgbaSource) -> LegacySourceCopyOutcome = { LegacySourceCopyOutcome.Cancelled }
     val savedDocuments = mutableListOf<DocumentState>()
     var loadCalls: Int = 0
         private set
@@ -77,6 +88,8 @@ internal class FakeProjectStoragePort : ProjectStoragePort {
         loadCalls += 1
         return loadHandler()
     }
+
+    override suspend fun copyLegacySource(source: LegacyRgbaSource): LegacySourceCopyOutcome = copyHandler(source)
 }
 
 internal data class RecoveryPublication(
@@ -155,11 +168,15 @@ internal fun commandFor(
     position: PixelPosition,
     color: PixelColor,
 ): ApplyStrokeCommand {
-    val current = runtime.state.documentState
+    val index =
+        when (color) {
+            red -> redIndex
+            green -> greenIndex
+            else -> blackIndex
+        }
     return ApplyStrokeCommand.create(
-        current.id,
-        current.revision,
-        stroke(current.size, listOf(position), color),
+        runtime.captureSource(),
+        stroke(runtime.state.documentState.size, listOf(position), index),
     )
 }
 

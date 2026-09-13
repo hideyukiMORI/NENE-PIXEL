@@ -3,22 +3,20 @@ package io.github.hideyukimori.nenepixel.core.application.document.command
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandResultAssertions.applied
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandResultAssertions.rejected
 import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryAvailability
-import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.black
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.blackIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.canvas
-import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.colorAt
-import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.defaultDocumentId
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.eraserStroke
-import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.green
-import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.otherDocumentId
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.greenIndex
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.indexAt
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.position
-import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.red
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.redIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.revision
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.state
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.stroke
-import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
+import io.github.hideyukimori.nenepixel.core.application.document.transition.IndexChanges
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
-import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelRegion
-import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
+import io.github.hideyukimori.nenepixel.core.pixelengine.PixelPatch
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelPatchApplicationResult
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
@@ -32,206 +30,136 @@ import java.util.concurrent.TimeUnit
 internal class CommandGatewayTest {
     @Test
     fun `valid command commits one complete deterministic transition`() {
-        val initial = state(canvas(3, 1), pixels = listOf(black, green, black))
-        val command =
-            command(
-                initial,
-                stroke(initial.size, listOf(position(2, 0), position(0, 0)), red),
-            )
+        val initial = state(canvas(3, 1), indices = listOf(blackIndex, greenIndex, blackIndex))
         val firstGateway = CommandGateway.create(initial)
         val secondGateway = CommandGateway.create(initial)
+        val draw = stroke(initial.size, listOf(position(2, 0), position(0, 0)), redIndex)
 
-        val firstResult = firstGateway.execute(command)
-        val secondResult = secondGateway.execute(command)
+        val firstResult = firstGateway.execute(command(firstGateway, draw))
+        val secondResult = secondGateway.execute(command(secondGateway, draw))
         val changeSet = applied(firstResult)
-        val restored = appliedSnapshot(changeSet.inversePatch.applyTo(firstGateway.runtimeState.documentState.snapshot))
+        val forward = changedPatch(changeSet.indexChanges)
+        val restored = appliedSnapshot(forward.inverse().applyTo(firstGateway.runtimeState.documentState.snapshot))
 
         assertEquals(firstResult, secondResult)
         assertEquals(firstGateway.runtimeState.documentState, secondGateway.runtimeState.documentState)
-        assertEquals(revision(0L), changeSet.beforeRevision)
-        assertEquals(revision(1L), changeSet.afterRevision)
-        assertEquals(region(initial, position(0, 0), canvas(3, 1)), changeSet.renderInvalidation)
-        assertEquals(red, colorAt(firstGateway.runtimeState.documentState.snapshot, position(0, 0)))
-        assertEquals(green, colorAt(firstGateway.runtimeState.documentState.snapshot, position(1, 0)))
-        assertEquals(red, colorAt(firstGateway.runtimeState.documentState.snapshot, position(2, 0)))
+        assertEquals(revision(0), changeSet.beforeRevision)
+        assertEquals(revision(1), changeSet.afterRevision)
+        assertEquals(redIndex, indexAt(firstGateway.runtimeState.documentState.snapshot, position(0, 0)))
+        assertEquals(greenIndex, indexAt(firstGateway.runtimeState.documentState.snapshot, position(1, 0)))
+        assertEquals(redIndex, indexAt(firstGateway.runtimeState.documentState.snapshot, position(2, 0)))
         assertEquals(initial.snapshot, restored)
-        assertEquals(
-            firstGateway.runtimeState.documentState.snapshot,
-            appliedSnapshot(changeSet.patch.applyTo(restored)),
+    }
+
+    @Test
+    fun `cross gateway admission is rejected even for same document instance`() {
+        val initial = state(canvas(1, 1))
+        val first = CommandGateway.create(initial)
+        val second = CommandGateway.create(initial)
+        val foreign = command(first, stroke(initial.size, listOf(position(0, 0)), redIndex))
+
+        assertEquals(RejectionReason.SourceOwnerMismatch, rejected(second.execute(foreign)))
+        assertEquals(initial, second.runtimeState.documentState)
+    }
+
+    @Test
+    fun `stroke canvas mismatch and no effective change are typed and atomic`() {
+        val initial = state(canvas(1, 1))
+        val gateway = CommandGateway.create(initial)
+        val larger = canvas(2, 1)
+        val mismatch = command(gateway, stroke(larger, listOf(position(0, 0)), redIndex))
+        assertInstanceOf(RejectionReason.CanvasMismatch::class.java, rejected(gateway.execute(mismatch)))
+
+        val noChange = command(gateway, stroke(initial.size, listOf(position(0, 0)), blackIndex))
+        assertEquals(RejectionReason.NoEffectiveChange, rejected(gateway.execute(noChange)))
+        assertEquals(initial, gateway.runtimeState.documentState)
+    }
+
+    @Test
+    fun `eraser applies captured default and undo redo replay the recorded transition`() {
+        val initial = state(canvas(2, 1), indices = listOf(redIndex, greenIndex))
+        val gateway = CommandGateway.create(initial)
+        applied(
+            gateway.execute(
+                command(gateway, eraserStroke(initial.size, listOf(position(1, 0), position(0, 0)))),
+            ),
         )
-    }
-
-    @Test
-    fun `target document mismatch is typed and atomic`() {
-        val initial = state(canvas(1, 1))
-        val gateway = CommandGateway.create(initial)
-        val command =
-            ApplyStrokeCommand.create(
-                targetDocumentId = otherDocumentId,
-                targetRevision = initial.revision,
-                stroke = stroke(initial.size, listOf(position(0, 0)), red),
-            )
-
-        val reason = rejected(gateway.execute(command))
-
-        val mismatch = assertInstanceOf(RejectionReason.TargetDocumentMismatch::class.java, reason)
-        assertEquals(otherDocumentId, mismatch.expected)
-        assertEquals(defaultDocumentId, mismatch.actual)
-        assertEquals(initial, gateway.runtimeState.documentState)
-    }
-
-    @Test
-    fun `target revision mismatch is typed and atomic`() {
-        val initial = state(canvas(1, 1), revision(2L))
-        val gateway = CommandGateway.create(initial)
-        val command =
-            ApplyStrokeCommand.create(
-                targetDocumentId = initial.id,
-                targetRevision = revision(1L),
-                stroke = stroke(initial.size, listOf(position(0, 0)), red),
-            )
-
-        val reason = rejected(gateway.execute(command))
-
-        val mismatch = assertInstanceOf(RejectionReason.RevisionMismatch::class.java, reason)
-        assertEquals(revision(1L), mismatch.expected)
-        assertEquals(revision(2L), mismatch.actual)
-        assertEquals(initial, gateway.runtimeState.documentState)
-    }
-
-    @Test
-    fun `stroke canvas mismatch is typed and atomic`() {
-        val initial = state(canvas(1, 1))
-        val gateway = CommandGateway.create(initial)
-        val largerCanvas = canvas(2, 1)
-        val command =
-            command(
-                initial,
-                stroke(largerCanvas, listOf(position(0, 0), position(1, 0)), red),
-            )
-
-        val reason = rejected(gateway.execute(command))
-
-        val mismatch = assertInstanceOf(RejectionReason.CanvasMismatch::class.java, reason)
-        assertEquals(largerCanvas, mismatch.expected)
-        assertEquals(initial.size, mismatch.actual)
-        assertEquals(initial, gateway.runtimeState.documentState)
-    }
-
-    @Test
-    fun `no effective change has one typed result and no commit`() {
-        val initial = state(canvas(1, 1), revision(Long.MAX_VALUE), listOf(red))
-        val gateway = CommandGateway.create(initial)
-        val command = command(initial, stroke(initial.size, listOf(position(0, 0), position(0, 0)), red))
-
-        assertEquals(RejectionReason.NoEffectiveChange, rejected(gateway.execute(command)))
-        assertEquals(initial, gateway.runtimeState.documentState)
-    }
-
-    @Test
-    fun `eraser applies blank and undo redo use the same recorded transition path`() {
-        val initial = state(canvas(2, 1), pixels = listOf(red, green))
-        val gateway = CommandGateway.create(initial)
-        val command = command(initial, eraserStroke(initial.size, listOf(position(1, 0), position(0, 0))))
-
-        val changeSet = applied(gateway.execute(command))
         val erased = gateway.runtimeState.documentState
 
-        assertEquals(2, changeSet.patch.changeCount)
-        assertEquals(PixelColor.blank, colorAt(erased.snapshot, position(0, 0)))
-        assertEquals(PixelColor.blank, colorAt(erased.snapshot, position(1, 0)))
+        assertEquals(blackIndex, indexAt(erased.snapshot, position(0, 0)))
+        assertEquals(blackIndex, indexAt(erased.snapshot, position(1, 0)))
         assertEquals(HistoryAvailability.UndoAvailable, gateway.runtimeState.historyAvailability)
-
         applied(gateway.execute(UndoCommand.create(erased.id, erased.revision)))
         assertEquals(initial, gateway.runtimeState.documentState)
-
-        val restored = gateway.runtimeState.documentState
-        applied(gateway.execute(RedoCommand.create(restored.id, restored.revision)))
+        applied(gateway.execute(RedoCommand.create(initial.id, initial.revision)))
         assertEquals(erased, gateway.runtimeState.documentState)
-    }
-
-    @Test
-    fun `already blank eraser uses no effective change without revision or history`() {
-        val initial = state(canvas(1, 1), pixels = listOf(PixelColor.blank))
-        val gateway = CommandGateway.create(initial)
-
-        val reason =
-            rejected(
-                gateway.execute(
-                    command(initial, eraserStroke(initial.size, listOf(position(0, 0)))),
-                ),
-            )
-
-        assertEquals(RejectionReason.NoEffectiveChange, reason)
-        assertEquals(initial, gateway.runtimeState.documentState)
-        assertEquals(HistoryAvailability.None, gateway.runtimeState.historyAvailability)
     }
 
     @Test
     fun `effective change at maximum revision rejects atomically`() {
         val initial = state(canvas(1, 1), revision(Long.MAX_VALUE))
         val gateway = CommandGateway.create(initial)
-        val command = command(initial, stroke(initial.size, listOf(position(0, 0)), red))
-
-        assertEquals(RejectionReason.RevisionOverflow, rejected(gateway.execute(command)))
+        assertEquals(
+            RejectionReason.RevisionOverflow,
+            rejected(gateway.execute(command(gateway, stroke(initial.size, listOf(position(0, 0)), redIndex)))),
+        )
         assertEquals(initial, gateway.runtimeState.documentState)
     }
 
     @Test
-    fun `sequential overlap is ordered and a stale command cannot overwrite`() {
+    fun `stale command cannot overwrite and fresh admission can continue`() {
         val initial = state(canvas(1, 1))
         val gateway = CommandGateway.create(initial)
-        val redCommand = command(initial, stroke(initial.size, listOf(position(0, 0)), red))
-        val staleGreenCommand = command(initial, stroke(initial.size, listOf(position(0, 0)), green))
-        val currentGreenCommand =
-            ApplyStrokeCommand.create(
-                initial.id,
-                revision(1L),
-                stroke(initial.size, listOf(position(0, 0)), green),
-            )
-
+        val redCommand = command(gateway, stroke(initial.size, listOf(position(0, 0)), redIndex))
+        val staleGreen = command(gateway, stroke(initial.size, listOf(position(0, 0)), greenIndex))
         applied(gateway.execute(redCommand))
-        assertInstanceOf(RejectionReason.RevisionMismatch::class.java, rejected(gateway.execute(staleGreenCommand)))
-        applied(gateway.execute(currentGreenCommand))
-
-        assertEquals(revision(2L), gateway.runtimeState.documentState.revision)
-        assertEquals(green, colorAt(gateway.runtimeState.documentState.snapshot, position(0, 0)))
+        assertEquals(RejectionReason.SourceHistoryMismatch, rejected(gateway.execute(staleGreen)))
+        applied(gateway.execute(command(gateway, stroke(initial.size, listOf(position(0, 0)), greenIndex))))
+        assertEquals(greenIndex, indexAt(gateway.runtimeState.documentState.snapshot, position(0, 0)))
     }
 
     @Test
-    fun `concurrent commands are serialized into one commit sequence`() {
+    fun `concurrent commands serialize into one commit`() {
         repeat(CONCURRENCY_ATTEMPTS) {
             val initial = state(canvas(2, 1))
             val gateway = CommandGateway.create(initial)
-            val redCommand =
-                command(initial, stroke(initial.size, listOf(position(0, 0), position(1, 0)), red))
-            val greenCommand =
-                command(initial, stroke(initial.size, listOf(position(0, 0), position(1, 0)), green))
-            val results = executeConcurrently(gateway, redCommand, greenCommand)
+            val admission = gateway.captureSource()
+            val first = ApplyStrokeCommand.create(admission, stroke(initial.size, listOf(position(0, 0)), redIndex))
+            val second = ApplyStrokeCommand.create(admission, stroke(initial.size, listOf(position(1, 0)), greenIndex))
+            val results = executeConcurrently(gateway, first, second)
 
-            assertEquals(1, results.count { result -> result is CommandResult.Applied })
-            assertEquals(1, results.count { result -> result is CommandResult.Rejected })
+            assertEquals(1, results.count { it is CommandResult.Applied })
+            assertEquals(1, results.count { it is CommandResult.Rejected })
             assertEquals(
-                RejectionReason.RevisionMismatch::class.java,
-                rejected(results.single { result -> result is CommandResult.Rejected }).javaClass,
+                RejectionReason.SourceHistoryMismatch,
+                rejected(results.single { it is CommandResult.Rejected }),
             )
-            assertEquals(revision(1L), gateway.runtimeState.documentState.revision)
-            val first = colorAt(gateway.runtimeState.documentState.snapshot, position(0, 0))
-            val second = colorAt(gateway.runtimeState.documentState.snapshot, position(1, 0))
-            assertEquals(first, second)
-            assertTrue(first == red || first == green)
-            assertEquals(HistoryAvailability.UndoAvailable, gateway.runtimeState.historyAvailability)
-            val committed = gateway.runtimeState.documentState
-            applied(gateway.execute(UndoCommand.create(committed.id, committed.revision)))
-            assertEquals(initial, gateway.runtimeState.documentState)
-            assertEquals(HistoryAvailability.RedoAvailable, gateway.runtimeState.historyAvailability)
+            assertEquals(revision(1), gateway.runtimeState.documentState.revision)
+            assertTrue(
+                indexAt(gateway.runtimeState.documentState.snapshot, position(0, 0)) == redIndex ||
+                    indexAt(gateway.runtimeState.documentState.snapshot, position(1, 0)) == greenIndex,
+            )
         }
     }
 
+    private fun command(
+        gateway: CommandGateway,
+        stroke: io.github.hideyukimori.nenepixel.core.domain.drawing.Stroke,
+    ): ApplyStrokeCommand = ApplyStrokeCommand.create(gateway.captureSource(), stroke)
+
+    private fun changedPatch(changes: IndexChanges): PixelPatch =
+        assertInstanceOf(IndexChanges.Changed::class.java, changes).patch
+
+    private fun appliedSnapshot(result: PixelPatchApplicationResult): PixelSnapshot =
+        when (result) {
+            is PixelPatchApplicationResult.Applied -> result.snapshot
+            is PixelPatchApplicationResult.Rejected -> fail("Patch rejected: ${result.rejection}")
+        }
+
     private fun executeConcurrently(
         gateway: CommandGateway,
-        firstCommand: ApplyStrokeCommand,
-        secondCommand: ApplyStrokeCommand,
+        first: ApplyStrokeCommand,
+        second: ApplyStrokeCommand,
     ): List<CommandResult> {
         val start = CountDownLatch(1)
         val executor = Executors.newFixedThreadPool(2)
@@ -239,12 +167,12 @@ internal class CommandGatewayTest {
             val firstResult =
                 executor.submit<CommandResult> {
                     start.await()
-                    gateway.execute(firstCommand)
+                    gateway.execute(first)
                 }
             val secondResult =
                 executor.submit<CommandResult> {
                     start.await()
-                    gateway.execute(secondCommand)
+                    gateway.execute(second)
                 }
             start.countDown()
             listOf(
@@ -256,29 +184,8 @@ internal class CommandGatewayTest {
         }
     }
 
-    private fun command(
-        state: DocumentState,
-        stroke: io.github.hideyukimori.nenepixel.core.domain.drawing.Stroke,
-    ): ApplyStrokeCommand = ApplyStrokeCommand.create(state.id, state.revision, stroke)
-
-    private fun region(
-        state: DocumentState,
-        origin: io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition,
-        size: io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize,
-    ): PixelRegion =
-        when (val result = PixelRegion.create(state.size, origin, size)) {
-            is DomainValueResult.Created -> result.value
-            is DomainValueResult.Rejected -> fail("Test region was rejected: ${result.rejection}")
-        }
-
-    private fun appliedSnapshot(result: PixelPatchApplicationResult) =
-        when (result) {
-            is PixelPatchApplicationResult.Applied -> result.snapshot
-            is PixelPatchApplicationResult.Rejected -> fail("Test inverse was rejected: ${result.rejection}")
-        }
-
     private companion object {
         const val CONCURRENCY_ATTEMPTS: Int = 20
-        const val TIMEOUT_SECONDS: Long = 5L
+        const val TIMEOUT_SECONDS: Long = 5
     }
 }

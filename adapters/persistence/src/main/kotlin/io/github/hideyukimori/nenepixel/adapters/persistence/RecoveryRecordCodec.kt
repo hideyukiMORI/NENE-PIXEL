@@ -1,8 +1,9 @@
 package io.github.hideyukimori.nenepixel.adapters.persistence
 
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryGeneration
+import io.github.hideyukimori.nenepixel.core.domain.document.DocumentImportSource
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
-import io.github.hideyukimori.nenepixel.core.projectformat.ProjectFormatV1Codec
+import io.github.hideyukimori.nenepixel.core.projectformat.ProjectFormatCodec
 
 internal object RecoveryRecordCodec {
     const val MAX_RECORD_BYTE_COUNT: Int = RecoveryRecordLayout.MAX_RECORD_BYTE_COUNT
@@ -11,7 +12,13 @@ internal object RecoveryRecordCodec {
     fun decode(bytes: ByteArray): RecoveryDecodeResult = RecoveryRecordDecoder.decode(bytes)
 
     fun encodeRetired(generation: RecoveryGeneration): RecoveryEncodeResult {
-        val bytes = RecoveryRecordLayout.encode(RecoveryRecordLayout.RETIRED_STATE, generation, EMPTY_PAYLOAD)
+        val bytes =
+            RecoveryRecordLayout.encode(
+                RecoveryRecordLayout.WRITE_VERSION,
+                RecoveryRecordLayout.RETIRED_STATE,
+                generation,
+                EMPTY_PAYLOAD,
+            )
         return verified(bytes) { record -> record == RecoveryRecord.Retired(generation) }
     }
 
@@ -19,10 +26,18 @@ internal object RecoveryRecordCodec {
         generation: RecoveryGeneration,
         document: DocumentState,
     ): RecoveryEncodeResult {
-        val payload = ProjectFormatV1Codec.encode(document).copyBytes()
-        val bytes = RecoveryRecordLayout.encode(RecoveryRecordLayout.CANDIDATE_STATE, generation, payload)
+        val payload = ProjectFormatCodec.encode(document).copyBytes()
+        val bytes =
+            RecoveryRecordLayout.encode(
+                RecoveryRecordLayout.WRITE_VERSION,
+                RecoveryRecordLayout.CANDIDATE_STATE,
+                generation,
+                payload,
+            )
         return verified(bytes) { record ->
-            record is RecoveryRecord.Candidate && record.generation == generation && record.document == document
+            record is RecoveryRecord.Candidate &&
+                record.generation == generation &&
+                record.source == DocumentImportSource.Current(document)
         }
     }
 
@@ -52,7 +67,7 @@ internal sealed interface RecoveryRecord {
 
     data class Candidate(
         override val generation: RecoveryGeneration,
-        val document: DocumentState,
+        val source: DocumentImportSource,
     ) : RecoveryRecord
 }
 

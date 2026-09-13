@@ -3,6 +3,11 @@ package io.github.hideyukimori.nenepixel.presentation.compose.editor
 import io.github.hideyukimori.nenepixel.core.application.editor.NewDocumentDimension
 import io.github.hideyukimori.nenepixel.core.application.editor.NewDocumentRejection
 import io.github.hideyukimori.nenepixel.core.application.editor.NewDocumentRequestResult
+import io.github.hideyukimori.nenepixel.core.application.persistence.LegacyReductionHandle
+import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceConfirmationRequest
+import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationHandle
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
+import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestValues
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Test
@@ -46,13 +51,32 @@ internal class NewDocumentEditorControllerTest {
 
     private fun callbacks(createNewDocument: (NewDocumentRequestResult) -> Unit): EditorPersistenceCallbacks =
         EditorPersistenceCallbacks.create(
-            exportPng = {},
-            saveAs = {},
-            load = {},
-            createNewDocument = createNewDocument,
-            confirm = {},
-            cancel = {},
-            acceptRecovery = {},
-            declineRecovery = {},
+            ProjectFileCallbacks(
+                exportPng = {},
+                saveAs = {},
+                load = {},
+                createNewDocument = createNewDocument,
+            ),
+            PersistenceDecisionCallbacks(
+                confirm = { _: PersistenceConfirmationRequest -> },
+                cancel = { _: PersistenceOperationHandle -> },
+                acceptRecovery = {},
+                declineRecovery = {},
+            ),
+            LegacyConversionCallbacks(
+                copyOriginal = { _: PersistenceOperationHandle -> },
+                preview = { _: PersistenceOperationHandle, _: PaletteDefinition -> },
+                accept = { _: LegacyReductionHandle -> },
+                declineRecovery = { _: PersistenceOperationHandle -> },
+            ),
+            presets = testPresets(),
         )
+
+    private fun testPresets(): LegacyPalettePresets {
+        val definition =
+            PresentationTestValues.definition(
+                listOf(PresentationTestValues.red, PresentationTestValues.green),
+            )
+        return LegacyPalettePresets(definition, definition, definition)
+    }
 }

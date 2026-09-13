@@ -52,7 +52,8 @@ commands/actions or authorize unrelated preferences.
 
 ### ARC-005 — Controlled mutation enclave
 
-Externally visible domain and application state MUST be immutable. `PixelSnapshot` and `Stroke` MAY
+Externally visible domain and application state MUST be immutable. `PixelSnapshot`, `Stroke` and
+the bounded uninstalled `LegacyRgbaSource` of ADR 0024 MAY
 privately own defensive packed primitive storage that is never mutated after construction and is
 never exposed; any bulk read returns a copy. `:core:project-format` codecs and
 `:adapters:persistence` transports MAY use bounded, privately owned mutable byte buffers only for one
@@ -79,9 +80,13 @@ ADR 0022 extends the same narrow codec permission to Palette JSON v1: bounded pr
 buffers, string/collection builders and parse cursors for one 16,384-byte envelope (plus one-byte
 oversize probe). They never become pixel workspaces or another palette owner. PaletteDefinition
 references the existing immutable Palette. Its definition/default validation remains in domain.
-The indexed document/patch storage and uninstalled immutable legacy-import raster described by
-that ADR become applicable only at its atomic runtime cutover; until then M3 remains the only
-editable representation. No simultaneous editable RGBA/indexed document paths are permitted.
+ADR 0024 accepts the atomic indexed cutover: DocumentState owns exactly one PaletteDefinition and
+one packed-U8 PixelSnapshot. PixelSnapshot owns no palette or second authoritative entry count.
+Its private derived maximum index may support DocumentState's cross-value validation through
+Palette.entryAt. LegacyRgbaSource owns immutable exact RGBA only until import completes; it is
+never command-editable. Pixel patches own indexed before/after values inside pixel-engine.
+All live consumers and v2 writers migrate together in #106; no simultaneous editable RGBA/indexed
+document paths are permitted. Historical M3 evidence remains evidence for its original artifacts.
 
 ### ARC-006 — Explicit composition
 

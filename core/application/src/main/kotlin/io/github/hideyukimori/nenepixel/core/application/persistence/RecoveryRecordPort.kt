@@ -1,5 +1,6 @@
 package io.github.hideyukimori.nenepixel.core.application.persistence
 
+import io.github.hideyukimori.nenepixel.core.domain.document.DocumentImportSource
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 
 public interface RecoveryRecordPort {
@@ -57,7 +58,7 @@ public sealed interface RecoveryInspection {
 
     public data class Candidate(
         public val generation: RecoveryGeneration,
-        public val document: DocumentState,
+        public val source: DocumentImportSource,
     ) : RecoveryInspection
 
     public data class Failed(

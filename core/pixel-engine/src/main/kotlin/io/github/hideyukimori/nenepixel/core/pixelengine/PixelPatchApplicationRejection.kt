@@ -1,9 +1,9 @@
 package io.github.hideyukimori.nenepixel.core.pixelengine
 
-import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.document.Revision
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 
 public sealed interface PixelPatchApplicationRejection {
     public data class CanvasMismatch internal constructor(
@@ -18,7 +18,7 @@ public sealed interface PixelPatchApplicationRejection {
 
     public data class BeforeValueMismatch internal constructor(
         public val position: PixelPosition,
-        public val expected: PixelColor,
-        public val actual: PixelColor,
+        public val expected: PaletteIndex,
+        public val actual: PaletteIndex,
     ) : PixelPatchApplicationRejection
 }

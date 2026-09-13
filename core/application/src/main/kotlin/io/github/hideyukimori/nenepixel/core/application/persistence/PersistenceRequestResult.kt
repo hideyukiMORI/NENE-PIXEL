@@ -11,6 +11,12 @@ public sealed interface PersistenceRequestResult {
         public val request: PersistenceConfirmationRequest,
     ) : PersistenceRequestResult
 
+    public data class LegacyConversionRequired internal constructor(
+        public val operation: PersistenceOperationHandle,
+    ) : PersistenceRequestResult
+
+    public data object OriginalCopyRequired : PersistenceRequestResult
+
     public data object Busy : PersistenceRequestResult
 
     public data object Stale : PersistenceRequestResult

@@ -1,5 +1,6 @@
 package io.github.hideyukimori.nenepixel.core.application.workspace
 
+import io.github.hideyukimori.nenepixel.core.application.document.command.CommandSourceAdmission
 import io.github.hideyukimori.nenepixel.core.domain.drawing.Stroke
 
 public sealed interface WorkspaceReductionResult {
@@ -17,6 +18,7 @@ public sealed interface WorkspaceReductionResult {
     public data class CommitPrepared internal constructor(
         override val nextState: WorkspaceState,
         public val stroke: Stroke,
+        public val admission: CommandSourceAdmission,
     ) : WorkspaceReductionResult
 
     public data class Rejected internal constructor(

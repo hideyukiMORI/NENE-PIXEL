@@ -25,7 +25,7 @@ internal class UndoCommandHandler {
             }
 
             else -> {
-                DocumentTransition.create(currentState, historyEntry.changeSet.inversePatch)
+                DocumentTransition.create(currentState, historyEntry.changeSet.inverse())
             }
         }
 

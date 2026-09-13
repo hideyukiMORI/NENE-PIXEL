@@ -3,12 +3,11 @@ package io.github.hideyukimori.nenepixel.measurement
 internal object P2AndroidFinalCommandProtocol {
     const val WARMUP_ITERATIONS: Int = 5
     const val SAMPLES_PER_WORKLOAD: Int = 200
-    const val WORKLOAD_COUNT: Int = 5
-    const val M2_WORKLOAD_COUNT: Int = 6
+    const val BASELINE_WORKLOAD_COUNT: Int = 6
+    const val CANDIDATE_WORKLOAD_COUNT: Int = 11
     const val RUN_INDEX: Int = 1
     const val PHYSICAL_PROFILE_ID: String = "NENE-P2-ALLDOCUBE-IPL80MP-A16-API36"
-    const val CLEAN_LATENCY_SCHEMA: String = "nene-pixel-p2-android-clean-command-latency-v2"
-    const val M2_LATENCY_SCHEMA: String = "nene-pixel-m2-android-command-latency-v2"
+    const val P4_LATENCY_SCHEMA: String = "nene-pixel-p4-indexed-command-latency-v1"
 
     fun resolve(identity: P2AndroidRunIdentity): P2AndroidFinalCommandPlan {
         val plan = PLANS_BY_CANDIDATE[identity.candidateId]
@@ -53,14 +52,14 @@ internal object P2AndroidFinalCommandProtocol {
 
     private fun validatePlan(plan: P2AndroidFinalCommandPlan) {
         check(plan.runIndex == RUN_INDEX)
-        val m2Plan = plan.candidateId == M2_CANDIDATE_ID
-        check(plan.schema == if (m2Plan) M2_LATENCY_SCHEMA else CLEAN_LATENCY_SCHEMA)
+        val candidatePlan = plan.candidateId == CANDIDATE_ID
+        check(plan.schema == P4_LATENCY_SCHEMA)
         check(plan.warmupIterations == WARMUP_ITERATIONS)
         check(plan.samplesPerWorkload == SAMPLES_PER_WORKLOAD)
-        check(plan.specs.size == if (m2Plan) M2_WORKLOAD_COUNT else WORKLOAD_COUNT)
+        check(plan.specs.size == if (candidatePlan) CANDIDATE_WORKLOAD_COUNT else BASELINE_WORKLOAD_COUNT)
         check(
             plan.specs.map(P2CommandWorkloadSpec::kind) ==
-                if (m2Plan) P2CommandWorkloadCatalog.m2Kinds else P2CommandWorkloadCatalog.legacyKinds,
+                if (candidatePlan) P2CommandWorkloadCatalog.candidateKinds else P2CommandWorkloadCatalog.commonKinds,
         )
         check(
             plan.specs.all { spec ->
@@ -72,11 +71,11 @@ internal object P2AndroidFinalCommandProtocol {
         ) { "Final command sample count must end on a physical checkpoint boundary." }
     }
 
-    private val FINAL_PLAN: P2AndroidFinalCommandPlan =
+    private val BASELINE_PLAN: P2AndroidFinalCommandPlan =
         P2AndroidFinalCommandPlan(
             identity =
                 P2AndroidFinalCommandPlan.Identity(
-                    candidateId = "flat-packed-command-256-lane-separated-v1",
+                    candidateId = BASELINE_ID,
                     runIndex = RUN_INDEX,
                 ),
             workload =
@@ -85,39 +84,40 @@ internal object P2AndroidFinalCommandProtocol {
                     canvasHeight = 256,
                     warmupIterations = WARMUP_ITERATIONS,
                     samplesPerWorkload = SAMPLES_PER_WORKLOAD,
-                    schema = CLEAN_LATENCY_SCHEMA,
-                    kinds = P2CommandWorkloadCatalog.legacyKinds,
+                    schema = P4_LATENCY_SCHEMA,
+                    kinds = P2CommandWorkloadCatalog.commonKinds,
                 ),
             output =
                 P2AndroidFinalCommandPlan.Output(
-                    outputIdentity = "device-lane-separated-flat-packed-command-256-run-01",
-                    relativePath = "p2-measurements/p2-android-lane-separated-flat-packed-command-256-run-01.csv",
-                    publicationPolicy = P2AndroidFinalCommandPlan.PublicationPolicy.FailIfExists,
+                    outputIdentity = "p4-indexed-command-baseline-run-01",
+                    relativePath = "p4-measurements/p4-indexed-command-baseline-run-01.csv",
+                    publicationPolicy = P2AndroidFinalCommandPlan.PublicationPolicy.KeepPartial,
                 ),
         )
 
-    private val M2_PLAN: P2AndroidFinalCommandPlan =
+    private val CANDIDATE_PLAN: P2AndroidFinalCommandPlan =
         P2AndroidFinalCommandPlan(
-            identity = P2AndroidFinalCommandPlan.Identity(M2_CANDIDATE_ID, RUN_INDEX),
+            identity = P2AndroidFinalCommandPlan.Identity(CANDIDATE_ID, RUN_INDEX),
             workload =
                 P2AndroidFinalCommandPlan.Workload(
                     canvasWidth = 256,
                     canvasHeight = 256,
                     warmupIterations = WARMUP_ITERATIONS,
                     samplesPerWorkload = SAMPLES_PER_WORKLOAD,
-                    schema = M2_LATENCY_SCHEMA,
-                    kinds = P2CommandWorkloadCatalog.m2Kinds,
+                    schema = P4_LATENCY_SCHEMA,
+                    kinds = P2CommandWorkloadCatalog.candidateKinds,
                 ),
             output =
                 P2AndroidFinalCommandPlan.Output(
-                    outputIdentity = "m2-production-command-256-lane-separated-run-01",
-                    relativePath = "m2-measurements/m2-production-command-256-lane-separated-run-01.csv",
-                    publicationPolicy = P2AndroidFinalCommandPlan.PublicationPolicy.FailIfExists,
+                    outputIdentity = "p4-indexed-command-candidate-run-01",
+                    relativePath = "p4-measurements/p4-indexed-command-candidate-run-01.csv",
+                    publicationPolicy = P2AndroidFinalCommandPlan.PublicationPolicy.KeepPartial,
                 ),
         )
 
     private val PLANS_BY_CANDIDATE: Map<String, P2AndroidFinalCommandPlan> =
-        listOf(FINAL_PLAN, M2_PLAN).associateBy(P2AndroidFinalCommandPlan::candidateId)
+        listOf(BASELINE_PLAN, CANDIDATE_PLAN).associateBy(P2AndroidFinalCommandPlan::candidateId)
 
-    private const val M2_CANDIDATE_ID: String = "m2-production-command-256-lane-separated-v2"
+    private const val BASELINE_ID: String = "p4-indexed-command-baseline-v1"
+    private const val CANDIDATE_ID: String = "p4-indexed-command-candidate-v1"
 }

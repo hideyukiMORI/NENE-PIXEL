@@ -7,6 +7,8 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveReq
 import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveStateToken
 import io.github.hideyukimori.nenepixel.core.application.persistence.EditorPersistenceWorkflow
 import io.github.hideyukimori.nenepixel.core.application.persistence.ExpectedRecoveryLineage
+import io.github.hideyukimori.nenepixel.core.application.persistence.LegacySourceCopyOutcome
+import io.github.hideyukimori.nenepixel.core.application.persistence.PersistencePorts
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectLoadOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectSaveOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectStoragePort
@@ -15,12 +17,15 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryPub
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRecordPort
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRetirementOutcome
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
+import io.github.hideyukimori.nenepixel.core.domain.document.LegacyRgbaSource
 import io.github.hideyukimori.nenepixel.core.domain.drawing.Stroke
 import io.github.hideyukimori.nenepixel.core.domain.drawing.StrokeEffect
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelX
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelY
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
+import kotlinx.coroutines.Dispatchers
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
@@ -301,39 +306,40 @@ private class AutosaveStateTokens {
     private val workflow =
         EditorPersistenceWorkflow.create(
             runtime,
-            object : ProjectStoragePort {
-                override suspend fun save(document: DocumentState): ProjectSaveOutcome = ProjectSaveOutcome.Cancelled
+            PersistencePorts(
+                object : ProjectStoragePort {
+                    override suspend fun save(document: DocumentState): ProjectSaveOutcome =
+                        ProjectSaveOutcome.Cancelled
 
-                override suspend fun load(): ProjectLoadOutcome = ProjectLoadOutcome.Cancelled
-            },
-            object : RecoveryRecordPort {
-                override suspend fun inspect(): RecoveryInspection = RecoveryInspection.Missing
+                    override suspend fun load(): ProjectLoadOutcome = ProjectLoadOutcome.Cancelled
 
-                override suspend fun retire(expected: ExpectedRecoveryLineage): RecoveryRetirementOutcome =
-                    RecoveryRetirementOutcome.GenerationExhausted
+                    override suspend fun copyLegacySource(source: LegacyRgbaSource): LegacySourceCopyOutcome =
+                        LegacySourceCopyOutcome.Cancelled
+                },
+                object : RecoveryRecordPort {
+                    override suspend fun inspect(): RecoveryInspection = RecoveryInspection.Missing
 
-                override suspend fun publishCandidate(
-                    expected: ExpectedRecoveryLineage,
-                    document: DocumentState,
-                ): RecoveryPublicationOutcome = RecoveryPublicationOutcome.GenerationExhausted
-            },
-            pngExport =
+                    override suspend fun retire(expected: ExpectedRecoveryLineage): RecoveryRetirementOutcome =
+                        RecoveryRetirementOutcome.GenerationExhausted
+
+                    override suspend fun publishCandidate(
+                        expected: ExpectedRecoveryLineage,
+                        document: DocumentState,
+                    ): RecoveryPublicationOutcome = RecoveryPublicationOutcome.GenerationExhausted
+                },
                 io.github.hideyukimori.nenepixel.core.application.persistence.PngExportPort {
                     io.github.hideyukimori.nenepixel.core.application.persistence.PngExportOutcome.Cancelled
                 },
+            ),
+            Dispatchers.Unconfined,
         )
     private var nextX: Int = 0
 
     fun next(): AutosaveStateToken {
         val current = runtime.state.documentState
         val position = PixelPosition.create(PixelX.create(nextX).required(), PixelY.create(0).required())
-        val color =
-            runtime.palette
-                .entries()
-                .first()
-                .color
-        val stroke = Stroke.create(current.size, listOf(position), StrokeEffect.Paint(color)).required()
-        val result = runtime.execute(ApplyStrokeCommand.create(current.id, current.revision, stroke))
+        val stroke = Stroke.create(current.size, listOf(position), StrokeEffect.Paint(PaletteIndex.first)).required()
+        val result = runtime.execute(ApplyStrokeCommand.create(runtime.captureSource(), stroke))
         check(result is CommandResult.Applied)
         nextX += 1
         return requireNotNull(workflow.autosave.value.pendingStateToken)

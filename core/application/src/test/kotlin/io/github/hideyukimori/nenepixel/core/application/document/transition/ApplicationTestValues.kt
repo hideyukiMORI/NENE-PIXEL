@@ -14,6 +14,7 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelX
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelY
 import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
@@ -27,6 +28,10 @@ internal object ApplicationTestValues {
     val black: PixelColor = color(0, 0, 0, 255)
     val red: PixelColor = color(255, 0, 0, 255)
     val green: PixelColor = color(0, 255, 0, 255)
+    val blackIndex: PaletteIndex = paletteIndex(0)
+    val redIndex: PaletteIndex = paletteIndex(1)
+    val greenIndex: PaletteIndex = paletteIndex(2)
+    val defaultDefinition: PaletteDefinition = definition(blackIndex, black, red, green)
 
     fun canvas(
         width: Int,
@@ -42,31 +47,38 @@ internal object ApplicationTestValues {
 
     fun palette(vararg colors: PixelColor): Palette = Palette.create(colors.toList()).value()
 
+    fun definition(
+        defaultIndex: PaletteIndex,
+        vararg colors: PixelColor,
+    ): PaletteDefinition = PaletteDefinition.create(palette(*colors), defaultIndex).value()
+
     fun paletteIndex(value: Int): PaletteIndex = PaletteIndex.create(value).value()
 
     fun snapshot(
         canvas: CanvasSize,
         revision: Revision = Revision.initial(),
-        pixels: List<PixelColor> = List(canvas.pixelCount.toInt()) { black },
-    ): PixelSnapshot = PixelSnapshot.create(canvas, revision, pixels).value()
+        indices: List<PaletteIndex> = List(canvas.pixelCount.toInt()) { blackIndex },
+    ): PixelSnapshot = PixelSnapshot.create(canvas, revision, indices).value()
 
     fun state(
         canvas: CanvasSize,
         revision: Revision = Revision.initial(),
-        pixels: List<PixelColor> = List(canvas.pixelCount.toInt()) { black },
+        indices: List<PaletteIndex> = List(canvas.pixelCount.toInt()) { blackIndex },
         documentId: DocumentId = defaultDocumentId,
-    ): DocumentState = DocumentState.create(documentId, snapshot(canvas, revision, pixels))
+        definition: PaletteDefinition = defaultDefinition,
+    ): DocumentState = DocumentState.create(documentId, definition, snapshot(canvas, revision, indices)).value()
 
     fun stroke(
         canvas: CanvasSize,
         path: List<PixelPosition>,
-        color: PixelColor,
-    ): Stroke = Stroke.create(canvas, path, StrokeEffect.Paint(color)).value()
+        index: PaletteIndex,
+    ): Stroke = Stroke.create(canvas, path, StrokeEffect.Paint(index)).value()
 
     fun eraserStroke(
         canvas: CanvasSize,
         path: List<PixelPosition>,
-    ): Stroke = Stroke.create(canvas, path, StrokeEffect.Erase).value()
+        targetIndex: PaletteIndex = blackIndex,
+    ): Stroke = Stroke.create(canvas, path, StrokeEffect.Erase(targetIndex)).value()
 
     fun patch(
         canvas: CanvasSize,
@@ -84,10 +96,10 @@ internal object ApplicationTestValues {
             is PixelPatchApplicationResult.Rejected -> fail("Test application was rejected: ${result.rejection}")
         }
 
-    fun colorAt(
+    fun indexAt(
         snapshot: PixelSnapshot,
         position: PixelPosition,
-    ): PixelColor = snapshot.colorAt(position).value()
+    ): PaletteIndex = snapshot.indexAt(position).value()
 
     private fun color(
         red: Int,

@@ -13,7 +13,14 @@ internal class RuntimeRecoveryOperations(
         }
 
     fun beginDecline(): RecoveryDeclineStart =
-        runtime.transact { transaction -> RecoveryDeclineTransitions.begin(transaction.coordination) }
+        runtime.transact { transaction ->
+            RecoveryDeclineTransitions.begin(transaction.coordination, transaction.switchContext())
+        }
+
+    fun beginLegacyDecline(handle: PersistenceOperationHandle): RecoveryDeclineStart =
+        runtime.transact { transaction ->
+            RecoveryDeclineTransitions.beginVerifiedLegacy(transaction.coordination, handle)
+        }
 
     fun completeDecline(
         handle: PersistenceOperationHandle,

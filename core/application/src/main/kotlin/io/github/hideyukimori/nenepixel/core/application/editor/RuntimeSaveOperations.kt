@@ -1,10 +1,10 @@
 package io.github.hideyukimori.nenepixel.core.application.editor
 
+import io.github.hideyukimori.nenepixel.core.application.persistence.ClassifiedRecoveryInspection
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationHandle
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceRequestResult
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectSaveOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryInitializationResult
-import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryInspection
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRetirementOutcome
 
 internal class RuntimeSaveOperations(
@@ -13,7 +13,7 @@ internal class RuntimeSaveOperations(
     fun beginRecoveryInspection(): RecoveryInspectionStart =
         runtime.transact { transaction -> RecoveryInspectionTransitions.begin(transaction.coordination) }
 
-    fun completeRecoveryInspection(outcome: RecoveryInspection): RecoveryInitializationResult =
+    fun completeRecoveryInspection(outcome: ClassifiedRecoveryInspection): RecoveryInitializationResult =
         runtime.transact { transaction -> RecoveryInspectionTransitions.complete(transaction.coordination, outcome) }
 
     fun beginSave(): DocumentOutputStart =
