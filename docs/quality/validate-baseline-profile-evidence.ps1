@@ -301,10 +301,12 @@ function Assert-NativeTimeoutQuiescence {
     ) -join "`r`n"
     [System.IO.File]::WriteAllText($wrapper, $batch, [System.Text.Encoding]::ASCII)
 
+    # Allow the gated PowerShell/JSON launcher to start before exercising child-tree termination.
+    # This synthetic test budget does not change any production or measurement timeout.
     Assert-Rejected {
         Invoke-GradleCommand -RepositoryRoot $root -LogPath $log `
-            -GradleArguments @('fixtureTask', '--console=plain') -TimeoutSeconds 1
-    } 'timed out after 1 seconds'
+            -GradleArguments @('fixtureTask', '--console=plain') -TimeoutSeconds 2
+    } 'timed out after 2 seconds'
     Start-Sleep -Seconds 4
     Assert-Equal $false (Test-Path -LiteralPath $lateWrite) `
         'A stopped invocation-owned process tree must not mutate output after timeout restoration.'
@@ -312,9 +314,9 @@ function Assert-NativeTimeoutQuiescence {
     if (
         $partialLog -notmatch 'timeout-worker-started' -or
         $partialLog -notmatch '--no-daemon' -or
-        $partialLog -notmatch 'timed out after 1 seconds'
+        $partialLog -notmatch 'timed out after 2 seconds'
     ) {
-        throw 'Timeout evidence must retain worker output, process identity, and the timeout failure.'
+        throw "Timeout evidence must retain worker output and failure. Retained synthetic output: $partialLog"
     }
 
     $failedTerminationRoot = Join-Path $temporaryRoot 'native-termination-failure'
@@ -332,7 +334,7 @@ function Assert-NativeTimeoutQuiescence {
     $restorationBlocked = $false
     try {
         Invoke-GradleCommand -RepositoryRoot $failedTerminationRoot -LogPath $failedTerminationLog `
-            -GradleArguments @('fixtureTask', '--console=plain') -TimeoutSeconds 1 `
+            -GradleArguments @('fixtureTask', '--console=plain') -TimeoutSeconds 2 `
             -JobTerminator $syntheticFailedTerminator
     }
     catch {

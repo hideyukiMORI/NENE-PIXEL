@@ -30,6 +30,38 @@ param(
     [string]$CandidateSourceCommit,
 
     [Parameter(Mandatory = $true)]
+    [ValidatePattern("^[0-9a-f]{40}$")]
+    [string]$BaselineProductionCommit,
+
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern("^[0-9a-f]{40}$")]
+    [string]$CandidateProductionCommit,
+
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern("^[0-9a-f]{64}$")]
+    [string]$BaselineProductionTreeSha256,
+
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern("^[0-9a-f]{64}$")]
+    [string]$CandidateProductionTreeSha256,
+
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern("^\[\d+,\d+\]\[\d+,\d+\]$")]
+    [string]$BaselineCanvas16SurfaceBounds,
+
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern("^\[\d+,\d+\]\[\d+,\d+\]$")]
+    [string]$BaselineCanvas256SurfaceBounds,
+
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern("^\[\d+,\d+\]\[\d+,\d+\]$")]
+    [string]$CandidateCanvas16SurfaceBounds,
+
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern("^\[\d+,\d+\]\[\d+,\d+\]$")]
+    [string]$CandidateCanvas256SurfaceBounds,
+
+    [Parameter(Mandatory = $true)]
     [ValidatePattern("^[0-9a-f]{64}$")]
     [string]$BaselineApkSha256,
 
@@ -157,6 +189,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 . (Join-Path $PSScriptRoot "m2-package-dexopt.ps1")
+. (Join-Path $PSScriptRoot "android-window-state.ps1")
 . (Join-Path $PSScriptRoot "../baseline-profile-evidence.ps1")
 
 if (-not $PSBoundParameters.ContainsKey("CompilationMode")) {
@@ -179,6 +212,8 @@ $refreshRateToleranceHertz = 0.1
 $maximumThermalStatus = 1
 $warmupCount = 5
 $previewWaitMilliseconds = 100
+$moveWaitMilliseconds = 20
+$postMovePreviewWaitMilliseconds = 100
 $drawWaitMilliseconds = 350
 $undoWaitMilliseconds = 150
 $undoAttemptLimit = 3
@@ -186,7 +221,7 @@ $requiredRotation = 1
 $requiredLogicalWidth = 1920
 $requiredLogicalHeight = 1200
 $requiredRootBounds = "[0,0][1920,1200]"
-$requiredCanvasBounds = "[688,615][1232,1159]"
+$geometryId = "initial-fit-centered-v1"
 $profileInstallSuccessResult = 1
 $inputInjection = "cmd-input-service-direct"
 $remotePrefix = "/data/local/tmp/nene-m2-frame-$Variant-$CompilationMode"
@@ -198,8 +233,34 @@ $resolvedExperiment =
     }
 $physicalPresentEnabled = $PSBoundParameters.ContainsKey("PhysicalPresentTraceProcessorPath")
 $physicalPresentSchema = "nene-pixel-m2-physical-present-v2"
-$frameSchema = "nene-pixel-m2-actual-app-frame-v7"
-$experimentSchema = "nene-pixel-m2-frame-experiment-v3"
+$frameSchema = "nene-pixel-p4-indexed-actual-app-frame-v8"
+$experimentSchema = "nene-pixel-p4-indexed-frame-experiment-v4"
+$baselineProductionCommitRequired = "2dd4e01e3bbe88967237cde4e28412d2962fd590"
+$workloadCatalog = @(
+    [ordered]@{
+        workload = "canvas16_tap"
+        canvas_width = 16
+        canvas_height = 16
+        move_event_count = 0
+        motion_event_count = 2
+        preview_event_count = 1
+        commit_event_count = 1
+        raw_position_count = 1
+        effective_change_count = 1
+    },
+    [ordered]@{
+        workload = "canvas256_repeated_diagonal"
+        canvas_width = 256
+        canvas_height = 256
+        move_event_count = 16
+        motion_event_count = 18
+        preview_event_count = 17
+        commit_event_count = 1
+        raw_position_count = 4081
+        effective_change_count = 256
+    }
+)
+$workloadOrder = @($workloadCatalog | ForEach-Object { $_.workload })
 $physicalPresentAnalyzer = Join-Path $PSScriptRoot "analyze-m2-physical-present.ps1"
 $physicalTraceState = $null
 $physicalAnalysis = $null
@@ -208,16 +269,28 @@ if ($physicalPresentEnabled) {
     throw "$physicalPresentSchema collection is exhausted and retained for historical analysis only."
 }
 if ($Variant -ne "release-like" -or $CompilationMode -ne "speed-profile") {
-    throw "The v3 comparison requires release-like and speed-profile for every slot."
+    throw "The v4 comparison requires release-like and speed-profile for every slot."
 }
 if ($Attempt -ne 1) {
-    throw "The current v3 writer permits only attempt 1; any invalid result stops the experiment."
+    throw "The current v4 writer permits only attempt 1; any invalid result stops the experiment."
+}
+
+if ($BaselineProductionCommit -cne $baselineProductionCommitRequired) {
+    throw "The baseline production commit must be the fixed Issue #106 baseline."
+}
+if ($BaselineSourceCommit -ceq $BaselineProductionCommit) {
+    throw "The baseline measurement build must be a distinct immutable collector overlay commit."
+}
+if (
+    $BaselineSourceCommit -ceq $CandidateSourceCommit -or
+    $BaselineProductionCommit -ceq $CandidateProductionCommit -or
+    $BaselineProductionTreeSha256 -ceq $CandidateProductionTreeSha256
+) {
+    throw "Baseline and candidate production/build identities must be distinct."
 }
 
 $maximumAttemptsPerSlot = 1
 $replacementRule = "none"
-$historicalMaximumAttemptsPerSlot = 2
-$historicalReplacementRule = "attempt 2 only after attempt 1 is invalid before the first measured DOWN"
 
 function Assert-M2ExperimentAttemptPolicy {
     param(
@@ -230,25 +303,19 @@ function Assert-M2ExperimentAttemptPolicy {
         "maximum_attempts_per_slot" -notin $propertyNames -or
         "replacement_rule" -notin $propertyNames
     ) {
-        throw "The v3 experiment manifest is missing its attempt policy."
+        throw "The v4 experiment manifest is missing its attempt policy."
     }
     $rawMaximum = $Manifest.maximum_attempts_per_slot
     if ($rawMaximum -isnot [int] -and $rawMaximum -isnot [long]) {
-        throw "The v3 experiment manifest attempt maximum must be an integer."
+        throw "The v4 experiment manifest attempt maximum must be an integer."
     }
     $maximum = [int]$rawMaximum
-    $expectedReplacement =
-        if ($maximum -eq $maximumAttemptsPerSlot) {
-            $replacementRule
-        }
-        elseif ($maximum -eq $historicalMaximumAttemptsPerSlot) {
-            $historicalReplacementRule
-        }
-        else {
-            throw "The v3 experiment manifest attempt maximum must be 1 or historical value 2."
-        }
+    if ($maximum -ne $maximumAttemptsPerSlot) {
+        throw "The v4 experiment manifest attempt maximum must be 1."
+    }
+    $expectedReplacement = $replacementRule
     if ($Manifest.replacement_rule -isnot [string] -or $Manifest.replacement_rule -cne $expectedReplacement) {
-        throw "The v3 experiment manifest replacement rule contradicts its attempt maximum."
+        throw "The v4 experiment manifest replacement rule contradicts its attempt maximum."
     }
     return [pscustomobject]@{
         maximum_attempts_per_slot = $maximum
@@ -384,6 +451,18 @@ $expectedPackagedProfSha256 =
     if ($CandidateRole -eq "baseline") { $BaselinePackagedProfSha256 } else { $CandidatePackagedProfSha256 }
 $expectedPackagedProfmSha256 =
     if ($CandidateRole -eq "baseline") { $BaselinePackagedProfmSha256 } else { $CandidatePackagedProfmSha256 }
+$expectedSurfaceBoundsByWorkload =
+    if ($CandidateRole -eq "baseline") {
+        [ordered]@{
+            canvas16_tap = $BaselineCanvas16SurfaceBounds
+            canvas256_repeated_diagonal = $BaselineCanvas256SurfaceBounds
+        }
+    } else {
+        [ordered]@{
+            canvas16_tap = $CandidateCanvas16SurfaceBounds
+            canvas256_repeated_diagonal = $CandidateCanvas256SurfaceBounds
+        }
+    }
 if ($SourceCommit -ne $expectedSourceCommit) {
     throw "The supplied source commit does not match the fixed $CandidateRole source identity."
 }
@@ -409,8 +488,12 @@ $experimentManifest =
     [ordered]@{
         schema = $experimentSchema
         experiment_id = $ExperimentId
-        baseline_source_commit = $BaselineSourceCommit
-        candidate_source_commit = $CandidateSourceCommit
+        baseline_production_commit = $BaselineProductionCommit
+        candidate_production_commit = $CandidateProductionCommit
+        baseline_production_tree_sha256 = $BaselineProductionTreeSha256
+        candidate_production_tree_sha256 = $CandidateProductionTreeSha256
+        baseline_measurement_build_commit = $BaselineSourceCommit
+        candidate_measurement_build_commit = $CandidateSourceCommit
         baseline_apk_sha256 = $BaselineApkSha256
         candidate_apk_sha256 = $CandidateApkSha256
         variant = "release-like"
@@ -449,6 +532,22 @@ $experimentManifest =
         correctness_risk = $CorrectnessRisk
         stop_conditions = $StopConditions
         comparison_order = $comparisonOrder
+        workload_order = $workloadOrder
+        workload_catalog = $workloadCatalog
+        geometry = [ordered]@{
+            id = $geometryId
+            baseline = [ordered]@{
+                canvas16_tap = $BaselineCanvas16SurfaceBounds
+                canvas256_repeated_diagonal = $BaselineCanvas256SurfaceBounds
+            }
+            candidate = [ordered]@{
+                canvas16_tap = $CandidateCanvas16SurfaceBounds
+                canvas256_repeated_diagonal = $CandidateCanvas256SurfaceBounds
+            }
+        }
+        warmups_per_workload = $warmupCount
+        diagnostic_samples_per_workload = 10
+        decision_samples_per_workload = 50
         slot_budget = 4
         maximum_attempts_per_slot = $maximumAttemptsPerSlot
         replacement_rule = $replacementRule
@@ -456,14 +555,7 @@ $experimentManifest =
 $existingManifest = $null
 if (Test-Path -LiteralPath $experimentManifestPath -PathType Leaf) {
     $existingManifest = Get-Content -Raw -LiteralPath $experimentManifestPath | ConvertFrom-Json
-    $existingAttemptPolicy = Assert-M2ExperimentAttemptPolicy -Manifest $existingManifest
-    if ($existingAttemptPolicy.maximum_attempts_per_slot -eq $historicalMaximumAttemptsPerSlot) {
-        if (-not $ValidateExperimentOnly) {
-            throw "Historical max-two v3 experiments are read-only; the current writer cannot execute them."
-        }
-        $experimentManifest.maximum_attempts_per_slot = $historicalMaximumAttemptsPerSlot
-        $experimentManifest.replacement_rule = $historicalReplacementRule
-    }
+    Assert-M2ExperimentAttemptPolicy -Manifest $existingManifest | Out-Null
 }
 $expectedManifestText = $experimentManifest | ConvertTo-Json -Depth 4
 if ($ComparisonSequenceIndex -eq 1 -and $Attempt -eq 1) {
@@ -513,12 +605,21 @@ function Test-RunStateIdentity {
         [Parameter(Mandatory = $true)][int]$ExpectedAttempt
     )
 
+    $expectedCount = if ($SequenceIndex -le 2) { 10 } else { 50 }
+    $propertyNames = if ($null -eq $State) { @() } else { @($State.PSObject.Properties.Name) }
     return (
         $null -ne $State -and
         $State.schema -eq $experimentSchema -and
         $State.experiment_id -eq $ExperimentId -and
         [int]$State.comparison_sequence_index -eq $SequenceIndex -and
-        [int]$State.attempt -eq $ExpectedAttempt
+        [int]$State.attempt -eq $ExpectedAttempt -and
+        "workload_order" -in $propertyNames -and
+        "measured_workload_counts" -in $propertyNames -and
+        "measured_operation_count" -in $propertyNames -and
+        (@($State.workload_order) -join "|") -ceq ($workloadOrder -join "|") -and
+        [int]$State.measured_workload_counts.canvas16_tap -eq $expectedCount -and
+        [int]$State.measured_workload_counts.canvas256_repeated_diagonal -eq $expectedCount -and
+        [int]$State.measured_operation_count -eq ($expectedCount * $workloadCatalog.Count)
     )
 }
 
@@ -536,8 +637,16 @@ function Get-OperationTiming {
     }
     $previewInputStart = [long]($PreviewRows.handle_input_start_nanos | Measure-Object -Minimum).Minimum
     $commitInputStart = [long]($CommitRows.handle_input_start_nanos | Measure-Object -Minimum).Minimum
+    $previewCompletion = [long]($PreviewRows.frame_completed_nanos | Measure-Object -Maximum).Maximum
     $committedResultCompletion = [long]($CommitRows.frame_completed_nanos | Measure-Object -Maximum).Maximum
-    if ($previewInputStart -le 0 -or $commitInputStart -le $previewInputStart -or $committedResultCompletion -le $commitInputStart) {
+    $timelineIds = @($PreviewRows.frame_timeline_vsync_id) + @($CommitRows.frame_timeline_vsync_id)
+    if (
+        @($timelineIds | Sort-Object -Unique).Count -ne $timelineIds.Count -or
+        $previewInputStart -le 0 -or
+        $previewCompletion -le $previewInputStart -or
+        $commitInputStart -le $previewCompletion -or
+        $committedResultCompletion -le $commitInputStart
+    ) {
         throw "Operation frame timestamps do not preserve DOWN, UP, and committed-result order."
     }
     return [pscustomobject]@{
@@ -546,6 +655,68 @@ function Get-OperationTiming {
         committed_result_completion_nanos = $committedResultCompletion
         input_to_committed_result_ms = ($committedResultCompletion - $commitInputStart) / 1000000.0
         down_to_committed_result_ms = ($committedResultCompletion - $previewInputStart) / 1000000.0
+    }
+}
+
+function Get-CompletedFamilyResult {
+    param(
+        [Parameter(Mandatory = $true)][object]$Spec,
+        [Parameter(Mandatory = $true)][object[]]$Summaries,
+        [Parameter(Mandatory = $true)][object[]]$Frames,
+        [Parameter(Mandatory = $true)][string]$ExpectedProductionCommit
+    )
+
+    $workload = $Spec.workload
+    $expectedSamples = @(1..$sampleCount)
+    $actualSamples = @($Summaries | ForEach-Object { [int]$_.sample_index })
+    if (
+        $Summaries.Count -ne $sampleCount -or
+        @(Compare-Object $expectedSamples $actualSamples).Count -ne 0 -or
+        @($Summaries | Where-Object {
+                $_.production_commit -cne $ExpectedProductionCommit -or
+                [int]$_.motion_event_count -ne $Spec.motion_event_count -or
+                [int]$_.preview_event_count -ne $Spec.preview_event_count -or
+                [int]$_.commit_event_count -ne $Spec.commit_event_count -or
+                [int]$_.raw_position_count -ne $Spec.raw_position_count -or
+                [int]$_.effective_change_count -ne $Spec.effective_change_count -or
+                $_.committed_ui_verified -ne $true
+            }).Count -gt 0
+    ) {
+        throw "The $workload summary population drifted from its fixed identity or sequence."
+    }
+    foreach ($summary in $Summaries) {
+        $operationFrames = @($Frames | Where-Object { [int]$_.sample_index -eq [int]$summary.sample_index })
+        $previewRows = @($operationFrames | Where-Object { $_.phase -ceq "preview" })
+        $commitRows = @($operationFrames | Where-Object { $_.phase -ceq "commit" })
+        if (
+            $previewRows.Count -ne [int]$summary.preview_frame_count -or
+            $previewRows.Count -ne [int]$summary.preview_raw_frame_count -or
+            $previewRows.Count -ne [int]$summary.preview_valid_frame_count -or
+            $commitRows.Count -ne [int]$summary.commit_frame_count -or
+            $commitRows.Count -ne [int]$summary.commit_raw_frame_count -or
+            $commitRows.Count -ne [int]$summary.commit_valid_frame_count -or
+            $operationFrames.Count -ne [int]$summary.raw_row_count -or
+            @($previewRows | Where-Object { [int]$_.event_count -ne $Spec.preview_event_count }).Count -gt 0 -or
+            @($commitRows | Where-Object { [int]$_.event_count -ne $Spec.commit_event_count }).Count -gt 0
+        ) {
+            throw "The $workload operation $($summary.sample_index) frame rows are missing or ambiguous."
+        }
+    }
+    $overrunP95 = Get-NearestRank -Values @($Frames.frame_overrun_ms) -Percentile 0.95
+    $overrunP99 = Get-NearestRank -Values @($Frames.frame_overrun_ms) -Percentile 0.99
+    $inputP95 = Get-NearestRank -Values @($Summaries.input_to_committed_result_ms) -Percentile 0.95
+    $maximumFrameOverrun = ($Frames.frame_overrun_ms | Measure-Object -Maximum).Maximum
+    $maximumInputToCommitted = ($Summaries.input_to_committed_result_ms | Measure-Object -Maximum).Maximum
+    return [pscustomobject]@{
+        Workload = $workload
+        FrameCount = $Frames.Count
+        OverrunP95 = $overrunP95
+        OverrunP99 = $overrunP99
+        InputP95 = $inputP95
+        MaximumFrameOverrun = $maximumFrameOverrun
+        MaximumInputToCommitted = $maximumInputToCommitted
+        Passed = $overrunP95 -le 0.0 -and $overrunP99 -le 16.67 -and $inputP95 -le 33.33
+        GrossRegression = $maximumFrameOverrun -gt 33.34 -or $maximumInputToCommitted -gt 100.0
     }
 }
 
@@ -569,15 +740,18 @@ if ($RunKind -eq "decision" -and ($Variant -ne "release-like" -or $CompilationMo
 if ($ValidateExperimentOnly) {
     $modelTiming = Get-OperationTiming -PreviewRows @(
         [pscustomobject]@{
+            frame_timeline_vsync_id = 1L
             handle_input_start_nanos = 1000000000L
             frame_completed_nanos = 1010000000L
         }
     ) -CommitRows @(
         [pscustomobject]@{
+            frame_timeline_vsync_id = 2L
             handle_input_start_nanos = 1120000000L
             frame_completed_nanos = 1140000000L
         },
         [pscustomobject]@{
+            frame_timeline_vsync_id = 3L
             handle_input_start_nanos = 1121000000L
             frame_completed_nanos = 1145000000L
         }
@@ -612,7 +786,10 @@ if (Test-Path -LiteralPath $resolvedOutput) {
 New-Item -ItemType Directory -Path $resolvedOutput | Out-Null
 New-Item -ItemType Directory -Path (Join-Path $resolvedOutput "raw") | Out-Null
 $runStatePath = Join-Path $resolvedOutput "run-state.json"
-$script:measuredDownCount = 0
+$script:measuredWorkloadCounts = [ordered]@{
+    canvas16_tap = 0
+    canvas256_repeated_diagonal = 0
+}
 function Write-RunState {
     param(
         [Parameter(Mandatory = $true)]
@@ -630,7 +807,11 @@ function Write-RunState {
             attempt = $Attempt
             status = $Status
             verdict = $Verdict
-            measured_down_count = $script:measuredDownCount
+            workload_order = $workloadOrder
+            measured_workload_counts = $script:measuredWorkloadCounts
+            measured_operation_count =
+                [int]$script:measuredWorkloadCounts.canvas16_tap +
+                [int]$script:measuredWorkloadCounts.canvas256_repeated_diagonal
         }
     [System.IO.File]::WriteAllText(
         $runStatePath,
@@ -706,37 +887,8 @@ function Get-WindowRotationState {
     $numericText =
         (Invoke-TargetAdb -AdbArguments @("shell", "settings", "get", "system", "user_rotation") |
             Select-Object -First 1).Trim()
-    if ($numericText -notmatch "^[0-3]$") {
-        throw "The numeric user_rotation setting is unavailable."
-    }
-
     $windowText = (Invoke-TargetAdb -AdbArguments @("shell", "dumpsys", "window")) -join "`n"
-    $modeMatch =
-        [regex]::Match(
-            $windowText,
-            "(?m)^\s*mUserRotationMode=(USER_ROTATION_FREE|USER_ROTATION_LOCKED)\s+mUserRotation=ROTATION_(0|90|180|270)(?:\s|$)"
-        )
-    $currentMatch = [regex]::Match($windowText, "(?m)^\s*mRotation=([0-3])(?:\s|$)")
-    $displayFramesMatch =
-        [regex]::Match($windowText, "(?m)^\s*DisplayFrames\s+w=(\d+)\s+h=(\d+)\s+r=([0-3])(?:\s|$)")
-    if (-not $modeMatch.Success -or -not $currentMatch.Success -or -not $displayFramesMatch.Success) {
-        throw "WindowManager rotation state is unavailable."
-    }
-
-    $currentRotation = [int]$currentMatch.Groups[1].Value
-    $reportedUserRotation = [int]$modeMatch.Groups[2].Value / 90
-    $displayFramesRotation = [int]$displayFramesMatch.Groups[3].Value
-    if ($displayFramesRotation -ne $currentRotation) {
-        throw "WindowManager rotation and display-frame rotation disagree."
-    }
-    [pscustomobject]@{
-        mode = if ($modeMatch.Groups[1].Value -eq "USER_ROTATION_LOCKED") { "locked" } else { "free" }
-        numeric_user_rotation = [int]$numericText
-        reported_user_rotation = $reportedUserRotation
-        current_rotation = $currentRotation
-        logical_width = [int]$displayFramesMatch.Groups[1].Value
-        logical_height = [int]$displayFramesMatch.Groups[2].Value
-    }
+    ConvertFrom-NeneWindowRotationState -NumericText $numericText -WindowText $windowText
 }
 
 function Assert-PinnedLandscapeRotation {
@@ -860,20 +1012,151 @@ function Get-PhysicalCheckpoint {
     }
 }
 
-function Assert-LandscapeEditorUi {
+function Get-ResourceNode {
+    param(
+        [Parameter(Mandatory = $true)][xml]$Ui,
+        [Parameter(Mandatory = $true)][string]$Identity
+    )
+
+    $matches = @(
+        $Ui.SelectNodes("//*[@resource-id]") |
+            Where-Object {
+                $resourceId = $_.GetAttribute("resource-id")
+                $separatorIndex = $resourceId.LastIndexOf(":id/", [System.StringComparison]::Ordinal)
+                $normalized = if ($separatorIndex -ge 0) { $resourceId.Substring($separatorIndex + 4) } else { $resourceId }
+                $normalized -ceq $Identity
+            }
+    )
+    if ($matches.Count -ne 1) {
+        throw "The editor UI must expose exactly one '$Identity' resource identity."
+    }
+    return $matches[0]
+}
+
+function Get-ResourceNodeAttribute {
+    param(
+        [Parameter(Mandatory = $true)][System.Xml.XmlElement]$Node,
+        [Parameter(Mandatory = $true)][string]$Name
+    )
+
+    $current = $Node
+    while ($null -ne $current) {
+        $value = $current.GetAttribute($Name)
+        if (-not [string]::IsNullOrEmpty($value)) {
+            return $value
+        }
+        $current = if ($current.ParentNode -is [System.Xml.XmlElement]) { $current.ParentNode } else { $null }
+    }
+    throw "The '$Name' state is unavailable for resource '$($Node.GetAttribute('resource-id'))'."
+}
+
+function Get-ResourceControlNode {
+    param([Parameter(Mandatory = $true)][System.Xml.XmlElement]$Node)
+
+    $current = $Node
+    while ($null -ne $current) {
+        if ($current.GetAttribute("bounds") -match "^\[\d+,\d+\]\[\d+,\d+\]$") {
+            return $current
+        }
+        $current = if ($current.ParentNode -is [System.Xml.XmlElement]) { $current.ParentNode } else { $null }
+    }
+    throw "Interactive bounds are unavailable for resource '$($Node.GetAttribute('resource-id'))'."
+}
+
+function Assert-LandscapeRootUi {
     param([Parameter(Mandatory = $true)][xml]$Ui)
 
     $rootNode = $Ui.DocumentElement.SelectSingleNode("./node")
-    $canvasNode = $Ui.SelectSingleNode("//node[@content-desc='16 by 16 pixel canvas']")
     if (
         $Ui.DocumentElement.GetAttribute("rotation") -ne "$requiredRotation" -or
         $null -eq $rootNode -or
-        $rootNode.GetAttribute("bounds") -ne $requiredRootBounds -or
-        $null -eq $canvasNode -or
-        $canvasNode.GetAttribute("bounds") -ne $requiredCanvasBounds
+        $rootNode.GetAttribute("bounds") -ne $requiredRootBounds
     ) {
-        throw "The editor UI left the fixed landscape viewport."
+        throw "The editor root geometry or rotation drifted from the pinned physical contract."
     }
+}
+
+function Get-WorkloadSpec {
+    param([Parameter(Mandatory = $true)][string]$Workload)
+
+    $matches = @($workloadCatalog | Where-Object { $_.workload -ceq $Workload })
+    if ($matches.Count -ne 1) {
+        throw "Unknown or ambiguous frame workload '$Workload'."
+    }
+    return $matches[0]
+}
+
+function Assert-LandscapeEditorUi {
+    param(
+        [Parameter(Mandatory = $true)][xml]$Ui,
+        [Parameter(Mandatory = $true)][string]$Workload
+    )
+
+    $spec = Get-WorkloadSpec -Workload $Workload
+    Assert-LandscapeRootUi -Ui $Ui
+    $canvasIdentity = "editor_canvas_$($spec.canvas_width)_$($spec.canvas_height)"
+    $canvasNode = Get-ResourceNode -Ui $Ui -Identity $canvasIdentity
+    $expectedBounds = $expectedSurfaceBoundsByWorkload[$Workload]
+    if (
+        $canvasNode.GetAttribute("bounds") -cne $expectedBounds
+    ) {
+        throw "The editor UI or pinned $Workload surface geometry drifted from preflight."
+    }
+    return Get-InitialFitGeometry -SurfaceBounds (Get-Bounds -Node $canvasNode) -Spec $spec
+}
+
+function Get-InitialFitGeometry {
+    param(
+        [Parameter(Mandatory = $true)][object]$SurfaceBounds,
+        [Parameter(Mandatory = $true)][object]$Spec
+    )
+
+    $surfaceWidth = $SurfaceBounds.Right - $SurfaceBounds.Left
+    $surfaceHeight = $SurfaceBounds.Bottom - $SurfaceBounds.Top
+    if ($surfaceWidth -le 0 -or $surfaceHeight -le 0) {
+        throw "The pinned canvas surface bounds must have positive integer extents."
+    }
+    $fit = [Math]::Min($surfaceWidth / [double]$Spec.canvas_width, $surfaceHeight / [double]$Spec.canvas_height)
+    $projectedWidth = $fit * $Spec.canvas_width
+    $projectedHeight = $fit * $Spec.canvas_height
+    $originX = $SurfaceBounds.Left + (($surfaceWidth - $projectedWidth) / 2.0)
+    $originY = $SurfaceBounds.Top + (($surfaceHeight - $projectedHeight) / 2.0)
+    $firstX = $originX + ($fit / 2.0)
+    $firstY = $originY + ($fit / 2.0)
+    $lastX = $originX + (($Spec.canvas_width - 0.5) * $fit)
+    $lastY = $originY + (($Spec.canvas_height - 0.5) * $fit)
+    $values = @($fit, $originX, $originY, $firstX, $firstY, $lastX, $lastY)
+    if (
+        @($values | Where-Object { [double]::IsNaN($_) -or [double]::IsInfinity($_) }).Count -gt 0 -or
+        $fit -le 0.0 -or
+        $SurfaceBounds.Left -lt 0 -or
+        $SurfaceBounds.Top -lt 0 -or
+        $SurfaceBounds.Right -gt $requiredLogicalWidth -or
+        $SurfaceBounds.Bottom -gt $requiredLogicalHeight -or
+        $firstX -le $SurfaceBounds.Left -or
+        $firstY -le $SurfaceBounds.Top -or
+        $lastX -ge $SurfaceBounds.Right -or
+        $lastY -ge $SurfaceBounds.Bottom
+    ) {
+        throw "The $geometryId projection did not produce target-cell centers strictly inside the pinned surface."
+    }
+    return [pscustomobject]@{
+        Id = $geometryId
+        SurfaceBounds = "[$($SurfaceBounds.Left),$($SurfaceBounds.Top)][$($SurfaceBounds.Right),$($SurfaceBounds.Bottom)]"
+        Fit = $fit
+        OriginX = $originX
+        OriginY = $originY
+        FirstX = $firstX
+        FirstY = $firstY
+        LastX = $lastX
+        LastY = $lastY
+    }
+}
+
+function Format-InputCoordinate {
+    param([Parameter(Mandatory = $true)][double]$Value)
+
+    return $Value.ToString("0.######", [System.Globalization.CultureInfo]::InvariantCulture)
 }
 
 function Get-RequiredMatchValue {
@@ -940,17 +1223,27 @@ function Get-FrameRows {
         [int]$SampleIndex,
 
         [Parameter(Mandatory = $true)]
+        [string]$Workload,
+
+        [Parameter(Mandatory = $true)]
+        [int]$OperationOrdinal,
+
+        [Parameter(Mandatory = $true)]
+        [int]$EventCount,
+
+        [Parameter(Mandatory = $true)]
         [ValidateSet("preview", "commit")]
         [string]$Phase
     )
 
-    $headerIndex =
+    $headerIndexes = @(
         0..($GfxInfo.Count - 1) |
-            Where-Object { $GfxInfo[$_] -like "Flags,FrameTimelineVsyncId,*" } |
-            Select-Object -First 1
-    if ($null -eq $headerIndex) {
-        throw "Sample $SampleIndex has no PROFILEDATA header."
+            Where-Object { $GfxInfo[$_] -like "Flags,FrameTimelineVsyncId,*" }
+    )
+    if ($headerIndexes.Count -ne 1) {
+        throw "Sample $SampleIndex must expose exactly one PROFILEDATA header."
     }
+    $headerIndex = $headerIndexes[0]
 
     $rows = [System.Collections.Generic.List[object]]::new()
     for ($lineIndex = $headerIndex + 1; $lineIndex -lt $GfxInfo.Count; $lineIndex += 1) {
@@ -967,18 +1260,31 @@ function Get-FrameRows {
         $intended = [long]$frame.IntendedVsync
         $deadline = [long]$frame.FrameDeadline
         $inputStarted = [long]$frame.HandleInputStart
-        if ($completed -le 0 -or $started -le 0 -or $intended -le 0 -or $deadline -le 0 -or $inputStarted -le 0) {
+        $frameTimelineVsyncId = [long]$frame.FrameTimelineVsyncId
+        if (
+            $frameTimelineVsyncId -le 0 -or
+            $completed -le 0 -or
+            $started -le 0 -or
+            $intended -le 0 -or
+            $deadline -le 0 -or
+            $inputStarted -le 0
+        ) {
             throw "Sample $SampleIndex contains unavailable required frame fields."
         }
         $rows.Add(
             [pscustomobject]@{
                 variant = $Variant
                 source_commit = $SourceCommit
+                production_commit = if ($CandidateRole -eq "baseline") { $BaselineProductionCommit } else { $CandidateProductionCommit }
+                workload = $Workload
+                operation = "$Workload#$SampleIndex"
+                operation_ordinal = $OperationOrdinal
                 sample_index = $SampleIndex
                 phase = $Phase
+                event_count = $EventCount
                 row_index = $rows.Count + 1
                 flags = [int]$frame.Flags
-                frame_timeline_vsync_id = [long]$frame.FrameTimelineVsyncId
+                frame_timeline_vsync_id = $frameTimelineVsyncId
                 intended_vsync_nanos = $intended
                 frame_start_nanos = $started
                 handle_input_start_nanos = $inputStarted
@@ -1002,46 +1308,37 @@ function Get-OperationPhaseCapture {
         [int]$SampleIndex,
 
         [Parameter(Mandatory = $true)]
+        [string]$Workload,
+
+        [Parameter(Mandatory = $true)]
+        [int]$OperationOrdinal,
+
+        [Parameter(Mandatory = $true)]
         [ValidateSet("preview", "commit")]
         [string]$Phase,
 
         [Parameter(Mandatory = $true)]
-        [ValidateSet("DOWN", "UP")]
-        [string]$MotionEvent,
+        [int]$EventCount,
 
-        [Parameter(Mandatory = $true)]
-        [int]$WaitMilliseconds,
-
-        [Parameter(Mandatory = $true)]
-        [int]$CanvasX,
-
-        [Parameter(Mandatory = $true)]
-        [int]$CanvasY
+        [string]$ArtifactPhase = $Phase
     )
 
-    Invoke-TargetAdb -AdbArguments @("shell", "dumpsys", "gfxinfo", $packageName, "reset") | Out-Null
-    Invoke-TargetAdb -AdbArguments @(
-        "shell",
-        "cmd",
-        "input",
-        "motionevent",
-        $MotionEvent,
-        "$CanvasX",
-        "$CanvasY"
-    ) | Out-Null
-    if ($MotionEvent -eq "DOWN") {
-        $script:measuredDownCount += 1
-        Write-RunState -Status "running" -Verdict "unavailable"
-    }
-    Start-Sleep -Milliseconds $WaitMilliseconds
     $gfxInfo = @(Invoke-TargetAdb -AdbArguments @("shell", "dumpsys", "gfxinfo", $packageName, "framestats"))
     $gfxText = $gfxInfo -join "`n"
     [System.IO.File]::WriteAllLines(
-        (Join-Path $resolvedOutput ("raw/sample-{0:D2}-{1}.txt" -f $SampleIndex, $Phase)),
+        (Join-Path $resolvedOutput ("raw/{0}-sample-{1:D2}-{2}.txt" -f $Workload, $SampleIndex, $ArtifactPhase)),
         $gfxInfo
     )
 
-    $rows = @(Get-FrameRows -GfxInfo $gfxInfo -SampleIndex $SampleIndex -Phase $Phase)
+    $rows = @(
+        Get-FrameRows `
+            -GfxInfo $gfxInfo `
+            -SampleIndex $SampleIndex `
+            -Workload $Workload `
+            -OperationOrdinal $OperationOrdinal `
+            -EventCount $EventCount `
+            -Phase $Phase
+    )
     $validRows = @($rows | Where-Object { $_.flags -eq 0 })
     $totalFramesRendered =
         [int](Get-RequiredMatchValue -Text $gfxText -Pattern "^Total frames rendered:\s+(\d+)" -Name "total frame count")
@@ -1065,6 +1362,26 @@ function Get-OperationPhaseCapture {
     }
 }
 
+function Assert-UnchangedPhaseCapture {
+    param(
+        [Parameter(Mandatory = $true)][object]$BeforeUiVerification,
+        [Parameter(Mandatory = $true)][object]$AfterUiVerification,
+        [Parameter(Mandatory = $true)][int]$SampleIndex,
+        [Parameter(Mandatory = $true)][string]$Workload
+    )
+
+    $beforeRows = @($BeforeUiVerification.Rows | ConvertTo-Csv -NoTypeInformation)
+    $afterRows = @($AfterUiVerification.Rows | ConvertTo-Csv -NoTypeInformation)
+    if (
+        $BeforeUiVerification.TotalFramesRendered -ne $AfterUiVerification.TotalFramesRendered -or
+        $BeforeUiVerification.JankyFrames -ne $AfterUiVerification.JankyFrames -or
+        $BeforeUiVerification.DeadlineMissedFrames -ne $AfterUiVerification.DeadlineMissedFrames -or
+        @(Compare-Object $beforeRows $afterRows -SyncWindow 0).Count -ne 0
+    ) {
+        throw "Sample $SampleIndex for $Workload rendered an unassociated commit frame during UI verification."
+    }
+}
+
 function Set-LatestUiFailureSnapshot {
     param(
         [Parameter(Mandatory = $true)]
@@ -1072,8 +1389,11 @@ function Set-LatestUiFailureSnapshot {
         [string]$Kind,
 
         [Parameter(Mandatory = $true)]
-        [ValidateSet("sample-commit", "sample-reset", "warmup-reset")]
+        [ValidateSet("sample-commit", "warmup-commit", "sample-reset", "warmup-reset")]
         [string]$Phase,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Workload,
 
         [AllowNull()]
         [Nullable[int]]$SampleIndex,
@@ -1092,6 +1412,7 @@ function Set-LatestUiFailureSnapshot {
     $snapshot = [pscustomobject]@{
         Kind = $Kind
         Phase = $Phase
+        Workload = $Workload
         SampleIndex = $SampleIndex
         WarmupIndex = $WarmupIndex
         UndoAttempt = $UndoAttempt
@@ -1147,6 +1468,7 @@ function Save-LatestUiFailureSnapshots {
             $metadata = @(
                 "kind=$($snapshot.Kind)",
                 "phase=$($snapshot.Phase)",
+                "workload=$($snapshot.Workload)",
                 "sample_index=$(if ($null -eq $snapshot.SampleIndex) { '' } else { $snapshot.SampleIndex })",
                 "warmup_index=$(if ($null -eq $snapshot.WarmupIndex) { '' } else { $snapshot.WarmupIndex })",
                 "undo_attempt=$(if ($null -eq $snapshot.UndoAttempt) { '' } else { $snapshot.UndoAttempt })",
@@ -1173,7 +1495,9 @@ function Invoke-UndoToCleanCheckpoint {
         [string]$Phase,
 
         [Parameter(Mandatory = $true)]
-        [int]$JourneyIndex
+        [int]$JourneyIndex,
+        [Parameter(Mandatory = $true)]
+        [string]$Workload
     )
 
     $checkpointRemote = "$remotePrefix-checkpoint.xml"
@@ -1186,19 +1510,18 @@ function Invoke-UndoToCleanCheckpoint {
         Set-LatestUiFailureSnapshot `
             -Kind "undo-reset" `
             -Phase $Phase `
+            -Workload $Workload `
             -SampleIndex $(if ($Phase -eq "sample-reset") { $JourneyIndex } else { $null }) `
             -WarmupIndex $(if ($Phase -eq "warmup-reset") { $JourneyIndex } else { $null }) `
             -UndoAttempt $attempt `
             -RawXml $checkpointText
         [xml]$checkpointUi = $checkpointText
-        Assert-LandscapeEditorUi -Ui $checkpointUi
-        $dirtyNode = $checkpointUi.SelectSingleNode("//node[@content-desc='Document dirty status']")
-        $undoNode = $checkpointUi.SelectSingleNode("//node[@text='Undo']")
+        Assert-LandscapeEditorUi -Ui $checkpointUi -Workload $Workload | Out-Null
+        $cleanNode = Get-ResourceNode -Ui $checkpointUi -Identity "editor_clean_document"
+        $undoNode = Get-ResourceNode -Ui $checkpointUi -Identity "editor_undo"
         if (
-            $null -ne $dirtyNode -and
-            $null -ne $undoNode -and
-            $dirtyNode.GetAttribute("text") -eq "No unsaved changes" -and
-            $undoNode.ParentNode.GetAttribute("enabled") -eq "false"
+            $null -ne $cleanNode -and
+            (Get-ResourceNodeAttribute -Node $undoNode -Name "enabled") -eq "false"
         ) {
             return
         }
@@ -1209,7 +1532,14 @@ function Invoke-UndoToCleanCheckpoint {
 function Assert-CommittedResult {
     param(
         [Parameter(Mandatory = $true)]
-        [int]$SampleIndex
+        [ValidateSet("sample", "warmup")]
+        [string]$JourneyKind,
+
+        [Parameter(Mandatory = $true)]
+        [int]$JourneyIndex,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Workload
     )
 
     $checkpointRemote = "$remotePrefix-checkpoint.xml"
@@ -1218,26 +1548,168 @@ function Assert-CommittedResult {
         (Invoke-TargetAdb -AdbArguments @("shell", "cat", $checkpointRemote)) -join "`n"
     Set-LatestUiFailureSnapshot `
         -Kind "committed-result" `
-        -Phase "sample-commit" `
-        -SampleIndex $SampleIndex `
-        -WarmupIndex $null `
+        -Phase "$JourneyKind-commit" `
+        -Workload $Workload `
+        -SampleIndex $(if ($JourneyKind -eq "sample") { $JourneyIndex } else { $null }) `
+        -WarmupIndex $(if ($JourneyKind -eq "warmup") { $JourneyIndex } else { $null }) `
         -UndoAttempt $null `
         -RawXml $checkpointText
     [xml]$checkpointUi = $checkpointText
-    Assert-LandscapeEditorUi -Ui $checkpointUi
-    $dirtyNode = $checkpointUi.SelectSingleNode("//node[@content-desc='Document dirty status']")
-    $undoNode = $checkpointUi.SelectSingleNode("//node[@text='Undo']")
-    $redoNode = $checkpointUi.SelectSingleNode("//node[@text='Redo']")
+    Assert-LandscapeEditorUi -Ui $checkpointUi -Workload $Workload | Out-Null
+    $dirtyNode = Get-ResourceNode -Ui $checkpointUi -Identity "editor_dirty_document"
+    $undoNode = Get-ResourceNode -Ui $checkpointUi -Identity "editor_undo"
+    $redoNode = Get-ResourceNode -Ui $checkpointUi -Identity "editor_redo"
     if (
         $null -eq $dirtyNode -or
-        $null -eq $undoNode -or
-        $null -eq $redoNode -or
-        $dirtyNode.GetAttribute("text") -ne "Unsaved changes" -or
-        $undoNode.ParentNode.GetAttribute("enabled") -ne "true" -or
-        $redoNode.ParentNode.GetAttribute("enabled") -ne "false"
+        (Get-ResourceNodeAttribute -Node $undoNode -Name "enabled") -ne "true" -or
+        (Get-ResourceNodeAttribute -Node $redoNode -Name "enabled") -ne "false"
     ) {
-        throw "Sample $SampleIndex did not expose the committed Pencil result."
+        throw "$JourneyKind $JourneyIndex for $Workload did not expose the committed Pencil result."
     }
+}
+
+function Get-CurrentEditorUi {
+    $remote = "$remotePrefix-current.xml"
+    Invoke-TargetAdb -AdbArguments @("shell", "uiautomator", "dump", $remote) | Out-Null
+    $text = (Invoke-TargetAdb -AdbArguments @("shell", "cat", $remote)) -join "`n"
+    return [xml]$text
+}
+
+function Assert-CleanWorkloadReady {
+    param(
+        [Parameter(Mandatory = $true)][xml]$Ui,
+        [Parameter(Mandatory = $true)][string]$Workload
+    )
+
+    $geometry = Assert-LandscapeEditorUi -Ui $Ui -Workload $Workload
+    $cleanNode = Get-ResourceNode -Ui $Ui -Identity "editor_clean_document"
+    $undoNode = Get-ResourceNode -Ui $Ui -Identity "editor_undo"
+    $pencilNode = Get-ResourceNode -Ui $Ui -Identity "editor_pencil_tool"
+    if (
+        $null -eq $cleanNode -or
+        (Get-ResourceNodeAttribute -Node $undoNode -Name "enabled") -ne "false" -or
+        (Get-ResourceNodeAttribute -Node $pencilNode -Name "checked") -ne "true"
+    ) {
+        throw "The $Workload operation did not start from its clean Pencil checkpoint."
+    }
+    return $geometry
+}
+
+function Invoke-NodeTap {
+    param([Parameter(Mandatory = $true)][System.Xml.XmlElement]$Node)
+
+    $bounds = Get-Bounds -Node $Node
+    $x = [Math]::Floor(($bounds.Left + $bounds.Right) / 2.0)
+    $y = [Math]::Floor(($bounds.Top + $bounds.Bottom) / 2.0)
+    Invoke-TargetAdb -AdbArguments @("shell", "cmd", "input", "tap", "$x", "$y") | Out-Null
+}
+
+function Set-BoundedDimensionField {
+    param(
+        [Parameter(Mandatory = $true)][System.Xml.XmlElement]$Node,
+        [Parameter(Mandatory = $true)][ValidatePattern("^\d{1,3}$")][string]$Value
+    )
+
+    Invoke-NodeTap -Node $Node
+    Invoke-TargetAdb -AdbArguments @("shell", "cmd", "input", "keyevent", "KEYCODE_MOVE_END") | Out-Null
+    foreach ($unused in 1..3) {
+        Invoke-TargetAdb -AdbArguments @("shell", "cmd", "input", "keyevent", "KEYCODE_DEL") | Out-Null
+    }
+    Invoke-TargetAdb -AdbArguments @("shell", "cmd", "input", "text", $Value) | Out-Null
+}
+
+function New-DocumentThroughUi {
+    param([Parameter(Mandatory = $true)][object]$Spec)
+
+    $initialUi = Get-CurrentEditorUi
+    Assert-LandscapeRootUi -Ui $initialUi
+    Invoke-NodeTap -Node (Get-ResourceNode -Ui $initialUi -Identity "editor_file")
+    $fileUi = Get-CurrentEditorUi
+    Invoke-NodeTap -Node (Get-ResourceNode -Ui $fileUi -Identity "editor_new_document")
+    $dialogUi = Get-CurrentEditorUi
+    Get-ResourceNode -Ui $dialogUi -Identity "editor_create_document_title" | Out-Null
+    Set-BoundedDimensionField `
+        -Node (Get-ResourceNode -Ui $dialogUi -Identity "editor_document_width") `
+        -Value "$($Spec.canvas_width)"
+    $dialogUi = Get-CurrentEditorUi
+    Set-BoundedDimensionField `
+        -Node (Get-ResourceNode -Ui $dialogUi -Identity "editor_document_height") `
+        -Value "$($Spec.canvas_height)"
+    $typedUi = Get-CurrentEditorUi
+    $widthNode = Get-ResourceNode -Ui $typedUi -Identity "editor_document_width"
+    $heightNode = Get-ResourceNode -Ui $typedUi -Identity "editor_document_height"
+    if (
+        $widthNode.GetAttribute("text") -cne "$($Spec.canvas_width)" -or
+        $heightNode.GetAttribute("text") -cne "$($Spec.canvas_height)"
+    ) {
+        throw "The actual New-document UI did not retain the bounded $($Spec.canvas_width) by $($Spec.canvas_height) dimensions."
+    }
+    Invoke-NodeTap -Node (Get-ResourceNode -Ui $typedUi -Identity "editor_create")
+    Start-Sleep -Milliseconds $drawWaitMilliseconds
+    $createdUi = Get-CurrentEditorUi
+    if (@($createdUi.SelectNodes("//*[@resource-id]") | Where-Object { $_.GetAttribute("resource-id") -like "*editor_create_document_title" }).Count -ne 0) {
+        throw "The New-document dialog remained visible after creating the $($Spec.canvas_width) by $($Spec.canvas_height) document."
+    }
+    return Assert-CleanWorkloadReady -Ui $createdUi -Workload $Spec.workload
+}
+
+function Invoke-MotionEvent {
+    param(
+        [Parameter(Mandatory = $true)][ValidateSet("DOWN", "MOVE", "UP")][string]$Event,
+        [Parameter(Mandatory = $true)][double]$X,
+        [Parameter(Mandatory = $true)][double]$Y
+    )
+
+    Invoke-TargetAdb -AdbArguments @(
+        "shell",
+        "cmd",
+        "input",
+        "motionevent",
+        $Event,
+        (Format-InputCoordinate -Value $X),
+        (Format-InputCoordinate -Value $Y)
+    ) | Out-Null
+}
+
+function Invoke-PreviewEventSequence {
+    param(
+        [Parameter(Mandatory = $true)][object]$Spec,
+        [Parameter(Mandatory = $true)][object]$Geometry,
+        [switch]$Measured
+    )
+
+    Invoke-MotionEvent -Event "DOWN" -X $Geometry.FirstX -Y $Geometry.FirstY
+    if ($Measured) {
+        $script:measuredWorkloadCounts[$Spec.workload] =
+            [int]$script:measuredWorkloadCounts[$Spec.workload] + 1
+        Write-RunState -Status "running" -Verdict "unavailable"
+    }
+    Start-Sleep -Milliseconds $previewWaitMilliseconds
+    if ($Spec.move_event_count -gt 0) {
+        foreach ($moveIndex in 1..$Spec.move_event_count) {
+            $useLast = $moveIndex % 2 -eq 1
+            Invoke-MotionEvent `
+                -Event "MOVE" `
+                -X $(if ($useLast) { $Geometry.LastX } else { $Geometry.FirstX }) `
+                -Y $(if ($useLast) { $Geometry.LastY } else { $Geometry.FirstY })
+            Start-Sleep -Milliseconds $moveWaitMilliseconds
+        }
+        Start-Sleep -Milliseconds $postMovePreviewWaitMilliseconds
+    }
+}
+
+function Invoke-CommitEventSequence {
+    param(
+        [Parameter(Mandatory = $true)][object]$Spec,
+        [Parameter(Mandatory = $true)][object]$Geometry
+    )
+
+    $commitAtFirst = $Spec.move_event_count % 2 -eq 0
+    Invoke-MotionEvent `
+        -Event "UP" `
+        -X $(if ($commitAtFirst) { $Geometry.FirstX } else { $Geometry.LastX }) `
+        -Y $(if ($commitAtFirst) { $Geometry.FirstY } else { $Geometry.LastY })
+    Start-Sleep -Milliseconds $drawWaitMilliseconds
 }
 
 function Write-RotationStateArtifact {
@@ -1537,6 +2009,14 @@ $environmentRows = [System.Collections.Generic.List[object]]::new()
 $environmentPath = Join-Path $resolvedOutput "environment.csv"
 $frameRows = [System.Collections.Generic.List[object]]::new()
 $sampleSummaries = [System.Collections.Generic.List[object]]::new()
+$familyResults = [System.Collections.Generic.List[object]]::new()
+$earlyStopStatus = $null
+$lastCompletedWorkload = $null
+$isDecisionLane = $Variant -eq "release-like" -and $CompilationMode -eq "speed-profile" -and $RunKind -eq "decision"
+$expectedProductionCommit =
+    if ($CandidateRole -eq "baseline") { $BaselineProductionCommit } else { $CandidateProductionCommit }
+$framesPath = Join-Path $resolvedOutput "frames.csv"
+$summariesPath = Join-Path $resolvedOutput "samples.csv"
 $script:latestCommittedResultSnapshot = $null
 $script:latestUndoResetSnapshot = $null
 $script:rotationPinAttempted = $false
@@ -1563,7 +2043,6 @@ try {
     Invoke-TargetAdb -AdbArguments @("shell", "cmd", "input", "keyevent", "WAKEUP") | Out-Null
     Start-Sleep -Milliseconds 250
     Invoke-TargetAdb -AdbArguments @("install", "-r", "-d", $artifactIdentity.resolved_apk_path) | Out-Null
-    Invoke-TargetAdb -AdbArguments @("shell", "pm", "clear", $packageName) | Out-Null
     Invoke-TargetAdb -AdbArguments @("shell", "cmd", "package", "compile", "--reset", $packageName) | Out-Null
     $profileInstallResult = "not-requested"
     if ($CompilationMode -eq "speed-profile") {
@@ -1602,107 +2081,158 @@ try {
     Start-Sleep -Milliseconds 1500
     $environmentRows.Add((Get-PhysicalCheckpoint -Name "before_warmups"))
 
+    New-DocumentThroughUi -Spec $workloadCatalog[0] | Out-Null
+
     $beforeRemote = "$remotePrefix-before.xml"
     $beforeLocal = Join-Path $resolvedOutput "ui-before.xml"
     Invoke-TargetAdb -AdbArguments @("shell", "uiautomator", "dump", $beforeRemote) | Out-Null
     Invoke-TargetAdb -AdbArguments @("pull", $beforeRemote, $beforeLocal) | Out-Null
     [xml]$beforeUi = Get-Content -Raw -LiteralPath $beforeLocal
-    Assert-LandscapeEditorUi -Ui $beforeUi
-    $canvasNode = $beforeUi.SelectSingleNode("//node[@content-desc='16 by 16 pixel canvas']")
-    $dirtyNode = $beforeUi.SelectSingleNode("//node[@content-desc='Document dirty status']")
-    $undoTextNode = $beforeUi.SelectSingleNode("//node[@text='Undo']")
-    $redoTextNode = $beforeUi.SelectSingleNode("//node[@text='Redo']")
-    $pencilNode = $beforeUi.SelectSingleNode("//node[@content-desc='Pencil tool']")
-    if ($null -eq $canvasNode -or $null -eq $dirtyNode -or $null -eq $undoTextNode -or $null -eq $redoTextNode -or $null -eq $pencilNode) {
-        throw "Required editor nodes are absent before measurement."
+    Assert-CleanWorkloadReady -Ui $beforeUi -Workload "canvas16_tap" | Out-Null
+    $undoNode = Get-ResourceNode -Ui $beforeUi -Identity "editor_undo"
+    $redoNode = Get-ResourceNode -Ui $beforeUi -Identity "editor_redo"
+    if (
+        (Get-ResourceNodeAttribute -Node $undoNode -Name "enabled") -ne "false" -or
+        (Get-ResourceNodeAttribute -Node $redoNode -Name "enabled") -ne "false"
+    ) {
+        throw "The frame journey did not start with empty Undo and Redo history."
     }
-    if ($dirtyNode.GetAttribute("text") -ne "No unsaved changes") {
-        throw "The frame journey did not start at the clean checkpoint."
-    }
-    if ($undoTextNode.ParentNode.GetAttribute("enabled") -ne "false" -or $redoTextNode.ParentNode.GetAttribute("enabled") -ne "false") {
-        throw "Undo and Redo must be disabled before the frame journey."
-    }
-    if ($pencilNode.ParentNode.GetAttribute("checked") -ne "true") {
-        throw "Pencil must be selected before the frame journey."
-    }
-
-    $canvasBounds = Get-Bounds -Node $canvasNode
-    $undoBounds = Get-Bounds -Node $undoTextNode.ParentNode
-    $cellWidth = ($canvasBounds.Right - $canvasBounds.Left) / 16.0
-    $cellHeight = ($canvasBounds.Bottom - $canvasBounds.Top) / 16.0
-    $canvasX = [int][Math]::Floor($canvasBounds.Left + $cellWidth / 2.0)
-    $canvasY = [int][Math]::Floor($canvasBounds.Top + $cellHeight / 2.0)
+    $undoBounds = Get-Bounds -Node (Get-ResourceControlNode -Node $undoNode)
     $undoX = [int][Math]::Floor(($undoBounds.Left + $undoBounds.Right) / 2.0)
     $undoY = [int][Math]::Floor(($undoBounds.Top + $undoBounds.Bottom) / 2.0)
 
-    foreach ($warmupIndex in 1..$warmupCount) {
-        Invoke-TargetAdb -AdbArguments @("shell", "cmd", "input", "tap", "$canvasX", "$canvasY") | Out-Null
-        Start-Sleep -Milliseconds $undoWaitMilliseconds
-        Invoke-UndoToCleanCheckpoint `
-            -UndoX $undoX `
-            -UndoY $undoY `
-            -Phase "warmup-reset" `
-            -JourneyIndex $warmupIndex
-    }
-
-    $environmentRows.Add((Get-PhysicalCheckpoint -Name "before_samples"))
     Invoke-TargetAdb -AdbArguments @("logcat", "-c") | Out-Null
     if ($physicalPresentEnabled) {
         $physicalTraceState = Start-PhysicalPresentTrace
     }
-    foreach ($sampleIndex in 1..$sampleCount) {
-        $previewCapture =
-            Get-OperationPhaseCapture `
-                -SampleIndex $sampleIndex `
-                -Phase "preview" `
-                -MotionEvent "DOWN" `
-                -WaitMilliseconds $previewWaitMilliseconds `
-                -CanvasX $canvasX `
-                -CanvasY $canvasY
-        $commitCapture =
-            Get-OperationPhaseCapture `
-                -SampleIndex $sampleIndex `
-                -Phase "commit" `
-                -MotionEvent "UP" `
-                -WaitMilliseconds $drawWaitMilliseconds `
-                -CanvasX $canvasX `
-                -CanvasY $canvasY
-        Assert-CommittedResult -SampleIndex $sampleIndex
-        @($previewCapture.Rows) + @($commitCapture.Rows) | ForEach-Object { $frameRows.Add($_) }
-        $operationTiming =
-            Get-OperationTiming -PreviewRows @($previewCapture.Rows) -CommitRows @($commitCapture.Rows)
-        $sampleSummaries.Add(
-            [pscustomobject]@{
-                variant = $Variant
-                source_commit = $SourceCommit
-                sample_index = $sampleIndex
-                preview_frame_count = $previewCapture.Rows.Count
-                commit_frame_count = $commitCapture.Rows.Count
-                total_frames_rendered =
-                    $previewCapture.TotalFramesRendered + $commitCapture.TotalFramesRendered
-                janky_frames = $previewCapture.JankyFrames + $commitCapture.JankyFrames
-                deadline_missed_frames =
-                    $previewCapture.DeadlineMissedFrames + $commitCapture.DeadlineMissedFrames
-                raw_row_count = $previewCapture.Rows.Count + $commitCapture.Rows.Count
-                valid_row_count = $previewCapture.Rows.Count + $commitCapture.Rows.Count
-                preview_input_start_nanos = $operationTiming.preview_input_start_nanos
-                commit_input_start_nanos = $operationTiming.commit_input_start_nanos
-                committed_result_completion_nanos = $operationTiming.committed_result_completion_nanos
-                input_to_committed_result_ms = $operationTiming.input_to_committed_result_ms
-                down_to_committed_result_ms = $operationTiming.down_to_committed_result_ms
-            }
-        )
-
-        if ($sampleIndex % 10 -eq 0 -or $sampleIndex -eq $sampleCount) {
-            $environmentRows.Add((Get-PhysicalCheckpoint -Name "after_$sampleIndex"))
+    $operationOrdinal = 0
+    foreach ($spec in $workloadCatalog) {
+        $workload = $spec.workload
+        if ($workload -ne $workloadCatalog[0].workload) {
+            New-DocumentThroughUi -Spec $spec | Out-Null
         }
-
-        if ($sampleIndex -lt $sampleCount) {
+        foreach ($warmupIndex in 1..$warmupCount) {
+            $geometry = Assert-CleanWorkloadReady -Ui (Get-CurrentEditorUi) -Workload $workload
+            Invoke-PreviewEventSequence -Spec $spec -Geometry $geometry
+            Invoke-CommitEventSequence -Spec $spec -Geometry $geometry
+            Assert-CommittedResult -JourneyKind "warmup" -JourneyIndex $warmupIndex -Workload $workload
+            Invoke-UndoToCleanCheckpoint `
+                -UndoX $undoX `
+                -UndoY $undoY `
+                -Phase "warmup-reset" `
+                -JourneyIndex $warmupIndex `
+                -Workload $workload
+        }
+        $environmentRows.Add((Get-PhysicalCheckpoint -Name "before_${workload}_samples"))
+        foreach ($sampleIndex in 1..$sampleCount) {
+            $operationOrdinal += 1
+            $geometry = Assert-CleanWorkloadReady -Ui (Get-CurrentEditorUi) -Workload $workload
+            Invoke-TargetAdb -AdbArguments @("shell", "dumpsys", "gfxinfo", $packageName, "reset") | Out-Null
+            Invoke-PreviewEventSequence -Spec $spec -Geometry $geometry -Measured
+            $previewCapture =
+                Get-OperationPhaseCapture `
+                    -SampleIndex $sampleIndex `
+                    -Workload $workload `
+                    -OperationOrdinal $operationOrdinal `
+                    -Phase "preview" `
+                    -EventCount $spec.preview_event_count
+            Assert-LandscapeEditorUi -Ui (Get-CurrentEditorUi) -Workload $workload | Out-Null
+            Invoke-TargetAdb -AdbArguments @("shell", "dumpsys", "gfxinfo", $packageName, "reset") | Out-Null
+            Invoke-CommitEventSequence -Spec $spec -Geometry $geometry
+            $commitCapture =
+                Get-OperationPhaseCapture `
+                    -SampleIndex $sampleIndex `
+                    -Workload $workload `
+                    -OperationOrdinal $operationOrdinal `
+                    -Phase "commit" `
+                    -EventCount $spec.commit_event_count
+            Assert-CommittedResult -JourneyKind "sample" -JourneyIndex $sampleIndex -Workload $workload
+            $verifiedCommitCapture =
+                Get-OperationPhaseCapture `
+                    -SampleIndex $sampleIndex `
+                    -Workload $workload `
+                    -OperationOrdinal $operationOrdinal `
+                    -Phase "commit" `
+                    -EventCount $spec.commit_event_count `
+                    -ArtifactPhase "commit-after-ui-verification"
+            Assert-UnchangedPhaseCapture `
+                -BeforeUiVerification $commitCapture `
+                -AfterUiVerification $verifiedCommitCapture `
+                -SampleIndex $sampleIndex `
+                -Workload $workload
+            @($previewCapture.Rows) + @($commitCapture.Rows) | ForEach-Object { $frameRows.Add($_) }
+            $operationTiming =
+                Get-OperationTiming -PreviewRows @($previewCapture.Rows) -CommitRows @($commitCapture.Rows)
+            $sampleSummaries.Add(
+                [pscustomobject]@{
+                    variant = $Variant
+                    source_commit = $SourceCommit
+                    production_commit =
+                        if ($CandidateRole -eq "baseline") { $BaselineProductionCommit } else { $CandidateProductionCommit }
+                    workload = $workload
+                    operation = "$workload#$sampleIndex"
+                    operation_ordinal = $operationOrdinal
+                    sample_index = $sampleIndex
+                    motion_event_count = $spec.motion_event_count
+                    preview_event_count = $spec.preview_event_count
+                    commit_event_count = $spec.commit_event_count
+                    raw_position_count = $spec.raw_position_count
+                    effective_change_count = $spec.effective_change_count
+                    preview_frame_count = $previewCapture.Rows.Count
+                    preview_raw_frame_count = $previewCapture.Rows.Count
+                    preview_valid_frame_count = $previewCapture.Rows.Count
+                    commit_frame_count = $commitCapture.Rows.Count
+                    commit_raw_frame_count = $commitCapture.Rows.Count
+                    commit_valid_frame_count = $commitCapture.Rows.Count
+                    total_frames_rendered =
+                        $previewCapture.TotalFramesRendered + $commitCapture.TotalFramesRendered
+                    janky_frames = $previewCapture.JankyFrames + $commitCapture.JankyFrames
+                    deadline_missed_frames =
+                        $previewCapture.DeadlineMissedFrames + $commitCapture.DeadlineMissedFrames
+                    raw_row_count = $previewCapture.Rows.Count + $commitCapture.Rows.Count
+                    valid_row_count = $previewCapture.Rows.Count + $commitCapture.Rows.Count
+                    committed_ui_verified = $true
+                    preview_input_start_nanos = $operationTiming.preview_input_start_nanos
+                    commit_input_start_nanos = $operationTiming.commit_input_start_nanos
+                    committed_result_completion_nanos = $operationTiming.committed_result_completion_nanos
+                    input_to_committed_result_ms = $operationTiming.input_to_committed_result_ms
+                    down_to_committed_result_ms = $operationTiming.down_to_committed_result_ms
+                }
+            )
+            if ($operationOrdinal % 10 -eq 0) {
+                $environmentRows.Add((Get-PhysicalCheckpoint -Name "after_operation_$operationOrdinal"))
+            }
             Invoke-UndoToCleanCheckpoint `
                 -UndoX $undoX `
                 -UndoY $undoY `
                 -Phase "sample-reset" `
-                -JourneyIndex $sampleIndex
+                -JourneyIndex $sampleIndex `
+                -Workload $workload
+        }
+        $familySummaries = @($sampleSummaries | Where-Object { $_.workload -ceq $workload })
+        $familyFrames = @($frameRows | Where-Object { $_.workload -ceq $workload })
+        $familyResult =
+            Get-CompletedFamilyResult `
+                -Spec $spec `
+                -Summaries $familySummaries `
+                -Frames $familyFrames `
+                -ExpectedProductionCommit $expectedProductionCommit
+        $familyResults.Add($familyResult)
+        $lastCompletedWorkload = $workload
+        $frameRows | Export-Csv -NoTypeInformation -Encoding utf8 -LiteralPath $framesPath
+        $sampleSummaries | Export-Csv -NoTypeInformation -Encoding utf8 -LiteralPath $summariesPath
+        $familyLogcat = @(Invoke-TargetAdb -AdbArguments @("logcat", "-d", "-v", "threadtime"))
+        [System.IO.File]::WriteAllLines((Join-Path $resolvedOutput "logcat-after-$workload.txt"), $familyLogcat)
+        if (@($familyLogcat | Select-String -Pattern "FATAL EXCEPTION|ANR in|Fatal signal|Process .* has died").Count -gt 0) {
+            throw "Fatal, ANR, signal, or process-death evidence was observed after $workload."
+        }
+        if ($isDecisionLane -and -not $familyResult.Passed) {
+            $earlyStopStatus = "fail"
+            break
+        }
+        if ($RunKind -eq "diagnostic" -and $familyResult.GrossRegression) {
+            $earlyStopStatus = "gross-regression"
+            break
         }
     }
 
@@ -1715,27 +2245,14 @@ try {
     Invoke-TargetAdb -AdbArguments @("pull", $afterRemote, $afterLocal) | Out-Null
     Invoke-TargetAdb -AdbArguments @("pull", $screenRemote, $screenLocal) | Out-Null
     [xml]$afterUi = Get-Content -Raw -LiteralPath $afterLocal
-    Assert-LandscapeEditorUi -Ui $afterUi
-    $afterDirty = $afterUi.SelectSingleNode("//node[@content-desc='Document dirty status']")
-    $afterUndo = $afterUi.SelectSingleNode("//node[@text='Undo']")
-    $afterRedo = $afterUi.SelectSingleNode("//node[@text='Redo']")
-    $afterCanvas = $afterUi.SelectSingleNode("//node[@content-desc='16 by 16 pixel canvas']")
-    if ($null -eq $afterDirty -or $null -eq $afterUndo -or $null -eq $afterRedo -or $null -eq $afterCanvas) {
-        throw "Required editor nodes are absent after measurement."
-    }
-    if (
-        $afterDirty.GetAttribute("text") -ne "Unsaved changes" -or
-        $afterUndo.ParentNode.GetAttribute("enabled") -ne "true" -or
-        $afterRedo.ParentNode.GetAttribute("enabled") -ne "false" -or
-        $afterCanvas.GetAttribute("bounds") -ne $canvasNode.GetAttribute("bounds")
-    ) {
-        throw "The final editor UI does not match the applied Pencil result."
+    Assert-CleanWorkloadReady -Ui $afterUi -Workload $lastCompletedWorkload | Out-Null
+    $afterRedo = Get-ResourceNode -Ui $afterUi -Identity "editor_redo"
+    if ((Get-ResourceNodeAttribute -Node $afterRedo -Name "enabled") -ne "true") {
+        throw "The final $lastCompletedWorkload editor UI did not retain the exact clean Undo checkpoint."
     }
 
     $environmentRows.Add((Get-PhysicalCheckpoint -Name "after_samples"))
 
-    $framesPath = Join-Path $resolvedOutput "frames.csv"
-    $summariesPath = Join-Path $resolvedOutput "samples.csv"
     $frameRows | Export-Csv -NoTypeInformation -Encoding utf8 -LiteralPath $framesPath
     $sampleSummaries | Export-Csv -NoTypeInformation -Encoding utf8 -LiteralPath $summariesPath
     if ($physicalPresentEnabled) {
@@ -1746,47 +2263,68 @@ try {
                 -FramesPath $framesPath `
                 -TraceProcessorPath $resolvedPhysicalTraceProcessor `
                 -OutputDirectory $resolvedOutput `
-                -ExpectedSampleCount $sampleCount
+                -ExpectedSampleCount ($sampleCount * $familyResults.Count)
     }
 
     $logcat = @(Invoke-TargetAdb -AdbArguments @("logcat", "-d", "-v", "threadtime"))
     $logcatPath = Join-Path $resolvedOutput "logcat.txt"
     [System.IO.File]::WriteAllLines($logcatPath, $logcat)
     $fatalCount = @($logcat | Select-String -Pattern "FATAL EXCEPTION|ANR in|Fatal signal|Process .* has died").Count
+    if ($fatalCount -gt 0) {
+        throw "Fatal, ANR, signal, or process-death evidence was observed after collection."
+    }
 
     $validFrames = @($frameRows | Where-Object { $_.flags -eq 0 })
     $totalRendered = ($sampleSummaries.total_frames_rendered | Measure-Object -Sum).Sum
     $totalJanky = ($sampleSummaries.janky_frames | Measure-Object -Sum).Sum
     $totalDeadlineMissed = ($sampleSummaries.deadline_missed_frames | Measure-Object -Sum).Sum
     if (
-        $sampleSummaries.Count -ne $sampleCount -or
-        $frameRows.Count -lt ($sampleCount * 2) -or
+        $sampleSummaries.Count -ne ($sampleCount * $familyResults.Count) -or
+        $frameRows.Count -lt ($sampleCount * $familyResults.Count * 2) -or
         $totalRendered -ne $frameRows.Count -or
         $validFrames.Count -ne $frameRows.Count -or
+        @($frameRows.frame_timeline_vsync_id | Sort-Object -Unique).Count -ne $frameRows.Count -or
         @($sampleSummaries | Where-Object { $_.preview_frame_count -lt 1 -or $_.commit_frame_count -lt 1 }).Count -gt 0
     ) {
         throw "Aggregate frame counts must retain every preview and committed-result frame."
     }
-    $cpuP95 = Get-NearestRank -Values @($validFrames.frame_duration_cpu_ms) -Percentile 0.95
-    $totalP95 = Get-NearestRank -Values @($validFrames.app_frame_total_ms) -Percentile 0.95
-    $overrunP95 = Get-NearestRank -Values @($validFrames.frame_overrun_ms) -Percentile 0.95
-    $overrunP99 = Get-NearestRank -Values @($validFrames.frame_overrun_ms) -Percentile 0.99
-    $inputP95 = Get-NearestRank -Values @($sampleSummaries.input_to_committed_result_ms) -Percentile 0.95
-    $journeyP95 = Get-NearestRank -Values @($sampleSummaries.down_to_committed_result_ms) -Percentile 0.95
+    $summaryCursor = 0
+    foreach ($spec in @($workloadCatalog | Select-Object -First $familyResults.Count)) {
+        foreach ($sampleIndex in 1..$sampleCount) {
+            $expectedOrdinal = $summaryCursor + 1
+            $summary = $sampleSummaries[$summaryCursor]
+            $operationFrames = @($frameRows | Where-Object { [int]$_.operation_ordinal -eq $expectedOrdinal })
+            $previewRows = @($operationFrames | Where-Object { $_.phase -ceq "preview" })
+            $commitRows = @($operationFrames | Where-Object { $_.phase -ceq "commit" })
+            if (
+                $summary.workload -cne $spec.workload -or
+                [int]$summary.sample_index -ne $sampleIndex -or
+                [int]$summary.operation_ordinal -ne $expectedOrdinal -or
+                @($operationFrames | Where-Object {
+                        $_.workload -cne $spec.workload -or
+                        [int]$_.sample_index -ne $sampleIndex -or
+                        $_.operation -cne "$($spec.workload)#$sampleIndex"
+                    }).Count -gt 0 -or
+                @(Compare-Object @(1..$previewRows.Count) @($previewRows.row_index) -SyncWindow 0).Count -ne 0 -or
+                @(Compare-Object @(1..$commitRows.Count) @($commitRows.row_index) -SyncWindow 0).Count -ne 0
+            ) {
+                throw "Frame workload, operation, phase, or row ordering drifted at ordinal $expectedOrdinal."
+            }
+            $summaryCursor += 1
+        }
+    }
     $passed =
-        $overrunP95 -le 0.0 -and
-        $overrunP99 -le 16.67 -and
-        $inputP95 -le 33.33 -and
+        $familyResults.Count -eq $workloadCatalog.Count -and
+        @($familyResults | Where-Object { -not $_.Passed }).Count -eq 0 -and
         $fatalCount -eq 0
-
-    $isDecisionLane = $Variant -eq "release-like" -and $CompilationMode -eq "speed-profile" -and $RunKind -eq "decision"
-    $maximumFrameOverrun = ($validFrames.frame_overrun_ms | Measure-Object -Maximum).Maximum
-    $maximumInputToCommitted = ($sampleSummaries.input_to_committed_result_ms | Measure-Object -Maximum).Maximum
-    $grossRegression = $maximumFrameOverrun -gt 33.34 -or $maximumInputToCommitted -gt 100.0
+    $grossRegression = @($familyResults | Where-Object { $_.GrossRegression }).Count -gt 0
     $acceptanceLane =
         if ($physicalPresentEnabled) { "attribution" } elseif ($isDecisionLane) { "decision" } else { "diagnostic" }
     $status =
-        if ($physicalPresentEnabled) {
+        if ($null -ne $earlyStopStatus) {
+            $earlyStopStatus
+        }
+        elseif ($physicalPresentEnabled) {
             $physicalAnalysis.Status
         }
         elseif ($isDecisionLane) {
@@ -1805,14 +2343,17 @@ try {
         "experiment_id=$ExperimentId",
         "status=$status",
         "acceptance_lane=$acceptanceLane",
-        "threshold_status=$(if ($isDecisionLane) { if ($passed) { 'pass' } else { 'fail' } } elseif ($grossRegression) { 'gross-regression' } else { 'inconclusive' })",
+        "threshold_status=$(if ($null -ne $earlyStopStatus) { $earlyStopStatus } elseif ($isDecisionLane) { if ($passed) { 'pass' } else { 'fail' } } elseif ($grossRegression) { 'gross-regression' } else { 'inconclusive' })",
         "variant=$Variant",
         "run_kind=$RunKind",
         "candidate_role=$CandidateRole",
         "comparison_sequence_index=$ComparisonSequenceIndex",
         "comparison_order=$($comparisonOrder -join '|')",
+        "workload_order=$($workloadOrder -join '|')",
         "input_injection=$inputInjection",
         "source_commit=$SourceCommit",
+        "production_commit=$expectedProductionCommit",
+        "production_tree_sha256=$(if ($CandidateRole -eq 'baseline') { $BaselineProductionTreeSha256 } else { $CandidateProductionTreeSha256 })",
         "physical_profile_id=$physicalProfileId",
         "device_evidence_class=physical_device",
         "device_manufacturer=$($deviceIdentity.manufacturer)",
@@ -1836,8 +2377,11 @@ try {
         "packaged_profm_sha256=$($artifactIdentity.packaged_profm_sha256)",
         "compile_mode=$CompilationMode",
         "packaged_profile_install=$profileInstallResult",
-        "warmup_cycles=$warmupCount",
-        "sample_count=$sampleCount",
+        "warmups_per_workload=$warmupCount",
+        "samples_per_workload=$sampleCount",
+        "measured_operation_count=$($sampleSummaries.Count)",
+        "measured_canvas16_tap=$($script:measuredWorkloadCounts.canvas16_tap)",
+        "measured_canvas256_repeated_diagonal=$($script:measuredWorkloadCounts.canvas256_repeated_diagonal)",
         "percentile_method=nearest-rank; diagnostic-p95-rank=10; decision-p95-rank=48",
         "environment_checkpoint_count=$($environmentRows.Count)",
         "raw_frame_rows=$($frameRows.Count)",
@@ -1845,21 +2389,26 @@ try {
         "aggregate_frames_rendered=$totalRendered",
         "aggregate_janky_frames=$totalJanky",
         "aggregate_deadline_missed_frames=$totalDeadlineMissed",
-        "valid_cpu_frame_p95_ms=$('{0:F6}' -f $cpuP95)",
-        "valid_app_frame_total_p95_ms=$('{0:F6}' -f $totalP95)",
-        "valid_frame_overrun_p95_ms=$('{0:F6}' -f $overrunP95)",
-        "valid_frame_overrun_p99_ms=$('{0:F6}' -f $overrunP99)",
-        "valid_input_to_committed_result_p95_ms=$('{0:F6}' -f $inputP95)",
-        "diagnostic_down_to_committed_result_p95_ms=$('{0:F6}' -f $journeyP95)",
-        "maximum_frame_overrun_ms=$('{0:F6}' -f $maximumFrameOverrun)",
-        "maximum_input_to_committed_result_ms=$('{0:F6}' -f $maximumInputToCommitted)",
         "diagnostic_gross_frame_overrun_boundary_ms=33.34-exclusive",
         "diagnostic_gross_input_to_committed_boundary_ms=100.0-exclusive",
         "fatal_anr_matches=$fatalCount",
-        "canvas_bounds=$($canvasNode.GetAttribute('bounds'))",
+        "geometry_id=$geometryId",
+        "canvas16_tap_surface_bounds=$($expectedSurfaceBoundsByWorkload.canvas16_tap)",
+        "canvas256_repeated_diagonal_surface_bounds=$($expectedSurfaceBoundsByWorkload.canvas256_repeated_diagonal)",
         "display_present_time_available=$(@($validFrames | Where-Object { $_.display_present_time_nanos -gt 0 }).Count -gt 0)",
         "boundary=DOWN preview plus UP commit; every phase frame retained; acceptance latency starts at earliest UP HandleInputStart and completes at latest UP-associated FrameCompleted after committed UI verification; DOWN-to-commit including the intentional preview dwell is diagnostic only"
     ) | ForEach-Object { $metadata.Add($_) }
+    foreach ($family in $familyResults) {
+        $prefix = $family.Workload
+        $metadata.Add("${prefix}_frame_count=$($family.FrameCount)")
+        $metadata.Add("${prefix}_frame_overrun_p95_ms=$('{0:F6}' -f $family.OverrunP95)")
+        $metadata.Add("${prefix}_frame_overrun_p99_ms=$('{0:F6}' -f $family.OverrunP99)")
+        $metadata.Add("${prefix}_input_to_committed_result_p95_ms=$('{0:F6}' -f $family.InputP95)")
+        $metadata.Add("${prefix}_maximum_frame_overrun_ms=$('{0:F6}' -f $family.MaximumFrameOverrun)")
+        $metadata.Add("${prefix}_maximum_input_to_committed_result_ms=$('{0:F6}' -f $family.MaximumInputToCommitted)")
+        $metadata.Add("${prefix}_threshold_status=$(if ($family.Passed) { 'pass' } else { 'fail' })")
+        $metadata.Add("${prefix}_diagnostic_gross_regression=$(if ($family.GrossRegression) { 'true' } else { 'false' })")
+    }
     if ($physicalPresentEnabled) {
         $metadata.Add("base_frame_row_schema=nene-pixel-m2-actual-app-frame-v5-fields")
         $metadata.Add("physical_present_schema=$($physicalAnalysis.Schema)")
@@ -1876,7 +2425,7 @@ try {
         $metadata.Add("limitation=strict physical-present correlation retained for this ten-sample attribution population; does not replace the fifty-sample decision lane")
     }
     else {
-        $limitation = "app-issued gfxinfo FrameTimeline only; no strict SurfaceFlinger physical-present correlation"
+        $limitation = "app-issued gfxinfo framestats rows only; no strict SurfaceFlinger physical-present correlation"
         if ($RunKind -eq "diagnostic") {
             $limitation += "; diagnostic results are never acceptance PASS"
         }
@@ -1885,13 +2434,6 @@ try {
     [System.IO.File]::WriteAllLines((Join-Path $resolvedOutput "metadata.txt"), $metadata)
     Write-RunState -Status "completed" -Verdict $status
 
-    Invoke-TargetAdb -AdbArguments @("shell", "cmd", "input", "tap", "$undoX", "$undoY") | Out-Null
-    if ($isDecisionLane -and -not $passed) {
-        throw "The $Variant frame batch failed its fixed acceptance."
-    }
-    if ($RunKind -eq "diagnostic" -and $grossRegression) {
-        throw "The diagnostic exceeded a predeclared gross-regression boundary."
-    }
     $successfulMetadata = @($metadata)
 }
 catch {
@@ -1901,7 +2443,10 @@ catch {
         -SourceError $sourceError
     $currentState = Get-RunState -Directory $resolvedOutput
     if ($null -eq $currentState -or $currentState.status -ne "completed") {
-        $invalidStatus = if ($script:measuredDownCount -eq 0) { "invalid-before-samples" } else { "invalid-after-samples" }
+        $measuredOperationCount =
+            [int]$script:measuredWorkloadCounts.canvas16_tap +
+            [int]$script:measuredWorkloadCounts.canvas256_repeated_diagonal
+        $invalidStatus = if ($measuredOperationCount -eq 0) { "invalid-before-samples" } else { "invalid-after-samples" }
         Write-RunState -Status $invalidStatus -Verdict "invalid"
     }
     throw $sourceError
@@ -1949,7 +2494,8 @@ finally {
         "$remotePrefix-before.xml",
         "$remotePrefix-after.xml",
         "$remotePrefix-after.png",
-        "$remotePrefix-checkpoint.xml"
+        "$remotePrefix-checkpoint.xml",
+        "$remotePrefix-current.xml"
     ) | Out-Null
     if ($null -ne $physicalTraceState -and -not $physicalTraceState.Active) {
         Invoke-TargetAdb -AdbArguments @(
