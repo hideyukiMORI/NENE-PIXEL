@@ -884,19 +884,15 @@ function Assert-P4ManifestContract {
     }
 }
 
-function Assert-P4CollectionImplementationReady {
-    # Deliberate handoff barrier: the accepted protocol requires every lane to be executable
-    # before reserving even the first host slot. Remove only after the recorded integration
-    # review blockers and the full no-device collector/analyzer matrix are resolved.
-    throw 'P4 collection is not ready: device collector/frame analyzer and reviewed preflight/sealing gaps remain. No acceptance slot may be reserved or consumed.'
-}
+# The 2026-09-13 handoff barrier (Assert-P4CollectionImplementationReady) was retired on 2026-09-16 with
+# hide's decision, after the device collectors, frame analyzer, preflight and slot boundary passed two
+# independent read-only reviews and their no-device validators.
 
 function Assert-P4ManifestArtifacts {
     <#
         `reservation` is the one-time gate that consumes the device and the Issue agreement.
         `slot` re-proves every offline fact before each slot without touching the device again and
-        without creating the reserved `-preflight` directory a second time. The readiness barrier
-        applies to both stages.
+        without creating the reserved `-preflight` directory a second time.
     #>
     param(
         [System.Collections.IDictionary]$Manifest,
@@ -904,7 +900,6 @@ function Assert-P4ManifestArtifacts {
         [ValidateSet('reservation', 'slot')][string]$Stage = 'reservation'
     )
     Assert-P4ManifestContract $Manifest
-    Assert-P4CollectionImplementationReady
     Assert-P4FileRecord $Manifest.protocol 'protocol'
     if ((Get-FileSha256 (Join-Path $RepositoryRoot 'docs/quality/P4_INDEXED_CUTOVER_PROTOCOL.md')) -cne
         $Manifest.protocol.sha256) { throw 'Accepted canonical protocol bytes drifted.' }

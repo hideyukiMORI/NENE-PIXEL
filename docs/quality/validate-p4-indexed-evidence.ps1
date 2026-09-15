@@ -824,9 +824,8 @@ $invokeStage = {
     param([string]$Stage)
     $script:P4StageCallLog.Clear()
     & {
-        # Synthetic call log only. The readiness barrier is recorded, never bypassed elsewhere.
+        # Synthetic call log only.
         function Assert-P4ManifestContract { param($Manifest) $script:P4StageCallLog.Add('contract') }
-        function Assert-P4CollectionImplementationReady { $script:P4StageCallLog.Add('barrier') }
         function Assert-P4FileRecord { param($Record, $Name) $script:P4StageCallLog.Add("file:$Name") }
         function Assert-P4GitLineage { param($Manifest) $script:P4StageCallLog.Add('lineage') }
         function Assert-P4RoleSource { param($Role, $Name, $Aapt2Path) $script:P4StageCallLog.Add("role:$Name") }
@@ -838,7 +837,7 @@ $invokeStage = {
     return [string[]]@($script:P4StageCallLog)
 }
 $slotCalls = & $invokeStage 'slot'
-foreach ($required in @('contract', 'barrier', 'lineage', 'role:baseline', 'role:candidate',
+foreach ($required in @('contract', 'lineage', 'role:baseline', 'role:candidate',
         'preservation', 'inspection', 'file:protocol')) {
     if ($slotCalls -cnotcontains $required) { throw "The slot stage skipped $required." }
 }
@@ -848,11 +847,12 @@ if (Test-Path -LiteralPath ((Join-Path $stageRoot 'experiment') + '-preflight'))
 }
 $reservationCalls = & $invokeStage 'reservation'
 if ($reservationCalls -cnotcontains 'device') { throw 'The reservation stage must admit the live device.' }
-if ($reservationCalls -cnotcontains 'barrier') { throw 'The readiness barrier must run in every stage.' }
 Assert-P4TestRejects { & $invokeStage 'midway' } 'unknown preflight stage'
 
-# The handoff barrier stays closed until 設計リナ removes it after review.
-Assert-P4TestRejects { Assert-P4CollectionImplementationReady } 'collection readiness barrier'
+# The 2026-09-13 handoff barrier was retired on 2026-09-16 (hide's decision); preflight must not carry it.
+if (Get-Command -Name 'Assert-P4CollectionImplementationReady' -CommandType Function -ErrorAction SilentlyContinue) {
+    throw 'The retired collection readiness barrier is still defined.'
+}
 
 Write-Output 'P4_NO_DEVICE_CONTRACT_VALIDATION=pass'
 Write-Output 'CASES=fixed-budget,five-host-populations,truncation,duplicate,reorder,gross-anomaly,negative,NaN,summary,role,extra-row,unfabricated-baseline,unset,missing,empty,overflow,exclusive-output,duplicate-artifact,path-escape,tamper'
