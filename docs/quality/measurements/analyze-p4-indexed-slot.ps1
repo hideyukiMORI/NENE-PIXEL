@@ -10,6 +10,7 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'p4-indexed-publication-analysis.ps1')
 . (Join-Path $PSScriptRoot 'p4-indexed-command-analysis.ps1')
 . (Join-Path $PSScriptRoot 'p4-indexed-memory-analysis.ps1')
+. (Join-Path $PSScriptRoot 'p4-indexed-frame-analysis.ps1')
 
 function Get-P4HostGroups {
     param([string]$Runner, [string]$Role)
@@ -100,6 +101,7 @@ function Invoke-P4SlotAnalysis {
             $path = Join-Path $OutputDirectory "p4-$stem-host-$($slot.role).csv"
             $result = Test-P4HostCapture @(Get-Content -LiteralPath $path) $slot.runner $slot.role
             $result.capture_sha256 = Get-FileSha256 $path
+            Assert-P4HostClasspathAgreement -OutputDirectory $OutputDirectory -Role $slot.role -Manifest $manifest
         }
         'publication' {
             $path = Join-Path $OutputDirectory "p4-indexed-publication-device-$($slot.role)-v1.csv"
@@ -136,8 +138,42 @@ function Invoke-P4SlotAnalysis {
             $result = $result | ConvertTo-Json -Depth 10 | ConvertFrom-Json -AsHashtable
             $result.capture_sha256 = Get-FileSha256 $path
         }
+        'frame' {
+            $slotRecordPath = Join-Path $OutputDirectory 'frame-slot.json'
+            $slotRecord = Get-Content -Raw -LiteralPath $slotRecordPath | ConvertFrom-Json
+            if ($slotRecord.schema -cne 'nene-pixel-p4-frame-slot-v1') { throw 'Wrong frame slot record schema.' }
+            $frameExperimentRoot = [IO.Path]::GetFullPath([string]$manifest.frame_experiment.directory)
+            $frameSlotRoot = [IO.Path]::GetFullPath([string]$slotRecord.slot_directory)
+            if (-not $frameSlotRoot.StartsWith(
+                    ($frameExperimentRoot.TrimEnd([char]'\', [char]'/') + [IO.Path]::DirectorySeparatorChar),
+                    [StringComparison]::OrdinalIgnoreCase)) {
+                throw 'The frame slot directory is outside the declared frame experiment directory.'
+            }
+            $bounds = [ordered]@{
+                canvas16_tap = [string]$manifest.device["$($slot.role)_canvas16_bounds"]
+                canvas256_repeated_diagonal = [string]$manifest.device["$($slot.role)_canvas256_bounds"]
+            }
+            $result = Test-P4FrameCapture -SlotDirectory ([string]$slotRecord.slot_directory) -Role $slot.role `
+                -Runner $slot.runner -SequenceIndex ([int]$slot.run) `
+                -BuildCommit $manifest.roles[$slot.role].build_commit `
+                -ExpectedApkSha256 ([string]$manifest.roles[$slot.role].artifacts.app_release_like.sha256) `
+                -ExpectedBounds $bounds -ExperimentId ([string]$manifest.experiment_id)
+            $recorded = @($slotRecord.files | ForEach-Object { "$($_.relative_path)`t$($_.sha256)" })
+            $observed = @($result.frame_files | ForEach-Object { "$($_.relative_path)`t$($_.sha256)" })
+            if (@(Compare-Object $recorded $observed).Count -ne 0) {
+                throw 'The frame slot inventory drifted from the sealed collector record.'
+            }
+            $result.capture_sha256 = Get-FileSha256 $slotRecordPath
+        }
         default { throw 'This lane analyzer is not yet implemented; acceptance is blocked.' }
     }
+    # The wrapper seals the slot before analysis (S3 step 7b, then 8). Binding the seal hash into the
+    # analysis lets the completed chain prove that the analyzed bytes are the sealed bytes.
+    $sealPath = Join-Path $OutputDirectory 'capture-seal.json'
+    if (-not (Test-Path -LiteralPath $sealPath -PathType Leaf)) {
+        throw 'Analysis requires the capture seal written before the analyzer runs.'
+    }
+    $result.capture_seal_sha256 = Get-FileSha256 $sealPath
     $result.protocol_id = $script:P4ProtocolId
     $result.slot_id = $SlotId
     $result.preflight_sha256 = Get-FileSha256 $ManifestPath

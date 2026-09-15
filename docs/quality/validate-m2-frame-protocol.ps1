@@ -606,6 +606,7 @@ try {
         PinSeen = $false
         Commands = [System.Collections.Generic.List[string]]::new()
         CollisionPath = $null
+        StayAwake = '0'
     }
     function global:Start-Sleep {
         param([int]$Milliseconds, [int]$Seconds)
@@ -676,7 +677,11 @@ $dialog
             '^shell getprop ro\.build\.version\.sdk$' { '36'; return }
             '^shell getprop ro\.build\.fingerprint$' { 'fixture/fingerprint'; return }
             '^shell getprop ro\.build\.version\.security_patch$' { '2026-09-01'; return }
-            '^shell settings get global stay_on_while_plugged_in$' { '0'; return }
+            '^shell settings get global stay_on_while_plugged_in$' {
+                $global:neneFrameFixtureState.StayAwake
+                return
+            }
+            '^shell settings delete global stay_on_while_plugged_in$' { return }
             '^shell settings get system user_rotation$' { "$($global:neneFrameFixtureState.NumericRotation)"; return }
             '^shell dumpsys window$' {
                 $mode = if ($global:neneFrameFixtureState.RotationMode -eq 'locked') { 'USER_ROTATION_LOCKED' } else { 'USER_ROTATION_FREE' }
@@ -1492,6 +1497,256 @@ $dialog
     ) {
         throw 'The locked-origin fixture did not restore the exact mode and numeric rotation.'
     }
+
+    function Reset-NeneFrameFixtureForInspection {
+        $global:neneFrameFixtureState.InstallSeen = $false
+        $global:neneFrameFixtureState.Committed = $false
+        $global:neneFrameFixtureState.RedoAvailable = $false
+        $global:neneFrameFixtureState.CanvasEdge = 16
+        $global:neneFrameFixtureState.MenuOpen = $false
+        $global:neneFrameFixtureState.DialogOpen = $false
+        $global:neneFrameFixtureState.FocusField = ''
+        $global:neneFrameFixtureState.WidthInput = '16'
+        $global:neneFrameFixtureState.HeightInput = '16'
+        $global:neneFrameFixtureState.Frame = 0
+        $global:neneFrameFixtureState.FrameCaptureCount = 0
+        $global:neneFrameFixtureState.CurrentPhaseFrame = 0
+        $global:neneFrameFixtureState.MotionCount = 0
+        $global:neneFrameFixtureState.MeasuredStarted = $false
+        $global:neneFrameFixtureState.Mode = 'success'
+        $global:neneFrameFixtureState.RotationMode = 'free'
+        $global:neneFrameFixtureState.NumericRotation = 0
+        $global:neneFrameFixtureState.CurrentRotation = 0
+        $global:neneFrameFixtureState.PinSeen = $false
+        $global:neneFrameFixtureState.StayAwake = '0'
+        $global:neneFrameFixtureState.Commands = [System.Collections.Generic.List[string]]::new()
+    }
+
+    $inspectExclusive = $preDevice.Clone()
+    $inspectExclusive.ExperimentDirectory = Join-Path $temporaryRoot 'inspect-exclusive'
+    $inspectExclusive.ExperimentId = 'inspect-exclusive'
+    $inspectExclusive.InspectGeometryOnly = $true
+    $inspectExclusive.InspectionDirectory = Join-Path $temporaryRoot 'inspect-exclusive-records'
+    $inspectExclusive.ValidateArtifactOnly = $true
+    Reset-NeneFrameFixtureForInspection
+    Invoke-ExpectedFailure -Arguments $inspectExclusive
+    if (
+        (Test-Path -LiteralPath $inspectExclusive.ExperimentDirectory) -or
+        (Test-Path -LiteralPath $inspectExclusive.InspectionDirectory)
+    ) {
+        throw 'A rejected inspection invocation must not create an experiment or inspection directory.'
+    }
+
+    $inspectWithoutDirectory = $preDevice.Clone()
+    $inspectWithoutDirectory.ExperimentDirectory = Join-Path $temporaryRoot 'inspect-no-directory'
+    $inspectWithoutDirectory.ExperimentId = 'inspect-no-directory'
+    $inspectWithoutDirectory.InspectGeometryOnly = $true
+    Reset-NeneFrameFixtureForInspection
+    Invoke-ExpectedFailure -Arguments $inspectWithoutDirectory
+    if (Test-Path -LiteralPath $inspectWithoutDirectory.ExperimentDirectory) {
+        throw 'An inspection without its own records directory must not create an experiment directory.'
+    }
+
+    $inspectSameDirectory = $preDevice.Clone()
+    $inspectSameDirectory.ExperimentDirectory = Join-Path $temporaryRoot 'inspect-same-directory'
+    $inspectSameDirectory.ExperimentId = 'inspect-same-directory'
+    $inspectSameDirectory.InspectGeometryOnly = $true
+    $inspectSameDirectory.InspectionDirectory = $inspectSameDirectory.ExperimentDirectory
+    Reset-NeneFrameFixtureForInspection
+    Invoke-ExpectedFailure -Arguments $inspectSameDirectory
+    if (Test-Path -LiteralPath $inspectSameDirectory.ExperimentDirectory) {
+        throw 'An inspection aimed at the experiment directory must not create it.'
+    }
+
+    $inspectionWithoutSwitch = $preDevice.Clone()
+    $inspectionWithoutSwitch.ExperimentDirectory = Join-Path $temporaryRoot 'inspection-directory-without-switch'
+    $inspectionWithoutSwitch.ExperimentId = 'inspection-without-switch'
+    $inspectionWithoutSwitch.InspectionDirectory = Join-Path $temporaryRoot 'stray-inspection-records'
+    Reset-NeneFrameFixtureForInspection
+    Invoke-ExpectedFailure -Arguments $inspectionWithoutSwitch
+
+    $inspect = $preDevice.Clone()
+    $inspect.ExperimentDirectory = Join-Path $temporaryRoot 'no-sample-inspection-experiment'
+    $inspect.ExperimentId = 'no-sample-inspection'
+    $inspect.InspectGeometryOnly = $true
+    $inspect.InspectionDirectory = Join-Path $temporaryRoot 'no-sample-inspection-records'
+    New-Item -ItemType Directory -Path $inspect.InspectionDirectory | Out-Null
+    $foreignInspection = [ordered]@{
+        schema = 'nene-pixel-p4-no-sample-inspection-v1'
+        role = 'candidate'
+        apk_sha256 = 'd' * 64
+        embedded_source_commit = $candidateCommit
+        rotation = 1
+        root_bounds = '[0,0][1920,1200]'
+        canvas16_bounds = '[688,615][1232,1159]'
+        canvas256_bounds = '[688,615][1232,1159]'
+        geometry_id = 'initial-fit-centered-v1'
+        ui_dump_sha256s = [ordered]@{ 'ui-inspect-16x16.xml' = '0' * 64; 'ui-inspect-256x256.xml' = '1' * 64 }
+        captured_utc = '2026-09-15T00:00:00.0000000Z'
+    }
+    Write-FixtureJson $foreignInspection (Join-Path $inspect.InspectionDirectory 'no-sample-inspection-candidate.json')
+    Reset-NeneFrameFixtureForInspection
+    $inspectOutput = @()
+    Push-Location $preDeviceRepository
+    try {
+        $inspectOutput = @(& $collector @inspect)
+    }
+    finally {
+        Pop-Location
+    }
+    $inspectionPath = Join-Path $inspect.InspectionDirectory 'no-sample-inspection-baseline.json'
+    $combinedPath = Join-Path $inspect.InspectionDirectory 'no-sample-inspection.json'
+    if (-not (Test-Path -LiteralPath $inspectionPath -PathType Leaf)) {
+        throw 'The no-sample inspection did not publish its per-role record.'
+    }
+    $inspection = Get-Content -Raw -LiteralPath $inspectionPath | ConvertFrom-Json
+    if (
+        $inspectOutput.Count -ne 1 -or
+        $inspection.schema -cne 'nene-pixel-p4-no-sample-inspection-v1' -or
+        $inspection.role -cne 'baseline' -or
+        $inspection.apk_sha256 -cne $preDeviceApkSha256 -or
+        $inspection.embedded_source_commit -cne $preDeviceSource -or
+        [int]$inspection.rotation -ne 1 -or
+        $inspection.root_bounds -cne '[0,0][1920,1200]' -or
+        $inspection.canvas16_bounds -cne '[688,615][1232,1159]' -or
+        $inspection.canvas256_bounds -cne '[688,615][1232,1159]' -or
+        $inspection.geometry_id -cne 'initial-fit-centered-v1' -or
+        @($inspection.ui_dump_sha256s.PSObject.Properties.Name) -join '|' -cne 'ui-inspect-16x16.xml|ui-inspect-256x256.xml' -or
+        [string]::IsNullOrWhiteSpace($inspection.captured_utc)
+    ) {
+        throw 'The no-sample inspection record did not publish the pinned geometry of both canvas families.'
+    }
+    if (-not (Test-Path -LiteralPath $combinedPath -PathType Leaf)) {
+        throw 'The no-sample inspection did not publish the combined record once both roles existed.'
+    }
+    $combined = Get-Content -Raw -LiteralPath $combinedPath | ConvertFrom-Json
+    if (
+        $combined.schema -cne 'nene-pixel-p4-no-sample-inspection-v1' -or
+        $combined.baseline.role -cne 'baseline' -or
+        $combined.candidate.role -cne 'candidate' -or
+        $combined.baseline.apk_sha256 -cne $preDeviceApkSha256 -or
+        $combined.candidate.apk_sha256 -cne ('d' * 64)
+    ) {
+        throw 'The combined no-sample inspection record did not carry both role records.'
+    }
+    $inspectCommands = @($global:neneFrameFixtureState.Commands)
+    if (
+        -not $global:neneFrameFixtureState.InstallSeen -or
+        $global:neneFrameFixtureState.MotionCount -ne 0 -or
+        $global:neneFrameFixtureState.FrameCaptureCount -ne 0 -or
+        @($inspectCommands | Where-Object { $_ -like 'shell dumpsys gfxinfo *' }).Count -ne 0 -or
+        @($inspectCommands | Where-Object { $_ -like 'shell cmd input motionevent *' }).Count -ne 0 -or
+        @($inspectCommands | Where-Object { $_ -ceq 'shell wm user-rotation lock 1' }).Count -ne 1 -or
+        @($inspectCommands | Where-Object { $_ -ceq 'shell settings put global stay_on_while_plugged_in 0' }).Count -ne 1 -or
+        @($inspectCommands | Where-Object { $_ -ceq 'shell cmd input text 16' }).Count -ne 2 -or
+        @($inspectCommands | Where-Object { $_ -ceq 'shell cmd input text 256' }).Count -ne 2 -or
+        $global:neneFrameFixtureState.RotationMode -ne 'free'
+    ) {
+        throw 'The no-sample inspection sampled frames or did not restore the original device state.'
+    }
+    if (Test-Path -LiteralPath $inspect.ExperimentDirectory) {
+        throw 'The no-sample inspection reached into the reserved experiment directory.'
+    }
+    $inspectionRawDirectories =
+        @(Get-ChildItem -LiteralPath $inspect.InspectionDirectory -Directory |
+            Where-Object { $_.Name -like 'no-sample-inspection-baseline-raw-*' })
+    if ($inspectionRawDirectories.Count -ne 1) {
+        throw 'The no-sample inspection did not retain exactly one raw evidence directory.'
+    }
+    $inspectionRestore = Get-Content -LiteralPath (Join-Path $inspectionRawDirectories[0].FullName 'rotation-restore.txt')
+    if (
+        'restore_verified=true' -notin $inspectionRestore -or
+        -not (Test-Path -LiteralPath (Join-Path $inspectionRawDirectories[0].FullName 'rotation-pin.txt')) -or
+        -not (Test-Path -LiteralPath (Join-Path $inspectionRawDirectories[0].FullName 'raw/ui-inspect-256x256.xml')) -or
+        (Test-Path -LiteralPath (Join-Path $inspectionRawDirectories[0].FullName 'run-state.json'))
+    ) {
+        throw 'The no-sample inspection evidence directory is incomplete or reserved a run state.'
+    }
+
+    Reset-NeneFrameFixtureForInspection
+    $inspectRepeat = $inspect.Clone()
+    Push-Location $preDeviceRepository
+    try {
+        Invoke-ExpectedFailure -Arguments $inspectRepeat
+    }
+    finally {
+        Pop-Location
+    }
+
+    $inspectMismatch = $preDevice.Clone()
+    $inspectMismatch.ExperimentDirectory = Join-Path $temporaryRoot 'no-sample-inspection-mismatch-experiment'
+    $inspectMismatch.ExperimentId = 'inspect-mismatch'
+    $inspectMismatch.InspectGeometryOnly = $true
+    $inspectMismatch.InspectionDirectory = Join-Path $temporaryRoot 'no-sample-inspection-mismatch-records'
+    $inspectMismatch.BaselineCanvas16SurfaceBounds = '[687,615][1232,1159]'
+    Reset-NeneFrameFixtureForInspection
+    $inspectMismatchError = $null
+    Push-Location $preDeviceRepository
+    try {
+        & $collector @inspectMismatch | Out-Null
+    }
+    catch {
+        $inspectMismatchError = $_
+    }
+    finally {
+        Pop-Location
+    }
+    $mismatchRecordPath = Join-Path $inspectMismatch.InspectionDirectory 'no-sample-inspection-baseline.json'
+    if (
+        $null -eq $inspectMismatchError -or
+        $inspectMismatchError.Exception.Message -notlike 'The inspected baseline surface bounds do not match the supplied geometry;*' -or
+        -not (Test-Path -LiteralPath $mismatchRecordPath -PathType Leaf) -or
+        $global:neneFrameFixtureState.RotationMode -ne 'free'
+    ) {
+        throw 'A mismatched inspection did not publish the observed geometry before failing, or did not restore rotation.'
+    }
+    $mismatchRecord = Get-Content -Raw -LiteralPath $mismatchRecordPath | ConvertFrom-Json
+    if ($mismatchRecord.canvas16_bounds -cne '[688,615][1232,1159]') {
+        throw 'The rejected inspection did not record the bounds the operator must copy into the manifest.'
+    }
+
+    $unsetStayAwake = $preDevice.Clone()
+    $unsetStayAwake.ExperimentDirectory = Join-Path $temporaryRoot 'unset-stay-awake-experiment'
+    $unsetStayAwake.ExperimentId = 'unset-stay-awake'
+    $unsetStayAwake.InspectGeometryOnly = $true
+    $unsetStayAwake.InspectionDirectory = Join-Path $temporaryRoot 'unset-stay-awake-records'
+    Reset-NeneFrameFixtureForInspection
+    $global:neneFrameFixtureState.StayAwake = 'null'
+    Push-Location $preDeviceRepository
+    try {
+        & $collector @unsetStayAwake | Out-Null
+    }
+    finally {
+        Pop-Location
+    }
+    $unsetStayAwakeCommands = @($global:neneFrameFixtureState.Commands)
+    if (
+        @($unsetStayAwakeCommands | Where-Object { $_ -ceq 'shell settings delete global stay_on_while_plugged_in' }).Count -ne 1 -or
+        @($unsetStayAwakeCommands | Where-Object { $_ -like 'shell settings put global stay_on_while_plugged_in *' }).Count -ne 0
+    ) {
+        throw 'An originally unset stay-awake global was restored by writing the literal text "null".'
+    }
+
+    $sampledStayAwake = $preDevice.Clone()
+    $sampledStayAwake.ExperimentDirectory = Join-Path $temporaryRoot 'unset-stay-awake-samples'
+    $sampledStayAwake.ExperimentId = 'unset-stay-awake-samples'
+    Reset-NeneFrameFixtureForInspection
+    $global:neneFrameFixtureState.StayAwake = 'null'
+    Push-Location $preDeviceRepository
+    try {
+        & $collector @sampledStayAwake | Out-Null
+    }
+    finally {
+        Pop-Location
+    }
+    $sampledStayAwakeCommands = @($global:neneFrameFixtureState.Commands)
+    if (
+        @($sampledStayAwakeCommands | Where-Object { $_ -ceq 'shell settings delete global stay_on_while_plugged_in' }).Count -ne 1 -or
+        @($sampledStayAwakeCommands | Where-Object { $_ -like 'shell settings put global stay_on_while_plugged_in *' }).Count -ne 0
+    ) {
+        throw 'The sample path restored an originally unset stay-awake global by writing the literal text "null".'
+    }
+
     Remove-Item Function:\global:adb -ErrorAction SilentlyContinue
     Remove-Item Function:\global:Start-Sleep -ErrorAction SilentlyContinue
     Remove-Item Function:\global:Get-NeneFrameFixtureUi -ErrorAction SilentlyContinue

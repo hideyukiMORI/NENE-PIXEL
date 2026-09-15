@@ -182,6 +182,10 @@ param(
 
     [switch]$ValidateArtifactOnly,
 
+    [switch]$InspectGeometryOnly,
+
+    [string]$InspectionDirectory,
+
     [string]$PhysicalPresentTraceProcessorPath
 )
 
@@ -235,6 +239,7 @@ $physicalPresentEnabled = $PSBoundParameters.ContainsKey("PhysicalPresentTracePr
 $physicalPresentSchema = "nene-pixel-m2-physical-present-v2"
 $frameSchema = "nene-pixel-p4-indexed-actual-app-frame-v8"
 $experimentSchema = "nene-pixel-p4-indexed-frame-experiment-v4"
+$noSampleInspectionSchema = "nene-pixel-p4-no-sample-inspection-v1"
 $baselineProductionCommitRequired = "2dd4e01e3bbe88967237cde4e28412d2962fd590"
 $workloadCatalog = @(
     [ordered]@{
@@ -469,6 +474,31 @@ if ($SourceCommit -ne $expectedSourceCommit) {
 if ($ValidateArtifactOnly -and $ValidateExperimentOnly) {
     throw "Artifact-only and experiment-only validation are mutually exclusive."
 }
+if ($InspectGeometryOnly -and ($ValidateArtifactOnly -or $ValidateExperimentOnly)) {
+    throw "No-sample geometry inspection and the validation-only switches are mutually exclusive."
+}
+$resolvedInspection = $null
+if ($InspectGeometryOnly) {
+    if ([string]::IsNullOrWhiteSpace($InspectionDirectory)) {
+        throw "No-sample geometry inspection requires its own -InspectionDirectory."
+    }
+    $resolvedInspection =
+        if ([System.IO.Path]::IsPathRooted($InspectionDirectory)) {
+            [System.IO.Path]::GetFullPath($InspectionDirectory)
+        } else {
+            [System.IO.Path]::GetFullPath((Join-Path (Get-Location) $InspectionDirectory))
+        }
+    # The inspection precedes the experiment and must never reach into the reserved experiment tree.
+    $experimentPrefix = $resolvedExperiment.TrimEnd([System.IO.Path]::DirectorySeparatorChar) +
+        [System.IO.Path]::DirectorySeparatorChar
+    if ($resolvedInspection -eq $resolvedExperiment -or
+        $resolvedInspection.StartsWith($experimentPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "The inspection directory must be distinct from, and outside, the experiment directory."
+    }
+}
+elseif ($PSBoundParameters.ContainsKey("InspectionDirectory")) {
+    throw "-InspectionDirectory is only accepted with -InspectGeometryOnly."
+}
 if (-not $ValidateExperimentOnly) {
     $artifactIdentity = Assert-M2PackagedArtifact -Path $ApkPath `
         -ExpectedSourceCommit $expectedSourceCommit `
@@ -483,6 +513,14 @@ if (-not $ValidateExperimentOnly) {
 }
 $slotName = "slot-{0:D2}-{1}-{2}" -f $ComparisonSequenceIndex, $RunKind, $CandidateRole
 $resolvedOutput = Join-Path $resolvedExperiment "$slotName-attempt-$Attempt"
+if ($InspectGeometryOnly) {
+    # No-sample inspection never reserves an acceptance slot; its device evidence is kept in its own
+    # timestamped directory so that a rejected inspection can be repeated without deleting evidence.
+    $resolvedOutput =
+        Join-Path $resolvedInspection (
+            "no-sample-inspection-$CandidateRole-raw-" + [datetime]::UtcNow.ToString("yyyyMMdd'T'HHmmss'Z'")
+        )
+}
 $experimentManifestPath = Join-Path $resolvedExperiment "experiment.json"
 $experimentManifest =
     [ordered]@{
@@ -558,7 +596,14 @@ if (Test-Path -LiteralPath $experimentManifestPath -PathType Leaf) {
     Assert-M2ExperimentAttemptPolicy -Manifest $existingManifest | Out-Null
 }
 $expectedManifestText = $experimentManifest | ConvertTo-Json -Depth 4
-if ($ComparisonSequenceIndex -eq 1 -and $Attempt -eq 1) {
+if ($InspectGeometryOnly) {
+    # The inspection precedes the experiment; it never creates, writes or reserves anything under the
+    # experiment directory, which must still be absent when the experiment is reserved.
+    if (-not (Test-Path -LiteralPath $resolvedInspection)) {
+        New-Item -ItemType Directory -Path $resolvedInspection -Force | Out-Null
+    }
+}
+elseif ($ComparisonSequenceIndex -eq 1 -and $Attempt -eq 1) {
     if (-not (Test-Path -LiteralPath $resolvedExperiment)) {
         New-Item -ItemType Directory -Path $resolvedExperiment | Out-Null
         [System.IO.File]::WriteAllText(
@@ -720,7 +765,7 @@ function Get-CompletedFamilyResult {
     }
 }
 
-if ($ComparisonSequenceIndex -gt 1) {
+if ($ComparisonSequenceIndex -gt 1 -and -not $InspectGeometryOnly) {
     $previousIdentity = $comparisonOrder[$ComparisonSequenceIndex - 2].Split(":")
     $previousSlot = "slot-{0:D2}-{1}-{2}" -f ($ComparisonSequenceIndex - 1), $previousIdentity[0], $previousIdentity[1]
     $previousAttempt = 1
@@ -782,6 +827,12 @@ if ($LASTEXITCODE -ne 0 -or $repositoryHead -ne $SourceCommit) {
 if (Test-Path -LiteralPath $resolvedOutput) {
     throw "Frame output already exists: $resolvedOutput"
 }
+if ($InspectGeometryOnly) {
+    $inspectionRecordPath = Join-Path $resolvedInspection "no-sample-inspection-$CandidateRole.json"
+    if (Test-Path -LiteralPath $inspectionRecordPath) {
+        throw "A no-sample inspection record already exists; move it aside before inspecting again: $inspectionRecordPath"
+    }
+}
 
 New-Item -ItemType Directory -Path $resolvedOutput | Out-Null
 New-Item -ItemType Directory -Path (Join-Path $resolvedOutput "raw") | Out-Null
@@ -819,7 +870,9 @@ function Write-RunState {
         [System.Text.UTF8Encoding]::new($false)
     )
 }
-Write-RunState -Status "running" -Verdict "unavailable"
+if (-not $InspectGeometryOnly) {
+    Write-RunState -Status "running" -Verdict "unavailable"
+}
 
 function Invoke-TargetAdb {
     param(
@@ -1619,7 +1672,13 @@ function Set-BoundedDimensionField {
 }
 
 function New-DocumentThroughUi {
-    param([Parameter(Mandatory = $true)][object]$Spec)
+    param(
+        [Parameter(Mandatory = $true)][object]$Spec,
+
+        # No-sample inspection needs the created UI itself, because the pinned surface bounds are what
+        # the inspection is measuring; the sample path keeps its unchanged pinned-geometry assertion.
+        [switch]$GeometryInspection
+    )
 
     $initialUi = Get-CurrentEditorUi
     Assert-LandscapeRootUi -Ui $initialUi
@@ -1649,6 +1708,9 @@ function New-DocumentThroughUi {
     $createdUi = Get-CurrentEditorUi
     if (@($createdUi.SelectNodes("//*[@resource-id]") | Where-Object { $_.GetAttribute("resource-id") -like "*editor_create_document_title" }).Count -ne 0) {
         throw "The New-document dialog remained visible after creating the $($Spec.canvas_width) by $($Spec.canvas_height) document."
+    }
+    if ($GeometryInspection) {
+        return $createdUi
     }
     return Assert-CleanWorkloadReady -Ui $createdUi -Workload $Spec.workload
 }
@@ -2003,6 +2065,241 @@ function Stop-PhysicalPresentTrace {
     }
 }
 
+function Get-NoSampleCanvasBounds {
+    param(
+        [Parameter(Mandatory = $true)][xml]$Ui,
+        [Parameter(Mandatory = $true)][object]$Spec
+    )
+
+    $identity = "editor_canvas_$($Spec.canvas_width)_$($Spec.canvas_height)"
+    $bounds = Get-Bounds -Node (Get-ResourceNode -Ui $Ui -Identity $identity)
+    if (
+        $bounds.Left -lt 0 -or
+        $bounds.Top -lt 0 -or
+        $bounds.Right -le $bounds.Left -or
+        $bounds.Bottom -le $bounds.Top -or
+        $bounds.Right -gt $requiredLogicalWidth -or
+        $bounds.Bottom -gt $requiredLogicalHeight
+    ) {
+        throw "The inspected $identity surface is not a positive rectangle inside the pinned landscape root."
+    }
+    return "[$($bounds.Left),$($bounds.Top)][$($bounds.Right),$($bounds.Bottom)]"
+}
+
+function ConvertTo-NoSampleInspectionRecord {
+    param(
+        [Parameter(Mandatory = $true)][object]$Value,
+        [Parameter(Mandatory = $true)][string]$Role
+    )
+
+    $required = @(
+        "schema", "role", "apk_sha256", "embedded_source_commit", "rotation", "root_bounds",
+        "canvas16_bounds", "canvas256_bounds", "geometry_id", "ui_dump_sha256s", "captured_utc"
+    )
+    $propertyNames = @($Value.PSObject.Properties.Name)
+    foreach ($key in $required) {
+        if ($key -notin $propertyNames) {
+            throw "The existing $Role no-sample inspection record is missing '$key'."
+        }
+    }
+    if ($Value.schema -cne $noSampleInspectionSchema -or $Value.role -cne $Role) {
+        throw "The existing $Role no-sample inspection record does not carry its own schema and role."
+    }
+    $dumps = [ordered]@{}
+    foreach ($property in $Value.ui_dump_sha256s.PSObject.Properties) {
+        $dumps[$property.Name] = [string]$property.Value
+    }
+    return [ordered]@{
+        schema = [string]$Value.schema
+        role = [string]$Value.role
+        apk_sha256 = [string]$Value.apk_sha256
+        embedded_source_commit = [string]$Value.embedded_source_commit
+        rotation = [int]$Value.rotation
+        root_bounds = [string]$Value.root_bounds
+        canvas16_bounds = [string]$Value.canvas16_bounds
+        canvas256_bounds = [string]$Value.canvas256_bounds
+        geometry_id = [string]$Value.geometry_id
+        ui_dump_sha256s = $dumps
+        captured_utc = [string]$Value.captured_utc
+    }
+}
+
+$script:inspectionRotationRestoreError = $null
+$script:inspectionCleanupErrors = [System.Collections.Generic.List[string]]::new()
+
+function Restore-OriginalStayAwake {
+    param([AllowNull()][Parameter(Mandatory = $true)][AllowEmptyString()][string]$Original)
+
+    if ([string]::IsNullOrEmpty($Original)) {
+        return
+    }
+    # `settings get` reports an absent global as the literal text "null"; putting that back would
+    # store the four-character string instead of restoring the unset state.
+    if ($Original -ceq "null") {
+        Invoke-TargetAdb -AdbArguments @(
+            "shell", "settings", "delete", "global", "stay_on_while_plugged_in"
+        ) | Out-Null
+        return
+    }
+    Invoke-TargetAdb -AdbArguments @(
+        "shell", "settings", "put", "global", "stay_on_while_plugged_in", $Original
+    ) | Out-Null
+}
+
+function Invoke-NoSampleGeometryInspection {
+    $inspectionPath = Join-Path $resolvedInspection "no-sample-inspection-$CandidateRole.json"
+    $combinedPath = Join-Path $resolvedInspection "no-sample-inspection.json"
+    $originalRotation = $null
+    $stayAwake = $null
+    $pinAttempted = $false
+    $record = $null
+    try {
+        Get-PhysicalDeviceIdentity | Out-Null
+        $originalRotation = Get-WindowRotationState
+        Write-RotationStateArtifact -Name "rotation-original.txt" -State $originalRotation
+        if (
+            $originalRotation.numeric_user_rotation -ne $originalRotation.reported_user_rotation -or
+            ($originalRotation.mode -eq "locked" -and
+                $originalRotation.current_rotation -ne $originalRotation.numeric_user_rotation)
+        ) {
+            throw "The original WindowManager rotation state is internally inconsistent."
+        }
+        $pinAttempted = $true
+        Initialize-PinnedRotation
+        $stayAwake =
+            (Invoke-TargetAdb -AdbArguments @("shell", "settings", "get", "global", "stay_on_while_plugged_in") |
+                Select-Object -First 1).Trim()
+        Invoke-TargetAdb -AdbArguments @("shell", "svc", "power", "stayon", "usb") | Out-Null
+        Invoke-TargetAdb -AdbArguments @("shell", "cmd", "input", "keyevent", "WAKEUP") | Out-Null
+        Start-Sleep -Milliseconds 250
+        Invoke-TargetAdb -AdbArguments @("install", "-r", "-d", $artifactIdentity.resolved_apk_path) | Out-Null
+        Invoke-TargetAdb -AdbArguments @("shell", "am", "force-stop", $packageName) | Out-Null
+        Invoke-TargetAdb -AdbArguments @("shell", "am", "start", "-W", "-n", $activityName) | Out-Null
+        Start-Sleep -Milliseconds 1500
+
+        $dumpHashes = [ordered]@{}
+        $observedBounds = [ordered]@{}
+        $rootBounds = $null
+        foreach ($spec in $workloadCatalog) {
+            $createdUi = New-DocumentThroughUi -Spec $spec -GeometryInspection
+            Assert-LandscapeRootUi -Ui $createdUi
+            $currentRootBounds = $createdUi.DocumentElement.SelectSingleNode("./node").GetAttribute("bounds")
+            if ($null -ne $rootBounds -and $currentRootBounds -cne $rootBounds) {
+                throw "The pinned editor root bounds changed between the inspected canvas families."
+            }
+            $rootBounds = $currentRootBounds
+            $observedBounds[$spec.workload] = Get-NoSampleCanvasBounds -Ui $createdUi -Spec $spec
+            $dumpName = "ui-inspect-$($spec.canvas_width)x$($spec.canvas_height).xml"
+            $dumpPath = Join-Path $resolvedOutput "raw/$dumpName"
+            Write-Utf8CreateNew -Path $dumpPath -Text $createdUi.OuterXml
+            $dumpHashes[$dumpName] = Get-FileSha256 -Path $dumpPath
+        }
+
+        $record = [ordered]@{
+            schema = $noSampleInspectionSchema
+            role = $CandidateRole
+            apk_sha256 = $artifactIdentity.apk_sha256
+            embedded_source_commit = $artifactIdentity.embedded_source_commit
+            rotation = $requiredRotation
+            root_bounds = $rootBounds
+            canvas16_bounds = $observedBounds["canvas16_tap"]
+            canvas256_bounds = $observedBounds["canvas256_repeated_diagonal"]
+            geometry_id = $geometryId
+            ui_dump_sha256s = $dumpHashes
+            captured_utc = [datetime]::UtcNow.ToString("o")
+        }
+        # The observed record is published before any comparison, so a mismatch leaves the operator the
+        # exact values to fix the manifest with.
+        Write-Utf8CreateNew -Path $inspectionPath -Text (($record | ConvertTo-Json -Depth 5) + "`n")
+        if ($record.root_bounds -cne $requiredRootBounds) {
+            throw "The inspected editor root bounds are not the pinned $requiredRootBounds contract; see $inspectionPath."
+        }
+        if (
+            $record.canvas16_bounds -cne $expectedSurfaceBoundsByWorkload.canvas16_tap -or
+            $record.canvas256_bounds -cne $expectedSurfaceBoundsByWorkload.canvas256_repeated_diagonal
+        ) {
+            throw "The inspected $CandidateRole surface bounds do not match the supplied geometry; fill the manifest from $inspectionPath and inspect again."
+        }
+        $otherRole = if ($CandidateRole -eq "baseline") { "candidate" } else { "baseline" }
+        $otherPath = Join-Path $resolvedInspection "no-sample-inspection-$otherRole.json"
+        if ((Test-Path -LiteralPath $otherPath -PathType Leaf) -and -not (Test-Path -LiteralPath $combinedPath)) {
+            $otherRecord =
+                ConvertTo-NoSampleInspectionRecord `
+                    -Value (Get-Content -Raw -LiteralPath $otherPath | ConvertFrom-Json) `
+                    -Role $otherRole
+            $combined = [ordered]@{
+                schema = $noSampleInspectionSchema
+                baseline = if ($CandidateRole -eq "baseline") { $record } else { $otherRecord }
+                candidate = if ($CandidateRole -eq "candidate") { $record } else { $otherRecord }
+            }
+            Write-Utf8CreateNew -Path $combinedPath -Text (($combined | ConvertTo-Json -Depth 6) + "`n")
+        }
+    }
+    finally {
+        if ($pinAttempted -and $null -ne $originalRotation) {
+            try {
+                Restore-OriginalRotation -Original $originalRotation
+            }
+            catch {
+                $script:inspectionRotationRestoreError = $_.Exception.Message
+                try {
+                    [System.IO.File]::WriteAllLines(
+                        (Join-Path $resolvedOutput "rotation-restore-failure.txt"),
+                        @(
+                            "restore_verified=false",
+                            "source_error=$($script:inspectionRotationRestoreError -replace '[\r\n]+', ' ')"
+                        ),
+                        [System.Text.UTF8Encoding]::new($false)
+                    )
+                }
+                catch {
+                    # Cleanup evidence must not replace the source inspection result.
+                }
+            }
+        }
+        # Cleanup must never replace the source inspection result; failures are recorded, not thrown.
+        try {
+            Restore-OriginalStayAwake -Original $stayAwake
+        }
+        catch {
+            $script:inspectionCleanupErrors.Add("stay_awake_restore=$($_.Exception.Message -replace '[\r\n]+', ' ')")
+        }
+        try {
+            Invoke-TargetAdb -AdbArguments @(
+                "shell",
+                "rm",
+                "-f",
+                "$remotePrefix-checkpoint.xml",
+                "$remotePrefix-current.xml"
+            ) | Out-Null
+        }
+        catch {
+            $script:inspectionCleanupErrors.Add("remote_cleanup=$($_.Exception.Message -replace '[\r\n]+', ' ')")
+        }
+        if ($script:inspectionCleanupErrors.Count -gt 0) {
+            try {
+                [System.IO.File]::WriteAllLines(
+                    (Join-Path $resolvedOutput "cleanup-failure.txt"),
+                    @($script:inspectionCleanupErrors),
+                    [System.Text.UTF8Encoding]::new($false)
+                )
+            }
+            catch {
+                # Cleanup evidence must not replace the source inspection result.
+            }
+        }
+    }
+    return $record
+}
+
+if ($InspectGeometryOnly) {
+    $inspectionRecord = Invoke-NoSampleGeometryInspection
+    if ($null -ne $script:inspectionRotationRestoreError) {
+        throw "The no-sample inspection is invalid because rotation restoration was not verified: $($script:inspectionRotationRestoreError)"
+    }
+    return [pscustomobject]$inspectionRecord
+}
+
 $deviceIdentity = $null
 $originalStayAwake = $null
 $environmentRows = [System.Collections.Generic.List[object]]::new()
@@ -2023,6 +2320,7 @@ $script:rotationPinAttempted = $false
 $originalRotationState = $null
 $rotationRestoreError = $null
 $successfulMetadata = $null
+$script:collectionCleanupErrors = [System.Collections.Generic.List[string]]::new()
 
 try {
     $deviceIdentity = Get-PhysicalDeviceIdentity
@@ -2484,27 +2782,53 @@ finally {
     if ($environmentRows.Count -gt 0) {
         $environmentRows | Export-Csv -NoTypeInformation -Encoding utf8 -LiteralPath $environmentPath
     }
-    if ($null -ne $originalStayAwake) {
-        Invoke-TargetAdb -AdbArguments @("shell", "settings", "put", "global", "stay_on_while_plugged_in", $originalStayAwake) | Out-Null
+    # Cleanup failures are recorded, never allowed to replace the source measurement result.
+    try {
+        Restore-OriginalStayAwake -Original $originalStayAwake
     }
-    Invoke-TargetAdb -AdbArguments @(
-        "shell",
-        "rm",
-        "-f",
-        "$remotePrefix-before.xml",
-        "$remotePrefix-after.xml",
-        "$remotePrefix-after.png",
-        "$remotePrefix-checkpoint.xml",
-        "$remotePrefix-current.xml"
-    ) | Out-Null
-    if ($null -ne $physicalTraceState -and -not $physicalTraceState.Active) {
+    catch {
+        $script:collectionCleanupErrors.Add("stay_awake_restore=$($_.Exception.Message -replace '[\r\n]+', ' ')")
+    }
+    try {
         Invoke-TargetAdb -AdbArguments @(
             "shell",
             "rm",
             "-f",
-            $physicalTraceState.RemoteConfig,
-            $physicalTraceState.RemoteTrace
+            "$remotePrefix-before.xml",
+            "$remotePrefix-after.xml",
+            "$remotePrefix-after.png",
+            "$remotePrefix-checkpoint.xml",
+            "$remotePrefix-current.xml"
         ) | Out-Null
+    }
+    catch {
+        $script:collectionCleanupErrors.Add("remote_cleanup=$($_.Exception.Message -replace '[\r\n]+', ' ')")
+    }
+    if ($null -ne $physicalTraceState -and -not $physicalTraceState.Active) {
+        try {
+            Invoke-TargetAdb -AdbArguments @(
+                "shell",
+                "rm",
+                "-f",
+                $physicalTraceState.RemoteConfig,
+                $physicalTraceState.RemoteTrace
+            ) | Out-Null
+        }
+        catch {
+            $script:collectionCleanupErrors.Add("trace_cleanup=$($_.Exception.Message -replace '[\r\n]+', ' ')")
+        }
+    }
+    if ($script:collectionCleanupErrors.Count -gt 0) {
+        try {
+            [System.IO.File]::WriteAllLines(
+                (Join-Path $resolvedOutput "cleanup-failure.txt"),
+                @($script:collectionCleanupErrors),
+                [System.Text.UTF8Encoding]::new($false)
+            )
+        }
+        catch {
+            # Cleanup evidence must not replace the source measurement result.
+        }
     }
 }
 
