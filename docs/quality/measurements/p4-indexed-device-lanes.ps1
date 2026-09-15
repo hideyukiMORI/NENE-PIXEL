@@ -625,11 +625,21 @@ function Get-P4PrivateDirectoryListing {
         -AdbArguments @('exec-out', 'run-as', $Package, 'ls', '-1', $RelativePath) `
         -TimeoutSeconds $script:P4ProbeTimeoutSeconds
     $text = (@($result.OutputLines) -join "`n")
-    if ($result.ExitCode -ne 0) {
-        if ($text -match 'No such file or directory') { return $null }
+    # `adb exec-out` does not propagate the remote exit code, so absence and errors are recognized from
+    # the `ls:` diagnostic text itself, never from the exit code alone.
+    $lines = @($result.OutputLines | ForEach-Object { $_.Trim() } | Where-Object { $_.Length -gt 0 })
+    $diagnostics = @($lines | Where-Object { $_ -cmatch '^ls:' })
+    if ($diagnostics.Count -gt 0) {
+        if ($diagnostics.Count -eq 1 -and $lines.Count -eq 1 -and
+            $diagnostics[0] -cmatch "^ls: (?:\S+: )?$([regex]::Escape($RelativePath)): No such file or directory$") {
+            return $null
+        }
         throw "Unable to list $Package/$RelativePath (exit $($result.ExitCode)): $text"
     }
-    return @($result.OutputLines | ForEach-Object { $_.Trim() } | Where-Object { $_.Length -gt 0 })
+    if ($result.ExitCode -ne 0) {
+        throw "Unable to list $Package/$RelativePath (exit $($result.ExitCode)): $text"
+    }
+    return $lines
 }
 
 function Invoke-P4RecoveryQuarantine {
