@@ -665,9 +665,10 @@ function Invoke-P4RecoveryQuarantine {
         -TimeoutSeconds $script:P4ProbeTimeoutSeconds
     $beforeListing = Get-P4PrivateDirectoryListing -Context $Context -Package $package `
         -RelativePath $plan.source_directory -LogName 'recovery-quarantine-before-ls.log'
-    $present = if ($null -eq $beforeListing) { @() } else {
+    # Assigning an `if` expression unwraps a one-element array into a scalar; keep it an array.
+    $present = @(if ($null -eq $beforeListing) { @() } else {
         @($plan.live_names | Where-Object { $_ -cin $beforeListing })
-    }
+    })
     foreach ($name in $present) {
         if ($name -cnotin $script:P4RecoveryLiveNames -or $name -match '[\\/]') {
             throw "Refusing to move an entry outside the fixed live recovery record set: $name"
@@ -701,9 +702,9 @@ function Invoke-P4RecoveryQuarantine {
         -TimeoutSeconds $script:P4ProbeTimeoutSeconds
     $afterListing = Get-P4PrivateDirectoryListing -Context $Context -Package $package `
         -RelativePath $plan.source_directory -LogName 'recovery-quarantine-after-ls.log'
-    $remaining = if ($null -eq $afterListing) { @() } else {
+    $remaining = @(if ($null -eq $afterListing) { @() } else {
         @($plan.live_names | Where-Object { $_ -cin $afterListing })
-    }
+    })
     if ($remaining.Count -ne 0) {
         throw "The live recovery record is still present after quarantine: $($remaining -join ', ')"
     }
