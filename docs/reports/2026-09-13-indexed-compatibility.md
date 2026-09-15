@@ -142,7 +142,11 @@ Detailed commands, failed attempts and final logs remain under ignored
 No check, lint suppression or waiver was weakened. Schema changes are the normative project v2
 and recovery envelope v2, with historical v1 read/original-copy support retained.
 
-The accepted performance protocol is now `nene-pixel-p4-indexed-cutover-verification-v3`.
+The accepted performance protocol on this date was `nene-pixel-p4-indexed-cutover-verification-v3`.
+It was superseded on 2026-09-16 by `nene-pixel-p4-indexed-cutover-verification-v4`, after the first
+host slot of experiment `p4-indexed-v3-20260916` was preserved as INVALID for a harness sample-index
+contract defect; the v3 bytes are archived as
+[P4_INDEXED_CUTOVER_PROTOCOL_V3_HISTORICAL.md](../quality/P4_INDEXED_CUTOVER_PROTOCOL_V3_HISTORICAL.md).
 Earlier uncollected protocol bytes are archived. Collector and bounded-process contract fixtures
 are synthetic checks, not performance samples. Android functional execution, fresh user-asset
 preservation, immutable APK/profile/preflight identities, all accepted performance lanes and final

@@ -111,7 +111,11 @@ serial `T830128GB26321131293` / iPlay80miniPro / API36。
 
 ## P4測定は未実施・起動禁止のまま
 
-accepted `nene-pixel-p4-indexed-cutover-verification-v3`。v1/v2はuncollected archive。全33slotは未予約/未消費。
+本文書作成時点のacceptedは `nene-pixel-p4-indexed-cutover-verification-v3`。2026-09-16に
+`nene-pixel-p4-indexed-cutover-verification-v4` が置き換えた（v3はhost CSVのsample番号契約欠陥で
+experiment `p4-indexed-v3-20260916` の最初のslotをINVALID保存し、
+[V3 historical archive](../quality/P4_INDEXED_CUTOVER_PROTOCOL_V3_HISTORICAL.md) へ退避）。
+v1/v2はuncollected archive。全33slotは未予約/未消費。
 ホスト5、command2、memory20、publication2、frame4。baselineを過去計測から代用しない。
 `Assert-P4CollectionImplementationReady` が意図して必ずthrowする。以下を解決しレビュー完了するまで外さない。
 

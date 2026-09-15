@@ -1,5 +1,19 @@
 # P4 Indexed Cutover Verification Protocol
 
+Archive state: historical, uncollected for decision and invalidated. This file is the accepted
+canonical v3 contract, superseded on 2026-09-16 by [revision v4](P4_INDEXED_CUTOVER_PROTOCOL.md),
+identity `nene-pixel-p4-indexed-cutover-verification-v4`. Experiment `p4-indexed-v3-20260916` under
+this identity reserved and spent only its first slot, `host-project-baseline`; that slot is
+preserved as `INVALID` because the analyzer required 1-based host sample numbering while the
+accepted host runners emit 0-based indices. No sample was removed, replaced or reused and no
+PERFORMANCE verdict exists under this identity. These bytes are a historical record, not an
+alternative current collection route.
+
+The accepted canonical v3 bytes are SHA-256
+`fc6f0fb7bc898dd13c355886f72fd28b6cf6323399e0ebdf211a99bd3a6b324d`, 29,660 bytes, as recorded in
+`build/reports/issue-106/p4-experiment-v3-run1/preflight.json`. This archive prepends only the two
+paragraphs above; the contract text below is unchanged.
+
 Status: accepted prospective contract for Issue #106; no measurement collected.
 
 Rules: QLT-006–009/011–016. Waivers: none.
@@ -16,22 +30,9 @@ exact artifacts/profile/device identity. A placeholder or mismatch blocks collec
 
 ## Overall experiment identity and admission
 
-Protocol identity: `nene-pixel-p4-indexed-cutover-verification-v4`.
+Protocol identity: `nene-pixel-p4-indexed-cutover-verification-v3`.
 
-Revision v4 supersedes the
-[invalidated v3 contract](P4_INDEXED_CUTOVER_PROTOCOL_V3_HISTORICAL.md). Under v3, experiment
-`p4-indexed-v3-20260916` collected its first slot, `host-project-baseline`, completely, but the
-analyzer rejected that capture because it required 1-based host sample numbering while the accepted
-host runners emit `0 until SAMPLE_COUNT`, that is 0-based indices. This is a harness/analyzer
-contract defect unrelated to the measured values: the slot and its experiment id are preserved as
-`INVALID`, no sample was dropped or replaced, and no PERFORMANCE verdict exists under v3. V4 changes
-exactly three things: it states the host-lane 0-based CSV sample index, it adds the recovery rule
-for a harness-contract `INVALID` that occurs before any PERFORMANCE verdict, and it moves the
-manifest schema to `nene-pixel-p4-indexed-preflight-v4`. Populations, workloads, metrics, numeric
-gates, warmups, sample counts, finite budgets, fixed slot order and stopping rules are unchanged
-from v3.
-
-V3 superseded the [uncollected v2 contract](P4_INDEXED_CUTOVER_PROTOCOL_V2_HISTORICAL.md).
+Revision v3 supersedes the [uncollected v2 contract](P4_INDEXED_CUTOVER_PROTOCOL_V2_HISTORICAL.md).
 V2 superseded the [uncollected v1 contract](P4_INDEXED_CUTOVER_PROTOCOL_V1_HISTORICAL.md).
 No v1 or v2 sample or verdict exists. Independent implementation review found that device collectors
 cannot observe application-internal HistoryPosition and that a preview operation requires an
@@ -63,8 +64,8 @@ The baseline is collected afresh for every comparative lane. No M2, M3, #105,
 or #111 timing/memory record is reused as #106 evidence. Existing records
 justify the unchanged route and threshold; they do not fill a #106 slot.
 
-Before any collection, one fail-closed manifest whose schema is
-`nene-pixel-p4-indexed-preflight-v4` must contain non-placeholder values for:
+Before any collection, one fail-closed manifest must contain non-placeholder
+values for:
 
 - protocol ID and hash of its accepted canonical bytes;
 - baseline and candidate 40-character commits and clean tracked worktrees;
@@ -98,21 +99,6 @@ device-condition drift, exception, crash/ANR/fatal signal, or timeout is
 preserved and stop every dependent later slot. No sample is removed or
 replaced. Every slot has maximum attempt 1; any further collection requires a
 new protocol identity and review.
-
-One bounded recovery exists for a defect that is not a measurement. When an
-`INVALID` is caused by a harness, analyzer or wrapper contract defect that is
-unrelated to the measured values, and it occurs before any PERFORMANCE verdict
-has been produced under that experiment identity, the affected slot and its
-whole experiment id are preserved as `INVALID`, the defect is corrected under
-QLT-015, and the fixed slot order restarts from its first slot under a new
-experiment id. This is a new experiment, never a retry of a slot: no sample is
-selected, discarded, replaced, repaired or pooled across experiment ids, no
-population, threshold, budget or order changes, and the preserved `INVALID`
-remains reported. Once any slot under an experiment identity has produced a
-`PERFORMANCE_PASS` or `PERFORMANCE_FAIL`, this recovery is unavailable and
-further collection again requires a new protocol identity and review. A defect
-in the measured production behaviour, in the device or in the collection
-conditions is not a harness contract defect and is not recoverable this way.
 
 ## Lane 1: production command latency and ART blocking GC
 
@@ -358,15 +344,6 @@ samples. Every runner has a 60-second JavaExec timeout and its wrapper has a
 180-second timeout. A completed sample above 1 second is a gross-anomaly guard,
 not a product threshold. One invocation per role/runner, attempt 1, no retry.
 
-Every host CSV ends its fixed metadata with the row `group,sample,latency_nanos`
-and then emits, for each group in catalog order, exactly its 20 measured rows in
-ascending sample order. The `sample` field is the runner's own loop index, so it
-is 0-based: the accepted values are 0 through 19, matching the
-`0 until SAMPLE_COUNT` emission of every host runner. The collector, analyzer and
-validator accept exactly that numbering; 1-based rows, gaps, duplicates or
-out-of-order rows are `INVALID`. The sample count, warmups and group catalog are
-unchanged.
-
 ### Project codec
 
 Schema: `nene-pixel-p4-project-format-host-v1`.
@@ -545,10 +522,7 @@ is part of this protocol.
    constant decision.
 9. Collect frame v4 B10, C10, C50, B50 across both workload families.
 10. Stop at the first INVALID or PERFORMANCE_FAIL. Preserve it. Do not spend a
-    later dependent slot or substitute a result. A pre-verdict harness-contract
-    `INVALID` is recovered only through the bounded recovery rule in the
-    admission section, by restarting this whole order from step 5 under a new
-    experiment id; it never repairs, reuses or re-judges the preserved slot.
+    later dependent slot or substitute a result.
 
 Host descriptive lanes become acceptable evidence only when complete and
 valid; they never yield PERFORMANCE_PASS. Issue acceptance requires all

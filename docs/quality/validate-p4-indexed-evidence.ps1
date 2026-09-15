@@ -19,7 +19,7 @@ function New-P4SyntheticHostRows {
     foreach ($line in @("schema,nene-pixel-p4-$schema-host-v1", "role,$Role", 'java_version,synthetic',
         'java_vm,synthetic', 'os,synthetic', 'warmups,5', 'samples_per_group,20', 'group,sample,latency_nanos')) { $lines.Add($line) }
     $groups = @(Get-P4HostGroups $Runner $Role)
-    foreach ($group in $groups) { foreach ($i in 1..20) { $lines.Add("$group,$i,$(1000 + $i)") } }
+    foreach ($group in $groups) { foreach ($i in 0..19) { $lines.Add("$group,$i,$(1001 + $i)") } }
     foreach ($group in $groups) { $lines.Add("summary_min,$group,1001"); $lines.Add("summary_max,$group,1020") }
     return $lines.ToArray()
 }

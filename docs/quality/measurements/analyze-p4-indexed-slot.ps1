@@ -62,7 +62,7 @@ function Test-P4HostCapture {
     $offset = 8
     foreach ($group in $groups) {
         $times = [Collections.Generic.List[long]]::new()
-        foreach ($sample in 1..20) {
+        foreach ($sample in 0..19) {
             $parts = $Lines[$offset] -split ','
             $offset++
             if ($parts.Count -ne 3 -or $parts[0] -cne $group -or $parts[1] -cne [string]$sample) {
