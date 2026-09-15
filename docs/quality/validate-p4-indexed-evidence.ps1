@@ -185,9 +185,13 @@ Assert-P4TestRejects {
 # S7. Inventories are bound to the role clone's Git blobs and its real file system.
 # ---------------------------------------------------------------------------
 $candidateWorktree = 'C:/n106-candidate-build'
-$candidateBuild = '3642437c5f9817f70452a2a4d016db8d1962d184'
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 if (Test-Path -LiteralPath $candidateWorktree -PathType Container) {
+    # The candidate measurement build commit is whatever the clean clone is checked out at; a literal
+    # here could never name the commit that contains this validator.
+    $candidateBuild = (& git -C $candidateWorktree rev-parse HEAD).Trim()
+    if ($LASTEXITCODE -ne 0 -or $candidateBuild -cnotmatch '^[0-9a-f]{40}$') { throw 'Unable to read the candidate clone HEAD.' }
+    if (@(& git -C $candidateWorktree status --porcelain).Count -ne 0) { throw 'The candidate clone must be clean for real-data inventory cases.' }
     $expectedPaths = Get-P4ExpectedMeasurementPaths $candidateWorktree $candidateBuild 'candidate'
     if ($expectedPaths.Count -lt 20) { throw 'The fixed measurement pattern set collapsed.' }
     foreach ($required in @($script:P4SharedHostEvidenceSources) + @($script:P4CandidateHostEvidenceSources)) {
