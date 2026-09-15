@@ -191,6 +191,9 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+# adb writes UTF-8; the localized editor UI (ja/zh strings in `uiautomator dump`) becomes invalid XML
+# when the host console decodes native output with a legacy code page such as Shift_JIS.
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 
 . (Join-Path $PSScriptRoot "m2-package-dexopt.ps1")
 . (Join-Path $PSScriptRoot "android-window-state.ps1")
