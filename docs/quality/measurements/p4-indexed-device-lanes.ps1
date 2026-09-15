@@ -27,6 +27,17 @@ $script:P4DexoptTimeoutSeconds = 120
 $script:P4ProbeTimeoutSeconds = 30
 $script:P4PrivateFileTimeoutSeconds = 120
 $script:P4InnerTimeoutReserveSeconds = 20
+# The recovery record the v1 baseline cannot read once the v2 candidate has written it. Only these
+# exact live names are ever moved; every other no_backup entry (issue-89-*, issue-102-*, issue-106-*,
+# and hide's guarded user recovery) is untouchable, and nothing is ever deleted.
+$script:P4RecoveryPrivateDirectory = 'no_backup'
+$script:P4RecoveryLiveNames = @(
+    'nene-pixel-recovery-v1',
+    'nene-pixel-recovery-v1.new',
+    'nene-pixel-recovery-v1.bak'
+)
+$script:P4RecoveryQuarantineRoot = 'no_backup/p4-quarantine'
+$script:P4RecoveryQuarantineSchema = 'nene-pixel-p4-recovery-quarantine-v1'
 
 function Assert-P4PackageName {
     param([Parameter(Mandatory = $true)][string]$Value, [Parameter(Mandatory = $true)][string]$Name)
@@ -146,6 +157,32 @@ function Get-P4FrameCollectorParameters {
     }
 }
 
+function Get-P4RecoveryQuarantinePlan {
+    <#
+        Pure description of the frame lane's recovery quarantine. The candidate (v2 writer) leaves a
+        record the baseline build (2dd4e01, v1 only) cannot read, which makes the baseline editor show
+        "recovery data unavailable" and disable New/Open - so the later baseline frame slots can never
+        reach editor_create_document_title. Moving (never deleting) the live record aside restores the
+        first-run state each frame slot requires.
+    #>
+    param(
+        [Parameter(Mandatory = $true)][System.Collections.IDictionary]$Manifest,
+        [Parameter(Mandatory = $true)][ValidateSet('baseline', 'candidate')][string]$Role,
+        [Parameter(Mandatory = $true)][string]$SlotId
+    )
+    $experimentId = [string]$Manifest.experiment_id
+    if ($experimentId -cnotmatch '^[a-z0-9][a-z0-9-]{2,63}$') { throw 'Invalid experiment identity for quarantine.' }
+    if ($SlotId -cnotmatch '^[a-z0-9][a-z0-9-]{2,63}$') { throw "Invalid slot identity for quarantine: $SlotId" }
+    $packages = Get-P4LanePackages -Manifest $Manifest -Role $Role
+    return [ordered]@{
+        package = $packages.application
+        install_kind = 'app_debug'
+        source_directory = $script:P4RecoveryPrivateDirectory
+        live_names = @($script:P4RecoveryLiveNames)
+        quarantine_path = "$script:P4RecoveryQuarantineRoot/$experimentId/$SlotId"
+    }
+}
+
 function Get-P4DeviceLanePlan {
     <#
         Pure, device-free description of exactly what a device lane will do. The collector executes this
@@ -178,6 +215,7 @@ function Get-P4DeviceLanePlan {
         # Every lane runs exactly one @Test method of one class; the OK summary must confirm it.
         expected_test_count = 1
         inner_timeout_seconds = [int]$Slot.timeout_seconds - $script:P4InnerTimeoutReserveSeconds
+        recovery_quarantine = $null
         frame_parameters = $null
     }
     switch ($Slot.lane) {
@@ -247,8 +285,12 @@ function Get-P4DeviceLanePlan {
             )
         }
         'frame' {
+            # measure-m2-frame.ps1 installs the release-like APK itself; the quarantine step installs
+            # the debug APK first because release-like is non-debuggable and cannot be reached by run-as.
             $plan.install_kinds = @()
             $plan.dexopt_packages = @()
+            $plan.recovery_quarantine =
+                Get-P4RecoveryQuarantinePlan -Manifest $Manifest -Role $role -SlotId ([string]$Slot.id)
             $plan.frame_parameters = Get-P4FrameCollectorParameters -Manifest $Manifest -Slot $Slot
             $plan.frame_slot_directory =
                 Join-Path ([string]$Manifest.frame_experiment.directory) (
@@ -556,6 +598,140 @@ function Invoke-P4InstrumentationLane {
         )
     }
     return $copied.ToArray()
+}
+
+function Get-P4TextSha256 {
+    param([Parameter(Mandatory = $true)][AllowEmptyCollection()][string[]]$Lines)
+    $sha256 = [Security.Cryptography.SHA256]::Create()
+    try {
+        $bytes = [Text.UTF8Encoding]::new($false).GetBytes(($Lines -join "`n") + "`n")
+        return [Convert]::ToHexString($sha256.ComputeHash($bytes)).ToLowerInvariant()
+    }
+    finally { $sha256.Dispose() }
+}
+
+function Get-P4PrivateDirectoryListing {
+    <#
+        Returns the entry names of a private directory, or $null when the directory itself is absent.
+        `exec-out` avoids the pty line-ending rewriting of a plain `adb shell`.
+    #>
+    param(
+        [Parameter(Mandatory = $true)][System.Collections.IDictionary]$Context,
+        [Parameter(Mandatory = $true)][string]$Package,
+        [Parameter(Mandatory = $true)][string]$RelativePath,
+        [Parameter(Mandatory = $true)][string]$LogName
+    )
+    $result = Invoke-P4BoundedAdb -Context $Context -LogName $LogName `
+        -AdbArguments @('exec-out', 'run-as', $Package, 'ls', '-1', $RelativePath) `
+        -TimeoutSeconds $script:P4ProbeTimeoutSeconds
+    $text = (@($result.OutputLines) -join "`n")
+    if ($result.ExitCode -ne 0) {
+        if ($text -match 'No such file or directory') { return $null }
+        throw "Unable to list $Package/$RelativePath (exit $($result.ExitCode)): $text"
+    }
+    return @($result.OutputLines | ForEach-Object { $_.Trim() } | Where-Object { $_.Length -gt 0 })
+}
+
+function Invoke-P4RecoveryQuarantine {
+    <#
+        Frame lane precondition. The v2 candidate writes a recovery record the v1 baseline cannot read,
+        after which the baseline editor refuses New/Open and no frame slot can create its document.
+        This moves only the three exact live record names into a per-slot quarantine directory inside
+        the app's own no_backup storage. Nothing is deleted, `pm clear` is never used, and every other
+        no_backup entry - including hide's guarded user recovery - is left exactly as it is.
+    #>
+    param(
+        [Parameter(Mandatory = $true)][System.Collections.IDictionary]$Context,
+        [Parameter(Mandatory = $true)][System.Collections.IDictionary]$Manifest,
+        [Parameter(Mandatory = $true)][ValidateSet('baseline', 'candidate')][string]$Role,
+        [Parameter(Mandatory = $true)][string]$SlotId
+    )
+    $plan = Get-P4RecoveryQuarantinePlan -Manifest $Manifest -Role $Role -SlotId $SlotId
+    $package = [string]$plan.package
+    $quarantine = [string]$plan.quarantine_path
+    $recordPath = Join-Path $Context.output_directory 'recovery-quarantine.json'
+    if (Test-Path -LiteralPath $recordPath) { throw "Recovery quarantine record already exists: $recordPath" }
+
+    Assert-P4RemotePackagesStopped -Context $Context -Packages @(
+        $plan.package, (Get-P4LanePackages -Manifest $Manifest -Role $Role).application_test,
+        (Get-P4LanePackages -Manifest $Manifest -Role $Role).publication_test
+    ) -Stage 'quarantine'
+    # run-as needs the debuggable build; the release-like APK measure-m2-frame.ps1 installs afterwards
+    # is not debuggable. Installing the debug APK here also replaces any release-like build in place.
+    Assert-P4InstalledApk -Context $Context -Manifest $Manifest -Role $Role -Kind $plan.install_kind | Out-Null
+
+    $beforeDetail = Invoke-P4BoundedAdb -Context $Context -LogName 'recovery-quarantine-before-la.log' `
+        -AdbArguments @('exec-out', 'run-as', $package, 'ls', '-la', $plan.source_directory) `
+        -TimeoutSeconds $script:P4ProbeTimeoutSeconds
+    $beforeListing = Get-P4PrivateDirectoryListing -Context $Context -Package $package `
+        -RelativePath $plan.source_directory -LogName 'recovery-quarantine-before-ls.log'
+    $present = if ($null -eq $beforeListing) { @() } else {
+        @($plan.live_names | Where-Object { $_ -cin $beforeListing })
+    }
+    foreach ($name in $present) {
+        if ($name -cnotin $script:P4RecoveryLiveNames -or $name -match '[\\/]') {
+            throw "Refusing to move an entry outside the fixed live recovery record set: $name"
+        }
+    }
+
+    if ($present.Count -gt 0) {
+        $existing = Get-P4PrivateDirectoryListing -Context $Context -Package $package `
+            -RelativePath $quarantine -LogName 'recovery-quarantine-target-ls.log'
+        if ($null -ne $existing) {
+            throw "A prior attempt already quarantined into $package/$quarantine; it is never reused or deleted."
+        }
+        $mkdir = Invoke-P4BoundedAdb -Context $Context -LogName 'recovery-quarantine-mkdir.log' `
+            -AdbArguments @('shell', 'run-as', $package, 'mkdir', '-p', $quarantine) `
+            -TimeoutSeconds $script:P4ProbeTimeoutSeconds
+        if ($mkdir.ExitCode -ne 0) { throw "Unable to create $package/$quarantine (exit $($mkdir.ExitCode))." }
+        $moveIndex = 0
+        foreach ($name in $present) {
+            $moveIndex += 1
+            $move = Invoke-P4BoundedAdb -Context $Context -LogName "recovery-quarantine-mv-$moveIndex.log" `
+                -AdbArguments @(
+                    'shell', 'run-as', $package, 'mv',
+                    "$($plan.source_directory)/$name", "$quarantine/$name"
+                ) -TimeoutSeconds $script:P4ProbeTimeoutSeconds
+            if ($move.ExitCode -ne 0) { throw "Unable to quarantine $package/$name (exit $($move.ExitCode))." }
+        }
+    }
+
+    $afterDetail = Invoke-P4BoundedAdb -Context $Context -LogName 'recovery-quarantine-after-la.log' `
+        -AdbArguments @('exec-out', 'run-as', $package, 'ls', '-la', $plan.source_directory) `
+        -TimeoutSeconds $script:P4ProbeTimeoutSeconds
+    $afterListing = Get-P4PrivateDirectoryListing -Context $Context -Package $package `
+        -RelativePath $plan.source_directory -LogName 'recovery-quarantine-after-ls.log'
+    $remaining = if ($null -eq $afterListing) { @() } else {
+        @($plan.live_names | Where-Object { $_ -cin $afterListing })
+    }
+    if ($remaining.Count -ne 0) {
+        throw "The live recovery record is still present after quarantine: $($remaining -join ', ')"
+    }
+    if ($present.Count -gt 0) {
+        $quarantined = Get-P4PrivateDirectoryListing -Context $Context -Package $package `
+            -RelativePath $quarantine -LogName 'recovery-quarantine-verify-ls.log'
+        if ($null -eq $quarantined -or
+            @(Compare-Object @($present) @($quarantined | Where-Object { $_ -cin $plan.live_names })).Count -ne 0) {
+            throw 'The quarantined recovery record is not exactly what was moved aside.'
+        }
+    }
+
+    $record = [ordered]@{
+        schema = $script:P4RecoveryQuarantineSchema
+        slot_id = $SlotId
+        role = $Role
+        package = $package
+        source_directory = [string]$plan.source_directory
+        quarantine_path = $quarantine
+        live_names = @($plan.live_names)
+        moved = @($present)
+        before_listing_sha256 = Get-P4TextSha256 -Lines @($beforeDetail.OutputLines)
+        after_listing_sha256 = Get-P4TextSha256 -Lines @($afterDetail.OutputLines)
+        deleted = $false
+        recorded_utc = [datetime]::UtcNow.ToString('o')
+    }
+    Write-NewInvocationFile $recordPath ($record | ConvertTo-Json -Depth 5)
+    return $record
 }
 
 function New-P4FrameSlotRecord {

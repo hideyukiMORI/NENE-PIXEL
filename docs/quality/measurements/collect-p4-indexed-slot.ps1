@@ -58,7 +58,12 @@ switch ($slot.lane) {
             adb_path = [IO.Path]::GetFullPath($manifest.tools.adb.path)
             serial = [string]$manifest.device.serial
         }
-        Assert-P4RemotePackagesStopped -Context $context -Packages $plan.quiescence_packages -Stage 'lane-start'
+        # Precondition, before any frame work: the v2 candidate leaves a recovery record the v1
+        # baseline cannot read, which disables New/Open and would make every later baseline slot
+        # INVALID. This moves (never deletes) only the live record aside, and needs the debuggable
+        # build, so it must run before measure-m2-frame.ps1 installs the release-like APK.
+        Invoke-P4RecoveryQuarantine -Context $context -Manifest $manifest -Role $slot.role `
+            -SlotId ([string]$slot.id) | Out-Null
         $collector = [IO.Path]::GetFullPath($manifest.tools.frame_collector.path)
         $parameters = $plan.frame_parameters
         # The outer wrapper already bounds this slot with its kill-on-close Job; the frame collector

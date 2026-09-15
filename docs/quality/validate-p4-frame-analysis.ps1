@@ -681,6 +681,51 @@ try {
         }
     }
 
+    # --- frame lane recovery quarantine (dry run) ---------------------------------------------------
+    $expectedLiveNames = 'nene-pixel-recovery-v1|nene-pixel-recovery-v1.new|nene-pixel-recovery-v1.bak'
+    $candidateQuarantine = $framePlan.recovery_quarantine
+    if (
+        $null -eq $candidateQuarantine -or
+        $candidateQuarantine.package -cne $applicationPackage -or
+        $candidateQuarantine.install_kind -cne 'app_debug' -or
+        $candidateQuarantine.source_directory -cne 'no_backup' -or
+        (@($candidateQuarantine.live_names) -join '|') -cne $expectedLiveNames -or
+        $candidateQuarantine.quarantine_path -cne
+            "no_backup/p4-quarantine/$fixtureExperimentId/frame-3-candidate-decision"
+    ) {
+        throw 'The frame lane did not plan the fixed per-slot recovery quarantine.'
+    }
+    $baselineFramePlan = Get-P4DeviceLanePlan -Manifest $laneManifest -Slot (Get-P4CatalogSlot 'frame-4-baseline-decision')
+    $baselineQuarantine = $baselineFramePlan.recovery_quarantine
+    if (
+        $baselineQuarantine.package -cne $applicationPackage -or
+        $baselineQuarantine.quarantine_path -cne
+            "no_backup/p4-quarantine/$fixtureExperimentId/frame-4-baseline-decision" -or
+        $baselineQuarantine.quarantine_path -ceq $candidateQuarantine.quarantine_path
+    ) {
+        throw 'Each frame slot must quarantine into its own directory under the experiment.'
+    }
+    foreach ($guarded in @('issue-106-user-recovery-20260916-0103', 'issue-89-evidence', 'issue-102-evidence')) {
+        if ($guarded -cin @($candidateQuarantine.live_names) -or
+            $candidateQuarantine.quarantine_path.Contains($guarded)) {
+            throw 'The quarantine plan reaches a guarded no_backup entry.'
+        }
+    }
+    foreach ($nonFrameSlotId in @('command-baseline', 'memory-candidate-import-1', 'publication-candidate')) {
+        $nonFramePlan = Get-P4DeviceLanePlan -Manifest $laneManifest -Slot (Get-P4CatalogSlot $nonFrameSlotId)
+        if ($null -ne $nonFramePlan.recovery_quarantine) {
+            throw "Lane '$nonFrameSlotId' must not quarantine the recovery record."
+        }
+    }
+    $badExperiment = New-P4LaneManifest
+    $badExperiment.experiment_id = 'Not A Valid Id'
+    Assert-P4FrameRejects {
+        Get-P4RecoveryQuarantinePlan -Manifest $badExperiment -Role 'baseline' -SlotId 'frame-4-baseline-decision'
+    } 'a quarantine path built from an unconstrained experiment identity'
+    Assert-P4FrameRejects {
+        Get-P4RecoveryQuarantinePlan -Manifest $laneManifest -Role 'baseline' -SlotId '../escape'
+    } 'a quarantine path built from an unconstrained slot identity'
+
     $hostSlot = Get-P4CatalogSlot 'host-project-baseline'
     Assert-P4FrameRejects { Get-P4DeviceLanePlan -Manifest $laneManifest -Slot $hostSlot } 'a host slot routed to a device lane'
 
