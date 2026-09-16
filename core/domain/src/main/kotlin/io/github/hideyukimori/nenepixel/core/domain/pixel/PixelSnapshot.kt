@@ -13,7 +13,7 @@ public class PixelSnapshot private constructor(
     public val size: CanvasSize,
     public val revision: Revision,
     private val packedIndices: ByteArray,
-    internal val maximumIndex: PaletteIndex,
+    public val maximumIndex: PaletteIndex,
 ) {
     public fun indexAt(position: PixelPosition): DomainValueResult<PaletteIndex> =
         if (size.contains(position)) {

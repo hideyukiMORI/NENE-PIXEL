@@ -16,115 +16,120 @@ public fun applyPaletteRemap(
     snapshot: PixelSnapshot,
     remap: PaletteRemap,
 ): PaletteRemapApplicationResult {
-    val packed = snapshot.copyPackedIndices()
-    val changes = PackedRemapChanges(packed.size)
-    var rejection: PaletteRemapApplicationRejection.SourceIndexOutsidePalette? = null
-    for (position in packed.indices) {
-        val sourceIndex = packed[position].toPaletteIndex()
-        val destination = remap.destinationAt(sourceIndex)
-        when (destination) {
-            is DomainValueResult.Created -> {
-                if (sourceIndex != destination.value) {
-                    changes.add(position, sourceIndex, destination.value)
-                }
-            }
+    val destinations = remap.copyPackedDestinations()
+    return when {
+        snapshot.maximumIndex.value >= destinations.size -> {
+            PaletteRemapApplicationResult.Rejected(sourceIndexOutsidePalette(snapshot, remap))
+        }
 
-            is DomainValueResult.Rejected -> {
-                rejection =
-                    PaletteRemapApplicationRejection.SourceIndexOutsidePalette(
-                        snapshot.size.positionAt(position),
-                        sourceIndex,
-                        remap.source.palette.entryCount,
-                    )
-                break
-            }
+        destinations.mapEveryEntryToItself() -> {
+            PaletteRemapApplicationResult.NoIndexChanges
+        }
+
+        else -> {
+            remapResult(snapshot, collectRemapChanges(snapshot.copyPackedIndices(), destinations))
         }
     }
-    return remapResult(snapshot, changes, rejection)
 }
 
 private fun remapResult(
     snapshot: PixelSnapshot,
     changes: PackedRemapChanges,
-    rejection: PaletteRemapApplicationRejection.SourceIndexOutsidePalette?,
 ): PaletteRemapApplicationResult =
-    when {
-        rejection != null -> {
-            PaletteRemapApplicationResult.Rejected(rejection)
-        }
+    if (changes.isEmpty) {
+        PaletteRemapApplicationResult.NoIndexChanges
+    } else {
+        when (val patch = changes.toPatch(snapshot)) {
+            is PixelPatchCreationResult.Created -> {
+                PaletteRemapApplicationResult.Changed(patch.patch)
+            }
 
-        changes.isEmpty -> {
-            PaletteRemapApplicationResult.NoIndexChanges
-        }
-
-        else -> {
-            when (val patch = changes.toPatch(snapshot)) {
-                is PixelPatchCreationResult.Created -> {
-                    PaletteRemapApplicationResult.Changed(patch.patch)
-                }
-
-                is PixelPatchCreationResult.Rejected -> {
-                    check(
-                        patch.rejection is PixelPatchCreationRejection.RevisionOverflow,
-                    )
-                    PaletteRemapApplicationResult.Rejected(
-                        PaletteRemapApplicationRejection.RevisionOverflow,
-                    )
-                }
+            is PixelPatchCreationResult.Rejected -> {
+                check(
+                    patch.rejection is PixelPatchCreationRejection.RevisionOverflow,
+                )
+                PaletteRemapApplicationResult.Rejected(
+                    PaletteRemapApplicationRejection.RevisionOverflow,
+                )
             }
         }
     }
 
-private class PackedRemapChanges(
-    maximumSize: Int,
-) {
-    private var positions = IntArray(minOf(INITIAL_CAPACITY, maximumSize))
-    private var before = ByteArray(positions.size)
-    private var after = ByteArray(positions.size)
-    private var size: Int = 0
+private fun sourceIndexOutsidePalette(
+    snapshot: PixelSnapshot,
+    remap: PaletteRemap,
+): PaletteRemapApplicationRejection.SourceIndexOutsidePalette {
+    val entryCount = remap.source.palette.entryCount
+    val packed = snapshot.copyPackedIndices()
+    val position = packed.indexOfFirst { value -> (value.toInt() and U8_MASK) >= entryCount }
+    return PaletteRemapApplicationRejection.SourceIndexOutsidePalette(
+        snapshot.size.positionAt(position),
+        packed[position].toPaletteIndex(),
+        entryCount,
+    )
+}
 
-    val isEmpty: Boolean
-        get() = size == 0
-
-    fun add(
-        position: Int,
-        source: PaletteIndex,
-        destination: PaletteIndex,
-    ) {
-        ensureCapacity()
-        positions[size] = position
-        before[size] = source.value.toByte()
-        after[size] = destination.value.toByte()
-        size += 1
+private fun collectRemapChanges(
+    packed: ByteArray,
+    destinations: ByteArray,
+): PackedRemapChanges {
+    val changeCount = countRemapChanges(packed, destinations)
+    val positions = IntArray(changeCount)
+    val before = ByteArray(changeCount)
+    val after = ByteArray(changeCount)
+    var collected = 0
+    var positionsAreContiguous = true
+    for (position in packed.indices) {
+        val source = packed[position]
+        val destination = destinations[source.toInt() and U8_MASK]
+        if (destination != source) {
+            if (collected > 0 && position != positions[collected - 1] + 1) positionsAreContiguous = false
+            positions[collected] = position
+            before[collected] = source
+            after[collected] = destination
+            collected += 1
+        }
     }
+    return PackedRemapChanges(positions, before, after, positionsAreContiguous)
+}
+
+private fun countRemapChanges(
+    packed: ByteArray,
+    destinations: ByteArray,
+): Int {
+    var changeCount = 0
+    for (source in packed) {
+        if (destinations[source.toInt() and U8_MASK] != source) changeCount += 1
+    }
+    return changeCount
+}
+
+private class PackedRemapChanges(
+    private val positions: IntArray,
+    private val before: ByteArray,
+    private val after: ByteArray,
+    private val positionsAreContiguous: Boolean,
+) {
+    val isEmpty: Boolean
+        get() = positions.isEmpty()
 
     fun toPatch(snapshot: PixelSnapshot): PixelPatchCreationResult =
         PixelPatch.createFromValidatedPackedIndices(
             canvas = snapshot.size,
             beforeRevision = snapshot.revision,
-            positions = positions.exactSize(size),
-            before = before.exactSize(size),
-            after = after.exactSize(size),
-            positionsAreContiguous = false,
+            positions = positions,
+            before = before,
+            after = after,
+            positionsAreContiguous = positionsAreContiguous,
         )
-
-    private fun ensureCapacity() {
-        if (size < positions.size) return
-        val nextCapacity = positions.size * CAPACITY_GROWTH
-        positions = positions.copyOf(nextCapacity)
-        before = before.copyOf(nextCapacity)
-        after = after.copyOf(nextCapacity)
-    }
-
-    private companion object {
-        const val INITIAL_CAPACITY: Int = 256
-        const val CAPACITY_GROWTH: Int = 2
-    }
 }
 
-private fun IntArray.exactSize(size: Int): IntArray = if (this.size == size) this else copyOf(size)
-
-private fun ByteArray.exactSize(size: Int): ByteArray = if (this.size == size) this else copyOf(size)
+private fun ByteArray.mapEveryEntryToItself(): Boolean {
+    for (entry in indices) {
+        if ((this[entry].toInt() and U8_MASK) != entry) return false
+    }
+    return true
+}
 
 private fun Byte.toPaletteIndex(): PaletteIndex =
     when (val result = PaletteIndex.create(toInt() and U8_MASK)) {

@@ -52,8 +52,8 @@ commands/actions or authorize unrelated preferences.
 
 ### ARC-005 — Controlled mutation enclave
 
-Externally visible domain and application state MUST be immutable. `PixelSnapshot`, `Stroke` and
-the bounded uninstalled `LegacyRgbaSource` of ADR 0024 MAY
+Externally visible domain and application state MUST be immutable. `PixelSnapshot`, `Stroke`,
+`PaletteRemap` and the bounded uninstalled `LegacyRgbaSource` of ADR 0024 MAY
 privately own defensive packed primitive storage that is never mutated after construction and is
 never exposed; any bulk read returns a copy. `:core:project-format` codecs and
 `:adapters:persistence` transports MAY use bounded, privately owned mutable byte buffers only for one
