@@ -12,8 +12,8 @@ $ErrorActionPreference = 'Stop'
 # The measurement inventory is derived from each
 # role clone's own build tree, so it holds that clone's measurement sources only - the P4 tooling
 # itself lives at newer commits and is bound through `tools.*`, not through measurement_files.
-$script:P4ProtocolId = 'nene-pixel-p4-indexed-cutover-verification-v4'
-$script:P4ManifestSchema = 'nene-pixel-p4-indexed-preflight-v4'
+$script:P4ProtocolId = 'nene-pixel-p4-indexed-cutover-verification-v5'
+$script:P4ManifestSchema = 'nene-pixel-p4-indexed-preflight-v5'
 $script:P4BaselineProduction = '2dd4e01e3bbe88967237cde4e28412d2962fd590'
 
 # Exactly one contract record per lane boundary. Absent, duplicate or unknown scopes are refusals.
@@ -99,6 +99,28 @@ $script:P4InspectionRotation = 1
 
 $script:P4HostClasspathSchema = 'nene-pixel-p4-host-classpath-v1'
 
+function Get-P4FrameWrapperBound {
+    <#
+        Protocol v5 (protocol:362-374) derives the frame wrapper bound from the slot's own operation
+        count instead of fixing it at 300/600 s:
+
+            wrapper_bound = 300 s setup + 15 s x operations
+            operations    = 2 workload families x (warmups + samples)
+
+        so a diagnostic slot is 2 x (5 + 10) = 30 operations -> 750 s and a decision slot is
+        2 x (5 + 50) = 110 operations -> 1950 s. V4's fixed 300/600 s came from the ~122 s
+        intentional dwell alone and ignored the per-operation gfxinfo/framestats/pull/UI cost and the
+        16 MOVE injections of the canvas256 family. Every reported per-frame metric comes from
+        `gfxinfo`, so the bound changes no measured value; it guards a hang only.
+    #>
+    param(
+        [Parameter(Mandatory = $true)][ValidateRange(0, 1000)][int]$Warmups,
+        [Parameter(Mandatory = $true)][ValidateRange(1, 1000)][int]$Samples
+    )
+    $operations = 2 * ($Warmups + $Samples)
+    return [int](300 + 15 * $operations)
+}
+
 function Get-P4SlotCatalog {
     $slots = [System.Collections.Generic.List[object]]::new()
     foreach ($runner in @('project', 'recovery', 'legacy')) {
@@ -109,8 +131,12 @@ function Get-P4SlotCatalog {
         }
     }
     foreach ($role in @('baseline', 'candidate')) {
+        # Protocol v5 (protocol:196-199) bounds one command instrumentation invocation at 600 s: the
+        # candidate role runs 2,200 samples whose palette-workload per-sample cost is unmeasured, so
+        # the bound guards a hang only. Memory (protocol:274-276) and publication (protocol:509-511)
+        # stay at 300 s.
         $slots.Add([ordered]@{ id = "command-$role"; lane = 'command'; role = $role; runner = 'command';
-            run = 1; timeout_seconds = 300; warmups = 5; samples = 200 })
+            run = 1; timeout_seconds = 600; warmups = 5; samples = 200 })
     }
     foreach ($family in @('baseline-common', 'candidate-common', 'candidate-palette', 'candidate-import')) {
         $parts = $family.Split('-')
@@ -128,9 +154,11 @@ function Get-P4SlotCatalog {
         $sequence++
         $parts = $slot.Split('-')
         $diagnostic = $parts[1] -eq 'diagnostic'
+        $warmups = 5
+        $samples = if ($diagnostic) { 10 } else { 50 }
         $slots.Add([ordered]@{ id = "frame-$sequence-$slot"; lane = 'frame'; role = $parts[0]; runner = $parts[1];
-            run = $sequence; timeout_seconds = $(if ($diagnostic) { 300 } else { 600 });
-            warmups = 5; samples = $(if ($diagnostic) { 10 } else { 50 }) })
+            run = $sequence; timeout_seconds = (Get-P4FrameWrapperBound -Warmups $warmups -Samples $samples);
+            warmups = $warmups; samples = $samples })
     }
     return $slots.ToArray()
 }

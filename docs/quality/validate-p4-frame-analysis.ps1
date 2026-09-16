@@ -555,7 +555,7 @@ try {
         (@($commandPlan.adb_arguments) -join ' ') -cne ($expectedCommandArguments -join ' ') -or
         (@($commandPlan.install_kinds) -join '|') -cne 'app_debug|test_debug' -or
         (@($commandPlan.dexopt_packages) -join '|') -cne $applicationPackage -or
-        [int]$commandPlan.timeout_seconds -ne 300 -or
+        [int]$commandPlan.timeout_seconds -ne 600 -or
         @($commandPlan.private_files).Count -ne 1 -or
         $commandPlan.private_files[0].package -cne $applicationPackage -or
         $commandPlan.private_files[0].relative_path -cne 'files/p4-measurements/p4-indexed-command-baseline-run-01.csv' -or
@@ -563,19 +563,20 @@ try {
         (@($commandPlan.quiescence_packages) -join '|') -cne
             "$applicationPackage|$applicationTestPackage|$publicationTestPackage" -or
         [int]$commandPlan.expected_test_count -ne 1 -or
-        # Protocol v4: the instrumentation keeps the full 300 s; the collector Job gets the derived bound.
-        [int]$commandPlan.inner_timeout_seconds -ne 300
+        # Protocol v5 (protocol:196-199): the command instrumentation keeps the full 600 s; the
+        # collector Job gets the derived bound.
+        [int]$commandPlan.inner_timeout_seconds -ne 600
     ) {
         throw 'The command lane assembled a different instrumentation invocation than its sources declare.'
     }
     # Derived collector bounds (decision 3). Expected totals are literals on purpose: a change to the
-    # 300/120/120/30 protocol limits or to the probe accounting has to be made here too.
-    #   command     : 300 + 2*120 + 1*120 + 13*30 + 1*120 + 60 = 1230
+    # 600/300/120/120/30 protocol limits or to the probe accounting has to be made here too.
+    #   command     : 600 + 2*120 + 1*120 + 13*30 + 1*120 + 60 = 1530
     #   memory      : 300 + 2*120 + 1*120 + 12*30 + 0     + 60 = 1080
     #   publication : 300 + 1*120 + 1*120 + 10*30 + 2*120 + 60 = 1140
     $expectedBudgets = @{
-        'command-baseline' = @{ probe_count = 13; total = 1230 }
-        'command-candidate' = @{ probe_count = 13; total = 1230 }
+        'command-baseline' = @{ probe_count = 13; total = 1530 }
+        'command-candidate' = @{ probe_count = 13; total = 1530 }
         'memory-candidate-common-2' = @{ probe_count = 12; total = 1080 }
         'publication-candidate' = @{ probe_count = 10; total = 1140 }
     }
@@ -594,10 +595,10 @@ try {
             [int]$budget.reserve_seconds -ne 60 -or
             [int]$budget.probe_count -ne [int]$expected.probe_count -or
             [int]$budget.probe_seconds -ne ([int]$expected.probe_count * 30) -or
-            # Must stay inside Invoke-BoundedNativeCommand's [ValidateRange(1, 1800)] ceiling, which the
+            # Must stay inside Invoke-BoundedNativeCommand's [ValidateRange(1, 3600)] ceiling, which the
             # derivation checks itself so an over-long bound refuses BEFORE the slot is reserved.
-            [int]$budget.cap_seconds -ne 1800 -or
-            [int]$budget.collector_timeout_seconds -gt 1800 -or
+            [int]$budget.cap_seconds -ne 3600 -or
+            [int]$budget.collector_timeout_seconds -gt 3600 -or
             [int]$budget.collector_timeout_seconds -ne [int]$expected.total -or
             [int]$boundedPlan.collector_timeout_seconds -ne [int]$expected.total -or
             [int]$budget.collector_timeout_seconds -le [int]$boundedPlan.inner_timeout_seconds
@@ -737,15 +738,20 @@ try {
     ) {
         throw 'The frame lane assembled a different measure-m2-frame.ps1 invocation than the manifest declares.'
     }
-    # protocol:338 - the frame lane keeps `timeout_seconds` as the wrapper bound and derives nothing.
+    # protocol:362-374 - the frame collector derives no budget of its own: it keeps `timeout_seconds`
+    # as the wrapper bound. Under v5 that `timeout_seconds` is itself derived from the operation count
+    # by Get-P4FrameWrapperBound, so a decision slot is 300 + 15 * (2 * (5 + 50)) = 1950 s. The literal
+    # is deliberate: a change to the setup or per-operation allowance has to be made here too.
     if (
         [bool]$framePlan.collector_budget.derived -or
-        [int]$framePlan.collector_timeout_seconds -ne 600 -or
+        [int]$framePlan.collector_timeout_seconds -ne 1950 -or
+        [int]$framePlan.timeout_seconds -ne 1950 -or
+        [int]$framePlan.timeout_seconds -ne (Get-P4FrameWrapperBound -Warmups 5 -Samples 50) -or
         [int]$framePlan.collector_budget.collector_timeout_seconds -ne [int]$framePlan.timeout_seconds -or
         # Declared on every lane skeleton (StrictMode reads it unconditionally) but never filled in here.
         -not $framePlan.Contains('private_file_quarantine') -or
         $null -ne $framePlan.private_file_quarantine -or
-        [int]$framePlan.collector_budget.cap_seconds -ne 1800
+        [int]$framePlan.collector_budget.cap_seconds -ne 3600
     ) {
         throw 'The frame lane must keep its protocol slot timeout as the wrapper bound.'
     }

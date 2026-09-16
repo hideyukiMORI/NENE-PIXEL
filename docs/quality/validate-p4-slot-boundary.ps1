@@ -442,7 +442,7 @@ function Assert-P4SealedCompletion {
     if ([int]$started.cleanup_reserve_seconds -ne 90 -or [int]$started.analysis_timeout_seconds -ne 120) {
         throw 'started.json does not record the fixed cleanup (90 s) / analysis (120 s) budgets.'
     }
-    # Protocol v4 instrumentation bound: the collector Job must outlast the instrumentation it hosts, so
+    # Protocol v5 instrumentation bound: the collector Job must outlast the instrumentation it hosts, so
     # the recorded collector bound is the DERIVED one for the instrumentation lanes and the protocol
     # timeout for host/frame. The breakdown must add up to the bound the slot deadline was built from.
     Assert-P4RequiredKeys $started @('protocol_timeout_seconds', 'collector_budget') 'started.json'
@@ -457,8 +457,9 @@ function Assert-P4SealedCompletion {
         throw 'started.json does not bind its collector bound to the recorded budget.'
     }
     # The bound is handed to Invoke-BoundedNativeCommand -TimeoutSeconds, whose ValidateRange ceiling is
-    # 1800 s; the derivation must refuse before reservation rather than at that parameter binding.
-    if ([int]$budget.collector_timeout_seconds -gt 1800 -or [int]$budget.cap_seconds -ne 1800) {
+    # 3600 s under protocol v5 (protocol:362-374); the derivation must refuse before reservation rather
+    # than at that parameter binding.
+    if ([int]$budget.collector_timeout_seconds -gt 3600 -or [int]$budget.cap_seconds -ne 3600) {
         throw 'The recorded collector bound is not held under the bounded native ValidateRange ceiling.'
     }
     if ($Lane -ceq 'host') {

@@ -70,8 +70,11 @@ function Read-P4PublicationRow {
 
 function Test-P4PublicationCapture {
     param(
-        [Parameter(Mandatory = $true)][AllowEmptyCollection()][string[]]$Lines,
-        [Parameter(Mandatory = $true)][AllowEmptyCollection()][string[]]$StatusLines,
+        # [AllowEmptyString()] so a blank line inside the pulled publication CSV/status reaches the
+        # row checks below instead of failing parameter binding with
+        # ParameterArgumentValidationErrorEmptyStringNotAllowed. No contract change.
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][AllowEmptyString()][string[]]$Lines,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][AllowEmptyString()][string[]]$StatusLines,
         [Parameter(Mandatory = $true)][ValidateSet('baseline', 'candidate')][string]$Role
     )
 

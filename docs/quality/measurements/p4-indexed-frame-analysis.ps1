@@ -44,7 +44,9 @@ function Get-P4FrameObjectMember {
 }
 
 function Read-P4FrameMetadata {
-    param([Parameter(Mandatory = $true)][string[]]$Lines)
+    # [AllowEmptyString()] so a blank record reaches the explicit blank-record refusal below instead of
+    # failing parameter binding with ParameterArgumentValidationErrorEmptyStringNotAllowed.
+    param([Parameter(Mandatory = $true)][AllowEmptyString()][string[]]$Lines)
     $metadata = [ordered]@{}
     foreach ($line in $Lines) {
         if ([string]::IsNullOrWhiteSpace($line)) { throw 'Frame metadata contains a blank record.' }

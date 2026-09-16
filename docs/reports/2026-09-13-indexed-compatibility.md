@@ -147,6 +147,11 @@ It was superseded on 2026-09-16 by `nene-pixel-p4-indexed-cutover-verification-v
 host slot of experiment `p4-indexed-v3-20260916` was preserved as INVALID for a harness sample-index
 contract defect; the v3 bytes are archived as
 [P4_INDEXED_CUTOVER_PROTOCOL_V3_HISTORICAL.md](../quality/P4_INDEXED_CUTOVER_PROTOCOL_V3_HISTORICAL.md).
+The currently accepted protocol is `nene-pixel-p4-indexed-cutover-verification-v5`, which superseded
+v4 on the same date after review found the frame and command lane wrapper bounds defective before
+any device slot ran; experiment `p4-indexed-v4-20260916-run3` is preserved as superseded with its
+five host slots intact, and the v4 bytes are archived as
+[P4_INDEXED_CUTOVER_PROTOCOL_V4_HISTORICAL.md](../quality/P4_INDEXED_CUTOVER_PROTOCOL_V4_HISTORICAL.md).
 Earlier uncollected protocol bytes are archived. Collector and bounded-process contract fixtures
 are synthetic checks, not performance samples. Android functional execution, fresh user-asset
 preservation, immutable APK/profile/preflight identities, all accepted performance lanes and final

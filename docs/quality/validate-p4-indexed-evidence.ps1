@@ -29,8 +29,17 @@ if ($catalog.Count -ne 33 -or $catalog[0].id -cne 'host-project-baseline' -or
     $catalog[28].id -cne 'publication-candidate' -or $catalog[32].id -cne 'frame-4-baseline-decision') {
     throw 'Fixed 33-slot operation catalog is incorrect.'
 }
+# Protocol v5 finite budgets: 5 host slots at 180 s, 2 command at 600 s (protocol:196-199), 20 memory
+# and 2 publication at 300 s, and 4 frame slots whose wrapper bound is derived from the operation count
+# (protocol:362-374): 2 diagnostic at 750 s and 2 decision at 1950 s.
 if (@($catalog | Where-Object lane -eq 'memory').Count -ne 20 -or
-    @($catalog | Where-Object { $_.timeout_seconds -eq 600 }).Count -ne 2) { throw 'Finite lane budget drift.' }
+    @($catalog | Where-Object { $_.timeout_seconds -eq 180 }).Count -ne 5 -or
+    @($catalog | Where-Object { $_.timeout_seconds -eq 600 }).Count -ne 2 -or
+    @($catalog | Where-Object { $_.timeout_seconds -eq 300 }).Count -ne 22 -or
+    @($catalog | Where-Object { $_.timeout_seconds -eq 750 }).Count -ne 2 -or
+    @($catalog | Where-Object { $_.timeout_seconds -eq 1950 }).Count -ne 2 -or
+    (Get-P4FrameWrapperBound -Warmups 5 -Samples 10) -ne 750 -or
+    (Get-P4FrameWrapperBound -Warmups 5 -Samples 50) -ne 1950) { throw 'Finite lane budget drift.' }
 foreach ($runner in @('project', 'recovery', 'legacy')) {
     $roles = if ($runner -eq 'legacy') { @('candidate') } else { @('baseline', 'candidate') }
     foreach ($role in $roles) {

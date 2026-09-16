@@ -13,14 +13,14 @@ $ErrorActionPreference = 'Stop'
 $script:P4DeviceStateScriptPath = Join-Path $PSScriptRoot 'p4-indexed-device-state.ps1'
 if (Test-Path -LiteralPath $script:P4DeviceStateScriptPath -PathType Leaf) { . $script:P4DeviceStateScriptPath }
 # S5 device lanes. The wrapper needs the lane PLAN (never a literal) for two cleanup-phase duties it
-# owns rather than the collector: the derived collector bound (protocol v4 instrumentation budget) and
+# owns rather than the collector: the derived collector bound (protocol v5 instrumentation budget) and
 # the private-file quarantine. Both call sites assert the contract functions first.
 $script:P4DeviceLanesScriptPath = Join-Path $PSScriptRoot 'p4-indexed-device-lanes.ps1'
 if (Test-Path -LiteralPath $script:P4DeviceLanesScriptPath -PathType Leaf) { . $script:P4DeviceLanesScriptPath }
 
 # Fixed slot budgets. The slot deadline is started + collector timeout + cleanup reserve + analysis
 # budget; cleanup must finish before the analysis budget begins or the slot is INVALID. The collector
-# timeout is the DERIVED bound of Get-P4CollectorBudget for the instrumentation lanes (protocol v4:
+# timeout is the DERIVED bound of Get-P4CollectorBudget for the instrumentation lanes (protocol v5:
 # the instrumentation itself keeps the full `timeout_seconds`), and `timeout_seconds` for host/frame.
 $script:P4CleanupReserveSeconds = 90
 $script:P4AnalysisTimeoutSeconds = 120
@@ -68,11 +68,12 @@ function Get-P4SlotDeviceContext {
 
 function Get-P4SlotCollectorBudget {
     <#
-        The wrapper's outer (Job) bound for the collector. Protocol v4 bounds one instrumentation
+        The wrapper's outer (Job) bound for the collector. Protocol v5 bounds one instrumentation
         invocation at `timeout_seconds` and bounds install/compile/native calls separately; giving the
         whole collector only `timeout_seconds` would let the outer kill precede the inner bound. The
         instrumentation lanes therefore get the bound derived from their own plan; host and frame keep
-        `timeout_seconds` (protocol:338 for frame).
+        `timeout_seconds` (protocol:362-374 for frame, where `timeout_seconds` is itself derived from
+        the slot's operation count by Get-P4FrameWrapperBound).
     #>
     param($Manifest, $Slot)
     Assert-P4DeviceLaneContract

@@ -1,5 +1,20 @@
 # P4 Indexed Cutover Verification Protocol
 
+Archive state: historical, uncollected for decision and superseded before any device slot. This file
+is the accepted canonical v4 contract, superseded on 2026-09-16 by
+[revision v5](P4_INDEXED_CUTOVER_PROTOCOL.md), identity
+`nene-pixel-p4-indexed-cutover-verification-v5`. Experiment `p4-indexed-v4-20260916-run3` under this
+identity reserved and spent only its five host slots, all `valid-descriptive`, and started no device
+slot; independent review then found harness/wrapper contract defects in the frame and command lane
+bounds, so that experiment is preserved unchanged and reported as `superseded`. No sample was
+removed, replaced, pooled or reused and no PERFORMANCE verdict exists under this identity. These
+bytes are a historical record, not an alternative current collection route.
+
+The accepted canonical v4 bytes are SHA-256
+`fc7dba3cda21f28b4d61311a415fab6f0693ba0bfc0c6080400571314ddbee3a`, 32,600 bytes, as recorded in
+`build/reports/issue-106/p4-experiment-v4-run3/preflight.json`. This archive prepends only the two
+paragraphs above; the contract text below is unchanged.
+
 Status: accepted prospective contract for Issue #106; no measurement collected.
 
 Rules: QLT-006–009/011–016. Waivers: none.
@@ -16,26 +31,21 @@ exact artifacts/profile/device identity. A placeholder or mismatch blocks collec
 
 ## Overall experiment identity and admission
 
-Protocol identity: `nene-pixel-p4-indexed-cutover-verification-v5`.
+Protocol identity: `nene-pixel-p4-indexed-cutover-verification-v4`.
 
-Revision v5 supersedes the
-[superseded v4 contract](P4_INDEXED_CUTOVER_PROTOCOL_V4_HISTORICAL.md). Under v4, experiment
-`p4-indexed-v4-20260916-run3` completed its five host slots as `valid-descriptive` and started no
-device slot. Independent review of the device-lane wrappers then found that the frame wrapper bound
-was fixed from the intentional dwell alone and ignored per-operation ADB cost, and that the command
-lane's instrumentation bound left no room for an unmeasured candidate population; both are
-harness/wrapper contract defects unrelated to any measured value, and both were found before any
-device slot ran, so no PERFORMANCE verdict exists under v4. V5 changes exactly three things: it
-derives the frame wrapper bound from the operation count instead of fixing it, it raises the command
-lane instrumentation bound to 600 seconds, and it adds the pre-emptive supersede rule for a
-review-found harness contract defect, moving the manifest schema to
-`nene-pixel-p4-indexed-preflight-v5`. Populations, workloads, metrics, numeric gates, warmups,
-sample counts, fixed slot order, stopping rules and every lane schema name are unchanged from v4.
+Revision v4 supersedes the
+[invalidated v3 contract](P4_INDEXED_CUTOVER_PROTOCOL_V3_HISTORICAL.md). Under v3, experiment
+`p4-indexed-v3-20260916` collected its first slot, `host-project-baseline`, completely, but the
+analyzer rejected that capture because it required 1-based host sample numbering while the accepted
+host runners emit `0 until SAMPLE_COUNT`, that is 0-based indices. This is a harness/analyzer
+contract defect unrelated to the measured values: the slot and its experiment id are preserved as
+`INVALID`, no sample was dropped or replaced, and no PERFORMANCE verdict exists under v3. V4 changes
+exactly three things: it states the host-lane 0-based CSV sample index, it adds the recovery rule
+for a harness-contract `INVALID` that occurs before any PERFORMANCE verdict, and it moves the
+manifest schema to `nene-pixel-p4-indexed-preflight-v4`. Populations, workloads, metrics, numeric
+gates, warmups, sample counts, finite budgets, fixed slot order and stopping rules are unchanged
+from v3.
 
-V4 superseded the [invalidated v3 contract](P4_INDEXED_CUTOVER_PROTOCOL_V3_HISTORICAL.md), whose
-experiment `p4-indexed-v3-20260916` is preserved as `INVALID` because the analyzer required 1-based
-host sample numbering while the accepted host runners emit 0-based indices; v4 stated the 0-based
-host CSV sample index and added the bounded recovery rule below.
 V3 superseded the [uncollected v2 contract](P4_INDEXED_CUTOVER_PROTOCOL_V2_HISTORICAL.md).
 V2 superseded the [uncollected v1 contract](P4_INDEXED_CUTOVER_PROTOCOL_V1_HISTORICAL.md).
 No v1 or v2 sample or verdict exists. Independent implementation review found that device collectors
@@ -69,7 +79,7 @@ or #111 timing/memory record is reused as #106 evidence. Existing records
 justify the unchanged route and threshold; they do not fill a #106 slot.
 
 Before any collection, one fail-closed manifest whose schema is
-`nene-pixel-p4-indexed-preflight-v5` must contain non-placeholder values for:
+`nene-pixel-p4-indexed-preflight-v4` must contain non-placeholder values for:
 
 - protocol ID and hash of its accepted canonical bytes;
 - baseline and candidate 40-character commits and clean tracked worktrees;
@@ -118,26 +128,6 @@ remains reported. Once any slot under an experiment identity has produced a
 further collection again requires a new protocol identity and review. A defect
 in the measured production behaviour, in the device or in the collection
 conditions is not a harness contract defect and is not recoverable this way.
-
-A second bounded rule covers the same class of defect found one step earlier.
-When a harness, analyzer or wrapper contract defect is found by review before
-any device slot of an experiment has been started, that is before any device
-slot has written `started.json` under that experiment id, and therefore before
-any PERFORMANCE verdict exists under that experiment identity, that whole
-experiment is `superseded`: every slot it has already completed is preserved
-exactly as collected and reported under the `superseded` experiment id, nothing
-is pooled, selected, discarded, replaced or re-judged across experiment ids, the
-defect is corrected under QLT-015, and the corrected fixed slot order restarts
-from its first slot under a new experiment id. No slot record carries the
-`superseded` state; it is recorded in the archived contract's preamble and in
-the final report. This is the review-found counterpart of
-the bounded recovery above, which requires an observed `INVALID`; both are
-unavailable once any slot under an experiment identity has produced a
-`PERFORMANCE_PASS` or `PERFORMANCE_FAIL`. Experiment
-`p4-indexed-v4-20260916-run3` is the first application: its five host slots are
-preserved as complete `valid-descriptive` captures, no device slot ran, and the
-v5 frame and command bound corrections restart the fixed order under a new
-experiment id.
 
 ## Lane 1: production command latency and ART blocking GC
 
@@ -196,12 +186,10 @@ all five candidate-only workloads must also satisfy it.
 The physical device/debug compilation contract stays the current profile:
 debug app and test APK, target `verify` dexopt, the fixed iPlay80miniPro API 36
 profile, and physical checkpoints before samples, every 25 global samples, and
-after samples. One instrumentation invocation is bounded at 600 seconds. That
-bound guards a hang only: the candidate role runs 2,200 samples whose
-palette-workload per-sample cost is unmeasured, and no measured value depends on
-the bound. Ordinary native calls use 30 seconds, install/compile calls 120
-seconds, and post-timeout process kill/wait and capture drain use 10 and 5
-seconds. A first invalid or performance-fail role stops the second role.
+after samples. One instrumentation invocation is bounded at 300 seconds.
+Ordinary native calls use 30 seconds, install/compile calls 120 seconds, and
+post-timeout process kill/wait and capture drain use 10 and 5 seconds. A first
+invalid or performance-fail role stops the second role.
 
 Required harness changes are a new candidate plan/schema/catalog, indexed
 fixture construction, palette-transition cheap facts, fail-if-present output,
@@ -362,19 +350,10 @@ packaged identities pass the exact preflight for that role; otherwise the frame
 experiment is blocked and profile handling is decided separately under ADR
 0010.
 
-The wrapper bound is derived from the slot's own operation count, not fixed:
-`wrapper_bound = 300 seconds of setup + 15 seconds per operation`, where
-operations are the two workload families times their five warmups plus their
-samples. A diagnostic slot is therefore 2 x (5 + 10) = 30 operations and 750
-seconds; a decision slot is 2 x (5 + 50) = 110 operations and 1,950 seconds. The
-decision workload has about 122 seconds of maximum intentional dwell even when
-all three 150 ms Undo checks are used, but the dwell alone is not the bound: each
-operation also pays repeated `gfxinfo` resets, `framestats` dumps, pulls and UI
-verification, and the 256 by 256 family injects 16 MOVE events. The per-operation
-allowance covers that ADB/UI cost without permitting an unlimited hang. Because
-every reported per-frame metric comes from `gfxinfo`, the bound changes no
-measured value; it guards a hang only. The bounded native invocation helper
-accordingly admits timeouts up to 3,600 seconds. Each process runs in a
+The wrapper gives diagnostic slots 300 seconds and decision slots 600 seconds.
+The decision workload has about 122 seconds of maximum intentional dwell even
+when all three 150 ms Undo checks are used, leaving bounded room for the ADB/UI
+captures without permitting an unlimited hang. Each process runs in a
 kill-on-close Job; timeout terminates its tree, records partial output and
 run-state as invalid, allows at most 10 seconds for process absence and 5 seconds
 for capture drain, and verifies restoration of rotation/stay-awake state.

@@ -149,7 +149,10 @@ function Assert-P4CommandSampleShape {
 
 function Test-P4CommandCapture {
     param(
-        [Parameter(Mandatory = $true)][AllowEmptyCollection()][string[]]$Lines,
+        # [AllowEmptyString()] so a blank line inside the pulled command CSV reaches the
+        # blank-row check below instead of failing parameter binding with
+        # ParameterArgumentValidationErrorEmptyStringNotAllowed. No contract change.
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][AllowEmptyString()][string[]]$Lines,
         [Parameter(Mandatory = $true)][ValidateSet('baseline', 'candidate')][string]$Role,
         [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{40}$')][string]$BuildCommit
     )

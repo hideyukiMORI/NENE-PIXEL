@@ -26,7 +26,8 @@ $script:P4InstallTimeoutSeconds = 120
 $script:P4DexoptTimeoutSeconds = 120
 $script:P4ProbeTimeoutSeconds = 30
 $script:P4PrivateFileTimeoutSeconds = 120
-# Protocol v4 bounds ONE instrumentation invocation at 300 s (protocol:174-175, 251-252) and gives the
+# Protocol v5 bounds ONE instrumentation invocation at 600 s for the command lane (protocol:196-199)
+# and 300 s for memory (protocol:274-276) and publication (protocol:509-511), and gives the
 # install/compile calls their own 120 s and the ordinary native calls 30 s. The collector therefore has
 # to outlive the instrumentation it hosts: the inner bound is exactly `timeout_seconds` and the outer
 # (wrapper Job) bound is DERIVED from the plan by Get-P4CollectorBudget. Using `timeout_seconds` for
@@ -35,10 +36,12 @@ $script:P4PrivateFileTimeoutSeconds = 120
 $script:P4CollectorReserveSeconds = 60
 $script:P4CollectorBudgetSchema = 'nene-pixel-p4-collector-budget-v1'
 # Must equal the ValidateRange ceiling of Invoke-BoundedNativeCommand -TimeoutSeconds in
-# docs/quality/bounded-native-command.ps1:172 ([ValidateRange(1, 1800)]). A derived bound above it would
+# docs/quality/bounded-native-command.ps1:172 ([ValidateRange(1, 3600)]). A derived bound above it would
 # otherwise only be caught by parameter binding at invoke-p4-indexed-slot.ps1's collector call - after
 # the slot is reserved - and burn the slot's single attempt on a harness arithmetic mistake.
-$script:P4BoundedNativeCapSeconds = 1800
+# Protocol v5 raised this ceiling from 1800 to 3600 s (protocol:362-374) because the derived frame
+# wrapper bound reaches 1950 s for a decision slot; other callers are unaffected.
+$script:P4BoundedNativeCapSeconds = 3600
 # The recovery record the v1 baseline cannot read once the v2 candidate has written it. Only these
 # exact live names are ever moved; every other no_backup entry (issue-89-*, issue-102-*, issue-106-*,
 # and hide's guarded user recovery) is untouchable, and nothing is ever deleted.
@@ -472,7 +475,7 @@ function Invoke-P4PrivateFileQuarantine {
 function Assert-P4CollectorBoundWithinCap {
     <#
         The derived bound is handed straight to Invoke-BoundedNativeCommand -TimeoutSeconds, whose
-        [ValidateRange(1, 1800)] would otherwise reject it only at the collector call - after the slot
+        [ValidateRange(1, 3600)] would otherwise reject it only at the collector call - after the slot
         directory is reserved and the slot's single attempt is spent. Refusing here keeps an arithmetic
         mistake in the budget a pre-reservation refusal instead of an INVALID slot.
     #>
@@ -488,7 +491,8 @@ function Get-P4CollectorBudget {
     <#
         Pure derivation of the outer (wrapper Job) collector bound from a lane plan.
 
-        Protocol v4 bounds one instrumentation invocation at `timeout_seconds` (300 s) and bounds the
+        Protocol v5 bounds one instrumentation invocation at `timeout_seconds` (600 s for command,
+        protocol:196-199; 300 s for memory and publication, protocol:274-276 and 509-511) and bounds the
         install/compile calls at 120 s and every ordinary native call at 30 s SEPARATELY. Applying
         `timeout_seconds` to the whole collector - as the wrapper used to - makes the outer kill able to
         precede the inner bound, so a protocol-legal instrumentation run would be recorded as INVALID.
@@ -506,8 +510,10 @@ function Get-P4CollectorBudget {
           private capture : P4PrivateFileTimeoutSeconds per private file (Copy-P4PrivateFile)
           reserve         : P4CollectorReserveSeconds for pwsh start-up and the record writes
 
-        The frame lane keeps `timeout_seconds` as the wrapper bound (protocol:338): its collector adds no
-        Job of its own and measure-m2-frame.ps1 owns its own device restoration.
+        The frame lane keeps `timeout_seconds` as the wrapper bound (protocol:362-374): its collector adds
+        no Job of its own and measure-m2-frame.ps1 owns its own device restoration. Under protocol v5 that
+        `timeout_seconds` is itself derived from the slot's operation count by Get-P4FrameWrapperBound
+        (750 s diagnostic, 1950 s decision), which is why the bounded native cap is 3600 s.
     #>
     param([Parameter(Mandatory = $true)][System.Collections.IDictionary]$Plan)
     $lane = [string]$Plan.lane
@@ -593,7 +599,7 @@ function Get-P4DeviceLanePlan {
         private_files = @()
         # Every lane runs exactly one @Test method of one class; the OK summary must confirm it.
         expected_test_count = 1
-        # Protocol v4: one instrumentation invocation is bounded at exactly `timeout_seconds`. The
+        # Protocol v5: one instrumentation invocation is bounded at exactly `timeout_seconds`. The
         # install/dexopt/probe/private-file calls carry their own separate bounds and are paid for by
         # the derived collector budget below, never by shortening this one.
         inner_timeout_seconds = [int]$Slot.timeout_seconds
@@ -974,7 +980,7 @@ function Invoke-P4InstrumentationLane {
         Assert-P4PrivateFileAbsent -Context $Context -Package $file.package `
             -RelativePath $file.relative_path -Stage "$($Plan.lane)-$index"
     }
-    # Protocol v4: the instrumentation gets exactly `timeout_seconds`. The outer wrapper Job is bounded
+    # Protocol v5: the instrumentation gets exactly `timeout_seconds`. The outer wrapper Job is bounded
     # by the derived collector budget, which is strictly larger, so the outer kill can never precede it.
     $innerTimeout = [int]$Plan.inner_timeout_seconds
     if ($innerTimeout -ne [int]$Plan.timeout_seconds) {

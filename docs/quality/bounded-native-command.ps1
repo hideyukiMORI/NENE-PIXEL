@@ -169,7 +169,7 @@ function Invoke-BoundedNativeCommand {
         [Parameter(Mandatory = $true)][string]$LogPath,
         [Parameter(Mandatory = $true)][string]$ExecutablePath,
         [Parameter(Mandatory = $true)][AllowEmptyCollection()][string[]]$NativeArguments,
-        [ValidateRange(1, 1800)][int]$TimeoutSeconds = 30,
+        [ValidateRange(1, 3600)][int]$TimeoutSeconds = 30,
         [scriptblock]$JobTerminator = {
             param([Parameter(Mandatory = $true)][IntPtr]$Job)
 
