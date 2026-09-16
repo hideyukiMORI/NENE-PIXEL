@@ -563,18 +563,89 @@ try {
         (@($commandPlan.quiescence_packages) -join '|') -cne
             "$applicationPackage|$applicationTestPackage|$publicationTestPackage" -or
         [int]$commandPlan.expected_test_count -ne 1 -or
-        [int]$commandPlan.inner_timeout_seconds -ne 280
+        # Protocol v4: the instrumentation keeps the full 300 s; the collector Job gets the derived bound.
+        [int]$commandPlan.inner_timeout_seconds -ne 300
     ) {
         throw 'The command lane assembled a different instrumentation invocation than its sources declare.'
     }
-    foreach ($laneSlotId in @('command-candidate', 'memory-candidate-common-2', 'publication-candidate')) {
+    # Derived collector bounds (decision 3). Expected totals are literals on purpose: a change to the
+    # 300/120/120/30 protocol limits or to the probe accounting has to be made here too.
+    #   command     : 300 + 2*120 + 1*120 + 13*30 + 1*120 + 60 = 1230
+    #   memory      : 300 + 2*120 + 1*120 + 12*30 + 0     + 60 = 1080
+    #   publication : 300 + 1*120 + 1*120 + 10*30 + 2*120 + 60 = 1140
+    $expectedBudgets = @{
+        'command-baseline' = @{ probe_count = 13; total = 1230 }
+        'command-candidate' = @{ probe_count = 13; total = 1230 }
+        'memory-candidate-common-2' = @{ probe_count = 12; total = 1080 }
+        'publication-candidate' = @{ probe_count = 10; total = 1140 }
+    }
+    foreach ($laneSlotId in @('command-baseline', 'command-candidate', 'memory-candidate-common-2', 'publication-candidate')) {
         $boundedPlan = Get-P4DeviceLanePlan -Manifest $laneManifest -Slot (Get-P4CatalogSlot $laneSlotId)
+        $budget = $boundedPlan.collector_budget
+        $expected = $expectedBudgets[$laneSlotId]
         if (
-            [int]$boundedPlan.inner_timeout_seconds -ne ([int]$boundedPlan.timeout_seconds - 20) -or
-            [int]$boundedPlan.expected_test_count -ne 1
+            [int]$boundedPlan.inner_timeout_seconds -ne [int]$boundedPlan.timeout_seconds -or
+            [int]$boundedPlan.expected_test_count -ne 1 -or
+            -not [bool]$budget.derived -or
+            [int]$budget.instrumentation_seconds -ne [int]$boundedPlan.timeout_seconds -or
+            [int]$budget.install_seconds -ne (@($boundedPlan.install_kinds).Count * 120) -or
+            [int]$budget.dexopt_seconds -ne (@($boundedPlan.dexopt_packages).Count * 120) -or
+            [int]$budget.private_capture_seconds -ne (@($boundedPlan.private_files).Count * 120) -or
+            [int]$budget.reserve_seconds -ne 60 -or
+            [int]$budget.probe_count -ne [int]$expected.probe_count -or
+            [int]$budget.probe_seconds -ne ([int]$expected.probe_count * 30) -or
+            # Must stay inside Invoke-BoundedNativeCommand's [ValidateRange(1, 1800)] ceiling, which the
+            # derivation checks itself so an over-long bound refuses BEFORE the slot is reserved.
+            [int]$budget.cap_seconds -ne 1800 -or
+            [int]$budget.collector_timeout_seconds -gt 1800 -or
+            [int]$budget.collector_timeout_seconds -ne [int]$expected.total -or
+            [int]$boundedPlan.collector_timeout_seconds -ne [int]$expected.total -or
+            [int]$budget.collector_timeout_seconds -le [int]$boundedPlan.inner_timeout_seconds
         ) {
-            throw "Lane '$laneSlotId' does not reserve the fixed cleanup budget inside its slot bound."
+            throw "Lane '$laneSlotId' does not derive a collector bound that outlasts its instrumentation bound."
         }
+        # Private-file quarantine plan (decision 2): the same quarantine root and per-slot path as the
+        # frame lane's recovery quarantine, one entry per reserved private file, nothing deleted.
+        $quarantine = $boundedPlan.private_file_quarantine
+        if (
+            [string]$quarantine.schema -cne 'nene-pixel-p4-private-file-quarantine-v1' -or
+            [string]$quarantine.slot_id -cne $laneSlotId -or
+            [string]$quarantine.quarantine_path -cne "no_backup/p4-quarantine/$fixtureExperimentId/$laneSlotId" -or
+            @($quarantine.entries).Count -ne @($boundedPlan.private_files).Count
+        ) {
+            throw "Lane '$laneSlotId' does not describe its private-file quarantine."
+        }
+        foreach ($entry in @($quarantine.entries)) {
+            $reserved = @(@($boundedPlan.private_files) | Where-Object {
+                    [string]$_.relative_path -ceq [string]$entry.relative_path })
+            if ($reserved.Count -ne 1 -or [string]$entry.package -cne [string]$reserved[0].package -or
+                [string]$entry.quarantine_relative_path -cne "$($quarantine.quarantine_path)/$($entry.name)" -or
+                [string]$entry.relative_path -cne "$($entry.source_directory)/$($entry.name)") {
+                throw "Lane '$laneSlotId' quarantines something other than its reserved private files."
+            }
+        }
+    }
+    # The cap guard is a refusal, not a clamp: an install/dexopt/probe accounting that overflows the
+    # bounded native ceiling must stop at plan time rather than at the collector's parameter binding.
+    $savedProbeLimit = $script:P4ProbeTimeoutSeconds
+    try {
+        $script:P4ProbeTimeoutSeconds = 300
+        Assert-P4FrameRejects {
+            Get-P4DeviceLanePlan -Manifest $laneManifest -Slot (Get-P4CatalogSlot 'command-baseline')
+        } 'a derived collector bound above the bounded native ValidateRange ceiling'
+    } finally { $script:P4ProbeTimeoutSeconds = $savedProbeLimit }
+
+    $commandQuarantine = $commandPlan.private_file_quarantine
+    if (
+        @($commandQuarantine.entries).Count -ne 1 -or
+        [string]$commandQuarantine.entries[0].name -cne 'p4-indexed-command-baseline-run-01.csv' -or
+        [string]$commandQuarantine.entries[0].source_directory -cne 'files/p4-measurements' -or
+        [string]$commandQuarantine.entries[0].quarantine_relative_path -cne
+            "no_backup/p4-quarantine/$fixtureExperimentId/command-baseline/p4-indexed-command-baseline-run-01.csv" -or
+        (@($commandQuarantine.packages) -join '|') -cne $applicationPackage -or
+        @($commandQuarantine.source_directories).Count -ne 1
+    ) {
+        throw 'The command lane quarantine does not move its own device CSV aside.'
     }
 
     $palettePlan = Get-P4DeviceLanePlan -Manifest $laneManifest -Slot (Get-P4CatalogSlot 'memory-candidate-palette-3')
@@ -666,6 +737,18 @@ try {
     ) {
         throw 'The frame lane assembled a different measure-m2-frame.ps1 invocation than the manifest declares.'
     }
+    # protocol:338 - the frame lane keeps `timeout_seconds` as the wrapper bound and derives nothing.
+    if (
+        [bool]$framePlan.collector_budget.derived -or
+        [int]$framePlan.collector_timeout_seconds -ne 600 -or
+        [int]$framePlan.collector_budget.collector_timeout_seconds -ne [int]$framePlan.timeout_seconds -or
+        # Declared on every lane skeleton (StrictMode reads it unconditionally) but never filled in here.
+        -not $framePlan.Contains('private_file_quarantine') -or
+        $null -ne $framePlan.private_file_quarantine -or
+        [int]$framePlan.collector_budget.cap_seconds -ne 1800
+    ) {
+        throw 'The frame lane must keep its protocol slot timeout as the wrapper bound.'
+    }
     $collectorParameters = @((Get-Command (Join-Path $PSScriptRoot 'measurements/measure-m2-frame.ps1')).Parameters.Keys)
     foreach ($name in $frameParameters.Keys) {
         if ($name -cnotin $collectorParameters) {
@@ -725,6 +808,41 @@ try {
     Assert-P4FrameRejects {
         Get-P4RecoveryQuarantinePlan -Manifest $laneManifest -Role 'baseline' -SlotId '../escape'
     } 'a quarantine path built from an unconstrained slot identity'
+
+    # --- instrumentation lane private-file quarantine (dry run) -------------------------------------
+    Assert-P4FrameRejects {
+        Get-P4DeviceLanePlan -Manifest $badExperiment -Slot (Get-P4CatalogSlot 'command-baseline')
+    } 'a private-file quarantine built from an unconstrained experiment identity'
+    $escapingPrivateFile = [ordered]@{
+        lane = 'command'; slot_id = 'command-baseline'; role = 'baseline'
+        private_files = @([ordered]@{ package = $applicationPackage; relative_path = 'files/../../escape.csv' })
+    }
+    Assert-P4FrameRejects {
+        Get-P4PrivateFileQuarantinePlan -Manifest $laneManifest -Plan $escapingPrivateFile
+    } 'a private-file path that escapes the application sandbox'
+    $rootPrivateFile = [ordered]@{
+        lane = 'command'; slot_id = 'command-baseline'; role = 'baseline'
+        private_files = @([ordered]@{ package = $applicationPackage; relative_path = 'orphan.csv' })
+    }
+    Assert-P4FrameRejects {
+        Get-P4PrivateFileQuarantinePlan -Manifest $laneManifest -Plan $rootPrivateFile
+    } 'a private file with no owning directory'
+    $collidingPrivateFiles = [ordered]@{
+        lane = 'publication'; slot_id = 'publication-baseline'; role = 'baseline'
+        private_files = @(
+            [ordered]@{ package = $publicationTestPackage; relative_path = 'files/same-name.csv' },
+            [ordered]@{ package = $publicationTestPackage; relative_path = 'files/nested/same-name.csv' })
+    }
+    Assert-P4FrameRejects {
+        Get-P4PrivateFileQuarantinePlan -Manifest $laneManifest -Plan $collidingPrivateFiles
+    } 'two private files that would collide inside one quarantine directory'
+    $memoryQuarantine = (Get-P4DeviceLanePlan -Manifest $laneManifest `
+            -Slot (Get-P4CatalogSlot 'memory-candidate-import-1')).private_file_quarantine
+    if (@($memoryQuarantine.entries).Count -ne 0 -or @($memoryQuarantine.source_directories).Count -ne 0 -or
+        [string]$memoryQuarantine.quarantine_path -cne
+            "no_backup/p4-quarantine/$fixtureExperimentId/memory-candidate-import-1") {
+        throw 'The memory lane reserves no private file and must plan an empty quarantine.'
+    }
 
     $hostSlot = Get-P4CatalogSlot 'host-project-baseline'
     Assert-P4FrameRejects { Get-P4DeviceLanePlan -Manifest $laneManifest -Slot $hostSlot } 'a host slot routed to a device lane'

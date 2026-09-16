@@ -54,7 +54,7 @@ $script:P4MemoryFamilies = @{
 }
 
 function Get-P4MemoryStatusBundles {
-    param([Parameter(Mandatory)][string[]]$Lines)
+    param([Parameter(Mandatory)][AllowEmptyString()][string[]]$Lines)
 
     $bundles = [System.Collections.Generic.List[object]]::new()
     $values = [ordered]@{}
@@ -151,7 +151,7 @@ function Assert-P4MemoryReportValue {
 
 function Test-P4MemoryCapture {
     param(
-        [Parameter(Mandatory)][string[]]$Lines,
+        [Parameter(Mandatory)][AllowEmptyString()][string[]]$Lines,
         [Parameter(Mandatory)][string]$Family,
         [Parameter(Mandatory)][ValidateRange(1, 5)][int]$RunIndex,
         [Parameter(Mandatory)][string]$BuildCommit,

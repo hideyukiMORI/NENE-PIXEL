@@ -26,7 +26,19 @@ $script:P4InstallTimeoutSeconds = 120
 $script:P4DexoptTimeoutSeconds = 120
 $script:P4ProbeTimeoutSeconds = 30
 $script:P4PrivateFileTimeoutSeconds = 120
-$script:P4InnerTimeoutReserveSeconds = 20
+# Protocol v4 bounds ONE instrumentation invocation at 300 s (protocol:174-175, 251-252) and gives the
+# install/compile calls their own 120 s and the ordinary native calls 30 s. The collector therefore has
+# to outlive the instrumentation it hosts: the inner bound is exactly `timeout_seconds` and the outer
+# (wrapper Job) bound is DERIVED from the plan by Get-P4CollectorBudget. Using `timeout_seconds` for
+# both would let the outer kill precede the inner bound and turn a protocol-legal run into INVALID.
+# The reserve covers pwsh start-up, dot-sourcing, manifest parsing and the record writes between calls.
+$script:P4CollectorReserveSeconds = 60
+$script:P4CollectorBudgetSchema = 'nene-pixel-p4-collector-budget-v1'
+# Must equal the ValidateRange ceiling of Invoke-BoundedNativeCommand -TimeoutSeconds in
+# docs/quality/bounded-native-command.ps1:172 ([ValidateRange(1, 1800)]). A derived bound above it would
+# otherwise only be caught by parameter binding at invoke-p4-indexed-slot.ps1's collector call - after
+# the slot is reserved - and burn the slot's single attempt on a harness arithmetic mistake.
+$script:P4BoundedNativeCapSeconds = 1800
 # The recovery record the v1 baseline cannot read once the v2 candidate has written it. Only these
 # exact live names are ever moved; every other no_backup entry (issue-89-*, issue-102-*, issue-106-*,
 # and hide's guarded user recovery) is untouchable, and nothing is ever deleted.
@@ -38,6 +50,8 @@ $script:P4RecoveryLiveNames = @(
 )
 $script:P4RecoveryQuarantineRoot = 'no_backup/p4-quarantine'
 $script:P4RecoveryQuarantineSchema = 'nene-pixel-p4-recovery-quarantine-v1'
+$script:P4PrivateFileQuarantineSchema = 'nene-pixel-p4-private-file-quarantine-v1'
+$script:P4PrivateFileQuarantineRecordName = 'private-file-quarantine.json'
 
 function Assert-P4PackageName {
     param([Parameter(Mandatory = $true)][string]$Value, [Parameter(Mandatory = $true)][string]$Name)
@@ -183,6 +197,371 @@ function Get-P4RecoveryQuarantinePlan {
     }
 }
 
+function Assert-P4PrivateRelativePath {
+    param([Parameter(Mandatory = $true)][string]$Value, [Parameter(Mandatory = $true)][string]$Name)
+    if ($Value -cnotmatch '^(?:[A-Za-z0-9._-]+/)*[A-Za-z0-9._-]+$') {
+        throw "Invalid private-file path for $Name : $Value"
+    }
+    foreach ($segment in $Value.Split('/')) {
+        if ($segment -ceq '.' -or $segment -ceq '..') { throw "Relative private-file path for $Name : $Value" }
+    }
+    return $Value
+}
+
+function Get-P4PrivateFileQuarantinePlan {
+    <#
+        Pure description of the instrumentation lanes' post-run private-file quarantine.
+
+        The protocol's fail-if-present output reservation (Assert-P4PrivateFileAbsent, createNewFile in
+        the producers) is what keeps a slot from silently reusing an older device output - but it only
+        works while the device side is clean. A slot that failed or timed out after the test had already
+        written its CSV would leave that file behind and refuse EVERY later slot, including the bounded
+        recovery. So the wrapper's cleanup moves whatever the plan reserved into the app's own
+        `no_backup/p4-quarantine/<experiment_id>/<slot_id>/`, on success and on failure alike.
+
+        The rules are the frame lane's recovery quarantine rules (Invoke-P4RecoveryQuarantine): move,
+        never delete; never reuse an existing quarantine directory; only the exact plan-listed names;
+        the same bounded adb path (Invoke-P4BoundedAdb / Get-P4PrivateDirectoryListing).
+    #>
+    param(
+        [Parameter(Mandatory = $true)][System.Collections.IDictionary]$Manifest,
+        [Parameter(Mandatory = $true)][System.Collections.IDictionary]$Plan
+    )
+    $experimentId = [string]$Manifest.experiment_id
+    if ($experimentId -cnotmatch '^[a-z0-9][a-z0-9-]{2,63}$') { throw 'Invalid experiment identity for quarantine.' }
+    $slotId = [string]$Plan.slot_id
+    if ($slotId -cnotmatch '^[a-z0-9][a-z0-9-]{2,63}$') { throw "Invalid slot identity for quarantine: $slotId" }
+    $quarantine = "$script:P4RecoveryQuarantineRoot/$experimentId/$slotId"
+    $entries = [Collections.Generic.List[object]]::new()
+    $directories = [Collections.Generic.List[object]]::new()
+    $packages = [Collections.Generic.List[string]]::new()
+    $seenDirectory = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    foreach ($file in @($Plan.private_files)) {
+        $package = Assert-P4PackageName ([string]$file.package) "$slotId private file package"
+        $relative = Assert-P4PrivateRelativePath ([string]$file.relative_path) "$slotId private file"
+        $separator = $relative.LastIndexOf('/')
+        if ($separator -lt 1) { throw "A plan-listed private file has no owning directory: $relative" }
+        $directory = $relative.Substring(0, $separator)
+        $name = $relative.Substring($separator + 1)
+        if (-not $packages.Contains($package)) { $packages.Add($package) }
+        if ($seenDirectory.Add("$package/$directory")) {
+            $directories.Add([ordered]@{ package = $package; path = $directory })
+        }
+        $entries.Add([ordered]@{
+            package = $package
+            relative_path = $relative
+            source_directory = $directory
+            name = $name
+            quarantine_relative_path = "$quarantine/$name"
+        })
+    }
+    # Two lanes may not collide inside one quarantine directory, and one lane may not reserve the same
+    # leaf name twice: the move would overwrite, which this quarantine never does.
+    $targets = @($entries | ForEach-Object { "$($_.package)/$($_.quarantine_relative_path)" })
+    if (@($targets | Select-Object -Unique).Count -ne $targets.Count) {
+        throw "Lane $slotId reserves the same quarantine target twice."
+    }
+    return [ordered]@{
+        schema = $script:P4PrivateFileQuarantineSchema
+        experiment_id = $experimentId
+        slot_id = $slotId
+        lane = [string]$Plan.lane
+        role = [string]$Plan.role
+        quarantine_path = $quarantine
+        packages = $packages.ToArray()
+        source_directories = $directories.ToArray()
+        entries = $entries.ToArray()
+    }
+}
+
+function Get-P4PrivateFileSha256 {
+    param(
+        [Parameter(Mandatory = $true)][System.Collections.IDictionary]$Context,
+        [Parameter(Mandatory = $true)][string]$Package,
+        [Parameter(Mandatory = $true)][string]$RelativePath,
+        [Parameter(Mandatory = $true)][string]$LogName
+    )
+    $result = Invoke-P4BoundedAdb -Context $Context -LogName $LogName `
+        -AdbArguments @('exec-out', 'run-as', $Package, 'sha256sum', $RelativePath) `
+        -TimeoutSeconds $script:P4ProbeTimeoutSeconds
+    $digests = @(@($result.OutputLines) | ForEach-Object {
+            $match = [regex]::Match($_, '^([0-9a-f]{64})\s')
+            if ($match.Success) { $match.Groups[1].Value }
+        })
+    if ($digests.Count -ne 1) {
+        throw "Unable to hash $Package/$RelativePath before quarantine (exit $($result.ExitCode))."
+    }
+    return $digests[0]
+}
+
+function Invoke-P4PrivateFileQuarantine {
+    <#
+        Cleanup-phase quarantine for the command/memory/publication lanes. Runs after the remote
+        packages are stopped and BEFORE the capture seal, so `private-file-quarantine.json` and the adb
+        logs it produces are sealed capture, not post-seal wrapper output. Nothing is ever deleted and an
+        existing quarantine directory is a refusal, never a reuse.
+    #>
+    param(
+        [Parameter(Mandatory = $true)][System.Collections.IDictionary]$Context,
+        [Parameter(Mandatory = $true)][System.Collections.IDictionary]$Plan
+    )
+    $recordPath = Join-Path $Context.output_directory $script:P4PrivateFileQuarantineRecordName
+    if (Test-Path -LiteralPath $recordPath) { throw "Private-file quarantine record already exists: $recordPath" }
+    $quarantine = [string]$Plan.quarantine_path
+    $directories = [Collections.Generic.List[object]]::new()
+    $files = [Collections.Generic.List[object]]::new()
+    $listings = @{}
+    # A quarantine that throws halfway is exactly the state an operator has to reason about, so the
+    # record is written either way: `completed` says whether the move finished, `stage` says how far it
+    # got, and `error` carries the refusal. Written in `finally`, never twice (CreateNew semantics).
+    $stage = 'start'
+    $completed = $false
+    $failure = ''
+    try {
+    $index = 0
+    foreach ($directory in @($Plan.source_directories)) {
+        $stage = 'listing-before'
+        $index += 1
+        $key = "$($directory.package)/$($directory.path)"
+        $detail = Invoke-P4BoundedAdb -Context $Context -LogName "private-quarantine-before-la-$index.log" `
+            -AdbArguments @('exec-out', 'run-as', [string]$directory.package, 'ls', '-la', [string]$directory.path) `
+            -TimeoutSeconds $script:P4ProbeTimeoutSeconds
+        $listing = Get-P4PrivateDirectoryListing -Context $Context -Package ([string]$directory.package) `
+            -RelativePath ([string]$directory.path) -LogName "private-quarantine-before-ls-$index.log"
+        $listings[$key] = $listing
+        $directories.Add([ordered]@{
+            package = [string]$directory.package
+            path = [string]$directory.path
+            present = ($null -ne $listing)
+            before_entries = @(if ($null -eq $listing) { @() } else { $listing })
+            before_listing = @($detail.OutputLines)
+            before_listing_sha256 = Get-P4TextSha256 -Lines @($detail.OutputLines)
+            after_entries = @()
+            after_listing = @()
+            after_listing_sha256 = ''
+        })
+    }
+    $present = @(@($Plan.entries) | Where-Object {
+            $listing = $listings["$($_.package)/$($_.source_directory)"]
+            ($null -ne $listing) -and ([string]$_.name -cin $listing)
+        })
+    $stage = 'hashing'
+    $hashIndex = 0
+    foreach ($entry in $present) {
+        $hashIndex += 1
+        $files.Add([ordered]@{
+            package = [string]$entry.package
+            name = [string]$entry.name
+            relative_path = [string]$entry.relative_path
+            sha256 = Get-P4PrivateFileSha256 -Context $Context -Package ([string]$entry.package) `
+                -RelativePath ([string]$entry.relative_path) -LogName "private-quarantine-sha256-$hashIndex.log"
+            quarantine_relative_path = [string]$entry.quarantine_relative_path
+        })
+    }
+    $stage = 'moving'
+    $prepared = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    $moveIndex = 0
+    foreach ($entry in $present) {
+        $package = [string]$entry.package
+        if ($prepared.Add($package)) {
+            # Presence, not emptiness: an earlier attempt that created the directory and then failed
+            # before moving anything must still refuse this one.
+            if (Test-P4PrivateEntryPresent -Context $Context -Package $package `
+                    -RelativePath $quarantine -LogName "private-quarantine-target-ls-$($prepared.Count).log") {
+                throw "A prior attempt already quarantined into $package/$quarantine; it is never reused or deleted."
+            }
+            $mkdir = Invoke-P4BoundedAdb -Context $Context -LogName "private-quarantine-mkdir-$($prepared.Count).log" `
+                -AdbArguments @('shell', 'run-as', $package, 'mkdir', '-p', $quarantine) `
+                -TimeoutSeconds $script:P4ProbeTimeoutSeconds
+            if ($mkdir.ExitCode -ne 0) { throw "Unable to create $package/$quarantine (exit $($mkdir.ExitCode))." }
+        }
+        $moveIndex += 1
+        $move = Invoke-P4BoundedAdb -Context $Context -LogName "private-quarantine-mv-$moveIndex.log" `
+            -AdbArguments @('shell', 'run-as', $package, 'mv',
+                [string]$entry.relative_path, [string]$entry.quarantine_relative_path) `
+            -TimeoutSeconds $script:P4ProbeTimeoutSeconds
+        if ($move.ExitCode -ne 0) {
+            throw "Unable to quarantine $package/$($entry.relative_path) (exit $($move.ExitCode))."
+        }
+    }
+    $stage = 'listing-after'
+    $index = 0
+    foreach ($directory in $directories) {
+        $index += 1
+        $detail = Invoke-P4BoundedAdb -Context $Context -LogName "private-quarantine-after-la-$index.log" `
+            -AdbArguments @('exec-out', 'run-as', [string]$directory.package, 'ls', '-la', [string]$directory.path) `
+            -TimeoutSeconds $script:P4ProbeTimeoutSeconds
+        $listing = Get-P4PrivateDirectoryListing -Context $Context -Package ([string]$directory.package) `
+            -RelativePath ([string]$directory.path) -LogName "private-quarantine-after-ls-$index.log"
+        $directory.after_entries = @(if ($null -eq $listing) { @() } else { $listing })
+        $directory.after_listing = @($detail.OutputLines)
+        $directory.after_listing_sha256 = Get-P4TextSha256 -Lines @($detail.OutputLines)
+    }
+    $stage = 'verifying'
+    foreach ($entry in @($Plan.entries)) {
+        $after = @($directories | Where-Object {
+                [string]$_.package -ceq [string]$entry.package -and [string]$_.path -ceq [string]$entry.source_directory
+            })
+        if ($after.Count -ne 1) { throw "The quarantine lost track of $($entry.relative_path)." }
+        if ([string]$entry.name -cin @($after[0].after_entries)) {
+            throw "The plan-listed private file is still present after quarantine: $($entry.relative_path)"
+        }
+    }
+    $verifyIndex = 0
+    foreach ($package in @($prepared)) {
+        $verifyIndex += 1
+        $quarantined = Get-P4PrivateDirectoryListing -Context $Context -Package $package `
+            -RelativePath $quarantine -LogName "private-quarantine-verify-ls-$verifyIndex.log"
+        $expected = @(@($files | Where-Object { [string]$_.package -ceq $package } | ForEach-Object { [string]$_.name }))
+        if ($null -eq $quarantined -or @(Compare-Object $expected @($quarantined)).Count -ne 0) {
+            throw "The quarantined private files for $package are not exactly what was moved aside."
+        }
+    }
+    $stage = 'complete'
+    $completed = $true
+    $record = [ordered]@{
+        schema = $script:P4PrivateFileQuarantineSchema
+        experiment_id = [string]$Plan.experiment_id
+        slot_id = [string]$Plan.slot_id
+        lane = [string]$Plan.lane
+        role = [string]$Plan.role
+        packages = @($Plan.packages)
+        quarantine_path = $quarantine
+        reserved = @(@($Plan.entries) | ForEach-Object {
+                [ordered]@{ package = [string]$_.package; relative_path = [string]$_.relative_path }
+            })
+        files = $files.ToArray()
+        source_directories = @($directories)
+        completed = $true
+        stage = $stage
+        error = ''
+        deleted = $false
+        recorded_utc = [datetime]::UtcNow.ToString('o')
+    }
+    Write-NewInvocationFile $recordPath ($record | ConvertTo-Json -Depth 8)
+    return $record
+    }
+    catch { $failure = $_.Exception.Message; throw }
+    finally {
+        if (-not $completed -and -not (Test-Path -LiteralPath $recordPath)) {
+            $partial = [ordered]@{
+                schema = $script:P4PrivateFileQuarantineSchema
+                experiment_id = [string]$Plan.experiment_id
+                slot_id = [string]$Plan.slot_id
+                lane = [string]$Plan.lane
+                role = [string]$Plan.role
+                packages = @($Plan.packages)
+                quarantine_path = $quarantine
+                reserved = @(@($Plan.entries) | ForEach-Object {
+                        [ordered]@{ package = [string]$_.package; relative_path = [string]$_.relative_path }
+                    })
+                files = $files.ToArray()
+                source_directories = @($directories)
+                completed = $false
+                stage = $stage
+                error = $failure
+                deleted = $false
+                recorded_utc = [datetime]::UtcNow.ToString('o')
+            }
+            # A failure to record must not replace the refusal the caller is about to see.
+            try { Write-NewInvocationFile $recordPath ($partial | ConvertTo-Json -Depth 8) } catch { }
+        }
+    }
+}
+
+function Assert-P4CollectorBoundWithinCap {
+    <#
+        The derived bound is handed straight to Invoke-BoundedNativeCommand -TimeoutSeconds, whose
+        [ValidateRange(1, 1800)] would otherwise reject it only at the collector call - after the slot
+        directory is reserved and the slot's single attempt is spent. Refusing here keeps an arithmetic
+        mistake in the budget a pre-reservation refusal instead of an INVALID slot.
+    #>
+    param([Parameter(Mandatory = $true)][System.Collections.IDictionary]$Budget)
+    $bound = [int]$Budget.collector_timeout_seconds
+    if ($bound -lt 1 -or $bound -gt $script:P4BoundedNativeCapSeconds) {
+        throw "The collector bound for lane '$([string]$Budget.lane)' is $bound s, outside the bounded " +
+            "native range of 1..$($script:P4BoundedNativeCapSeconds) s."
+    }
+}
+
+function Get-P4CollectorBudget {
+    <#
+        Pure derivation of the outer (wrapper Job) collector bound from a lane plan.
+
+        Protocol v4 bounds one instrumentation invocation at `timeout_seconds` (300 s) and bounds the
+        install/compile calls at 120 s and every ordinary native call at 30 s SEPARATELY. Applying
+        `timeout_seconds` to the whole collector - as the wrapper used to - makes the outer kill able to
+        precede the inner bound, so a protocol-legal instrumentation run would be recorded as INVALID.
+
+        The derived bound is the exact worst case of the collector's own bounded calls plus a reserve:
+
+          instrumentation : the inner bound, `timeout_seconds`
+          install         : P4InstallTimeoutSeconds per install kind
+          dexopt          : P4DexoptTimeoutSeconds per dexopt package
+          probe           : P4ProbeTimeoutSeconds per bounded 30 s call -
+                            one `pidof` per quiescence package,
+                            four per install kind (`pm path` + `sha256sum`, before and after install),
+                            one `dumpsys package` per dexopt package (Get-P4PackageDexoptStatus), and
+                            one `run-as ls` per private file (Assert-P4PrivateFileAbsent)
+          private capture : P4PrivateFileTimeoutSeconds per private file (Copy-P4PrivateFile)
+          reserve         : P4CollectorReserveSeconds for pwsh start-up and the record writes
+
+        The frame lane keeps `timeout_seconds` as the wrapper bound (protocol:338): its collector adds no
+        Job of its own and measure-m2-frame.ps1 owns its own device restoration.
+    #>
+    param([Parameter(Mandatory = $true)][System.Collections.IDictionary]$Plan)
+    $lane = [string]$Plan.lane
+    $timeout = [int]$Plan.timeout_seconds
+    if ($timeout -lt 1) { throw "Lane '$lane' has no positive slot timeout." }
+    if ($lane -ceq 'frame') {
+        $frameBudget = [ordered]@{
+            schema = $script:P4CollectorBudgetSchema
+            lane = $lane
+            slot_id = [string]$Plan.slot_id
+            derived = $false
+            timeout_seconds = $timeout
+            instrumentation_seconds = 0
+            install_seconds = 0
+            dexopt_seconds = 0
+            probe_count = 0
+            probe_seconds = 0
+            private_capture_seconds = 0
+            reserve_seconds = 0
+            cap_seconds = $script:P4BoundedNativeCapSeconds
+            collector_timeout_seconds = $timeout
+        }
+        Assert-P4CollectorBoundWithinCap -Budget $frameBudget
+        return $frameBudget
+    }
+    if ($lane -cnotin @('command', 'memory', 'publication')) { throw "Lane '$lane' has no collector budget." }
+    $installs = @($Plan.install_kinds).Count
+    $dexopts = @($Plan.dexopt_packages).Count
+    $privates = @($Plan.private_files).Count
+    $probes = @($Plan.quiescence_packages).Count + (4 * $installs) + $dexopts + $privates
+    $budget = [ordered]@{
+        schema = $script:P4CollectorBudgetSchema
+        lane = $lane
+        slot_id = [string]$Plan.slot_id
+        derived = $true
+        timeout_seconds = $timeout
+        instrumentation_seconds = $timeout
+        install_seconds = $installs * $script:P4InstallTimeoutSeconds
+        dexopt_seconds = $dexopts * $script:P4DexoptTimeoutSeconds
+        probe_count = $probes
+        probe_seconds = $probes * $script:P4ProbeTimeoutSeconds
+        private_capture_seconds = $privates * $script:P4PrivateFileTimeoutSeconds
+        reserve_seconds = $script:P4CollectorReserveSeconds
+        cap_seconds = $script:P4BoundedNativeCapSeconds
+    }
+    $budget.collector_timeout_seconds = [int]($budget.instrumentation_seconds + $budget.install_seconds +
+        $budget.dexopt_seconds + $budget.probe_seconds + $budget.private_capture_seconds + $budget.reserve_seconds)
+    if ($budget.collector_timeout_seconds -le $timeout) {
+        throw "The derived collector bound for lane '$lane' does not outlast its instrumentation bound."
+    }
+    Assert-P4CollectorBoundWithinCap -Budget $budget
+    return $budget
+}
+
 function Get-P4DeviceLanePlan {
     <#
         Pure, device-free description of exactly what a device lane will do. The collector executes this
@@ -214,8 +593,14 @@ function Get-P4DeviceLanePlan {
         private_files = @()
         # Every lane runs exactly one @Test method of one class; the OK summary must confirm it.
         expected_test_count = 1
-        inner_timeout_seconds = [int]$Slot.timeout_seconds - $script:P4InnerTimeoutReserveSeconds
+        # Protocol v4: one instrumentation invocation is bounded at exactly `timeout_seconds`. The
+        # install/dexopt/probe/private-file calls carry their own separate bounds and are paid for by
+        # the derived collector budget below, never by shortening this one.
+        inner_timeout_seconds = [int]$Slot.timeout_seconds
         recovery_quarantine = $null
+        # Declared for every lane so StrictMode callers may read it unconditionally; only the three
+        # instrumentation lanes fill it in (the frame lane keeps the recovery quarantine above).
+        private_file_quarantine = $null
         frame_parameters = $null
     }
     switch ($Slot.lane) {
@@ -296,6 +681,8 @@ function Get-P4DeviceLanePlan {
                 Join-Path ([string]$Manifest.frame_experiment.directory) (
                     'slot-{0:D2}-{1}-{2}-attempt-1' -f [int]$Slot.run, [string]$Slot.runner, $role
                 )
+            $plan.collector_budget = Get-P4CollectorBudget -Plan $plan
+            $plan.collector_timeout_seconds = [int]$plan.collector_budget.collector_timeout_seconds
             return $plan
         }
         default { throw "Lane '$($Slot.lane)' is not a device lane." }
@@ -304,6 +691,9 @@ function Get-P4DeviceLanePlan {
         Get-P4InstrumentationArguments -TestPackage $plan.test_package -Class $plan.class `
             -Arguments $plan.instrumentation_arguments
     )
+    $plan.private_file_quarantine = Get-P4PrivateFileQuarantinePlan -Manifest $Manifest -Plan $plan
+    $plan.collector_budget = Get-P4CollectorBudget -Plan $plan
+    $plan.collector_timeout_seconds = [int]$plan.collector_budget.collector_timeout_seconds
     return $plan
 }
 
@@ -584,9 +974,12 @@ function Invoke-P4InstrumentationLane {
         Assert-P4PrivateFileAbsent -Context $Context -Package $file.package `
             -RelativePath $file.relative_path -Stage "$($Plan.lane)-$index"
     }
-    # The inner bound must expire before the outer slot bound so that private-file retrieval and the
-    # wrapper's cleanup still fit inside the slot deadline.
-    $innerTimeout = [int]$Plan.timeout_seconds - $script:P4InnerTimeoutReserveSeconds
+    # Protocol v4: the instrumentation gets exactly `timeout_seconds`. The outer wrapper Job is bounded
+    # by the derived collector budget, which is strictly larger, so the outer kill can never precede it.
+    $innerTimeout = [int]$Plan.inner_timeout_seconds
+    if ($innerTimeout -ne [int]$Plan.timeout_seconds) {
+        throw 'The instrumentation bound must equal the protocol slot timeout.'
+    }
     if ($innerTimeout -lt 1) { throw 'The slot timeout leaves no room for a bounded instrumentation run.' }
     Invoke-P4Instrumentation -Context $Context -AdbArguments $Plan.adb_arguments `
         -TimeoutSeconds $innerTimeout -ExpectedTestCount ([int]$Plan.expected_test_count) | Out-Null
@@ -626,10 +1019,14 @@ function Get-P4PrivateDirectoryListing {
         -TimeoutSeconds $script:P4ProbeTimeoutSeconds
     $text = (@($result.OutputLines) -join "`n")
     # `adb exec-out` does not propagate the remote exit code, so absence and errors are recognized from
-    # the `ls:` diagnostic text itself, never from the exit code alone.
+    # the diagnostic text itself, never from the exit code alone. `run-as:` must be recognized too:
+    # "run-as: Package 'x' is not debuggable" / "unknown package" arrive on stdout with exit 0, and a
+    # bare `^ls:` test would accept them as entry names - a quarantine that silently did nothing.
     $lines = @($result.OutputLines | ForEach-Object { $_.Trim() } | Where-Object { $_.Length -gt 0 })
-    $diagnostics = @($lines | Where-Object { $_ -cmatch '^ls:' })
+    $diagnostics = @($lines | Where-Object { $_ -cmatch '^(?:ls|run-as):' })
     if ($diagnostics.Count -gt 0) {
+        # Only `ls: <path>: No such file or directory` is absence; every `run-as:` line falls through
+        # to the throw below, because an unreachable sandbox is undetermined, not empty.
         if ($diagnostics.Count -eq 1 -and $lines.Count -eq 1 -and
             $diagnostics[0] -cmatch "^ls: (?:\S+: )?$([regex]::Escape($RelativePath)): No such file or directory$") {
             return $null
@@ -640,6 +1037,39 @@ function Get-P4PrivateDirectoryListing {
         throw "Unable to list $Package/$RelativePath (exit $($result.ExitCode)): $text"
     }
     return $lines
+}
+
+function Test-P4PrivateEntryPresent {
+    <#
+        Existence of the entry itself, independent of whether a directory holds anything: `ls -1` of an
+        existing but EMPTY directory yields no lines, and an empty array returned from a function
+        collapses to $null at the call site - so a quarantine directory left behind empty by an earlier
+        attempt would read as absent and be silently reused. `ls -d` names the entry instead of its
+        contents, so presence and emptiness stay separate facts.
+    #>
+    param(
+        [Parameter(Mandatory = $true)][System.Collections.IDictionary]$Context,
+        [Parameter(Mandatory = $true)][string]$Package,
+        [Parameter(Mandatory = $true)][string]$RelativePath,
+        [Parameter(Mandatory = $true)][string]$LogName
+    )
+    $result = Invoke-P4BoundedAdb -Context $Context -LogName $LogName `
+        -AdbArguments @('exec-out', 'run-as', $Package, 'ls', '-d', $RelativePath) `
+        -TimeoutSeconds $script:P4ProbeTimeoutSeconds
+    $text = (@($result.OutputLines) -join "`n")
+    $lines = @($result.OutputLines | ForEach-Object { $_.Trim() } | Where-Object { $_.Length -gt 0 })
+    $diagnostics = @($lines | Where-Object { $_ -cmatch '^(?:ls|run-as):' })
+    if ($diagnostics.Count -gt 0) {
+        if ($diagnostics.Count -eq 1 -and $lines.Count -eq 1 -and
+            $diagnostics[0] -cmatch "^ls: (?:\S+: )?$([regex]::Escape($RelativePath)): No such file or directory$") {
+            return $false
+        }
+        throw "Unable to probe $Package/$RelativePath (exit $($result.ExitCode)): $text"
+    }
+    if ($result.ExitCode -ne 0 -or $lines.Count -ne 1 -or $lines[0] -cne $RelativePath) {
+        throw "Unable to probe $Package/$RelativePath (exit $($result.ExitCode)): $text"
+    }
+    return $true
 }
 
 function Invoke-P4RecoveryQuarantine {
@@ -686,9 +1116,10 @@ function Invoke-P4RecoveryQuarantine {
     }
 
     if ($present.Count -gt 0) {
-        $existing = Get-P4PrivateDirectoryListing -Context $Context -Package $package `
-            -RelativePath $quarantine -LogName 'recovery-quarantine-target-ls.log'
-        if ($null -ne $existing) {
+        # Presence, not emptiness: an earlier attempt that created the directory and then failed before
+        # moving anything must still refuse this one.
+        if (Test-P4PrivateEntryPresent -Context $Context -Package $package `
+                -RelativePath $quarantine -LogName 'recovery-quarantine-target-ls.log') {
             throw "A prior attempt already quarantined into $package/$quarantine; it is never reused or deleted."
         }
         $mkdir = Invoke-P4BoundedAdb -Context $Context -LogName 'recovery-quarantine-mkdir.log' `

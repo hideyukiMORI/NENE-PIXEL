@@ -12,9 +12,16 @@ $ErrorActionPreference = 'Stop'
 # instead of silently skipping the live identity comparison.
 $script:P4DeviceStateScriptPath = Join-Path $PSScriptRoot 'p4-indexed-device-state.ps1'
 if (Test-Path -LiteralPath $script:P4DeviceStateScriptPath -PathType Leaf) { . $script:P4DeviceStateScriptPath }
+# S5 device lanes. The wrapper needs the lane PLAN (never a literal) for two cleanup-phase duties it
+# owns rather than the collector: the derived collector bound (protocol v4 instrumentation budget) and
+# the private-file quarantine. Both call sites assert the contract functions first.
+$script:P4DeviceLanesScriptPath = Join-Path $PSScriptRoot 'p4-indexed-device-lanes.ps1'
+if (Test-Path -LiteralPath $script:P4DeviceLanesScriptPath -PathType Leaf) { . $script:P4DeviceLanesScriptPath }
 
 # Fixed slot budgets. The slot deadline is started + collector timeout + cleanup reserve + analysis
-# budget; cleanup must finish before the analysis budget begins or the slot is INVALID.
+# budget; cleanup must finish before the analysis budget begins or the slot is INVALID. The collector
+# timeout is the DERIVED bound of Get-P4CollectorBudget for the instrumentation lanes (protocol v4:
+# the instrumentation itself keeps the full `timeout_seconds`), and `timeout_seconds` for host/frame.
 $script:P4CleanupReserveSeconds = 90
 $script:P4AnalysisTimeoutSeconds = 120
 $script:P4CaptureDrainSeconds = 5
@@ -33,6 +40,62 @@ $script:P4PostSealNames = [Collections.Generic.HashSet[string]]::new(
     [string[]]@('capture-seal.json', 'restoration.json', 'analysis.json', 'completed.json', 'invalid.json',
         'worktree-after.json', 'analyzer.log', 'analyzer.log.launcher.ps1', 'analyzer.log.invocation.json'),
     [StringComparer]::OrdinalIgnoreCase)
+
+function Assert-P4DeviceLaneContract {
+    foreach ($name in @('Get-P4DeviceLanePlan', 'Get-P4CollectorBudget', 'Invoke-P4PrivateFileQuarantine',
+            'Assert-P4CollectorBoundWithinCap')) {
+        if ($null -eq (Get-Command -Name $name -ErrorAction SilentlyContinue)) {
+            throw "The S5 device-lane contract is unavailable: $name"
+        }
+    }
+}
+
+function Get-P4SlotDeviceContext {
+    # The same four-field context the collector builds, so the wrapper's own adb work travels the same
+    # bounded path and lands its logs inside the slot directory (and therefore inside the capture seal).
+    param(
+        [Parameter(Mandatory = $true)][System.Collections.IDictionary]$Manifest,
+        [Parameter(Mandatory = $true)][System.Collections.IDictionary]$Slot,
+        [Parameter(Mandatory = $true)][ValidateNotNullOrEmpty()][string]$Directory
+    )
+    return [ordered]@{
+        repository_root = [IO.Path]::GetFullPath($Manifest.roles[$Slot.role].worktree)
+        output_directory = [IO.Path]::GetFullPath($Directory)
+        adb_path = [IO.Path]::GetFullPath($Manifest.tools.adb.path)
+        serial = [string]$Manifest.device.serial
+    }
+}
+
+function Get-P4SlotCollectorBudget {
+    <#
+        The wrapper's outer (Job) bound for the collector. Protocol v4 bounds one instrumentation
+        invocation at `timeout_seconds` and bounds install/compile/native calls separately; giving the
+        whole collector only `timeout_seconds` would let the outer kill precede the inner bound. The
+        instrumentation lanes therefore get the bound derived from their own plan; host and frame keep
+        `timeout_seconds` (protocol:338 for frame).
+    #>
+    param($Manifest, $Slot)
+    Assert-P4DeviceLaneContract
+    if ($Slot.lane -ceq 'host') {
+        $hostBudget = [ordered]@{
+            schema = 'nene-pixel-p4-collector-budget-v1'; lane = 'host'; slot_id = [string]$Slot.id;
+            derived = $false; timeout_seconds = [int]$Slot.timeout_seconds; instrumentation_seconds = 0;
+            install_seconds = 0; dexopt_seconds = 0; probe_count = 0; probe_seconds = 0;
+            private_capture_seconds = 0; reserve_seconds = 0;
+            cap_seconds = $script:P4BoundedNativeCapSeconds;
+            collector_timeout_seconds = [int]$Slot.timeout_seconds }
+        # Same ceiling check as every other lane: refuse before reservation, never at the collector's
+        # Invoke-BoundedNativeCommand parameter binding, which would already have cost the attempt.
+        Assert-P4CollectorBoundWithinCap -Budget $hostBudget
+        return [ordered]@{ plan = $null; budget = $hostBudget }
+    }
+    $plan = Get-P4DeviceLanePlan -Manifest $Manifest -Slot $Slot
+    $budget = $plan.collector_budget
+    if ([int]$budget.collector_timeout_seconds -lt [int]$Slot.timeout_seconds) {
+        throw "The derived collector bound for $($Slot.id) is shorter than its instrumentation bound."
+    }
+    return [ordered]@{ plan = $plan; budget = $budget }
+}
 
 function Assert-P4DeviceStateContract {
     foreach ($name in @('Get-P4LiveDeviceState', 'Assert-P4DeviceStateMatches')) {
@@ -578,6 +641,15 @@ function Invoke-P4IndexedSlot {
     $selected = @($catalog | Where-Object { $_.id -ceq $SlotId })
     if ($selected.Count -ne 1) { throw 'Unknown slot; no substitute or extra attempt is permitted.' }
     $slot = $selected[0]
+    # Derived before any reservation: a plan the manifest cannot describe refuses the slot without
+    # consuming it. `$lanePlan` is $null for the host lane, which owns no device plan.
+    $budgetRecord = Get-P4SlotCollectorBudget -Manifest $manifest -Slot $slot
+    $collectorBudget = $budgetRecord.budget
+    $lanePlan = $budgetRecord.plan
+    $collectorTimeoutSeconds = [int]$collectorBudget.collector_timeout_seconds
+    if ($collectorTimeoutSeconds -lt [int]$slot.timeout_seconds) {
+        throw "The collector bound for $SlotId is shorter than its protocol timeout."
+    }
     $mutex = [Threading.Mutex]::new($false, 'Local\NenePixelP4EvidenceExclusive')
     $acquired = $false
     $directory = Join-Path $root $SlotId
@@ -598,13 +670,15 @@ function Invoke-P4IndexedSlot {
         $admissionDirectory = Join-Path $directory 'admission'
         Move-Item -LiteralPath $admission.directory -Destination $admissionDirectory
         $startedUtc = [datetime]::UtcNow
-        $slotDeadlineUtc = $startedUtc.AddSeconds([int]$slot.timeout_seconds + $script:P4CleanupReserveSeconds +
+        $slotDeadlineUtc = $startedUtc.AddSeconds($collectorTimeoutSeconds + $script:P4CleanupReserveSeconds +
             $script:P4AnalysisTimeoutSeconds)
         $deviceBeforeSha = if ($slot.lane -ceq 'host') { 'not-applicable' }
             else { Get-FileSha256 (Join-Path $admissionDirectory 'device-state-before.json') }
         $started = [ordered]@{ schema = $script:P4ManifestSchema; slot_id = $SlotId; status = 'started'; attempt = 1;
             preflight_sha256 = $manifestHash; started_utc = $startedUtc.ToString('o');
-            collector_timeout_seconds = [int]$slot.timeout_seconds;
+            collector_timeout_seconds = $collectorTimeoutSeconds;
+            protocol_timeout_seconds = [int]$slot.timeout_seconds;
+            collector_budget = $collectorBudget;
             cleanup_reserve_seconds = $script:P4CleanupReserveSeconds;
             analysis_timeout_seconds = $script:P4AnalysisTimeoutSeconds;
             slot_deadline_utc = $slotDeadlineUtc.ToString('o');
@@ -634,7 +708,7 @@ function Invoke-P4IndexedSlot {
             }
             $execution = Invoke-BoundedNativeCommand -RepositoryRoot $manifest.roles[$slot.role].worktree `
                 -ExecutablePath (Join-Path $PSHOME 'pwsh.exe') -LogPath (Join-Path $directory 'collector.log') `
-                -TimeoutSeconds $slot.timeout_seconds -NativeArguments @('-NoProfile', '-File', $manifest.tools.runner.path,
+                -TimeoutSeconds $collectorTimeoutSeconds -NativeArguments @('-NoProfile', '-File', $manifest.tools.runner.path,
                     '-ManifestPath', $reserved, '-SlotId', $SlotId, '-OutputDirectory', $directory)
             if ($execution.ExitCode -ne 0) { throw "Collector exited $($execution.ExitCode)." }
             foreach ($name in $wrapperOwnedNames) {
@@ -648,6 +722,24 @@ function Invoke-P4IndexedSlot {
             $cleanupErrors = [Collections.Generic.List[string]]::new()
             if ($slot.lane -cne 'host') {
                 try { Stop-P4RemoteProcesses $manifest $slot $directory } catch { $cleanupErrors.Add($_.Exception.Message) }
+            }
+            # Device private-file quarantine (after the packages are stopped, before the seal, so the
+            # record and its adb logs are sealed capture). It runs on success, failure and timeout
+            # alike: a slot that died after the test wrote its CSV would otherwise leave the device
+            # output in place and make the protocol's fail-if-present reservation refuse every later
+            # slot, including the bounded recovery. Nothing is deleted; an existing quarantine throws.
+            # Deliberate deviation from the frame lane's recovery quarantine: this one does NOT re-assert
+            # Assert-P4RemotePackagesStopped. It runs after Stop-P4RemoteProcesses even when that step
+            # failed, because a still-running package is precisely the case where the device output must
+            # not be left where the next slot's fail-if-present reservation will find it; `run-as mv` of a
+            # closed, already-written file is safe, and the pre-move sha256 records what was moved.
+            if ($null -ne $lanePlan -and $slot.lane -cin @('command', 'memory', 'publication')) {
+                try {
+                    Assert-P4DeviceLaneContract
+                    Invoke-P4PrivateFileQuarantine `
+                        -Context (Get-P4SlotDeviceContext -Manifest $manifest -Slot $slot -Directory $directory) `
+                        -Plan $lanePlan.private_file_quarantine | Out-Null
+                } catch { $cleanupErrors.Add($_.Exception.Message) }
             }
             try {
                 if ($script:P4CaptureDrainSeconds -gt 0) { Start-Sleep -Seconds $script:P4CaptureDrainSeconds }
@@ -696,6 +788,7 @@ function Invoke-P4IndexedSlot {
                 schema = $script:P4ManifestSchema; slot_id = $SlotId; status = 'invalid'; verdict = 'INVALID';
                 message = $failure.ToString(); capture_seal_sha256 = $sealHash; analysis_sha256 = $analysisHash;
                 restoration_sha256 = $restorationHash; worktree_after_sha256 = $worktreeAfterHash;
+                collector_timeout_seconds = $collectorTimeoutSeconds; collector_budget = $collectorBudget;
                 slot_deadline_utc = $slotDeadlineUtc.ToString('o'); ended_utc = [datetime]::UtcNow.ToString('o')
             }) | ConvertTo-Json -Depth 8)
             throw $failure
@@ -706,6 +799,8 @@ function Invoke-P4IndexedSlot {
         $analysisResult.analysis_sha256 = $analysisHash
         $analysisResult.restoration_sha256 = $restorationHash
         $analysisResult.worktree_after_sha256 = $worktreeAfterHash
+        $analysisResult.collector_timeout_seconds = $collectorTimeoutSeconds
+        $analysisResult.collector_budget = $collectorBudget
         Write-NewInvocationFile (Join-Path $directory 'completed.json') ($analysisResult | ConvertTo-Json -Depth 15)
         return $analysisResult
     } finally {

@@ -176,9 +176,132 @@ function Restore-P4OriginalDeviceSettings {
     $script:restored = $true
 }
 
+# --- Synthetic device private storage (for the cleanup-phase private-file quarantine). -------------
+# One flat map per package: "<relative path>" -> content. Directories are implicit, exactly as `ls -1`
+# sees them: a directory that holds nothing is reported absent, which is what a moved-away file leaves.
+$script:deviceTree = @{}
+# Directories that exist while holding nothing (a key ending in '/' seeds one). `ls -1` cannot tell such
+# a directory from an absent one, which is exactly the reuse hole the presence probe closes.
+$script:deviceDirectories = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+# When set, every `run-as` for this package answers with the sandbox diagnostic at exit 0, the way
+# `adb exec-out run-as` reports a non-debuggable or unknown package.
+$script:deviceRunAsFailure = ''
+
+function Reset-P4SyntheticDevice {
+    param([hashtable]$Files = @{}, [string]$RunAsFailure = '')
+    $script:deviceTree = @{}
+    $script:deviceDirectories = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    $script:deviceRunAsFailure = $RunAsFailure
+    foreach ($key in @($Files.Keys)) {
+        $parts = ([string]$key -split '\|', 2)
+        if ($parts.Count -ne 2) { throw "A synthetic device file needs a '<package>|<relative path>' key: $key" }
+        if ($parts[1].EndsWith('/')) {
+            $script:deviceDirectories.Add("$($parts[0])|$($parts[1].TrimEnd('/'))") | Out-Null
+            continue
+        }
+        if (-not $script:deviceTree.ContainsKey($parts[0])) { $script:deviceTree[$parts[0]] = @{} }
+        $script:deviceTree[$parts[0]][$parts[1]] = [string]$Files[$key]
+    }
+}
+
+function Test-P4SyntheticPresent {
+    param([string]$Package, [string]$Path)
+    if ($script:deviceDirectories.Contains("$Package|$Path")) { return $true }
+    return ($null -ne (Get-P4SyntheticEntries -Package $Package -Path $Path))
+}
+
+function Get-P4SyntheticEntries {
+    param([string]$Package, [string]$Path)
+    if (-not $script:deviceTree.ContainsKey($Package)) { return $null }
+    $files = $script:deviceTree[$Package]
+    if ($files.ContainsKey($Path)) { return @($Path) }
+    $prefix = "$Path/"
+    $names = [Collections.Generic.List[string]]::new()
+    foreach ($key in @($files.Keys)) {
+        $entry = [string]$key
+        if (-not $entry.StartsWith($prefix, [StringComparison]::Ordinal)) { continue }
+        $name = ($entry.Substring($prefix.Length) -split '/', 2)[0]
+        if (-not $names.Contains($name)) { $names.Add($name) }
+    }
+    if ($names.Count -eq 0) { return $null }
+    return @($names | Sort-Object -CaseSensitive)
+}
+
+function Invoke-P4SyntheticAdb {
+    param([string]$LogPath, [string[]]$Arguments)
+    $script:callLog.Add("adb:$($Arguments -join ' ')") | Out-Null
+    if (@($Arguments).Count -lt 4 -or $Arguments[1] -cne 'run-as') {
+        throw "Unexpected synthetic adb invocation: $($Arguments -join ' ')"
+    }
+    $package = [string]$Arguments[2]
+    $exitCode = 0
+    $output = @()
+    if ($script:deviceRunAsFailure -cne '' -and $package -ceq $script:deviceRunAsFailure) {
+        # `run-as` writes its refusal to stdout and exec-out does not propagate the remote exit code.
+        Write-NewInvocationFile $LogPath "run-as: Package '$package' is not debuggable`n"
+        return @{ ExitCode = 0; OutputLines = @("run-as: Package '$package' is not debuggable") }
+    }
+    switch ([string]$Arguments[3]) {
+        'ls' {
+            $path = [string]$Arguments[$Arguments.Count - 1]
+            if ($Arguments[4] -ceq '-d') {
+                $output = if (Test-P4SyntheticPresent -Package $package -Path $path) { @($path) }
+                    else { @("ls: ${path}: No such file or directory") }
+                break
+            }
+            $entries = Get-P4SyntheticEntries -Package $package -Path $path
+            if ($null -eq $entries) {
+                $output = if (Test-P4SyntheticPresent -Package $package -Path $path) { @() }
+                    else { @("ls: ${path}: No such file or directory") }
+            }
+            elseif ($Arguments[4] -ceq '-la') {
+                $output = @('total 0') + @($entries | ForEach-Object { "-rw------- 1 u0_a1 u0_a1 4 2026-09-16 00:00 $_" })
+            } else { $output = @($entries) }
+        }
+        'sha256sum' {
+            $path = [string]$Arguments[4]
+            if (-not $script:deviceTree.ContainsKey($package) -or
+                -not $script:deviceTree[$package].ContainsKey($path)) {
+                throw "The synthetic device has no $package/$path to hash."
+            }
+            $sha256 = [Security.Cryptography.SHA256]::Create()
+            try {
+                $bytes = [Text.UTF8Encoding]::new($false).GetBytes([string]$script:deviceTree[$package][$path])
+                $digest = [Convert]::ToHexString($sha256.ComputeHash($bytes)).ToLowerInvariant()
+            } finally { $sha256.Dispose() }
+            $output = @("$digest  $path")
+        }
+        'mkdir' {
+            $script:deviceDirectories.Add("$package|$([string]$Arguments[$Arguments.Count - 1])") | Out-Null
+            $output = @()
+        }
+        'mv' {
+            $source = [string]$Arguments[4]
+            $target = [string]$Arguments[5]
+            if (-not $script:deviceTree.ContainsKey($package) -or
+                -not $script:deviceTree[$package].ContainsKey($source)) {
+                $output = @("mv: bad '$source': No such file or directory"); $exitCode = 1; break
+            }
+            if ($script:deviceTree[$package].ContainsKey($target)) {
+                throw "The synthetic quarantine would overwrite $package/$target."
+            }
+            $script:deviceTree[$package][$target] = [string]$script:deviceTree[$package][$source]
+            $script:deviceTree[$package].Remove($source)
+        }
+        default { throw "Unexpected synthetic adb command: $($Arguments -join ' ')" }
+    }
+    Write-NewInvocationFile $LogPath ((@($output) -join "`n") + "`n")
+    return @{ ExitCode = $exitCode; OutputLines = @($output) }
+}
+
 function Invoke-BoundedNativeCommand {
     param($RepositoryRoot, $ExecutablePath, $LogPath, $TimeoutSeconds, $NativeArguments)
     $directory = Split-Path -Parent $LogPath
+    # The wrapper's own adb calls (`-s <serial> ...`) travel this same bounded boundary.
+    if (@($NativeArguments).Count -gt 2 -and [string]$NativeArguments[0] -ceq '-s') {
+        return Invoke-P4SyntheticAdb -LogPath $LogPath `
+            -Arguments @($NativeArguments[2..(@($NativeArguments).Count - 1)])
+    }
     $slotId = [string]$NativeArguments[6]
     $slot = @(@($script:catalog) | Where-Object { $_.id -ceq $slotId })
     if ($slot.Count -ne 1) { throw 'Unexpected synthetic slot identity.' }
@@ -233,10 +356,14 @@ $script:testRoot = Join-Path ([IO.Path]::GetTempPath()) ('nene-p4-slot-fixture-'
 New-Item -ItemType Directory -Path $script:testRoot | Out-Null
 
 function New-P4SlotFixture {
-    param([string]$Name)
+    param([string]$Name, [hashtable]$DeviceFiles = @{}, [string]$RunAsFailure = '')
     $directory = Join-Path $script:testRoot $Name
     New-Item -ItemType Directory -Path $directory | Out-Null
+    Reset-P4SyntheticDevice -Files $DeviceFiles -RunAsFailure $RunAsFailure
     $manifest = [ordered]@{
+        # Device lanes derive their collector bound and their private-file quarantine path from the lane
+        # plan, which is bound to the experiment identity; a slot the wrapper cannot plan is refused.
+        experiment_id = 'nene-p4-slot-boundary-fixture'
         output_directory = $directory
         roles = [ordered]@{
             baseline = [ordered]@{ worktree = $directory; build_commit = $script:buildCommit
@@ -314,6 +441,50 @@ function Assert-P4SealedCompletion {
     $started = Get-Content -LiteralPath (Join-Path $SlotDirectory 'started.json') -Raw | ConvertFrom-Json -AsHashtable
     if ([int]$started.cleanup_reserve_seconds -ne 90 -or [int]$started.analysis_timeout_seconds -ne 120) {
         throw 'started.json does not record the fixed cleanup (90 s) / analysis (120 s) budgets.'
+    }
+    # Protocol v4 instrumentation bound: the collector Job must outlast the instrumentation it hosts, so
+    # the recorded collector bound is the DERIVED one for the instrumentation lanes and the protocol
+    # timeout for host/frame. The breakdown must add up to the bound the slot deadline was built from.
+    Assert-P4RequiredKeys $started @('protocol_timeout_seconds', 'collector_budget') 'started.json'
+    $budget = $started.collector_budget
+    Assert-P4RequiredKeys $budget @('lane', 'derived', 'timeout_seconds', 'instrumentation_seconds',
+        'install_seconds', 'dexopt_seconds', 'probe_count', 'probe_seconds', 'private_capture_seconds',
+        'reserve_seconds', 'collector_timeout_seconds') 'started.collector_budget'
+    $breakdown = [int]$budget.instrumentation_seconds + [int]$budget.install_seconds + [int]$budget.dexopt_seconds +
+        [int]$budget.probe_seconds + [int]$budget.private_capture_seconds + [int]$budget.reserve_seconds
+    if ([int]$budget.collector_timeout_seconds -ne [int]$started.collector_timeout_seconds -or
+        [int]$budget.timeout_seconds -ne [int]$started.protocol_timeout_seconds) {
+        throw 'started.json does not bind its collector bound to the recorded budget.'
+    }
+    # The bound is handed to Invoke-BoundedNativeCommand -TimeoutSeconds, whose ValidateRange ceiling is
+    # 1800 s; the derivation must refuse before reservation rather than at that parameter binding.
+    if ([int]$budget.collector_timeout_seconds -gt 1800 -or [int]$budget.cap_seconds -ne 1800) {
+        throw 'The recorded collector bound is not held under the bounded native ValidateRange ceiling.'
+    }
+    if ($Lane -ceq 'host') {
+        if ([bool]$budget.derived -or [int]$started.collector_timeout_seconds -ne [int]$started.protocol_timeout_seconds) {
+            throw 'A host slot must keep its protocol timeout as the collector bound.'
+        }
+    } elseif ($Lane -cin @('command', 'memory', 'publication')) {
+        if (-not [bool]$budget.derived -or $breakdown -ne [int]$budget.collector_timeout_seconds -or
+            [int]$budget.instrumentation_seconds -ne [int]$started.protocol_timeout_seconds -or
+            [int]$started.collector_timeout_seconds -le [int]$started.protocol_timeout_seconds) {
+            throw 'An instrumentation slot did not derive a collector bound that outlasts its inner bound.'
+        }
+        # The quarantine runs before the seal, on success and failure alike, and is therefore capture.
+        $quarantinePath = Join-Path $SlotDirectory 'private-file-quarantine.json'
+        if (-not (Test-Path -LiteralPath $quarantinePath -PathType Leaf)) {
+            throw 'A device slot did not record its private-file quarantine.'
+        }
+        if ($sealed -cnotcontains 'private-file-quarantine.json') {
+            throw 'The private-file quarantine record was not sealed with the capture.'
+        }
+        $quarantine = Get-Content -LiteralPath $quarantinePath -Raw | ConvertFrom-Json -AsHashtable
+        if ([string]$quarantine.schema -cne 'nene-pixel-p4-private-file-quarantine-v1' -or
+            [string]$quarantine.slot_id -cne ([string]$started.slot_id) -or [bool]$quarantine.deleted -or
+            -not [bool]$quarantine.completed -or [string]$quarantine.stage -cne 'complete') {
+            throw 'The private-file quarantine record does not describe a completed slot without deleting.'
+        }
     }
     $expectedDeadline = ([datetime]$started.started_utc).ToUniversalTime().AddSeconds(
         [int]$started.collector_timeout_seconds + 90 + 120)
@@ -461,15 +632,31 @@ $fixture = New-P4SlotFixture 'cleanup-overruns-deadline'
 $savedReserve = $script:P4CleanupReserveSeconds
 $savedAnalysis = $script:P4AnalysisTimeoutSeconds
 $savedDrain = $script:P4CaptureDrainSeconds
+# The collector bound is DERIVED from the lane's own per-call limits, so a deadline this case can
+# actually overrun is produced by shrinking those real limits - the derivation itself still runs.
+$savedLaneLimits = [ordered]@{
+    install = $script:P4InstallTimeoutSeconds; dexopt = $script:P4DexoptTimeoutSeconds
+    probe = $script:P4ProbeTimeoutSeconds; private = $script:P4PrivateFileTimeoutSeconds
+    collector = $script:P4CollectorReserveSeconds }
 try {
     $script:P4CleanupReserveSeconds = 1
     $script:P4AnalysisTimeoutSeconds = 0
-    $script:P4CaptureDrainSeconds = 3
+    $script:P4CaptureDrainSeconds = 4
+    $script:P4InstallTimeoutSeconds = 0
+    $script:P4DexoptTimeoutSeconds = 0
+    $script:P4ProbeTimeoutSeconds = 0
+    $script:P4PrivateFileTimeoutSeconds = 0
+    $script:P4CollectorReserveSeconds = 1
     $rejected = Invoke-P4BoundarySlot $fixture.manifest 'memory-candidate-common-1'
 } finally {
     $script:P4CleanupReserveSeconds = $savedReserve
     $script:P4AnalysisTimeoutSeconds = $savedAnalysis
     $script:P4CaptureDrainSeconds = $savedDrain
+    $script:P4InstallTimeoutSeconds = $savedLaneLimits.install
+    $script:P4DexoptTimeoutSeconds = $savedLaneLimits.dexopt
+    $script:P4ProbeTimeoutSeconds = $savedLaneLimits.probe
+    $script:P4PrivateFileTimeoutSeconds = $savedLaneLimits.private
+    $script:P4CollectorReserveSeconds = $savedLaneLimits.collector
 }
 $slotRoot = Join-Path $fixture.root 'memory-candidate-common-1'
 if (-not $rejected -or -not (Test-Path -LiteralPath (Join-Path $slotRoot 'invalid.json')) -or
@@ -481,6 +668,165 @@ if ($script:lastError -notlike '*overran the slot deadline*') {
 }
 if (@($script:callLog) -contains 'analyzer') { throw 'The analyzer ran after the slot deadline expired.' }
 if (-not $script:restored) { throw 'A deadline overrun skipped settings restoration.' }
+
+# --- Cleanup-phase private-file quarantine (decision 2). ------------------------------------------
+# The protocol's fail-if-present output reservation refuses a device output left behind by an earlier
+# slot, so a slot that dies after the test wrote its CSV would block every later slot - including the
+# bounded recovery. Cleanup therefore MOVES (never deletes) the plan-listed private files aside, on
+# success and on failure alike, before the capture seal.
+
+$script:commandPackage = 'io.github.hideyukimori.nenepixel'
+$script:commandPrivatePath = 'files/p4-measurements/p4-indexed-command-baseline-run-01.csv'
+$script:commandQuarantinePath =
+    'no_backup/p4-quarantine/nene-p4-slot-boundary-fixture/command-baseline'
+$script:commandCatalog = @(New-P4SlotDescriptor -Id 'command-baseline' -Lane 'command' -Role 'baseline' `
+        -Runner 'command' -TimeoutSeconds 300)
+
+function New-P4CommandDeviceFiles {
+    param([switch]$WithExistingQuarantine, [switch]$WithEmptyQuarantine)
+    $files = @{ "$script:commandPackage|$script:commandPrivatePath" = 'device,csv,payload' }
+    if ($WithExistingQuarantine) {
+        $files["$script:commandPackage|$script:commandQuarantinePath/leftover.csv"] = 'older attempt'
+    }
+    # A trailing '/' seeds a directory that exists while holding nothing - what an earlier attempt that
+    # created the quarantine and then died leaves behind. `ls -1` cannot tell it from absence.
+    if ($WithEmptyQuarantine) { $files["$script:commandPackage|$script:commandQuarantinePath/"] = '' }
+    return $files
+}
+
+function Get-P4QuarantineRecord {
+    param([string]$SlotDirectory)
+    $path = Join-Path $SlotDirectory 'private-file-quarantine.json'
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "No quarantine record at $path" }
+    return (Get-Content -LiteralPath $path -Raw | ConvertFrom-Json -AsHashtable)
+}
+
+$script:boundaryMode = 'command-success'
+$script:restored = $false
+$script:callLog.Clear()
+$script:catalog = $script:commandCatalog
+$fixture = New-P4SlotFixture -Name 'quarantine-success' -DeviceFiles (New-P4CommandDeviceFiles)
+if (Invoke-P4BoundarySlot $fixture.manifest 'command-baseline') {
+    throw "A command slot with a quarantined private file was rejected: $script:lastError"
+}
+$slotRoot = Join-Path $fixture.root 'command-baseline'
+Assert-P4SealedCompletion -SlotDirectory $slotRoot -Lane 'command'
+$quarantine = Get-P4QuarantineRecord -SlotDirectory $slotRoot
+$expectedDigest = (Get-FileHash -InputStream ([IO.MemoryStream]::new(
+            [Text.UTF8Encoding]::new($false).GetBytes('device,csv,payload'))) -Algorithm SHA256).Hash.ToLowerInvariant()
+if (@($quarantine.files).Count -ne 1 -or
+    [string]$quarantine.files[0].name -cne 'p4-indexed-command-baseline-run-01.csv' -or
+    [string]$quarantine.files[0].relative_path -cne $script:commandPrivatePath -or
+    [string]$quarantine.files[0].sha256 -cne $expectedDigest -or
+    [string]$quarantine.files[0].quarantine_relative_path -cne
+        "$script:commandQuarantinePath/p4-indexed-command-baseline-run-01.csv" -or
+    [string]$quarantine.quarantine_path -cne $script:commandQuarantinePath) {
+    throw 'The quarantine record does not name the moved private file, its digest and its target.'
+}
+if (@($quarantine.source_directories).Count -ne 1 -or
+    'p4-indexed-command-baseline-run-01.csv' -cnotin @($quarantine.source_directories[0].before_entries) -or
+    @($quarantine.source_directories[0].after_entries).Count -ne 0 -or
+    [string]$quarantine.source_directories[0].before_listing_sha256 -ceq
+        [string]$quarantine.source_directories[0].after_listing_sha256) {
+    throw 'The quarantine record does not preserve the listing before and after the move.'
+}
+if ($script:deviceTree[$script:commandPackage].ContainsKey($script:commandPrivatePath) -or
+    -not $script:deviceTree[$script:commandPackage].ContainsKey(
+        "$script:commandQuarantinePath/p4-indexed-command-baseline-run-01.csv")) {
+    throw 'The private file was not moved into its per-slot quarantine.'
+}
+if ([string]$script:deviceTree[$script:commandPackage][
+        "$script:commandQuarantinePath/p4-indexed-command-baseline-run-01.csv"] -cne 'device,csv,payload') {
+    throw 'The quarantine changed the bytes it moved aside.'
+}
+if (@($script:callLog | Where-Object { $_ -like 'adb:*rm*' -or $_ -like '*pm clear*' }).Count -ne 0) {
+    throw 'The quarantine deleted device state.'
+}
+
+# A failed collector must still quarantine: that is exactly the state that would block every later slot.
+$script:boundaryMode = 'collector-fails'
+$script:restored = $false
+$script:callLog.Clear()
+$script:catalog = $script:commandCatalog
+$fixture = New-P4SlotFixture -Name 'quarantine-after-collector-failure' -DeviceFiles (New-P4CommandDeviceFiles)
+if (-not (Invoke-P4BoundarySlot $fixture.manifest 'command-baseline')) {
+    throw 'A failed collector produced a completed command slot.'
+}
+$slotRoot = Join-Path $fixture.root 'command-baseline'
+if (-not (Test-Path -LiteralPath (Join-Path $slotRoot 'invalid.json'))) {
+    throw 'A failed command slot lost its invalid evidence.'
+}
+$quarantine = Get-P4QuarantineRecord -SlotDirectory $slotRoot
+if (@($quarantine.files).Count -ne 1 -or
+    $script:deviceTree[$script:commandPackage].ContainsKey($script:commandPrivatePath)) {
+    throw 'A failed collector left its private file on the device.'
+}
+if (-not $script:restored) { throw 'A quarantined failure skipped settings restoration.' }
+
+# An existing quarantine directory is a refusal, never a reuse, and nothing is removed.
+$script:boundaryMode = 'command-success'
+$script:restored = $false
+$script:callLog.Clear()
+$script:catalog = $script:commandCatalog
+$fixture = New-P4SlotFixture -Name 'quarantine-already-used' `
+    -DeviceFiles (New-P4CommandDeviceFiles -WithExistingQuarantine)
+if (-not (Invoke-P4BoundarySlot $fixture.manifest 'command-baseline')) {
+    throw 'A reused quarantine directory was accepted.'
+}
+if ($script:lastError -notlike '*never reused or deleted*') {
+    throw "A reused quarantine produced the wrong refusal: $script:lastError"
+}
+if (-not $script:deviceTree[$script:commandPackage].ContainsKey($script:commandPrivatePath) -or
+    -not $script:deviceTree[$script:commandPackage].ContainsKey("$script:commandQuarantinePath/leftover.csv")) {
+    throw 'A refused quarantine still touched the device.'
+}
+$quarantine = Get-P4QuarantineRecord -SlotDirectory (Join-Path $fixture.root 'command-baseline')
+if ([bool]$quarantine.completed -or [string]$quarantine.stage -cne 'moving' -or
+    [string]$quarantine.error -notlike '*never reused or deleted*') {
+    throw 'A refused quarantine did not record where it stopped and why.'
+}
+
+# An existing but EMPTY quarantine directory is the same refusal: `ls -1` reports it as absent, so the
+# reuse check probes the entry itself.
+$script:boundaryMode = 'command-success'
+$script:restored = $false
+$script:callLog.Clear()
+$script:catalog = $script:commandCatalog
+$fixture = New-P4SlotFixture -Name 'quarantine-already-created-empty' `
+    -DeviceFiles (New-P4CommandDeviceFiles -WithEmptyQuarantine)
+if (-not (Invoke-P4BoundarySlot $fixture.manifest 'command-baseline')) {
+    throw 'An existing but empty quarantine directory was reused.'
+}
+if ($script:lastError -notlike '*never reused or deleted*') {
+    throw "An empty quarantine directory produced the wrong refusal: $script:lastError"
+}
+if (-not $script:deviceTree[$script:commandPackage].ContainsKey($script:commandPrivatePath)) {
+    throw 'A refused empty-quarantine slot still moved the private file.'
+}
+
+# `run-as` refusing the sandbox (not debuggable / unknown package) answers on stdout at exit 0. It must
+# never read as an entry name, which would let the quarantine record a silent no-op success.
+$script:boundaryMode = 'command-success'
+$script:restored = $false
+$script:callLog.Clear()
+$script:catalog = $script:commandCatalog
+$fixture = New-P4SlotFixture -Name 'quarantine-run-as-refused' `
+    -DeviceFiles (New-P4CommandDeviceFiles) -RunAsFailure $script:commandPackage
+if (-not (Invoke-P4BoundarySlot $fixture.manifest 'command-baseline')) {
+    throw 'A run-as refusal was accepted as an empty private directory.'
+}
+$slotRoot = Join-Path $fixture.root 'command-baseline'
+if (-not (Test-Path -LiteralPath (Join-Path $slotRoot 'invalid.json'))) {
+    throw 'A run-as refusal did not make the slot INVALID.'
+}
+$quarantine = Get-P4QuarantineRecord -SlotDirectory $slotRoot
+if ([bool]$quarantine.completed -or [string]$quarantine.stage -cne 'listing-before' -or
+    @($quarantine.files).Count -ne 0 -or [string]$quarantine.error -notlike '*Unable to list*') {
+    throw 'A run-as refusal did not record an incomplete quarantine.'
+}
+if (-not $script:deviceTree[$script:commandPackage].ContainsKey($script:commandPrivatePath)) {
+    throw 'A run-as refusal still claimed to have moved the private file.'
+}
 
 # --- Completed-chain re-verification across slots. -------------------------------------------------
 
@@ -638,7 +984,11 @@ Write-Output ('CASES=' + (@('host-completed', 'device-completed', 'immutable-ret
     'corrupt-analysis', 'wrong-identity', 'wrong-verdict', 'analysis-not-sealed',
     'admission-quiescence-refusal', 'admission-device-refusal', 'admission-worktree-refusal',
     'stop-failure-independent-restoration', 'collector-failure-still-restores', 'device-drift-after',
-    'cleanup-overruns-deadline', 'analyzer-after-restoration-order', 'completed-chain-reverified',
+    'cleanup-overruns-deadline', 'analyzer-after-restoration-order',
+    'private-file-quarantine-moves', 'private-file-quarantine-after-collector-failure',
+    'private-file-quarantine-never-reused', 'private-file-quarantine-empty-directory-refused',
+    'private-file-quarantine-run-as-refused', 'derived-collector-bound', 'collector-bound-under-cap',
+    'completed-chain-reverified',
     'chain-tampered-seal', 'chain-tampered-analysis', 'chain-tampered-restoration',
     'chain-drift-refusal-recorded', 'valid-chain-records-no-refusal',
     'chain-reseated-analysis', 'chain-publication-revision-required',
