@@ -12,8 +12,8 @@ $ErrorActionPreference = 'Stop'
 # The measurement inventory is derived from each
 # role clone's own build tree, so it holds that clone's measurement sources only - the P4 tooling
 # itself lives at newer commits and is bound through `tools.*`, not through measurement_files.
-$script:P4ProtocolId = 'nene-pixel-p4-indexed-cutover-verification-v5'
-$script:P4ManifestSchema = 'nene-pixel-p4-indexed-preflight-v5'
+$script:P4ProtocolId = 'nene-pixel-p4-indexed-cutover-verification-v6'
+$script:P4ManifestSchema = 'nene-pixel-p4-indexed-preflight-v6'
 $script:P4BaselineProduction = '2dd4e01e3bbe88967237cde4e28412d2962fd590'
 
 # Exactly one contract record per lane boundary. Absent, duplicate or unknown scopes are refusals.

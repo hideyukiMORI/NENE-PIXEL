@@ -1,5 +1,21 @@
 # P4 Indexed Cutover Verification Protocol
 
+Archive state: historical, collected and stopped at a preserved `PERFORMANCE_FAIL`. This file is the
+accepted canonical v5 contract, superseded on 2026-09-17 by
+[revision v6](P4_INDEXED_CUTOVER_PROTOCOL.md), identity
+`nene-pixel-p4-indexed-cutover-verification-v6`. Experiment `p4-indexed-v5-20260917-run4` under this
+identity collected its five host slots as `valid-descriptive`, produced `pass` for `command-baseline`
+and `PERFORMANCE_FAIL` for `command-candidate`, and stopped there under step 10 of the fixed order.
+Every collected slot is preserved exactly as collected, no sample was removed, replaced, pooled or
+reused, and the failure is a real measurement of the candidate's production behaviour, not a harness
+defect, so neither bounded recovery in this contract applies. These bytes are a historical record,
+not an alternative current collection route.
+
+The accepted canonical v5 bytes are SHA-256
+`52c420c97ad838dc220ee3455485e1e4083d171e79e3a15aa4964ff173d2f004`, 35,343 bytes, as recorded in
+`build/reports/issue-106/p4-experiment-v5-run4/preflight.json`. This archive prepends only the two
+paragraphs above; the contract text below is unchanged.
+
 Status: accepted prospective contract for Issue #106; no measurement collected.
 
 Rules: QLT-006–009/011–016. Waivers: none.
@@ -16,31 +32,22 @@ exact artifacts/profile/device identity. A placeholder or mismatch blocks collec
 
 ## Overall experiment identity and admission
 
-Protocol identity: `nene-pixel-p4-indexed-cutover-verification-v6`.
+Protocol identity: `nene-pixel-p4-indexed-cutover-verification-v5`.
 
-Revision v6 supersedes the
-[failed v5 contract](P4_INDEXED_CUTOVER_PROTOCOL_V5_HISTORICAL.md). Under v5, experiment
-`p4-indexed-v5-20260917-run4` collected its five host slots as `valid-descriptive`, produced `pass`
-for `command-baseline`, and produced `PERFORMANCE_FAIL` for `command-candidate`: against the
-unchanged absolute gate of 8.0 ms p95 and 16.67 ms p99, `palette_recolor_full` measured 10.953 ms
-p95, `palette_default_only` measured 11.030 ms p95, and `palette_many_to_one_dense` measured
-17.141 ms p95 and 17.625 ms p99. The six common workloads passed for both roles. Collection stopped
-there under step 10 of the fixed order and every collected slot is preserved exactly as collected.
-That failure is a measurement of the candidate's own production behaviour, in the palette remap
-path's per-pixel allocation and its full-raster scan of an identity remap, not a harness, analyzer
-or wrapper contract defect, so neither bounded recovery below applies to it. The candidate
-production source is corrected as a focused change under this same Issue, and collection against
-that corrected build requires a new protocol identity and review, which is this revision. **V6
-changes nothing but the identity and the manifest schema**, which becomes
-`nene-pixel-p4-indexed-preflight-v6`. Populations, workloads, metrics, numeric gates, warmups,
-sample counts, finite budgets and bounds, fixed slot order, stopping rules and every lane schema
-name are unchanged from v5, and the preserved v5 verdicts remain reported as they were collected.
+Revision v5 supersedes the
+[superseded v4 contract](P4_INDEXED_CUTOVER_PROTOCOL_V4_HISTORICAL.md). Under v4, experiment
+`p4-indexed-v4-20260916-run3` completed its five host slots as `valid-descriptive` and started no
+device slot. Independent review of the device-lane wrappers then found that the frame wrapper bound
+was fixed from the intentional dwell alone and ignored per-operation ADB cost, and that the command
+lane's instrumentation bound left no room for an unmeasured candidate population; both are
+harness/wrapper contract defects unrelated to any measured value, and both were found before any
+device slot ran, so no PERFORMANCE verdict exists under v4. V5 changes exactly three things: it
+derives the frame wrapper bound from the operation count instead of fixing it, it raises the command
+lane instrumentation bound to 600 seconds, and it adds the pre-emptive supersede rule for a
+review-found harness contract defect, moving the manifest schema to
+`nene-pixel-p4-indexed-preflight-v5`. Populations, workloads, metrics, numeric gates, warmups,
+sample counts, fixed slot order, stopping rules and every lane schema name are unchanged from v4.
 
-V5 superseded the [superseded v4 contract](P4_INDEXED_CUTOVER_PROTOCOL_V4_HISTORICAL.md), whose
-experiment `p4-indexed-v4-20260916-run3` is preserved as `superseded` because review found the frame
-and command lane wrapper bounds defective before any device slot started; v5 derived the frame
-wrapper bound from the operation count, raised the command instrumentation bound to 600 seconds and
-added the pre-emptive supersede rule below.
 V4 superseded the [invalidated v3 contract](P4_INDEXED_CUTOVER_PROTOCOL_V3_HISTORICAL.md), whose
 experiment `p4-indexed-v3-20260916` is preserved as `INVALID` because the analyzer required 1-based
 host sample numbering while the accepted host runners emit 0-based indices; v4 stated the 0-based
@@ -78,7 +85,7 @@ or #111 timing/memory record is reused as #106 evidence. Existing records
 justify the unchanged route and threshold; they do not fill a #106 slot.
 
 Before any collection, one fail-closed manifest whose schema is
-`nene-pixel-p4-indexed-preflight-v6` must contain non-placeholder values for:
+`nene-pixel-p4-indexed-preflight-v5` must contain non-placeholder values for:
 
 - protocol ID and hash of its accepted canonical bytes;
 - baseline and candidate 40-character commits and clean tracked worktrees;

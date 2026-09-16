@@ -115,10 +115,16 @@ serial `T830128GB26321131293` / iPlay80miniPro / API36。
 `nene-pixel-p4-indexed-cutover-verification-v4` が置き換えた（v3はhost CSVのsample番号契約欠陥で
 experiment `p4-indexed-v3-20260916` の最初のslotをINVALID保存し、
 [V3 historical archive](../quality/P4_INDEXED_CUTOVER_PROTOCOL_V3_HISTORICAL.md) へ退避）。
-現在のacceptedは同日さらに置き換えた `nene-pixel-p4-indexed-cutover-verification-v5`
+同日さらに `nene-pixel-p4-indexed-cutover-verification-v5` が置き換えた
 （device slot開始前のレビューでframe/command laneのwrapper bound契約欠陥が判明し、
 experiment `p4-indexed-v4-20260916-run3` はhost 5 slotを無改変で保存したままsupersededとし、
 v4は [V4 historical archive](../quality/P4_INDEXED_CUTOVER_PROTOCOL_V4_HISTORICAL.md) へ退避）。
+現在のacceptedは2026-09-17の `nene-pixel-p4-indexed-cutover-verification-v6`
+（experiment `p4-indexed-v5-20260917-run4` がhost 5 slot valid-descriptive、`command-baseline` pass、
+`command-candidate` を palette 3 workload で PERFORMANCE_FAIL として保存し手順10で停止。
+原因は candidate の production 挙動であって harness 欠陥ではないため、修正後の build は新identityで収集する。
+v6 の変更は identity と manifest schema のみ。
+v5は [V5 historical archive](../quality/P4_INDEXED_CUTOVER_PROTOCOL_V5_HISTORICAL.md) へ退避）。
 v1/v2はuncollected archive。全33slotは未予約/未消費。
 ホスト5、command2、memory20、publication2、frame4。baselineを過去計測から代用しない。
 `Assert-P4CollectionImplementationReady` が意図して必ずthrowする。以下を解決しレビュー完了するまで外さない。

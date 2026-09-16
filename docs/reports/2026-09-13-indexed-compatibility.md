@@ -147,11 +147,18 @@ It was superseded on 2026-09-16 by `nene-pixel-p4-indexed-cutover-verification-v
 host slot of experiment `p4-indexed-v3-20260916` was preserved as INVALID for a harness sample-index
 contract defect; the v3 bytes are archived as
 [P4_INDEXED_CUTOVER_PROTOCOL_V3_HISTORICAL.md](../quality/P4_INDEXED_CUTOVER_PROTOCOL_V3_HISTORICAL.md).
-The currently accepted protocol is `nene-pixel-p4-indexed-cutover-verification-v5`, which superseded
-v4 on the same date after review found the frame and command lane wrapper bounds defective before
-any device slot ran; experiment `p4-indexed-v4-20260916-run3` is preserved as superseded with its
-five host slots intact, and the v4 bytes are archived as
+It was superseded on the same date by `nene-pixel-p4-indexed-cutover-verification-v5`, after review
+found the frame and command lane wrapper bounds defective before any device slot ran; experiment
+`p4-indexed-v4-20260916-run3` is preserved as superseded with its five host slots intact, and the v4
+bytes are archived as
 [P4_INDEXED_CUTOVER_PROTOCOL_V4_HISTORICAL.md](../quality/P4_INDEXED_CUTOVER_PROTOCOL_V4_HISTORICAL.md).
+The currently accepted protocol is `nene-pixel-p4-indexed-cutover-verification-v6`, which superseded
+v5 on 2026-09-17 after experiment `p4-indexed-v5-20260917-run4` collected five valid-descriptive host
+slots, a `pass` command baseline and a preserved `PERFORMANCE_FAIL` command candidate on three
+palette workloads; that failure is a measurement of candidate production behaviour, not a harness
+defect, so the corrected candidate build is collected under a new identity. V6 changes nothing but
+the identity and the manifest schema, and the v5 bytes are archived as
+[P4_INDEXED_CUTOVER_PROTOCOL_V5_HISTORICAL.md](../quality/P4_INDEXED_CUTOVER_PROTOCOL_V5_HISTORICAL.md).
 Earlier uncollected protocol bytes are archived. Collector and bounded-process contract fixtures
 are synthetic checks, not performance samples. Android functional execution, fresh user-asset
 preservation, immutable APK/profile/preflight identities, all accepted performance lanes and final
