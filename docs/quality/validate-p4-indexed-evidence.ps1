@@ -390,30 +390,228 @@ Assert-P4TestRejects {
 # ---------------------------------------------------------------------------
 # Real classpath probes. `-PneneP4ClasspathOnly=true` recorded what Gradle actually resolved for the
 # three host runners, so the fixed directory set is checked against measured data, not against a guess.
+# Probe directories accumulate across runs, so the probe numbers are derived from what was recorded
+# instead of being written down here. The worktree is read back from the records too, and then has to
+# be this run's candidate clone: reading it back keeps a rebuilt clone from being replayed silently,
+# and the comparison keeps the derivation from wandering off to some other clone on the machine.
 # ---------------------------------------------------------------------------
+function Select-P4RecordedProbeSet {
+    <#
+        The three newest `candidate` probes. A `baseline` probe is a legitimate record of the other
+        role and simply does not belong to this check, so it is skipped by its own role line instead of
+        by the reader's rejection; a record whose role line cannot be read is a failure, never a silent
+        skip. Only a probe root holding no numbered directory at all yields nothing. Once probes exist,
+        a set short of three - and a half-written probe newer than the three chosen - is a failure:
+        the newest evidence must never be stepped over in favour of an older generation.
+    #>
+    param([Parameter(Mandatory = $true)][string]$ProbeRoot)
+
+    if (-not (Test-Path -LiteralPath $ProbeRoot -PathType Container)) { return @() }
+    $numbered = 0
+    $recorded = [Collections.Generic.List[object]]::new()
+    $unrecorded = [Collections.Generic.List[object]]::new()
+    foreach ($directory in @(Get-ChildItem -LiteralPath $ProbeRoot -Directory)) {
+        if ($directory.Name -cnotmatch '^classpath-probe-(?<number>\d+)$') { continue }
+        $number = [int]$Matches['number']
+        $numbered++
+        $hashPath = Join-Path $directory.FullName 'classpath-sha256.txt'
+        if (-not (Test-Path -LiteralPath $hashPath -PathType Leaf)) {
+            $unrecorded.Add([ordered]@{ number = $number; path = $directory.FullName })
+            continue
+        }
+        $header = @(Get-Content -LiteralPath $hashPath -TotalCount 2)
+        if ($header.Count -ne 2 -or $header[0] -cne $script:P4HostClasspathSchema -or
+            $header[1] -cnotmatch '^role\t(?<role>baseline|candidate)$') {
+            throw "A recorded classpath probe has no readable role: $($directory.FullName)"
+        }
+        if ($Matches['role'] -cne 'candidate') { continue }
+        $recorded.Add([ordered]@{ number = $number; path = $directory.FullName })
+    }
+    if ($numbered -eq 0) { return @() }
+    if ($recorded.Count -lt 3) { throw 'The recorded classpath probes are incomplete.' }
+    $selected = @($recorded | Sort-Object -Property { $_.number } -Descending | Select-Object -First 3)
+    $oldestSelected = [int]$selected[-1].number
+    foreach ($partial in $unrecorded) {
+        if ($partial.number -gt $oldestSelected) {
+            throw "A classpath probe newer than the replayed set recorded nothing: $($partial.path)"
+        }
+    }
+    return $selected
+}
+
+function Get-P4RecordedProbeWorktree {
+    <#
+        The worktree the probes were taken in is read back from their own root lines: every root that
+        ends in one of the fixed compiled directories must leave the same ancestor behind, across all
+        three probes. A root that is a jar leaves none - neither a Gradle cache jar nor a module's own
+        build/libs/*.jar ends in a compiled directory - so every probe must still name the worktree
+        through at least one directory root of its own.
+    #>
+    param([Parameter(Mandatory = $true)][object[]]$RootSets)
+
+    if ($RootSets.Count -ne 3) { throw "The worktree must be read back from all three probes: $($RootSets.Count) given." }
+    $ancestors = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    $worktree = $null
+    foreach ($roots in $RootSets) {
+        $named = $false
+        foreach ($root in @($roots)) {
+            if (-not [IO.Path]::IsPathFullyQualified($root)) {
+                throw "A recorded classpath root is not absolute: $root"
+            }
+            $normalized = $root -replace '\\', '/'
+            foreach ($directory in $script:P4CompiledDirectories) {
+                if (-not $normalized.EndsWith("/$directory", [StringComparison]::OrdinalIgnoreCase)) { continue }
+                $ancestor = $normalized.Substring(0, $normalized.Length - $directory.Length - 1)
+                if ($ancestors.Add($ancestor)) { $worktree = $ancestor }
+                $named = $true
+                break
+            }
+        }
+        if (-not $named) { throw 'A recorded classpath probe names no worktree of its own.' }
+    }
+    if ($ancestors.Count -ne 1) {
+        throw "The recorded classpath probes do not agree on one worktree: $($ancestors.Count) found."
+    }
+    if (-not (Test-Path -LiteralPath $worktree -PathType Container)) {
+        throw "The worktree the classpath probes recorded is gone: $worktree"
+    }
+    return $worktree
+}
+
+function Assert-P4ProbeRunnerCoverage {
+    <#
+        Three probes of one runner would replay one classpath three times. The three root sets, taken
+        relative to their shared worktree, must therefore all differ.
+    #>
+    param(
+        [Parameter(Mandatory = $true)][string]$Worktree,
+        [Parameter(Mandatory = $true)][object[]]$RootSets
+    )
+
+    if ($RootSets.Count -ne 3) { throw "The host runners are covered by three probes: $($RootSets.Count) given." }
+    $signatures = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    foreach ($roots in $RootSets) {
+        $relatives = [string[]]@(@($roots) |
+            ForEach-Object { ([IO.Path]::GetRelativePath($Worktree, $_)) -replace '\\', '/' })
+        [Array]::Sort($relatives, [StringComparer]::OrdinalIgnoreCase)
+        if (-not $signatures.Add($relatives -join "`n")) {
+            throw 'Two recorded classpath probes cover the same host runner.'
+        }
+    }
+}
+
+# The derivation answers to synthetic probe roots before it is trusted with the recorded ones.
+$probeFixtureRoot = Join-Path $testRoot 'probe-selection'
+$writeProbeRole = {
+    param([string]$Directory, [string]$Name, [string]$Role)
+    $slot = Join-Path $Directory $Name
+    New-Item -ItemType Directory -Path $slot -Force | Out-Null
+    Write-NewInvocationFile (Join-Path $slot 'classpath-sha256.txt') `
+        (($script:P4HostClasspathSchema + "`nrole`t$Role`nfiles`t0`naggregate`t$('0' * 64)") + "`n")
+}
+$mixedRoot = Join-Path $probeFixtureRoot 'mixed'
+foreach ($name in @('classpath-probe-5', 'classpath-probe-7', 'classpath-probe-40')) {
+    & $writeProbeRole $mixedRoot $name 'candidate'
+}
+foreach ($name in @('classpath-probe-6', 'classpath-probe-41')) { & $writeProbeRole $mixedRoot $name 'baseline' }
+# An abandoned probe older than the chosen three is spent evidence, and a directory whose name is not
+# `classpath-probe-<N>` is not a probe at all.
+New-Item -ItemType Directory -Path (Join-Path $mixedRoot 'classpath-probe-3') -Force | Out-Null
+New-Item -ItemType Directory -Path (Join-Path $mixedRoot 'classpath-probe-4x') -Force | Out-Null
+# 40 beats 7 as a number, not as a name, and the baseline records are neither chosen nor rejected.
+$selectedFixture = @(Select-P4RecordedProbeSet $mixedRoot)
+if ((@($selectedFixture | ForEach-Object { $_.number }) -join ',') -cne '40,7,5') {
+    throw 'Probe selection does not take the three newest candidate probes.'
+}
+if (@(Select-P4RecordedProbeSet (Join-Path $probeFixtureRoot 'absent')).Count -ne 0) {
+    throw 'Probe selection invented a probe set.'
+}
+$newerRoot = Join-Path $probeFixtureRoot 'newer-incomplete'
+foreach ($name in @('classpath-probe-1', 'classpath-probe-2', 'classpath-probe-3')) {
+    & $writeProbeRole $newerRoot $name 'candidate'
+}
+New-Item -ItemType Directory -Path (Join-Path $newerRoot 'classpath-probe-9') -Force | Out-Null
+Assert-P4TestRejects { Select-P4RecordedProbeSet $newerRoot } 'probe newer than the replayed set left unrecorded'
+$shortRoot = Join-Path $probeFixtureRoot 'short'
+foreach ($name in @('classpath-probe-1', 'classpath-probe-2')) { & $writeProbeRole $shortRoot $name 'candidate' }
+& $writeProbeRole $shortRoot 'classpath-probe-3' 'baseline'
+Assert-P4TestRejects { Select-P4RecordedProbeSet $shortRoot } 'probe set short of all three runners'
+$baselineOnlyRoot = Join-Path $probeFixtureRoot 'baseline-only'
+& $writeProbeRole $baselineOnlyRoot 'classpath-probe-1' 'baseline'
+Assert-P4TestRejects { Select-P4RecordedProbeSet $baselineOnlyRoot } 'probe root holding the other role only'
+$unreadableRoot = Join-Path $probeFixtureRoot 'unreadable'
+& $writeProbeRole $unreadableRoot 'classpath-probe-1' 'other'
+Assert-P4TestRejects { Select-P4RecordedProbeSet $unreadableRoot } 'probe record with an unreadable role'
+$fixtureCompiled = $script:P4CompiledDirectories[0] -replace '/', '\'
+$fixtureRoots = @('project-format', 'recovery-record', 'legacy-import' | ForEach-Object {
+        , [string[]]@((Join-Path $testRoot $fixtureCompiled), (Join-Path "$testRoot-gradle-cache" "$_.jar")) })
+$fixtureWorktree = $testRoot -replace '\\', '/'
+$jarOnlyRoots = [string[]]@((Join-Path "$testRoot-gradle-cache" 'jar-only.jar'))
+Assert-P4TestRejects {
+    Assert-P4ProbeRunnerCoverage -Worktree $fixtureWorktree -RootSets @($fixtureRoots[0], $fixtureRoots[0], $fixtureRoots[1])
+} 'probe set replaying one runner twice'
+Assert-P4ProbeRunnerCoverage -Worktree $fixtureWorktree -RootSets $fixtureRoots
+if ((Get-P4RecordedProbeWorktree $fixtureRoots) -cne $fixtureWorktree) {
+    throw 'The probe worktree is not read back from the recorded roots.'
+}
+# Every negative below keeps three root sets, so each one is refused for its own reason.
+Assert-P4TestRejects {
+    Get-P4RecordedProbeWorktree @($fixtureRoots[0], $fixtureRoots[1],
+        [string[]]@((Join-Path "$testRoot-other" $fixtureCompiled)))
+} 'probes from two worktrees'
+Assert-P4TestRejects {
+    Get-P4RecordedProbeWorktree @($fixtureRoots[0], $fixtureRoots[1], $jarOnlyRoots)
+} 'one probe naming no worktree of its own'
+Assert-P4TestRejects {
+    Get-P4RecordedProbeWorktree @($jarOnlyRoots, $jarOnlyRoots, $jarOnlyRoots)
+} 'probes naming no worktree at all'
+Assert-P4TestRejects {
+    Get-P4RecordedProbeWorktree @($fixtureRoots[0], $fixtureRoots[1], [string[]]@($fixtureCompiled))
+} 'a recorded root that is not absolute'
+$absentRoots = [string[]]@((Join-Path "$testRoot-absent" $fixtureCompiled))
+Assert-P4TestRejects {
+    Get-P4RecordedProbeWorktree @($absentRoots, $absentRoots, $absentRoots)
+} 'probes naming a worktree that is gone'
+
 $probeRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../../build/reports/issue-106'))
-$probeDirectories = @('classpath-probe-2', 'classpath-probe-3', 'classpath-probe-4' |
-    ForEach-Object { Join-Path $probeRoot $_ } |
-    Where-Object { Test-Path -LiteralPath (Join-Path $_ 'classpath-sha256.txt') -PathType Leaf })
+$probeSet = @(Select-P4RecordedProbeSet $probeRoot)
+$probeDirectories = @($probeSet | ForEach-Object { $_.path })
 if ($probeDirectories.Count -eq 0) {
     Write-Output 'CLASSPATH_PROBE=SKIPPED-no-recorded-probe'
 } else {
-    if ($probeDirectories.Count -ne 3) { throw 'The recorded classpath probes are incomplete.' }
-    $probeWorktree = 'C:/n106-indexed'
+    Write-Output "CLASSPATH_PROBE_SET=$((@($probeSet | ForEach-Object { $_.number }) | Sort-Object) -join ',')"
     $probeRelatives = [Collections.Generic.List[string]]::new()
+    $probeRootSets = [Collections.Generic.List[object]]::new()
+    $probeUsed = @{}
     foreach ($probe in $probeDirectories) {
         # The reader must accept every real record, not just the synthetic one.
         $probeLines = Read-P4HostClasspathRecord (Join-Path $probe 'classpath-sha256.txt') 'candidate'
-        Read-P4HostClasspathRecord (Join-Path $probe 'classpath.txt') 'candidate' | Out-Null
+        $probeRootLines = Read-P4HostClasspathRecord (Join-Path $probe 'classpath.txt') 'candidate'
+        if ($probeRootLines[2] -cnotmatch '^roots\t(?<count>[1-9]\d*)$') { throw "Unreadable probe root count: $probe" }
+        if ($probeRootLines.Count -ne 3 + [int]$Matches['count']) { throw "Probe root list disagrees: $probe" }
+        $probeRootSets.Add([string[]]@($probeRootLines[3..($probeRootLines.Count - 1)]))
         if ($probeLines[2] -cnotmatch '^files\t(?<count>\d+)$') { throw "Unreadable probe file count: $probe" }
         if ($probeLines.Count -ne 4 + [int]$Matches['count']) { throw "Probe record length disagrees: $probe" }
+        $used = [Collections.Generic.List[string]]::new()
         foreach ($line in $probeLines) {
             $parts = $line -split "`t"
             if ($parts.Count -ne 4 -or $parts[0] -cne 'file') { continue }
             if ([IO.Path]::IsPathFullyQualified($parts[1])) { continue }
             $probeRelatives.Add($parts[1])
+            if ($script:P4CompiledFileExtensions -ccontains [IO.Path]::GetExtension($parts[1]).ToLowerInvariant()) {
+                $used.Add($parts[1])
+            }
         }
+        $probeUsed[$probe] = [string[]]@($used)
     }
+    $probeWorktree = Get-P4RecordedProbeWorktree $probeRootSets
+    Write-Output "CLASSPATH_PROBE_WORKTREE=$probeWorktree"
+    # Reading the worktree back says where the probes were taken, not that it is the clone this run
+    # measured. The pinned `$candidateWorktree` decides that, so the two must name the same tree.
+    if (($probeWorktree -replace '\\', '/') -ine ($candidateWorktree -replace '\\', '/')) {
+        throw "The recorded classpath probes were not taken in the candidate clone: $probeWorktree"
+    }
+    Assert-P4ProbeRunnerCoverage -Worktree $probeWorktree -RootSets $probeRootSets
     if ($probeRelatives.Count -lt 900) { throw 'The recorded classpath probes carry too few in-worktree files.' }
     $covered = 0
     foreach ($relative in $probeRelatives) {
@@ -444,34 +642,31 @@ if ($probeDirectories.Count -eq 0) {
         Assert-P4HostClasspathAgreement -OutputDirectory $probe -Role candidate -Manifest $unionManifest
     }
 
-    $probe4 = Join-Path $probeRoot 'classpath-probe-4'
-    $probe4Lines = @(Get-Content -LiteralPath (Join-Path $probe4 'classpath-sha256.txt'))
-    if ($probe4Lines[-1] -cnotmatch '^aggregate\t(?<sha>[0-9a-f]{64})$') { throw 'The probe aggregate is unreadable.' }
+    # The heaviest of the three: the runner that loaded the most in-worktree class/jar entries. A tie
+    # goes to the newest record, so the choice never depends on the order the directories were read in.
+    $heaviestProbe = @($probeSet | Sort-Object -Descending -Property @{ Expression = { $probeUsed[$_.path].Count } },
+        @{ Expression = { $_.number } })[0].path
+    $heaviestProbeLines = @(Get-Content -LiteralPath (Join-Path $heaviestProbe 'classpath-sha256.txt'))
+    if ($heaviestProbeLines[-1] -cnotmatch '^aggregate\t(?<sha>[0-9a-f]{64})$') { throw 'The probe aggregate is unreadable.' }
     Write-Output "CLASSPATH_PROBE_AGGREGATE=$($Matches['sha'])"
-    $probe4Used = @()
-    foreach ($line in $probe4Lines) {
-        $parts = $line -split "`t"
-        if ($parts.Count -ne 4 -or $parts[0] -cne 'file' -or [IO.Path]::IsPathFullyQualified($parts[1])) { continue }
-        if ($script:P4CompiledFileExtensions -cnotcontains [IO.Path]::GetExtension($parts[1]).ToLowerInvariant()) { continue }
-        $probe4Used += $parts[1]
-    }
-    if ($probe4Used.Count -lt 900) { throw 'The heaviest probe carries too few class/jar entries.' }
-    if ($probe4Used.Count -ge $unionFiles.Count) { throw 'A single runner cannot use the whole role output.' }
+    $heaviestProbeUsed = $probeUsed[$heaviestProbe]
+    if ($heaviestProbeUsed.Count -lt 900) { throw 'The heaviest probe carries too few class/jar entries.' }
+    if ($heaviestProbeUsed.Count -ge $unionFiles.Count) { throw 'A single runner cannot use the whole role output.' }
     # Containment is still enforced: drop from the union one file the probe actually loaded.
-    $omitted = $probe4Used[0]
+    $omitted = $heaviestProbeUsed[0]
     $shortUnion = [ordered]@{ roles = [ordered]@{ candidate = [ordered]@{
                 worktree = $probeWorktree
                 compiled_files = @($unionFiles | Where-Object { $_.relative_path -cne $omitted })
                 compiled_sha256 = $unionManifest.roles.candidate.compiled_sha256 } } }
     Assert-P4TestRejects {
-        Assert-P4HostClasspathAgreement -OutputDirectory $probe4 -Role candidate -Manifest $shortUnion
+        Assert-P4HostClasspathAgreement -OutputDirectory $heaviestProbe -Role candidate -Manifest $shortUnion
     } 'real classpath used a file the inventory omits'
     # The recorded aggregate must stay self-consistent. Recorded evidence is copied, never edited.
     $tamperedProbe = Join-Path $testRoot 'probe-tampered'
     New-Item -ItemType Directory -Path $tamperedProbe -Force | Out-Null
     Write-NewInvocationFile (Join-Path $tamperedProbe 'classpath.txt') `
-        ([IO.File]::ReadAllText((Join-Path $probe4 'classpath.txt')))
-    $tamperedLines = [string[]]@($probe4Lines)
+        ([IO.File]::ReadAllText((Join-Path $heaviestProbe 'classpath.txt')))
+    $tamperedLines = [string[]]@($heaviestProbeLines)
     $tamperedLines[$tamperedLines.Count - 1] = "aggregate`t$('0' * 64)"
     Write-NewInvocationFile (Join-Path $tamperedProbe 'classpath-sha256.txt') (($tamperedLines -join "`n") + "`n")
     Assert-P4TestRejects {
@@ -866,7 +1061,7 @@ if (Get-Command -Name 'Assert-P4CollectionImplementationReady' -CommandType Func
 Write-Output 'P4_NO_DEVICE_CONTRACT_VALIDATION=pass'
 Write-Output 'CASES=fixed-budget,five-host-populations,truncation,duplicate,reorder,gross-anomaly,negative,NaN,summary,role,extra-row,unfabricated-baseline,unset,missing,empty,overflow,exclusive-output,duplicate-artifact,path-escape,tamper'
 Write-Output 'DEVICE_STATE_CASES=fixture-parse,exact-drift,thermal,battery,power-save,interactive,usb-power,rotation-recorded,absent-thermal,ambiguous-mode,rotation-disagreement,user-rotation-disagreement,absent-locale,absent-low-power,dexopt-verify,dexopt-not-installed,dexopt-section'
-Write-Output 'INVENTORY_CASES=expected-set,baseline-lane-separation,set-short,set-wide,path-escape,blob-mismatch,untracked,ancestor,lineage-identity,lineage-order,reparse,compiled-set,compiled-foreign,compiled-unbuilt,compiled-no-module-jar,probe-directory-coverage,probe-reader,probe-union-subset-all-three,probe-aggregate,probe-omission,probe-aggregate-mismatch,classpath-agreement,classpath-aggregate,classpath-subset-accepted,classpath-subset-union-aggregate,classpath-empty,classpath-undeclared,classpath-role'
+Write-Output 'INVENTORY_CASES=expected-set,baseline-lane-separation,set-short,set-wide,path-escape,blob-mismatch,untracked,ancestor,lineage-identity,lineage-order,reparse,compiled-set,compiled-foreign,compiled-unbuilt,compiled-no-module-jar,probe-directory-coverage,probe-reader,probe-union-subset-all-three,probe-aggregate,probe-omission,probe-aggregate-mismatch,probe-selection-newest-candidates,probe-selection-older-incomplete-ignored,probe-selection-absent,probe-selection-newer-incomplete,probe-set-short,probe-selection-baseline-only,probe-role-unreadable,probe-runner-duplicate,probe-runner-coverage-accepted,probe-worktree-derived,probe-worktree-ambiguous,probe-worktree-partial,probe-worktree-unnamed,probe-worktree-relative-root,probe-worktree-gone,classpath-agreement,classpath-aggregate,classpath-subset-accepted,classpath-subset-union-aggregate,classpath-empty,classpath-undeclared,classpath-role'
 Write-Output 'PACKAGING_CASES=four-kinds,variant,dexopt,debuggable,instrumentation-absent,instrumentation-present,target-drift,publication-target,publication-apk'
 Write-Output 'ADMISSION_CASES=preservation-fresh,retired-guard,foreign-serial,preservation-schema,stale,postdated,noncanonical-path,inspection-valid,inspection-in-output,inspection-in-frame,inspection-bounds,inspection-outside,inspection-rotation,inspection-apk,inspection-commit,inspection-geometry,inspection-dump-single,inspection-dump-array,inspection-dump-sha,inspection-dump-missing,inspection-role-missing,contract-scopes,contract-missing,contract-duplicate,contract-unknown,contract-correctness,bounds,timestamps,assert-returns-nothing,template-filled,template-unfilled,template-slot-drift,stage-slot-no-device,stage-reservation-device,stage-unknown,readiness-barrier'
 Write-Output "SYNTHETIC_FIXTURE_DIRECTORY=$testRoot"

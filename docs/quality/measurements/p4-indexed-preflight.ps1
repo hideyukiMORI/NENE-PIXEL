@@ -55,8 +55,9 @@ $script:P4CandidateHostEvidenceSources = @(
 
 # The only directories whose class/jar output may appear in the host JavaExec inventory. This set is
 # not guessed: it is the union of the worktree-relative roots the real resolved classpath used in the
-# three `-PneneP4ClasspathOnly=true` probes recorded under
-# build/reports/issue-106/classpath-probe-{2,3,4}/. Gradle cache jars stay absolute and out of scope.
+# `-PneneP4ClasspathOnly=true` probes recorded under build/reports/issue-106/classpath-probe-<n>/, of
+# which the validator replays the three newest candidate records. Gradle cache jars stay absolute and
+# out of scope.
 $script:P4CompiledJvmModules = @('core/domain', 'core/pixel-engine', 'core/application', 'core/project-format')
 $script:P4CompiledDirectories = @(
     @($script:P4CompiledJvmModules | ForEach-Object {
