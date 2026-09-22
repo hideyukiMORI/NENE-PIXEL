@@ -26,7 +26,7 @@ import io.github.hideyukimori.nenepixel.presentation.compose.R
 internal fun AppearanceControls(
     appearance: EditorAppearance,
     callbacks: EditorCallbacks,
-    language: AppLanguageControls,
+    settings: EditorSettingsInputs,
 ) {
     Column(
         modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
@@ -61,7 +61,8 @@ internal fun AppearanceControls(
             callbacks.onSetAppearance(appearance.copy(controlEdge = it))
         }
         AppearanceHint(R.string.session_hint)
-        LanguageChoices(language) { callbacks.onPointerCancel() }
+        LanguageChoices(settings.language) { callbacks.onPointerCancel() }
+        AppVersionLine(settings.version)
     }
 }
 

@@ -113,4 +113,7 @@
     <string name="mvp_png">画素と透過をそのままPNGに書き出します。書き出しても作品を保存した扱いにはなりません。PNGは他の用途で使う画像で、編集用の作品ファイルの代わりにはなりません。</string>
     <string name="mvp_compatibility_title">作品の互換性</string>
     <string name="mvp_compatibility">保存形式v1の作品を読み書きします。新しい形式、壊れたファイル、上限を超えるファイルは、現在の作業を置き換えずに拒否します。将来の形式変更では、v1の絵を保つための移行手順を先に定めます。</string>
+    <string name="app_version">バージョン %1$s (%2$d)</string>
+    <string name="app_version_name">バージョン %1$s</string>
+    <string name="app_version_unavailable">バージョンを取得できませんでした</string>
 </resources>

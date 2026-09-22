@@ -40,6 +40,7 @@ public class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val model = editorModel
+        val version = AppVersionSource.create(this).read()
         applySystemBarTheme(model.controller.renderState.appearance.theme)
         setContent {
             LaunchedEffect(model) {
@@ -59,6 +60,7 @@ public class MainActivity : ComponentActivity() {
                     callbacks = model.controller.callbacks,
                     persistenceCallbacks = model.persistenceCallbacks,
                     language = languageModel.controller.controls,
+                    version = version,
                 )
             }
         }
