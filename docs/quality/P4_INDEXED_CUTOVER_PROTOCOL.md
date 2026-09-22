@@ -334,14 +334,15 @@ discarded or substituted.
 ## Lane 3: actual-app frame and committed-result latency
 
 Under v7 this lane is outside Issue #106's fixed order and outside its acceptance, and its four
-slots are not reserved, collected or judged by this Issue. [Issue #120](https://github.com/hideyukiMORI/NENE-PIXEL/issues/120)
-owns main's frame budget and the frame verdict, including the baseline-relative criterion that will
-replace the absolute overrun gate below. The run5 results collected under v6 stand unchanged and are
-not re-judged here: `frame-1-baseline-diagnostic` and `frame-2-candidate-diagnostic` are
+slots are not reserved, collected or judged by that Issue. [Issue #120](https://github.com/hideyukiMORI/NENE-PIXEL/issues/120)
+owns main's frame budget and the frame verdict. The run5 results collected under v6 stand unchanged
+and are not re-judged: `frame-1-baseline-diagnostic` and `frame-2-candidate-diagnostic` are
 `inconclusive` with no gross regression, `frame-3-candidate-decision` is `PERFORMANCE_FAIL` on a
 `canvas16_tap` all-frame overrun p95 of 1.012 ms, and `frame-4-baseline-decision` was never run. The
-contract text below is retained unedited as the collected-under bytes for those three records and as
-the starting point for #120; it is not a #106 collection route.
+v6 text under which those three records were collected is preserved unedited in the
+[v6 historical contract](P4_INDEXED_CUTOVER_PROTOCOL_V6_HISTORICAL.md). The contract below is the
+Lane 3 revision of 2026-09-23 under #120; it is #120's collection route, and every collection under
+it is identified by frame experiment schema `nene-pixel-p4-indexed-frame-experiment-v5`.
 
 Geometry admission is `initial-fit-centered-v1`. The Canvas semantics node describes its complete
 surface, which may include margins around the document. Four mandatory preflight fields pin exact
@@ -357,18 +358,28 @@ cells inside that projection. Fractional centers are valid; any integer input ro
 strictly inside the same cell. Nonpositive/out-of-root surface bounds, mapping outside the chosen
 cell, unverified initial viewport, or any later geometry drift rejects collection.
 
-The current `measure-m2-frame.ps1` v7/v3 route is the sole actual-app collector,
-but its fixed 16 by 16 tap is insufficient by itself. Extend that file and
-`validate-m2-frame-protocol.ps1` in place. Because the row population and
-workload identity change, the new identities are:
+Deadline definition. Overrun is `FrameCompleted - FrameDeadline` per `framestats` row, unchanged
+from the v7/v3 collector. On the named device the deadline is the intended vsync plus 10.0 ms
+(`WorkloadTarget` = 10,000,000 ns in `framestats`; `FrameInterval` is about 11.11 ms at 90 Hz). The
+10.0 ms is a property of the device and display mode, not a project budget: at another refresh rate
+or display mode the same overrun value means something else, so overrun values are compared only
+between roles measured on the same device, mode and rotation within one experiment. The run5
+finding that main itself overruns this deadline (canvas16 by a median of about 0.16 ms in the commit
+phase; canvas256 by up to 9 ms in the preview phase, proportional to the preview frame ordinal) is
+recorded in Issue #120 and is the reason the verdict below is baseline-relative.
 
-- frame schema `nene-pixel-p4-indexed-actual-app-frame-v8`;
-- experiment schema `nene-pixel-p4-indexed-frame-experiment-v4`.
+The current `measure-m2-frame.ps1` route is the sole actual-app collector; extend that file and
+`p4-indexed-frame-analysis.ps1` in place. The identities are:
 
-V7/v3 artifacts remain immutable historical evidence. No second script or
+- frame schema `nene-pixel-p4-indexed-actual-app-frame-v8` (per-frame rows unchanged);
+- experiment schema `nene-pixel-p4-indexed-frame-experiment-v5` (slot order, verdict inputs and
+  the third family below are new).
+
+V7/v3 and v8/v4 artifacts remain immutable historical evidence. No second script or
 FrameMetrics/Macrobenchmark collector is added.
 
-Every slot runs two ordered workload families:
+Every slot runs its workload families in this order; families 1 and 2 are the decision families,
+family 3 is diagnostic only:
 
 1. `canvas16_tap`: current clean 16 by 16 editor; DOWN at the top-left cell,
    100 ms preview dwell, UP, 350 ms commit dwell, then Undo to the exact clean
@@ -380,7 +391,19 @@ Every slot runs two ordered workload families:
    expansion is 4,081 raw positions (`1 + 16 * 255`), 256 effective changed
    pixels, below the 262,144 raw and 65,536 effective limits. Reset by one
    verified Undo, using at most three 150 ms state checks exactly as the tap
-   family does. Warmups perform the identical event and dwell sequence.
+   family does. Warmups perform the identical event and dwell sequence;
+3. `canvas256_repeated_diagonal_window_x2` (diagnostic slots only): the exact event, dwell,
+   reset and warmup sequence of family 2 on the same clean 256 by 256 document, with the
+   actual-size window shown at scale X2 at its default anchor for the whole family. Before the
+   warmups the collector shows the window through the dock control `editor_actual_size`, then
+   taps the chip `editor_actual_size_window_chip` until the chip reads `X2` (the scale cycle is
+   X4, X8, X16, X32, X1, X2; at most six taps, each verified through the semantics node); after the
+   samples it hides the window through the same dock control and verifies that the window nodes are
+   gone. The window is never dragged. The family's input points must lie outside the window's
+   bounds; an input point inside the window, a chip that does not read `X2`, or a window still
+   visible after the family is `INVALID` for that slot. The family exists to measure the commit-frame
+   cost of the window's single `drawBitmap` against family 2 for the M5 budget (ADR 0026); it is
+   never a decision input.
 
 The long gesture resets `gfxinfo` before DOWN, retains all DOWN/MOVE preview
 `framestats` rows as the preview phase, resets only after saving that complete
@@ -390,31 +413,48 @@ between `Total frames rendered` and raw rows, ring-buffer loss, a flagged row,
 zero preview or commit rows, a frame that cannot be assigned uniquely, or an
 UP completion that cannot be tied to verified committed UI is `INVALID`.
 
-Per workload family and slot, warmups are 5. Diagnostic sample count is 10 and
-decision sample count is 50. Samples are never pooled across the two families.
-The fixed four-slot sequence remains:
+Per workload family and slot, warmups are 5. Decision sample count is 50 and diagnostic sample
+count is 10. Samples are never pooled across families. The fixed four-slot sequence is:
 
-1. diagnostic baseline: 10 operations per family;
-2. diagnostic candidate: 10 per family;
-3. decision candidate: 50 per family;
-4. decision baseline: 50 per family.
+1. decision baseline: 50 operations per decision family;
+2. decision candidate: 50 per decision family;
+3. diagnostic baseline: 10 per family, families 1 to 3;
+4. diagnostic candidate: 10 per family, families 1 to 3.
 
-Each slot has attempt 1 only. Total measured population is 240 operations;
-every associated preview and commit frame remains in the raw frame population.
+Each slot has attempt 1 only. A slot starts only when the previous slot's run-state is complete;
+a slot is complete when every one of its families was measured and its fatal/ANR/process-death
+matches are zero. A `PERFORMANCE_FAIL` on slot 2 does not stop slots 3 and 4. Total measured
+population is 260 operations (200 decision, 60 diagnostic); every associated preview and commit
+frame remains in the raw frame population. Baseline is the `main` production commit at collection
+time; candidate is that commit plus the change under judgment, named in the experiment manifest.
 
-For each decision role and workload family independently:
+The verdict is computed by the analyzer only. The collector records completeness and gross
+regression and never a pass or fail. For the decision baseline slot, the analyzer records per family
+the all-frame overrun nearest-rank p95 and p99 as the reference; if the baseline's UP
+`HandleInputStart` to latest associated committed-result `FrameCompleted` nearest-rank p95 exceeds
+33.33 ms or its fatal/ANR/process-death matches are not zero, the baseline is `baseline-invalid`,
+the experiment stops, and main's budget is handled in its own Issue. Otherwise the slot is
+`baseline-recorded`. For the decision candidate slot, for each decision family independently:
 
-- all-frame overrun nearest-rank p95 is at most 0.0 ms;
-- all-frame overrun nearest-rank p99 is at most 16.67 ms;
-- UP `HandleInputStart` to latest associated committed-result
-  `FrameCompleted` nearest-rank p95 is at most 33.33 ms; and
+- all-frame overrun nearest-rank p95 is at most the baseline family's p95 plus 1.0 ms;
+- all-frame overrun nearest-rank p99 is at most the baseline family's p99 plus 2.0 ms;
+- UP `HandleInputStart` to latest associated committed-result `FrameCompleted` nearest-rank p95 is
+  at most 33.33 ms; and
 - fatal/ANR/process-death matches are zero.
 
-For each diagnostic family, maximum overrun above 33.34 ms or maximum
-UP-to-committed result above 100.0 ms is `gross-regression` and stops the
-experiment. Other complete diagnostic results are `inconclusive`, never PASS.
-Candidate and final baseline decision slots must both pass; a valid numeric miss
-is retained as `PERFORMANCE_FAIL` and no later slot or retry runs.
+The tolerances 1.0 ms and 2.0 ms are fixed before collection from the run5 diagnostic bootstrap
+intervals (about 2.0 ms wide for `canvas16_tap` at 10 operations): a finer difference has no
+detection power at 50 operations. Every decision family is measured before the verdict; the slot
+is `pass` only when every decision family meets all four conditions, and a valid numeric miss on
+any family is retained as `PERFORMANCE_FAIL` with no retry. The v6 absolute gates "overrun p95 at
+most 0.0 ms" and "overrun p99 at most 16.67 ms" are not part of this verdict; they move to the M5
+performance budget targets, where `canvas256_repeated_diagonal` is judged on absolute values only
+after Issue #124.
+
+For each diagnostic family, maximum overrun above 33.34 ms or maximum UP-to-committed result above
+100.0 ms is `gross-regression` and stops the experiment. Other complete diagnostic results are
+`inconclusive`, never PASS. The raw per-frame overrun column is retained in every slot for
+diagnosis.
 
 All roles are release-like, packaged-profile-installed, and explicitly compiled
 `speed-profile`. Profile generation is not part of this experiment. The current
@@ -425,13 +465,13 @@ experiment is blocked and profile handling is decided separately under ADR
 
 The wrapper bound is derived from the slot's own operation count, not fixed:
 `wrapper_bound = 300 seconds of setup + 15 seconds per operation`, where
-operations are the two workload families times their five warmups plus their
-samples. A diagnostic slot is therefore 2 x (5 + 10) = 30 operations and 750
-seconds; a decision slot is 2 x (5 + 50) = 110 operations and 1,950 seconds. The
+operations are the slot's families times their five warmups plus their
+samples. A decision slot is therefore 2 x (5 + 50) = 110 operations and 1,950 seconds; a
+diagnostic slot is 3 x (5 + 10) = 45 operations and 975 seconds. The
 decision workload has about 122 seconds of maximum intentional dwell even when
 all three 150 ms Undo checks are used, but the dwell alone is not the bound: each
 operation also pays repeated `gfxinfo` resets, `framestats` dumps, pulls and UI
-verification, and the 256 by 256 family injects 16 MOVE events. The per-operation
+verification, and the 256 by 256 families inject 16 MOVE events. The per-operation
 allowance covers that ADB/UI cost without permitting an unlimited hang. Because
 every reported per-frame metric comes from `gfxinfo`, the bound changes no
 measured value; it guards a hang only. The bounded native invocation helper
@@ -440,9 +480,10 @@ kill-on-close Job; timeout terminates its tree, records partial output and
 run-state as invalid, allows at most 10 seconds for process absence and 5 seconds
 for capture drain, and verifies restoration of rotation/stay-awake state.
 
-The v8/v4 implementation is mandatory before collection. Preflight rejects the
-current v7/v3 executable as a #106 collector, while still recognizing it as the
-historical source of the unchanged metrics and thresholds.
+Collections under this revision live under `build/reports/issue-120/` of the evidence worktree, one
+experiment root per run, and reuse nothing from run5's frame slots except as historical reference.
+The v8/v5 implementation is mandatory before collection. Preflight rejects the v8/v4 executable as
+a #120 collector, while still recognizing it as the historical source of the unchanged metrics.
 
 ## Lane 4: host format, recovery, and legacy-import latency
 
