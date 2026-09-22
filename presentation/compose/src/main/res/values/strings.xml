@@ -13,6 +13,9 @@
     <string name="undo">Undo</string>
     <string name="redo">Redo</string>
     <string name="open_palette">Open palette</string>
+    <string name="actual_size">Actual size</string>
+    <string name="actual_size_window_toggle">Actual-size window</string>
+    <string name="actual_size_window">Actual-size window at x%1$d</string>
     <string name="active_rgba">Active RGBA %1$d, %2$d, %3$d, %4$d</string>
     <string name="palette_colors">Palette colors</string>
     <string name="palette_entry">Palette color %1$d, RGBA %2$d, %3$d, %4$d, %5$d</string>

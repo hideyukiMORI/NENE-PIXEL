@@ -29,7 +29,6 @@ import io.github.hideyukimori.nenepixel.core.domain.drawing.StrokeEffect
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
-import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import io.github.hideyukimori.nenepixel.presentation.compose.R
 import io.github.hideyukimori.nenepixel.presentation.compose.input.viewportPointerInput
@@ -39,18 +38,11 @@ internal fun PixelCanvas(
     renderState: State<EditorRenderState>,
     canvasSize: CanvasSize,
     callbacks: EditorCallbacks,
+    committed: CommittedBitmapCache,
     modifier: Modifier,
 ) {
-    val pixels = remember { RenderedBitmapCache(PresentationPalette.canvasBackground.toArgb()) }
+    val background = PresentationPalette.canvasBackground.toArgb()
     val geometries = remember { CanvasGeometryCache() }
-    val pixelPaint =
-        remember {
-            Paint().apply {
-                isAntiAlias = false
-                isDither = false
-                isFilterBitmap = false
-            }
-        }
     Canvas(
         modifier =
             modifier
@@ -67,29 +59,13 @@ internal fun PixelCanvas(
         val surface = createViewportSurface() ?: return@Canvas
         val geometry = geometries.resolve(canvas, surface, current.viewport) ?: return@Canvas
         drawCanvasMargins(geometry.destination, PresentationPalette.canvasSurround(current.appearance.theme))
-        drawPixels(geometry.destination, pixels.render(current.snapshot, current.definition), pixelPaint)
+        drawPixels(
+            geometry.destination,
+            committed.render(current.snapshot, current.definition, background),
+            committed.paint,
+        )
         drawPreview(geometry.transform, current.preview, current.definition)
         drawGrid(geometry)
-    }
-}
-
-private class RenderedBitmapCache(
-    private val backgroundArgb: Int,
-) {
-    private var source: PixelSnapshot? = null
-    private var sourceDefinition: PaletteDefinition? = null
-    private var rendered: Bitmap? = null
-
-    fun render(
-        snapshot: PixelSnapshot,
-        definition: PaletteDefinition,
-    ): Bitmap {
-        if (source !== snapshot || sourceDefinition !== definition) {
-            source = snapshot
-            sourceDefinition = definition
-            rendered = snapshot.toOpaqueRenderedBitmap(definition, backgroundArgb)
-        }
-        return requireNotNull(rendered)
     }
 }
 

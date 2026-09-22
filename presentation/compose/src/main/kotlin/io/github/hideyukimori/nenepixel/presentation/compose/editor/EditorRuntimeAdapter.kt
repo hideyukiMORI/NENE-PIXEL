@@ -106,6 +106,7 @@ internal class EditorRuntimeAdapter(
             canRedo = state.historyAvailability.canRedo,
             dirtyState = state.dirtyState,
             appearance = state.workspaceState.appearance,
+            actualSizeWindow = state.workspaceState.actualSizeWindow,
         )
     }
 

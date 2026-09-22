@@ -34,6 +34,7 @@ Examples:
 - `ShowStrokePreviewAction`
 - `DismissDialogAction`
 - `SetAppearance`
+- `SetActualSizeWindow`
 
 If an editor fact must survive project save/load or participate in undo, it belongs to `DocumentState`.
 Other editor/session facts belong to `WorkspaceState`. A fact must never exist authoritatively in both.
@@ -45,7 +46,10 @@ the existing workspace action before applying the setting.
 
 ADR 0020 adds `WorkspaceAction.SetAppearance` for session theme, tablet layout and physical control
 edge. `WorkspaceState.appearance` is the single owner; setting it cancels active preview atomically.
-It is undo-neutral and preserved through new/load/recovery runtime installation via the reducer.
+By contrast the actual-size window is non-modal: `SetActualSizeWindow` keeps an in-progress preview
+(ADR 0026).
+Appearance is undo-neutral and preserved through new/load/recovery runtime installation via the
+reducer.
 Only a fresh process resets appearance to Dark/Tabletop/Right; project files never store it.
 
 ```text

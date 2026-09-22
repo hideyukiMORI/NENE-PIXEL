@@ -19,6 +19,10 @@ public class WorkspaceReducer private constructor() {
                 setAppearance(state, action.appearance)
             }
 
+            is WorkspaceAction.SetActualSizeWindow -> {
+                setActualSizeWindow(state, action.window)
+            }
+
             is WorkspaceAction.SelectPaletteEntry -> {
                 selectPaletteEntry(
                     state,
@@ -243,4 +247,14 @@ private fun setAppearance(
         WorkspaceReductionResult.Unchanged(state, WorkspaceNoChangeReason.AppearanceAlreadySet)
     } else {
         WorkspaceReductionResult.Reduced(state.withAppearance(appearance))
+    }
+
+private fun setActualSizeWindow(
+    state: WorkspaceState,
+    window: ActualSizeWindow,
+): WorkspaceReductionResult =
+    if (state.actualSizeWindow == window) {
+        WorkspaceReductionResult.Unchanged(state, WorkspaceNoChangeReason.ActualSizeWindowAlreadySet)
+    } else {
+        WorkspaceReductionResult.Reduced(state.withActualSizeWindow(window))
     }

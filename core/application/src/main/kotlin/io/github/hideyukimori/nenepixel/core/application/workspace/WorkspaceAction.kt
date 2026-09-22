@@ -11,6 +11,10 @@ public sealed interface WorkspaceAction {
         public val appearance: EditorAppearance,
     ) : WorkspaceAction
 
+    public data class SetActualSizeWindow(
+        public val window: ActualSizeWindow,
+    ) : WorkspaceAction
+
     public data class SelectPaletteEntry(
         public val index: PaletteIndex,
     ) : WorkspaceAction

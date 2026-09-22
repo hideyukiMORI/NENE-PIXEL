@@ -30,6 +30,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
+import io.github.hideyukimori.nenepixel.core.application.workspace.ActualSizeWindow
 import io.github.hideyukimori.nenepixel.core.application.workspace.EditorLayout
 import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
@@ -43,7 +44,12 @@ internal fun EditorToolDock(
 ) {
     val controls by remember(state) {
         derivedStateOf {
-            DockInputs(state.value.activeTool, state.value.canUndo, state.value.canRedo, state.value.activeColor)
+            DockInputs(
+                state.value.activeTool,
+                DockHistory(state.value.canUndo, state.value.canRedo),
+                state.value.activeColor,
+                state.value.actualSizeWindow,
+            )
         }
     }
     val modifier = Modifier.padding(4.dp)
@@ -75,9 +81,12 @@ private fun DockButtons(
     DockButton(DockControl(R.string.eraser, EditorIcon.Eraser, inputs.activeTool == DrawingTool.Eraser)) {
         callbacks.onSelectTool(DrawingTool.Eraser)
     }
-    DockButton(DockControl(R.string.undo, EditorIcon.Undo, enabled = inputs.canUndo)) { callbacks.onUndo() }
-    DockButton(DockControl(R.string.redo, EditorIcon.Redo, enabled = inputs.canRedo)) { callbacks.onRedo() }
+    DockButton(DockControl(R.string.undo, EditorIcon.Undo, enabled = inputs.history.canUndo)) { callbacks.onUndo() }
+    DockButton(DockControl(R.string.redo, EditorIcon.Redo, enabled = inputs.history.canRedo)) { callbacks.onRedo() }
     DockButton(DockControl(R.string.palette, EditorIcon.Palette), inputs.activeColor, openPalette)
+    DockButton(
+        DockControl(R.string.actual_size, EditorIcon.ActualSize, inputs.actualSizeWindow.visible),
+    ) { callbacks.onSetActualSizeWindow(inputs.actualSizeWindow.toggled()) }
 }
 
 @Composable
@@ -142,9 +151,14 @@ private fun DockSymbol(
 
 private data class DockInputs(
     val activeTool: DrawingTool,
+    val history: DockHistory,
+    val activeColor: PixelColor,
+    val actualSizeWindow: ActualSizeWindow,
+)
+
+private data class DockHistory(
     val canUndo: Boolean,
     val canRedo: Boolean,
-    val activeColor: PixelColor,
 )
 
 private data class DockControl(
@@ -158,6 +172,7 @@ private data class DockControl(
             EditorIcon.Pencil -> R.string.pencil_tool
             EditorIcon.Eraser -> R.string.eraser_tool
             EditorIcon.Palette -> R.string.open_palette
+            EditorIcon.ActualSize -> R.string.actual_size_window_toggle
             EditorIcon.Undo, EditorIcon.Redo, EditorIcon.File, EditorIcon.Settings, EditorIcon.Close -> label
         }
 }

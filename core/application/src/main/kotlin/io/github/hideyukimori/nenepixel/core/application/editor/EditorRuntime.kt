@@ -140,14 +140,18 @@ public class EditorRuntime private constructor(
             }
 
             is RuntimeOwnerEffect.ReplaceOwners -> {
-                val appearance = owners.workspaceState.appearance
+                // Session-only editor choices survive document replacement (ADR 0020, ADR 0026).
+                val carried = owners.workspaceState
+                val source = effect.owners.commandGateway.captureSource()
+                val withAppearance =
+                    workspaceReducer
+                        .reduce(effect.owners.workspaceState, WorkspaceAction.SetAppearance(carried.appearance), source)
+                        .nextState
                 val workspace =
-                    workspaceReducer.reduce(
-                        effect.owners.workspaceState,
-                        WorkspaceAction.SetAppearance(appearance),
-                        effect.owners.commandGateway.captureSource(),
-                    )
-                owners = effect.owners.copy(workspaceState = workspace.nextState)
+                    workspaceReducer
+                        .reduce(withAppearance, WorkspaceAction.SetActualSizeWindow(carried.actualSizeWindow), source)
+                        .nextState
+                owners = effect.owners.copy(workspaceState = workspace)
             }
         }
     }

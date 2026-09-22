@@ -11,24 +11,29 @@ public class WorkspaceState private constructor(
     public val viewport: ViewportState,
     public val preview: ToolGesture?,
     public val appearance: EditorAppearance,
+    public val actualSizeWindow: ActualSizeWindow,
 ) {
     internal fun withActivePaletteIndex(activePaletteIndex: PaletteIndex): WorkspaceState =
-        WorkspaceState(activePaletteIndex, activeTool, viewport, preview, appearance)
+        WorkspaceState(activePaletteIndex, activeTool, viewport, preview, appearance, actualSizeWindow)
 
     internal fun withActiveTool(activeTool: DrawingTool): WorkspaceState =
-        WorkspaceState(activePaletteIndex, activeTool, viewport, preview, appearance)
+        WorkspaceState(activePaletteIndex, activeTool, viewport, preview, appearance, actualSizeWindow)
 
     internal fun withPreview(preview: ToolGesture): WorkspaceState =
-        WorkspaceState(activePaletteIndex, activeTool, viewport, preview, appearance)
+        WorkspaceState(activePaletteIndex, activeTool, viewport, preview, appearance, actualSizeWindow)
 
     internal fun withoutPreview(): WorkspaceState =
-        WorkspaceState(activePaletteIndex, activeTool, viewport, null, appearance)
+        WorkspaceState(activePaletteIndex, activeTool, viewport, null, appearance, actualSizeWindow)
 
     internal fun withViewport(viewport: ViewportState): WorkspaceState =
-        WorkspaceState(activePaletteIndex, activeTool, viewport, null, appearance)
+        WorkspaceState(activePaletteIndex, activeTool, viewport, null, appearance, actualSizeWindow)
 
     internal fun withAppearance(appearance: EditorAppearance): WorkspaceState =
-        WorkspaceState(activePaletteIndex, activeTool, viewport, null, appearance)
+        WorkspaceState(activePaletteIndex, activeTool, viewport, null, appearance, actualSizeWindow)
+
+    /** The actual-size window is non-modal: it never cancels an in-progress gesture (ADR 0026). */
+    internal fun withActualSizeWindow(actualSizeWindow: ActualSizeWindow): WorkspaceState =
+        WorkspaceState(activePaletteIndex, activeTool, viewport, preview, appearance, actualSizeWindow)
 
     override fun equals(other: Any?): Boolean =
         this === other ||
@@ -38,22 +43,21 @@ public class WorkspaceState private constructor(
                     activeTool == other.activeTool &&
                     viewport == other.viewport &&
                     preview == other.preview &&
-                    appearance == other.appearance
+                    appearance == other.appearance &&
+                    actualSizeWindow == other.actualSizeWindow
             )
 
     override fun hashCode(): Int =
-        (
-            ((activePaletteIndex.hashCode() * HASH_MULTIPLIER) + activeTool.hashCode()) * HASH_MULTIPLIER +
-                viewport.hashCode()
-        ) *
-            HASH_MULTIPLIER + (preview?.hashCode() ?: 0) + appearance.hashCode()
+        listOf(activePaletteIndex, activeTool, viewport, preview, appearance, actualSizeWindow)
+            .fold(INITIAL_HASH) { hash, value -> hash * HASH_MULTIPLIER + (value?.hashCode() ?: 0) }
 
     override fun toString(): String =
         "WorkspaceState(" +
             "activePaletteIndex=$activePaletteIndex, activeTool=$activeTool, viewport=$viewport, " +
-            "preview=$preview, appearance=$appearance)"
+            "preview=$preview, appearance=$appearance, actualSizeWindow=$actualSizeWindow)"
 
     public companion object {
+        private const val INITIAL_HASH: Int = 1
         private const val HASH_MULTIPLIER: Int = 31
 
         public fun create(canvas: CanvasSize): WorkspaceState =
@@ -63,6 +67,7 @@ public class WorkspaceState private constructor(
                 ViewportState.initial(canvas),
                 null,
                 EditorAppearance.initial,
+                ActualSizeWindow.initial,
             )
     }
 }
