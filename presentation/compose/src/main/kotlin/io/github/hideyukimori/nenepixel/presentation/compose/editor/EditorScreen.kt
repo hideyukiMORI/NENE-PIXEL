@@ -44,7 +44,7 @@ internal fun EditorScreen(
     callbacks: EditorCallbacks,
     persistenceCallbacks: EditorPersistenceCallbacks,
     modifier: Modifier,
-    language: AppLanguageControls,
+    settings: EditorSettingsInputs,
 ) {
     val appearance by remember(renderState) { derivedStateOf { renderState.value.appearance } }
     var panel by rememberSaveable { mutableStateOf<EditorPanel?>(null) }
@@ -73,7 +73,7 @@ internal fun EditorScreen(
             }
             panel?.let { current ->
                 EditorPanelSurface(EditorPanelPlacement(current, appearance.controlEdge), { panel = null }) {
-                    PanelContent(current, EditorPanelInputs(renderState, callbacks, storage, language)) { panel = null }
+                    PanelContent(current, EditorPanelInputs(renderState, callbacks, storage, settings)) { panel = null }
                 }
             }
             PersistenceConfirmation(persistenceOperation, persistenceCallbacks)
@@ -187,7 +187,7 @@ private fun PanelContent(
         }
 
         EditorPanel.Appearance -> {
-            AppearanceControls(state.appearance, inputs.callbacks, inputs.language)
+            AppearanceControls(state.appearance, inputs.callbacks, inputs.settings)
         }
 
         EditorPanel.File -> {
@@ -214,5 +214,5 @@ private data class EditorPanelInputs(
     val state: State<EditorRenderState>,
     val callbacks: EditorCallbacks,
     val storage: EditorStorageInputs,
-    val language: AppLanguageControls,
+    val settings: EditorSettingsInputs,
 )

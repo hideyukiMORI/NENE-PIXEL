@@ -113,4 +113,7 @@
     <string name="mvp_png">PNG完整保留像素和透明度。导出不会将项目标记为已保存。PNG是供其他用途使用的图像，不能代替可编辑的项目文件。</string>
     <string name="mvp_compatibility_title">项目兼容性</string>
     <string name="mvp_compatibility">此版本读写v1项目格式。更新的格式、损坏或超出限制的文件会被拒绝，不会替换当前作品。未来更改格式前，必须先制定保留v1作品的迁移方案。</string>
+    <string name="app_version">版本 %1$s (%2$d)</string>
+    <string name="app_version_name">版本 %1$s</string>
+    <string name="app_version_unavailable">无法获取版本信息</string>
 </resources>

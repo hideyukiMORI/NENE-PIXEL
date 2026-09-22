@@ -2,6 +2,7 @@ package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveProjection
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationProjection
@@ -15,12 +16,14 @@ public fun NenePixelEditor(
     callbacks: EditorCallbacks,
     persistenceCallbacks: EditorPersistenceCallbacks,
     language: AppLanguageControls,
+    version: AppVersionDisplay,
     modifier: Modifier = Modifier,
 ) {
     val renderState = renderStates.collectAsState()
     val persistenceOperation = persistenceOperations.collectAsState()
     val autosave = autosaveStates.collectAsState()
     val languageSettings = language.settings.collectAsState()
+    val settings = remember(language, version) { EditorSettingsInputs(language, version) }
     if (languageSettings.value.status == AppLanguageStatus.Loading) {
         LanguageLoadingScreen()
     } else {
@@ -31,7 +34,7 @@ public fun NenePixelEditor(
             callbacks = callbacks,
             persistenceCallbacks = persistenceCallbacks,
             modifier = modifier,
-            language = language,
+            settings = settings,
         )
     }
 }

@@ -31,6 +31,7 @@ principle: understood at first sight, and used in every session.
 | settings sheet | Layout choice | no | settings sheet | `AppearanceControls.kt` |
 | settings sheet | Control-edge choice | no | settings sheet | `AppearanceControls.kt` |
 | settings sheet | Language choice and retry | no | settings sheet | `LanguageChoices.kt` |
+| settings sheet | App version text | no | settings sheet | `AppVersionLine.kt`; read by the host from PackageManager, shown after the language choice |
 | secondary: file surface | Save As | no | secondary | `PersistenceControls.kt` |
 | secondary: file surface | Load | no | secondary | `PersistenceControls.kt` |
 | secondary: file surface | New document and its dimension dialog | no | secondary | `NewDocumentControls.kt` |
