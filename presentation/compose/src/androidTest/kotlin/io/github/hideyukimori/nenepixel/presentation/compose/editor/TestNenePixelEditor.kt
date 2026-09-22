@@ -62,6 +62,7 @@ internal fun TestNenePixelEditor(
                     {},
                 )
             },
+        version = AppVersionDisplay.Available("0.1.0", 1L),
         modifier = modifier,
     )
 }

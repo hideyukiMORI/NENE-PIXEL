@@ -144,4 +144,7 @@
     <string name="legacy_reducing">変換後のプレビューを作成しています…</string>
     <string name="legacy_preparing">新しい作品を準備しています…</string>
     <string name="legacy_converted">変換した作品を開きました · 未保存</string>
+    <string name="app_version">バージョン %1$s (%2$d)</string>
+    <string name="app_version_name">バージョン %1$s</string>
+    <string name="app_version_unavailable">バージョンを取得できませんでした</string>
 </resources>

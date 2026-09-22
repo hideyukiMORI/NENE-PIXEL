@@ -144,4 +144,7 @@
     <string name="legacy_reducing">正在生成转换预览…</string>
     <string name="legacy_preparing">正在准备新作品…</string>
     <string name="legacy_converted">已打开转换后的作品，尚未保存</string>
+    <string name="app_version">版本 %1$s (%2$d)</string>
+    <string name="app_version_name">版本 %1$s</string>
+    <string name="app_version_unavailable">无法获取版本信息</string>
 </resources>
