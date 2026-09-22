@@ -46,8 +46,12 @@ Read the active GitHub Issue, relevant accepted ADRs, and active waivers after t
 - Do not introduce OpenAPI, HTTP, or MCP before the decision gate in `docs/API_STRATEGY.md` is satisfied.
 - Do not commit secrets, local SDK paths, signing materials, generated build output, IDE state, or private user assets.
 - Prefer the smallest change that fully follows the canonical path.
-- MUST follow QLT-011 through QLT-016 in `docs/QUALITY_GATES.md` when planning, running, and reporting verification. Record the change scope and applicable checks before execution.
-- MUST use narrow checks during iteration, handoff, and review preparation. The full canonical check/build is a pre-merge gate for the Issue's final PR candidate, not a per-edit or handoff requirement. A valid required CI result satisfies it without a duplicate local run. Follow QLT-011 for invalidation.
+- MUST follow QLT-011 through QLT-018 in `docs/QUALITY_GATES.md` when planning, running, and reporting verification. Record the change scope and applicable checks before execution.
+- MUST select checks from the diff. Name the changed behavior and the regression each check detects in the changed code or in a direct dependent or caller; do not run a check that cannot be explained that way. Documentation, comment, and rule changes need no app behavior tests. A hook or developer-tool change needs only that tool's short check.
+- MUST reuse a passing result across assignee, work stage, appended documentation, and commit-identity changes while the verified paths and their relevant dependencies are unchanged. Rerun only for a relevant change, a failure, or a concrete unverified concern. Record the reused command, tree identity, and log location.
+- MUST NOT run the full canonical check/build by default. Run it locally only when narrow checks cannot show the impact, such as a shared build-logic, toolchain, or cross-module contract change, and state the scope and reason in one line first without adding approval ceremony. Required CI `quality` on the Issue's final non-draft PR candidate is the single full gate; a valid result is not duplicated locally. Follow QLT-012 for invalidation.
+- MUST NOT derail into unrelated failures. Fix failures the diff causes; record others with evidence in a separate Issue and continue. A check that passes on a rerun with unchanged inputs is failing: record the instability instead of the pass.
+- MUST NOT add hooks or automation that run an unscoped full suite or force a rerun of verified work at push, review, or merge. Prefer existing target selection and recorded result reuse; do not build automatic test-selection infrastructure or disable verification wholesale.
 - MUST NOT start device performance measurement, profile regeneration, or forced cold builds merely because a commit, documentation, or handoff changed. Apply the documented trigger and artifact-identity rules.
 - MUST NOT treat historical measurement recipes as current authorization. Reconcile the Issue, accepted protocol, and executable harness before collecting new acceptance evidence; preserve historical FAIL/invalid results.
 
@@ -58,6 +62,8 @@ Every completed change must report:
 - Issue and rule IDs involved
 - files and behavior changed
 - verification commands and results
+- reused results with their command, tree identity, and log, or `none`
+- unrelated failures recorded in their own Issue, or `none`
 - documentation or schema changes
 - remaining risks
 - active waiver IDs, or `none`
