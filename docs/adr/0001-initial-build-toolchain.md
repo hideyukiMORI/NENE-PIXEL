@@ -202,4 +202,5 @@ If a selected tool cannot produce the initial clean build, stop the scaffold cha
 - Compatible dependency refresh: #92
 - PR: #11
 - Supersedes: none
-- Superseded by: ADR 0017 for the severity of `GradleDependency` and `NewerVersionAvailable` only
+- Superseded by: ADR 0017 for the severity of `GradleDependency`, `NewerVersionAvailable`, and, since its
+  2026-09-22 amendment (#115), `AndroidGradlePluginVersion` only

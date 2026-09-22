@@ -12,7 +12,7 @@ The `P0-03` implementation provides compiler warning failure, ktlint formatting,
 
 Compiler warnings in project-owned Kotlin code MUST be errors. Android lint, detekt, formatting, and test warnings configured as errors must fail CI.
 
-The two lint checks whose result depends on the newest version published at run time, `GradleDependency` and `NewerVersionAvailable`, are informational by [ADR 0017](adr/0017-advisory-dependency-freshness-lint.md). They still run and still appear in the lint report; catalog freshness is enforced by the dependency refresh cadence below, not by the merge gate.
+The three lint checks whose result depends on the newest version published at run time, `GradleDependency`, `NewerVersionAvailable`, and `AndroidGradlePluginVersion`, are informational by [ADR 0017](adr/0017-advisory-dependency-freshness-lint.md) (the third added 2026-09-22 for #115). They still run and still appear in the lint report; catalog freshness is enforced by the dependency refresh cadence below, not by the merge gate.
 
 ### QLT-002 — Greenfield baselines are prohibited
 
@@ -268,4 +268,4 @@ Direct pushes, force pushes, and branch deletion on `main` must be blocked.
 
 ## Dependency refresh
 
-The version catalog is refreshed by the maintainer through one focused `build(toolchain)` Issue and PR, never inside a feature PR. The cadence is at least monthly, aligned with the Compose BOM release, or earlier when a needed fix ships. The input is the informational `GradleDependency` / `NewerVersionAvailable` findings of a network-enabled `:app:android:lintDebug` run; `--offline` runs do not report them. A refresh regenerates locks with the exceptional command in [Development Setup](DEVELOPMENT_SETUP.md), appends verification metadata, records a dated paragraph in the affected ADR, and leaves historical evidence documents unchanged (precedent: #48, #92). A dependency introduced by a feature PR is declared at the newest published release in that PR.
+The version catalog is refreshed by the maintainer through one focused `build(toolchain)` Issue and PR, never inside a feature PR. The cadence is at least monthly, aligned with the Compose BOM release, or earlier when a needed fix ships. The input is the informational `GradleDependency` / `NewerVersionAvailable` / `AndroidGradlePluginVersion` findings of a network-enabled `:app:android:lintDebug` run; `--offline` runs do not report them. A refresh regenerates locks with the exceptional command in [Development Setup](DEVELOPMENT_SETUP.md), appends verification metadata, records a dated paragraph in the affected ADR, and leaves historical evidence documents unchanged (precedent: #48, #92). A dependency introduced by a feature PR is declared at the newest published release in that PR.

@@ -55,8 +55,10 @@ internal fun Project.configureAndroidConvention(
     }
 }
 
-// Lint checks that compare catalog version literals against a remote index. Severity rationale: ADR 0017.
-private val REMOTE_INDEX_DEPENDENCY_CHECKS: Set<String> = setOf("GradleDependency", "NewerVersionAvailable")
+// Lint checks whose result depends on the newest version published at run time (catalog literals and
+// the Android Gradle Plugin). Severity rationale: ADR 0017, amended 2026-09-22 for #115.
+private val REMOTE_INDEX_DEPENDENCY_CHECKS: Set<String> =
+    setOf("AndroidGradlePluginVersion", "GradleDependency", "NewerVersionAvailable")
 
 private const val COMPILE_SDK: Int = 37
 private const val MIN_SDK: Int = 26
