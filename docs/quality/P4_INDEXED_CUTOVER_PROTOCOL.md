@@ -395,7 +395,7 @@ family 3 is diagnostic only:
 3. `canvas256_repeated_diagonal_window_x2` (diagnostic slots only): the exact event, dwell,
    reset and warmup sequence of family 2 on the same clean 256 by 256 document, with the
    actual-size window shown at scale X2 at its default anchor for the whole family. Before the
-   warmups the collector shows the window through the dock control `editor_actual_size`, then
+   warmups the collector shows the window through the dock control `editor_actual_size_window_toggle`, then
    taps the chip `editor_actual_size_window_chip` until the chip reads `X2` (the scale cycle is
    X4, X8, X16, X32, X1, X2; at most six taps, each verified through the semantics node); after the
    samples it hides the window through the same dock control and verifies that the window nodes are

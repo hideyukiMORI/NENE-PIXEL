@@ -1,3 +1,4 @@
+# Lane 3 revision 2026-09-23 (#120): order, no fail-fast, verdict by analyzer only, experiment schema v5
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
@@ -241,7 +242,7 @@ $resolvedExperiment =
 $physicalPresentEnabled = $PSBoundParameters.ContainsKey("PhysicalPresentTraceProcessorPath")
 $physicalPresentSchema = "nene-pixel-m2-physical-present-v2"
 $frameSchema = "nene-pixel-p4-indexed-actual-app-frame-v8"
-$experimentSchema = "nene-pixel-p4-indexed-frame-experiment-v4"
+$experimentSchema = "nene-pixel-p4-indexed-frame-experiment-v5"
 $noSampleInspectionSchema = "nene-pixel-p4-no-sample-inspection-v1"
 $baselineProductionCommitRequired = "2dd4e01e3bbe88967237cde4e28412d2962fd590"
 $workloadCatalog = @(
@@ -441,10 +442,10 @@ if ($SampleCount -ne $expectedSampleCount) {
     throw "$RunKind collection requires exactly $expectedSampleCount operation samples."
 }
 $comparisonOrder = @(
-    "diagnostic:baseline",
-    "diagnostic:candidate",
+    "decision:baseline",
     "decision:candidate",
-    "decision:baseline"
+    "diagnostic:baseline",
+    "diagnostic:candidate"
 )
 $comparisonIdentity = "$RunKind`:$CandidateRole"
 if ($comparisonOrder[$ComparisonSequenceIndex - 1] -ne $comparisonIdentity) {
@@ -653,7 +654,7 @@ function Test-RunStateIdentity {
         [Parameter(Mandatory = $true)][int]$ExpectedAttempt
     )
 
-    $expectedCount = if ($SequenceIndex -le 2) { 10 } else { 50 }
+    $expectedCount = if ($SequenceIndex -le 2) { 50 } else { 10 }
     $propertyNames = if ($null -eq $State) { @() } else { @($State.PSObject.Properties.Name) }
     return (
         $null -ne $State -and
@@ -773,13 +774,13 @@ if ($ComparisonSequenceIndex -gt 1 -and -not $InspectGeometryOnly) {
     $previousSlot = "slot-{0:D2}-{1}-{2}" -f ($ComparisonSequenceIndex - 1), $previousIdentity[0], $previousIdentity[1]
     $previousAttempt = 1
     $previousState = Get-RunState -Directory (Join-Path $resolvedExperiment "$previousSlot-attempt-1")
-    $requiredPreviousVerdict = if ($ComparisonSequenceIndex -eq 4) { "pass" } else { "inconclusive" }
     if (
         -not (Test-RunStateIdentity -State $previousState -SequenceIndex ($ComparisonSequenceIndex - 1) -ExpectedAttempt $previousAttempt) -or
         $previousState.status -ne "completed" -or
-        $previousState.verdict -ne $requiredPreviousVerdict
+        $previousState.complete_run -ne $true -or
+        $previousState.verdict -eq "gross-regression"
     ) {
-        throw "Sequence slot $ComparisonSequenceIndex requires completed slot $($ComparisonSequenceIndex - 1) verdict '$requiredPreviousVerdict'."
+        throw "Sequence slot $ComparisonSequenceIndex requires complete slot $($ComparisonSequenceIndex - 1) that did not stop the experiment."
     }
 }
 if ($RunKind -eq "decision" -and ($Variant -ne "release-like" -or $CompilationMode -ne "speed-profile")) {
@@ -850,7 +851,9 @@ function Write-RunState {
         [string]$Status,
 
         [Parameter(Mandatory = $true)]
-        [string]$Verdict
+        [string]$Verdict,
+
+        [bool]$CompleteRun = $false
     )
 
     $state =
@@ -861,6 +864,7 @@ function Write-RunState {
             attempt = $Attempt
             status = $Status
             verdict = $Verdict
+            complete_run = $CompleteRun
             workload_order = $workloadOrder
             measured_workload_counts = $script:measuredWorkloadCounts
             measured_operation_count =
@@ -2527,10 +2531,6 @@ try {
         if (@($familyLogcat | Select-String -Pattern "FATAL EXCEPTION|ANR in|Fatal signal|Process .* has died").Count -gt 0) {
             throw "Fatal, ANR, signal, or process-death evidence was observed after $workload."
         }
-        if ($isDecisionLane -and -not $familyResult.Passed) {
-            $earlyStopStatus = "fail"
-            break
-        }
         if ($RunKind -eq "diagnostic" -and $familyResult.GrossRegression) {
             $earlyStopStatus = "gross-regression"
             break
@@ -2614,9 +2614,8 @@ try {
             $summaryCursor += 1
         }
     }
-    $passed =
+    $completeRun =
         $familyResults.Count -eq $workloadCatalog.Count -and
-        @($familyResults | Where-Object { -not $_.Passed }).Count -eq 0 -and
         $fatalCount -eq 0
     $grossRegression = @($familyResults | Where-Object { $_.GrossRegression }).Count -gt 0
     $acceptanceLane =
@@ -2628,10 +2627,7 @@ try {
         elseif ($physicalPresentEnabled) {
             $physicalAnalysis.Status
         }
-        elseif ($isDecisionLane) {
-            if ($passed) { "pass" } else { "fail" }
-        }
-        elseif ($grossRegression) {
+        elseif (-not $isDecisionLane -and $grossRegression) {
             "gross-regression"
         }
         else {
@@ -2644,7 +2640,8 @@ try {
         "experiment_id=$ExperimentId",
         "status=$status",
         "acceptance_lane=$acceptanceLane",
-        "threshold_status=$(if ($null -ne $earlyStopStatus) { $earlyStopStatus } elseif ($isDecisionLane) { if ($passed) { 'pass' } else { 'fail' } } elseif ($grossRegression) { 'gross-regression' } else { 'inconclusive' })",
+        "complete_run=$(if ($completeRun) { 'true' } else { 'false' })",
+        "threshold_status=$(if ($null -ne $earlyStopStatus) { $earlyStopStatus } elseif (-not $isDecisionLane -and $grossRegression) { 'gross-regression' } else { 'inconclusive' })",
         "variant=$Variant",
         "run_kind=$RunKind",
         "candidate_role=$CandidateRole",
@@ -2733,7 +2730,7 @@ try {
         $metadata.Add("limitation=$limitation")
     }
     [System.IO.File]::WriteAllLines((Join-Path $resolvedOutput "metadata.txt"), $metadata)
-    Write-RunState -Status "completed" -Verdict $status
+    Write-RunState -Status "completed" -Verdict $status -CompleteRun $completeRun
 
     $successfulMetadata = @($metadata)
 }
