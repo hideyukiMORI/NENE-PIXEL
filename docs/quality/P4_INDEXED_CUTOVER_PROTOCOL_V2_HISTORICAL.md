@@ -505,7 +505,8 @@ constant decision, the valid descriptive host populations, and final CI.
 
 ## Governing decisions
 
-- [ADR 0024](../adr/0024-indexed-project-compatibility.md) fixes the atomic compatibility cutover.
+- [ADR 0025](../adr/0025-indexed-project-compatibility.md), accepted as ADR 0024 when this revision
+  was accepted and renumbered on 2026-09-22, fixes the atomic compatibility cutover.
 - [ADR 0022](../adr/0022-indexed-palette-and-migration.md) fixes indexed meaning and logical budgets.
 - [Quality Gates](../QUALITY_GATES.md) fix verification scope, frequency and evidence preservation.
 

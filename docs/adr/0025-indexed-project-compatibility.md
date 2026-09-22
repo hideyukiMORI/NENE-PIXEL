@@ -1,4 +1,4 @@
-# ADR 0024: Indexed project compatibility and preserved legacy conversion
+# ADR 0025: Indexed project compatibility and preserved legacy conversion
 
 - Status: accepted
 - Date: 2026-09-13

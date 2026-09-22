@@ -14,7 +14,8 @@ not an alternative current collection route.
 The accepted canonical v5 bytes are SHA-256
 `52c420c97ad838dc220ee3455485e1e4083d171e79e3a15aa4964ff173d2f004`, 35,343 bytes, as recorded in
 `build/reports/issue-106/p4-experiment-v5-run4/preflight.json`. This archive prepends only the two
-paragraphs above; the contract text below is unchanged.
+paragraphs above and renumbers the one ADR 0024 link below to the same document's new number
+ADR 0025; the contract text is otherwise unchanged.
 
 Status: accepted prospective contract for Issue #106; no measurement collected.
 
@@ -609,7 +610,8 @@ constant decision, the valid descriptive host populations, and final CI.
 
 ## Governing decisions
 
-- [ADR 0024](../adr/0024-indexed-project-compatibility.md) fixes the atomic compatibility cutover.
+- [ADR 0025](../adr/0025-indexed-project-compatibility.md), accepted as ADR 0024 when this revision
+  was accepted and renumbered on 2026-09-22, fixes the atomic compatibility cutover.
 - [ADR 0022](../adr/0022-indexed-palette-and-migration.md) fixes indexed meaning and logical budgets.
 - [Quality Gates](../QUALITY_GATES.md) fix verification scope, frequency and evidence preservation.
 

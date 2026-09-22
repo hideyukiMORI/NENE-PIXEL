@@ -101,7 +101,7 @@ boundary defined by ADR 0014; they are not document commands against the abandon
 Application-owned persistence ports exchange one immutable `DocumentState` capture or one fully
 validated `DocumentImportSource.Current(DocumentState)` / `Legacy(LegacyRgbaSource)` candidate.
 The sole pixel-engine legacy planner performs exact classification and explicit reduction under
-ADR 0024; a legacy source is never installed as an editable document. The application module never
+ADR 0025; a legacy source is never installed as an editable document. The application module never
 depends on the project-format codec, and a
 persistence adapter never reads from or mutates a live runtime. Encoding, provider/file I/O, and
 decoding occur outside the runtime lock through suspend ports and an application-composed IO
@@ -137,7 +137,7 @@ Cancelling a save/load/confirmation operation invalidates its opaque operation i
 one physical-operation lease until the picker/transport call and cleanup have actually finished.
 Late success cannot update a checkpoint or install a runtime, and another operation remains typed
 busy while cancellation drains. An unadopted startup Candidate is preserved by Save As. New/load
-normally require explicit recovery-discard consent before retiring it. ADR 0024 additionally requires
+normally require explicit recovery-discard consent before retiring it. ADR 0025 additionally requires
 a verified exact original-project copy before any retirement of a recovery-only legacy source that
 needs reduction. New/load/discard/decline/autosave cannot bypass that source-bound obligation.
 Cancelled conversion retains the startup candidate; copy selection or unverified write is no proof.
@@ -184,7 +184,7 @@ the cap for a distinct pending capture survives the preceding publication's comp
 An obsolete request result cannot suspend a newer observation.
 Accepting a current or exactly convertible startup recovery offer uses the one runtime-install
 boundary, retains its generation as the new runtime's last-safe lineage, and starts dirty. A source
-that needs reduction enters ADR 0024's original-copy and preview coordination. Declining may retire
+that needs reduction enters ADR 0025's original-copy and preview coordination. Declining may retire
 the generation only after satisfying its preservation obligation, without replacing the runtime.
 
 ## Mandatory rules
@@ -337,7 +337,7 @@ bound to the source, independently of destination changes. Apply requires a curr
 current replacement consent and any required original-preservation proof. It prepares and installs
 a new identity, revision zero, dirty state and empty history through the existing atomic install
 boundary. Preview does not consume identities. No legacy RGBA editable mode or indexed-to-v1 writer
-is allowed. [ADR 0024](adr/0024-indexed-project-compatibility.md) fixes exact lifecycle and byte rules.
+is allowed. [ADR 0025](adr/0025-indexed-project-compatibility.md) fixes exact lifecycle and byte rules.
 
 ## Canonical result vocabulary
 

@@ -53,7 +53,7 @@ commands/actions or authorize unrelated preferences.
 ### ARC-005 — Controlled mutation enclave
 
 Externally visible domain and application state MUST be immutable. `PixelSnapshot`, `Stroke`,
-`PaletteRemap` and the bounded uninstalled `LegacyRgbaSource` of ADR 0024 MAY
+`PaletteRemap` and the bounded uninstalled `LegacyRgbaSource` of ADR 0025 MAY
 privately own defensive packed primitive storage that is never mutated after construction and is
 never exposed; any bulk read returns a copy. `:core:project-format` codecs and
 `:adapters:persistence` transports MAY use bounded, privately owned mutable byte buffers only for one
@@ -80,7 +80,7 @@ ADR 0022 extends the same narrow codec permission to Palette JSON v1: bounded pr
 buffers, string/collection builders and parse cursors for one 16,384-byte envelope (plus one-byte
 oversize probe). They never become pixel workspaces or another palette owner. PaletteDefinition
 references the existing immutable Palette. Its definition/default validation remains in domain.
-ADR 0024 accepts the atomic indexed cutover: DocumentState owns exactly one PaletteDefinition and
+ADR 0025 accepts the atomic indexed cutover: DocumentState owns exactly one PaletteDefinition and
 one packed-U8 PixelSnapshot. PixelSnapshot owns no palette or second authoritative entry count.
 Its private derived maximum index may support DocumentState's cross-value validation through
 Palette.entryAt. LegacyRgbaSource owns immutable exact RGBA only until import completes; it is

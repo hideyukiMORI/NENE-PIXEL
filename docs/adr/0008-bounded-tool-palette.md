@@ -10,7 +10,7 @@
 ## Indexed cutover refinement (2026-09-13, #106)
 
 [ADR 0022](0022-indexed-palette-and-migration.md) and
-[ADR 0024](0024-indexed-project-compatibility.md) replace the tool-configuration ownership below.
+[ADR 0025](0025-indexed-project-compatibility.md) replace the tool-configuration ownership below.
 DocumentState owns one PaletteDefinition with 2–256 ordered exact colors and a validated default.
 Palette remains the sole immutable color-list owner; its lower-level one-entry value is not a valid
 document definition. EditorRuntime and WorkspaceReducer no longer retain independent palettes.
@@ -22,7 +22,7 @@ ReplacePaletteCommand commits definition and index mapping through the sole comm
 is reconciled by the reducer in the same runtime lock: forward maps it, undo/redo keeps a valid
 selection or uses the restored default. Palette edits now affect revision/history/dirty/rendering/
 autosave; #107 adds the draft UI separately. The prior 32-entry/tool-only policy and no-persistence
-claims below are historical, not a second live palette mode. Post-v2 rollback follows ADR 0024.
+claims below are historical, not a second live palette mode. Post-v2 rollback follows ADR 0025.
 
 ## Context
 

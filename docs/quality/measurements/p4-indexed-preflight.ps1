@@ -12,8 +12,8 @@ $ErrorActionPreference = 'Stop'
 # The measurement inventory is derived from each
 # role clone's own build tree, so it holds that clone's measurement sources only - the P4 tooling
 # itself lives at newer commits and is bound through `tools.*`, not through measurement_files.
-$script:P4ProtocolId = 'nene-pixel-p4-indexed-cutover-verification-v6'
-$script:P4ManifestSchema = 'nene-pixel-p4-indexed-preflight-v6'
+$script:P4ProtocolId = 'nene-pixel-p4-indexed-cutover-verification-v7'
+$script:P4ManifestSchema = 'nene-pixel-p4-indexed-preflight-v7'
 $script:P4BaselineProduction = '2dd4e01e3bbe88967237cde4e28412d2962fd590'
 
 # Exactly one contract record per lane boundary. Absent, duplicate or unknown scopes are refusals.
@@ -102,8 +102,9 @@ $script:P4HostClasspathSchema = 'nene-pixel-p4-host-classpath-v1'
 
 function Get-P4FrameWrapperBound {
     <#
-        Protocol v5 (protocol:362-374) derives the frame wrapper bound from the slot's own operation
-        count instead of fixing it at 300/600 s:
+        Protocol v5 (Lane 3) derives the frame wrapper bound from the slot's own operation
+        count instead of fixing it at 300/600 s. Under v7 that lane belongs to Issue #120, so this
+        helper only defines the retained frame slots of `Get-P4FrameSlotCatalog`:
 
             wrapper_bound = 300 s setup + 15 s x operations
             operations    = 2 workload families x (warmups + samples)
@@ -150,6 +151,18 @@ function Get-P4SlotCatalog {
         $slots.Add([ordered]@{ id = "publication-$role"; lane = 'publication'; role = $role; runner = 'publication';
             run = 1; timeout_seconds = 300; warmups = 5; samples = 20 })
     }
+    return $slots.ToArray()
+}
+
+function Get-P4FrameSlotCatalog {
+    <#
+        Protocol v7 moved Lane 3 out of Issue #106's fixed order and acceptance to Issue #120, so these
+        four frame slots are not part of `Get-P4SlotCatalog` and are neither reserved nor collected
+        under the v7 identity. They are retained here as the executable slot definition that the
+        preserved `p4-indexed-v6-20260917-run5` frame records were collected under, and as the
+        starting point Issue #120 revises; the frame analyzer contract checks itself against them.
+    #>
+    $slots = [System.Collections.Generic.List[object]]::new()
     $sequence = 0
     foreach ($slot in @('baseline-diagnostic', 'candidate-diagnostic', 'candidate-decision', 'baseline-decision')) {
         $sequence++

@@ -24,20 +24,29 @@ function New-P4SyntheticHostRows {
     return $lines.ToArray()
 }
 
+# Protocol v7 removed Lane 3 from Issue #106's fixed order and acceptance, so the reserved catalog is
+# the 29 slots of the host, command, memory and publication lanes and carries no frame slot. The four
+# frame slots stay defined, unreserved, in the retained Lane 3 catalog that Issue #120 owns.
 $catalog = @(Get-P4SlotCatalog)
-if ($catalog.Count -ne 33 -or $catalog[0].id -cne 'host-project-baseline' -or
-    $catalog[28].id -cne 'publication-candidate' -or $catalog[32].id -cne 'frame-4-baseline-decision') {
-    throw 'Fixed 33-slot operation catalog is incorrect.'
+if ($catalog.Count -ne 29 -or $catalog[0].id -cne 'host-project-baseline' -or
+    $catalog[28].id -cne 'publication-candidate' -or @($catalog | Where-Object lane -eq 'frame').Count -ne 0) {
+    throw 'Fixed 29-slot operation catalog is incorrect.'
 }
-# Protocol v5 finite budgets: 5 host slots at 180 s, 2 command at 600 s (protocol:196-199), 20 memory
-# and 2 publication at 300 s, and 4 frame slots whose wrapper bound is derived from the operation count
-# (protocol:362-374): 2 diagnostic at 750 s and 2 decision at 1950 s.
+$frameCatalog = @(Get-P4FrameSlotCatalog)
+if ($frameCatalog.Count -ne 4 -or $frameCatalog[0].id -cne 'frame-1-baseline-diagnostic' -or
+    $frameCatalog[3].id -cne 'frame-4-baseline-decision' -or
+    @($frameCatalog | Where-Object lane -cne 'frame').Count -ne 0) {
+    throw 'Retained Lane 3 frame catalog is incorrect.'
+}
+# Protocol v7 finite budgets: 5 host slots at 180 s, 2 command at 600 s (Lane 1), and 20 memory plus
+# 2 publication at 300 s. The retained Lane 3 wrapper bound is still derived from the operation count,
+# 2 diagnostic at 750 s and 2 decision at 1950 s, and is checked against the retained catalog only.
 if (@($catalog | Where-Object lane -eq 'memory').Count -ne 20 -or
     @($catalog | Where-Object { $_.timeout_seconds -eq 180 }).Count -ne 5 -or
     @($catalog | Where-Object { $_.timeout_seconds -eq 600 }).Count -ne 2 -or
     @($catalog | Where-Object { $_.timeout_seconds -eq 300 }).Count -ne 22 -or
-    @($catalog | Where-Object { $_.timeout_seconds -eq 750 }).Count -ne 2 -or
-    @($catalog | Where-Object { $_.timeout_seconds -eq 1950 }).Count -ne 2 -or
+    @($frameCatalog | Where-Object { $_.timeout_seconds -eq 750 }).Count -ne 2 -or
+    @($frameCatalog | Where-Object { $_.timeout_seconds -eq 1950 }).Count -ne 2 -or
     (Get-P4FrameWrapperBound -Warmups 5 -Samples 10) -ne 750 -or
     (Get-P4FrameWrapperBound -Warmups 5 -Samples 50) -ne 1950) { throw 'Finite lane budget drift.' }
 foreach ($runner in @('project', 'recovery', 'legacy')) {

@@ -103,7 +103,7 @@ Owns semantic truth:
 - immutable `PixelSnapshot` with private row-major U8 indices, typed queries and defensive bulk copies
 - one `PaletteDefinition` owned by `DocumentState`, with cross-value index membership validation
 - bounded immutable uninstalled `LegacyRgbaSource` with private exact RGBA storage and the closed
-  `DocumentImportSource` admission vocabulary of ADR 0024
+  `DocumentImportSource` admission vocabulary of ADR 0025
 - immutable `Stroke` value with private row-major integer samples, a closed pencil/eraser effect,
   and semantic position iteration
 - typed rejection/failure vocabulary shared by core modules
@@ -158,7 +158,7 @@ Owns behavior coordination:
   observe state changes without exposing history or document ownership
 
 The retained import source, source-bound original-copy proof, destination epoch and at most one
-completed reduced preview extend the same persistence owner under ADR 0024. Heavy conversion and
+completed reduced preview extend the same persistence owner under ADR 0025. Heavy conversion and
 future-owner preparation use an injected dispatcher outside the runtime lock while retaining the
 existing physical-operation lease. `PersistencePorts` groups project/recovery/PNG ports for the
 workflow factory; the app injects that group and the worker dispatcher. No second workflow is added.
@@ -181,7 +181,7 @@ Owns project-file compatibility:
 It maps to/from typed domain documents and uninstalled legacy sources. Domain types do not carry serialization annotations. Encoded
 values defensively own bytes that are immutable after construction and expose no mutable storage.
 The module performs no I/O and is never a dependency of `:core:application` or presentation.
-ADR 0024 refines ADR 0015's boundary to one `ProjectFormatBytes` carrier, one closed
+ADR 0025 refines ADR 0015's boundary to one `ProjectFormatBytes` carrier, one closed
 `ProjectFormatResult` and `ProjectFormatCodec`. It reads v1/v2 to DocumentImportSource, writes only v2
 from DocumentState, and exposes exact original-v1 encoding only from LegacyRgbaSource. Version
 implementations are internal. The carrier retains the v1 maximum-plus-one probe; each decoder

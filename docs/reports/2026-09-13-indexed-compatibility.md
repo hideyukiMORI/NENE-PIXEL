@@ -9,7 +9,7 @@ This report records the compatibility/prototype preparation and subsequent contr
 it does not claim that the atomic cutover has shipped.
 The original dirty `perf/54-compose-frame` checkout is not the implementation worktree.
 
-- Accepted [ADR 0024](../adr/0024-indexed-project-compatibility.md) fixes typed legacy import,
+- Accepted [ADR 0025](../adr/0025-indexed-project-compatibility.md) fixes typed legacy import,
   exact original-copy verification, preserved recovery lineage, one physical-operation lease,
   conversion-preview admission, cancellation drain and source/history identity.
 - Normative [Project Format v2](../PROJECT_FORMAT_V2.md) fixes the byte table, shared v1/v2 carrier,
@@ -100,7 +100,7 @@ Historical M2/M3/#111 results are preserved and are not indexed-runtime evidence
 
 ## Implementation-contract acceptance (2026-09-13, continuation)
 
-Issue #106 remains the task authority. ADR 0024 and PROJECT_FORMAT_V2 are now accepted/normative.
+Issue #106 remains the task authority. ADR 0025 and PROJECT_FORMAT_V2 are now accepted/normative.
 Constitution, command model, layout, glossary, v1 mapping clarification and explicit scoped
 refinements to ADR 0005/0007/0008/0009 now agree on indexed ownership, source admission, exact
 inverse/history budgets and preserved import. Historical wire bytes and measurement verdicts are
@@ -152,13 +152,23 @@ found the frame and command lane wrapper bounds defective before any device slot
 `p4-indexed-v4-20260916-run3` is preserved as superseded with its five host slots intact, and the v4
 bytes are archived as
 [P4_INDEXED_CUTOVER_PROTOCOL_V4_HISTORICAL.md](../quality/P4_INDEXED_CUTOVER_PROTOCOL_V4_HISTORICAL.md).
-The currently accepted protocol is `nene-pixel-p4-indexed-cutover-verification-v6`, which superseded
-v5 on 2026-09-17 after experiment `p4-indexed-v5-20260917-run4` collected five valid-descriptive host
-slots, a `pass` command baseline and a preserved `PERFORMANCE_FAIL` command candidate on three
-palette workloads; that failure is a measurement of candidate production behaviour, not a harness
-defect, so the corrected candidate build is collected under a new identity. V6 changes nothing but
-the identity and the manifest schema, and the v5 bytes are archived as
+It was superseded on 2026-09-17 by `nene-pixel-p4-indexed-cutover-verification-v6`, after experiment
+`p4-indexed-v5-20260917-run4` collected five valid-descriptive host slots, a `pass` command baseline
+and a preserved `PERFORMANCE_FAIL` command candidate on three palette workloads; that failure is a
+measurement of candidate production behaviour, not a harness defect, so the corrected candidate
+build is collected under a new identity. V6 changed nothing but the identity and the manifest
+schema, and the v5 bytes are archived as
 [P4_INDEXED_CUTOVER_PROTOCOL_V5_HISTORICAL.md](../quality/P4_INDEXED_CUTOVER_PROTOCOL_V5_HISTORICAL.md).
+The currently accepted protocol is `nene-pixel-p4-indexed-cutover-verification-v7`, which superseded
+v6 on 2026-09-22 after experiment `p4-indexed-v6-20260917-run5` collected 32 of its 33 slots and
+stopped at `frame-3-candidate-decision` with a preserved `PERFORMANCE_FAIL` that the baseline role
+does not meet either; on hide's decision that frame verdict and main's frame budget move to Issue
+#120, and V7 changes only the identity, the manifest schema, the removal of Lane 3 from this Issue's
+fixed order and acceptance, and the identity-bound admission of the twenty-nine non-frame run5
+results as #106 evidence with no new collection. The v6 bytes are archived as
+[P4_INDEXED_CUTOVER_PROTOCOL_V6_HISTORICAL.md](../quality/P4_INDEXED_CUTOVER_PROTOCOL_V6_HISTORICAL.md)
+and the admitted results are recorded in
+[M4_INDEXED_CUTOVER_EVIDENCE.md](../quality/M4_INDEXED_CUTOVER_EVIDENCE.md).
 Earlier uncollected protocol bytes are archived. Collector and bounded-process contract fixtures
 are synthetic checks, not performance samples. Android functional execution, fresh user-asset
 preservation, immutable APK/profile/preflight identities, all accepted performance lanes and final

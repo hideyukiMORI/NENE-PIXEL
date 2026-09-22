@@ -344,7 +344,9 @@ function New-P4LaneManifest {
 
 function Get-P4CatalogSlot {
     param([Parameter(Mandatory = $true)][string]$SlotId)
-    $matched = @(Get-P4SlotCatalog | Where-Object { $_.id -ceq $SlotId })
+    # Protocol v7 keeps Lane 3 out of the reserved catalog, so a frame fixture resolves through the
+    # retained Lane 3 catalog that Issue #120 owns.
+    $matched = @(@(Get-P4SlotCatalog) + @(Get-P4FrameSlotCatalog) | Where-Object { $_.id -ceq $SlotId })
     if ($matched.Count -ne 1) { throw "Unknown fixture slot '$SlotId'." }
     return $matched[0]
 }

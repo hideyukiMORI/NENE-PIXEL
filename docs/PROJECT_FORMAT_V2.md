@@ -1,9 +1,9 @@
 # NENE-PIXEL Project Format Version 2
 
-Status: normative byte-contract authority for schema version 2; ADR 0024 / Issue #106
+Status: normative byte-contract authority for schema version 2; ADR 0025 / Issue #106
 
 This contract is consumed only by the atomic indexed runtime/storage cutover in
-[ADR 0024](adr/0024-indexed-project-compatibility.md). It does not enable a writer before that cutover.
+[ADR 0025](adr/0025-indexed-project-compatibility.md). It does not enable a writer before that cutover.
 [Project Format v1](PROJECT_FORMAT_V1.md) remains the immutable authority for version 1.
 
 ## Meaning
@@ -124,7 +124,7 @@ the Kotlin codec exists or passes. Production golden tests must verify them inde
 - Original-copy re-encoding is exact for all accepted v1 fixtures, including maximum-size sources
   with more than 256 distinct RGBA values. Such sources are not silently converted into documents.
 - Cross-version recovery, atomic runtime installation, lossless/lossy migration, cancellation and
-  last-safe preservation follow ADR 0024 and the owning Issue's scoped verification plan.
+  last-safe preservation follow ADR 0025 and the owning Issue's scoped verification plan.
 
 No result is claimed before implementation and its required evidence. Changing this layout after
 acceptance and v2 shipping requires another compatibility ADR; rollback must retain both readers.

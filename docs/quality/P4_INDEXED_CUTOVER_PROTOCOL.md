@@ -1,6 +1,8 @@
 # P4 Indexed Cutover Verification Protocol
 
-Status: accepted prospective contract for Issue #106; no measurement collected.
+Status: accepted contract for Issue #106. No sample is collected under this identity: it admits the
+host, command, memory and publication results that experiment `p4-indexed-v6-20260917-run5`
+collected under revision v6, and it owns no frame verdict.
 
 Rules: QLT-006–009/011–016. Waivers: none.
 
@@ -16,9 +18,50 @@ exact artifacts/profile/device identity. A placeholder or mismatch blocks collec
 
 ## Overall experiment identity and admission
 
-Protocol identity: `nene-pixel-p4-indexed-cutover-verification-v6`.
+Protocol identity: `nene-pixel-p4-indexed-cutover-verification-v7`.
 
-Revision v6 supersedes the
+Revision v7 supersedes the
+[frame-failed v6 contract](P4_INDEXED_CUTOVER_PROTOCOL_V6_HISTORICAL.md). Under v6, experiment
+`p4-indexed-v6-20260917-run5` collected 32 of its 33 slots and stopped: its five host slots are
+`valid-descriptive`, `command-baseline` and `command-candidate` are `pass`, its twenty memory slots
+are `pass`, its two publication slots are `valid-constants-retained`,
+`frame-1-baseline-diagnostic` and `frame-2-candidate-diagnostic` are `inconclusive`, and
+`frame-3-candidate-decision` is `PERFORMANCE_FAIL` because its `canvas16_tap` all-frame overrun
+nearest-rank p95 is 1.012 ms against the unchanged 0.0 ms gate. `frame-4-baseline-decision` never
+ran. The baseline does not meet that same gate under the same conditions: its diagnostic overrun
+p95 is 1.136 ms for `canvas16_tap` and 8.368 ms for `canvas256_repeated_diagonal`, against 1.077 and
+8.628 ms for the candidate, and the committed-result p95 stays between 10 and 13 ms for every
+family and role with zero fatal/ANR matches. The frame failure is therefore a measurement of main's
+own frame budget against an absolute gate, not evidence of a candidate regression, and it is not a
+harness, analyzer or wrapper contract defect, so neither bounded recovery below applies to it. On
+hide's decision of 2026-09-22 the frame verdict and main's frame budget move to Issue #120, and
+Issue #106 is accepted on its host, command, memory, publication and Lane 6 functional evidence.
+**V7 changes exactly four things**: the protocol identity; the manifest schema, which becomes
+`nene-pixel-p4-indexed-preflight-v7`; the removal of Lane 3 and its four frame slots from this
+Issue's fixed order, stop order and acceptance, which Issue #120 now owns; and the admission of the
+host, command, memory and publication results collected under v6 in run5 as this contract's
+acceptance evidence, with no new collection. Populations, workloads, metrics, numeric gates,
+warmups, sample counts, finite budgets and bounds, stopping rules and every lane schema name are
+unchanged from v6, and every v6 verdict, the three frame verdicts included, remains reported exactly
+as it was collected.
+
+That admission is a QLT-012 identity-bound reuse of an existing record, not a relabelling and not a
+new experiment. The admitted results are the twenty-nine non-frame slots of experiment
+`p4-indexed-v6-20260917-run5`, whose raw records are preserved unchanged under
+`build/reports/issue-106/p4-experiment-v6-run5/<slot>/`. That experiment was reserved by manifest
+`build/reports/issue-106/p4-preflight-manifest-v6-3fd7817-run5b.json`, SHA-256
+`4f2adc47d71c79538677760d40902264ef3062df8c53a43b20eb7d609b1c4653`, copied byte for byte to
+`p4-experiment-v6-run5/preflight.json`, and it bound candidate production commit
+`9fde9352e93f4421dc411f7a72a52fcf5a9a2ed7` built at `3fd7817e44910b6289556d9407f5426e7ffb0dbc`
+against baseline production commit `2dd4e01e3bbe88967237cde4e28412d2962fd590` built at
+`0b605481ad97ee3726864e556e6519f3a862271f`. Every admitted record carries
+`nene-pixel-p4-indexed-cutover-verification-v6` as its `protocol_id` and that manifest hash as its
+`preflight_sha256`; nothing is renamed to v7, re-judged, recomputed, pooled or collected again, and
+[the v6 archive](P4_INDEXED_CUTOVER_PROTOCOL_V6_HISTORICAL.md) holds the bytes those records were
+collected under. Reuse is admissible here because the populations, workloads, metrics, gates and
+budgets of those four lanes are identical in v6 and v7 and the measured artifacts are unchanged.
+
+V6 superseded the
 [failed v5 contract](P4_INDEXED_CUTOVER_PROTOCOL_V5_HISTORICAL.md). Under v5, experiment
 `p4-indexed-v5-20260917-run4` collected its five host slots as `valid-descriptive`, produced `pass`
 for `command-baseline`, and produced `PERFORMANCE_FAIL` for `command-candidate`: against the
@@ -30,12 +73,11 @@ That failure is a measurement of the candidate's own production behaviour, in th
 path's per-pixel allocation and its full-raster scan of an identity remap, not a harness, analyzer
 or wrapper contract defect, so neither bounded recovery below applies to it. The candidate
 production source is corrected as a focused change under this same Issue, and collection against
-that corrected build requires a new protocol identity and review, which is this revision. **V6
+that corrected build requires a new protocol identity and review, which was revision v6. **V6
 changes nothing but the identity and the manifest schema**, which becomes
 `nene-pixel-p4-indexed-preflight-v6`. Populations, workloads, metrics, numeric gates, warmups,
 sample counts, finite budgets and bounds, fixed slot order, stopping rules and every lane schema
 name are unchanged from v5, and the preserved v5 verdicts remain reported as they were collected.
-
 V5 superseded the [superseded v4 contract](P4_INDEXED_CUTOVER_PROTOCOL_V4_HISTORICAL.md), whose
 experiment `p4-indexed-v4-20260916-run3` is preserved as `superseded` because review found the frame
 and command lane wrapper bounds defective before any device slot started; v5 derived the frame
@@ -78,7 +120,7 @@ or #111 timing/memory record is reused as #106 evidence. Existing records
 justify the unchanged route and threshold; they do not fill a #106 slot.
 
 Before any collection, one fail-closed manifest whose schema is
-`nene-pixel-p4-indexed-preflight-v6` must contain non-placeholder values for:
+`nene-pixel-p4-indexed-preflight-v7` must contain non-placeholder values for:
 
 - protocol ID and hash of its accepted canonical bytes;
 - baseline and candidate 40-character commits and clean tracked worktrees;
@@ -290,6 +332,16 @@ invalid or numeric failure stops the remaining memory budget; no invocation is
 discarded or substituted.
 
 ## Lane 3: actual-app frame and committed-result latency
+
+Under v7 this lane is outside Issue #106's fixed order and outside its acceptance, and its four
+slots are not reserved, collected or judged by this Issue. [Issue #120](https://github.com/hideyukiMORI/NENE-PIXEL/issues/120)
+owns main's frame budget and the frame verdict, including the baseline-relative criterion that will
+replace the absolute overrun gate below. The run5 results collected under v6 stand unchanged and are
+not re-judged here: `frame-1-baseline-diagnostic` and `frame-2-candidate-diagnostic` are
+`inconclusive` with no gross regression, `frame-3-candidate-decision` is `PERFORMANCE_FAIL` on a
+`canvas16_tap` all-frame overrun p95 of 1.012 ms, and `frame-4-baseline-decision` was never run. The
+contract text below is retained unedited as the collected-under bytes for those three records and as
+the starting point for #120; it is not a #106 collection route.
 
 Geometry admission is `initial-fit-centered-v1`. The Canvas semantics node describes its complete
 surface, which may include margins around the document. Four mandatory preflight fields pin exact
@@ -588,23 +640,31 @@ is part of this protocol.
 7. Collect the four memory families, five processes each.
 8. Collect physical publication baseline then candidate and apply the ADR 0018
    constant decision.
-9. Collect frame v4 B10, C10, C50, B50 across both workload families.
-10. Stop at the first INVALID or PERFORMANCE_FAIL. Preserve it. Do not spend a
-    later dependent slot or substitute a result. A pre-verdict harness-contract
-    `INVALID` is recovered only through the bounded recovery rule in the
-    admission section, by restarting this whole order from step 5 under a new
-    experiment id; it never repairs, reuses or re-judges the preserved slot.
+9. Stop at the first INVALID or PERFORMANCE_FAIL. Preserve it. Do not spend a
+   later dependent slot or substitute a result. A pre-verdict harness-contract
+   `INVALID` is recovered only through the bounded recovery rule in the
+   admission section, by restarting this whole order from step 5 under a new
+   experiment id; it never repairs, reuses or re-judges the preserved slot.
+
+This order covers the twenty-nine slots of the four collected lanes: five host, two command, twenty
+memory and two publication. The four Lane 3 frame slots are not part of it and belong to Issue #120.
+Experiment `p4-indexed-v6-20260917-run5` completed every one of those twenty-nine slots under v6 and
+they are admitted here without re-collection, so no step of this order is executed again under the
+v7 identity.
 
 Host descriptive lanes become acceptable evidence only when complete and
 valid; they never yield PERFORMANCE_PASS. Issue acceptance requires all
-candidate correctness, command/history/frame absolute gates, the publication
-constant decision, the valid descriptive host populations, and final CI.
+candidate correctness, the command and history absolute gates, the publication
+constant decision, the valid descriptive host populations, and final CI. The
+frame gate is not part of Issue #106 acceptance under this revision.
 
 ## Governing decisions
 
-- [ADR 0024](../adr/0024-indexed-project-compatibility.md) fixes the atomic compatibility cutover.
+- [ADR 0025](../adr/0025-indexed-project-compatibility.md) fixes the atomic compatibility cutover.
 - [ADR 0022](../adr/0022-indexed-palette-and-migration.md) fixes indexed meaning and logical budgets.
 - [Quality Gates](../QUALITY_GATES.md) fix verification scope, frequency and evidence preservation.
 
-Acceptance of this prospective contract is not a performance verdict. No implementation or device
-collection is claimed complete. Waivers: none.
+Acceptance of this contract is not itself a performance verdict. The verdicts it reports are the
+ones experiment `p4-indexed-v6-20260917-run5` collected under revision v6 and this revision admits
+unchanged; no result is claimed that a preserved record does not state, and the frame lane remains
+open under Issue #120. Waivers: none.

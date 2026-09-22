@@ -10,7 +10,7 @@
 
 ## Indexed cutover refinement (2026-09-13, #106)
 
-[ADR 0024](0024-indexed-project-compatibility.md) replaces the RGBA target payload below with
+[ADR 0025](0025-indexed-project-compatibility.md) replaces the RGBA target payload below with
 `StrokeEffect.Paint(PaletteIndex)` and `Erase(PaletteIndex)`. ToolGesture captures the selected or
 document-default index and gateway-issued CommandSourceAdmission at BeginGesturePreview under the
 same runtime lock. Domain Stroke carries only the effect and path; application retains admission

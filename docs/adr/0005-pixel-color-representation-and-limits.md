@@ -8,7 +8,7 @@
 ## Indexed cutover refinement (2026-09-13, #106)
 
 [ADR 0022](0022-indexed-palette-and-migration.md) and accepted
-[ADR 0024](0024-indexed-project-compatibility.md) replace the live RGBA storage and tool-palette
+[ADR 0025](0025-indexed-project-compatibility.md) replace the live RGBA storage and tool-palette
 ownership portions below at the atomic #106 cutover. DocumentState owns PaletteDefinition and a
 private immutable row-major U8 PixelSnapshot; pixel-engine owns U8 surfaces and I32-position/U8-
 before/U8-after patches with shared directional inverse. No mutable backing is shared across
@@ -21,7 +21,7 @@ uses ADR 0022's 8 MiB logical-payload bound: 6 bytes per indexed change plus 32 
 and `4*(beforeCount+afterCount)+8` for a palette transition, charging the shared inverse once.
 LegacyRgbaSource is bounded immutable uninstalled input, never a second editable representation.
 The historical comparison/results below retain their original meaning; they do not establish an
-indexed performance verdict. Post-v2 rollback must retain both readers under ADR 0024.
+indexed performance verdict. Post-v2 rollback must retain both readers under ADR 0025.
 
 ## Context
 

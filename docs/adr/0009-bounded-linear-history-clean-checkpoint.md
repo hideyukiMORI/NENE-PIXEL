@@ -10,7 +10,7 @@
 ## Indexed cutover refinement (2026-09-13, #106)
 
 [ADR 0022](0022-indexed-palette-and-migration.md) and
-[ADR 0024](0024-indexed-project-compatibility.md) extend this same owner to chronological drawing
+[ADR 0025](0025-indexed-project-compatibility.md) extend this same owner to chronological drawing
 and palette transitions. ChangeSet retains exact before/after definitions/defaults plus indexed
 changes or a closed no-index-change case. Palette-only changes still record revisions and history;
 the shared directional inverse never attempts to invert a many-to-one mapping.
