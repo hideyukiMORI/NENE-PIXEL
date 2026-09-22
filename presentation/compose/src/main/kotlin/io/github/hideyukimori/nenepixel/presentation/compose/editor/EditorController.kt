@@ -41,6 +41,9 @@ public class EditorController private constructor(
             setAppearance = { appearance ->
                 publish(adapter.reduce(WorkspaceAction.SetAppearance(appearance)).renderState)
             },
+            setActualSizeWindow = { window ->
+                publish(adapter.reduce(WorkspaceAction.SetActualSizeWindow(window)).renderState)
+            },
         )
 
     public fun synchronizeWithRuntime() {

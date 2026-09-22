@@ -1,6 +1,7 @@
 package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
 import io.github.hideyukimori.nenepixel.core.application.editor.DocumentDirtyState
+import io.github.hideyukimori.nenepixel.core.application.workspace.ActualSizeWindow
 import io.github.hideyukimori.nenepixel.core.application.workspace.EditorAppearance
 import io.github.hideyukimori.nenepixel.core.application.workspace.ToolGesture
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportState
@@ -23,6 +24,7 @@ public class EditorRenderState internal constructor(
     public val canRedo: Boolean,
     public val dirtyState: DocumentDirtyState,
     public val appearance: EditorAppearance,
+    public val actualSizeWindow: ActualSizeWindow,
 ) {
     public val palette: Palette
         get() = definition.palette
@@ -47,7 +49,8 @@ public class EditorRenderState internal constructor(
                     canUndo == other.canUndo &&
                     canRedo == other.canRedo &&
                     dirtyState == other.dirtyState &&
-                    appearance == other.appearance
+                    appearance == other.appearance &&
+                    actualSizeWindow == other.actualSizeWindow
             )
 
     override fun hashCode(): Int =
@@ -62,13 +65,15 @@ public class EditorRenderState internal constructor(
             canRedo,
             dirtyState,
             appearance,
+            actualSizeWindow,
         ).fold(INITIAL_HASH) { hash, value -> hash * HASH_MULTIPLIER + (value?.hashCode() ?: 0) }
 
     override fun toString(): String =
         "EditorRenderState(" +
             "snapshot=$snapshot, palette=$palette, activePaletteIndex=$activePaletteIndex, activeTool=$activeTool, " +
             "preview=$preview, viewport=$viewport, " +
-            "canUndo=$canUndo, canRedo=$canRedo, dirtyState=$dirtyState, appearance=$appearance)"
+            "canUndo=$canUndo, canRedo=$canRedo, dirtyState=$dirtyState, appearance=$appearance, " +
+            "actualSizeWindow=$actualSizeWindow)"
 
     private companion object {
         const val INITIAL_HASH: Int = 1

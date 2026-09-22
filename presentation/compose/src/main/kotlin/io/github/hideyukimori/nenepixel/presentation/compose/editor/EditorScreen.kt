@@ -123,9 +123,10 @@ private fun EditorWorkArea(
     callbacks: EditorCallbacks,
     openPalette: () -> Unit,
 ) {
+    val committed = remember { CommittedBitmapCache() }
     if (appearance.layout == EditorLayout.Tabletop) {
         Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(Modifier.weight(1f).fillMaxWidth()) { EditorCanvas(state, callbacks) }
+            Box(Modifier.weight(1f).fillMaxWidth()) { EditorCanvas(state, callbacks, committed) }
             Surface(color = appearance.theme.railColor(), modifier = Modifier.fillMaxWidth()) {
                 Box(contentAlignment = Alignment.Center) { EditorToolDock(state, callbacks, openPalette) }
             }
@@ -135,7 +136,7 @@ private fun EditorWorkArea(
             if (appearance.controlEdge == EditorControlEdge.Left) {
                 SideDock(state, callbacks, openPalette)
             }
-            Box(Modifier.weight(1f)) { EditorCanvas(state, callbacks) }
+            Box(Modifier.weight(1f)) { EditorCanvas(state, callbacks, committed) }
             if (appearance.controlEdge == EditorControlEdge.Right) {
                 SideDock(state, callbacks, openPalette)
             }
@@ -155,13 +156,16 @@ private fun SideDock(
     }
 }
 
+/** The actual-size window draws over the canvas inside the same work-area box (ADR 0026). */
 @Composable
 private fun EditorCanvas(
     state: State<EditorRenderState>,
     callbacks: EditorCallbacks,
+    committed: CommittedBitmapCache,
 ) {
     val size by remember(state) { derivedStateOf { state.value.snapshot.size } }
-    PixelCanvas(state, size, callbacks, Modifier.fillMaxSize())
+    PixelCanvas(state, size, callbacks, committed, Modifier.fillMaxSize())
+    ActualSizeWindowOverlay(state, committed, callbacks)
 }
 
 @Composable

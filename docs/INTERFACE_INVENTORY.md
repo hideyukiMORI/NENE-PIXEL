@@ -19,6 +19,7 @@ principle: understood at first sight, and used in every session.
 | always-visible | Undo | yes | always-visible | `EditorToolDock.kt` |
 | always-visible | Redo | yes | always-visible | `EditorToolDock.kt` |
 | always-visible | Palette button showing the active color | yes | always-visible | `EditorToolDock.kt`; opens the palette surface |
+| always-visible | Actual-size window toggle | yes | always-visible | `EditorToolDock.kt`; first sight: a preview-window icon labelled for actual size, selected while the window is open; every session: checking the artwork at real size is part of every pixel-art session |
 | always-visible | Canvas drawing, zoom, pan | yes | always-visible | `PixelCanvas.kt`; grid visibility follows zoom and has no control |
 | always-visible | File button | yes | always-visible | `EditorScreen.kt` header; opens the file surface |
 | always-visible | Settings button | yes | always-visible | `EditorScreen.kt` header; opens the settings sheet |
@@ -40,6 +41,7 @@ principle: understood at first sight, and used in every session.
 | secondary: file surface | Operation status text | no | single owner needed | `EditorScreen.kt`; duplicates the always-visible status text |
 | secondary: file surface | About this version | no | secondary | `MvpInformationControls.kt` |
 | secondary: palette surface | Palette entry grid and entry count | no | secondary reached from a primary control | `PaletteControls.kt`; the primary action is the dock palette button |
+| secondary: actual-size window | Window drag and scale cycling | no | secondary reached from a primary control | `ActualSizeWindowOverlay.kt`; the primary action is the dock toggle, placement and scale stay on the window itself |
 | secondary: dialog | Discard-current confirmation | no | secondary | `PersistenceControls.kt`; shown only during a confirmed document switch |
 
 ## Move candidates

@@ -292,12 +292,12 @@ private class PointerCallbackDispatcher(
     fun pointerCancel(): PointerInputAcknowledgement = publish(callbacks.onPointerCancel())
 
     fun viewportStarted(surface: ViewportSurface): PointerInputAcknowledgement =
-        publish(callbacks.onViewportStarted(surface))
+        publish(callbacks.viewport.onViewportStarted(surface))
 
     fun viewportTransformed(
         surface: ViewportSurface,
         gesture: ViewportGesture,
-    ): PointerInputAcknowledgement = publish(callbacks.onViewportTransformed(surface, gesture))
+    ): PointerInputAcknowledgement = publish(callbacks.viewport.onViewportTransformed(surface, gesture))
 
     private fun publish(acknowledgement: PointerInputAcknowledgement): PointerInputAcknowledgement = acknowledgement
 }

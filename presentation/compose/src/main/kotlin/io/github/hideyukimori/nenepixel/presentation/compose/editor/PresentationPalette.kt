@@ -14,6 +14,7 @@ internal object PresentationPalette {
     private val darkSurround: Color = Color(0xFF292929)
     private val lightSurround: Color = Color(0xFFBDBDBD)
     val grid: Color = Color.Black.copy(alpha = GRID_ALPHA)
+    val actualSizeWindowFrame: Color = Color(0xFF5E2750)
     val eraserPreview: Color = Color(0xFF30343B).copy(alpha = ERASER_PREVIEW_ALPHA)
 
     private const val GRID_ALPHA: Float = 0.16f

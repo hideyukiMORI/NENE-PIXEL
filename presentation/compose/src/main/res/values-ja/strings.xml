@@ -13,6 +13,9 @@
     <string name="undo">元に戻す</string>
     <string name="redo">やり直す</string>
     <string name="open_palette">パレットを開く</string>
+    <string name="actual_size">実寸</string>
+    <string name="actual_size_window_toggle">実寸ウィンドウ</string>
+    <string name="actual_size_window">実寸ウィンドウ x%1$d</string>
     <string name="active_rgba">使用中のRGBA %1$d、%2$d、%3$d、%4$d</string>
     <string name="palette_colors">パレットの色</string>
     <string name="palette_entry">パレットの色%1$d、RGBA %2$d、%3$d、%4$d、%5$d</string>
