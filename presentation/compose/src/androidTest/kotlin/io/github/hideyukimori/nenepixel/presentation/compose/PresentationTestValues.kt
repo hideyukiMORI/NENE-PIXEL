@@ -1,7 +1,7 @@
 package io.github.hideyukimori.nenepixel.presentation.compose
 
-import io.github.hideyukimori.nenepixel.core.application.editor.EditorRuntime
 import io.github.hideyukimori.nenepixel.core.application.editor.DocumentIdSource
+import io.github.hideyukimori.nenepixel.core.application.editor.EditorRuntime
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReducer
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceState
 import io.github.hideyukimori.nenepixel.core.domain.color.ColorChannel
@@ -25,7 +25,10 @@ internal object PresentationTestValues {
     val green: PixelColor = color(0, 255, 0)
     val transparent: PixelColor = PixelColor.blank
 
-    fun canvas(width: Int, height: Int): CanvasSize =
+    fun canvas(
+        width: Int,
+        height: Int,
+    ): CanvasSize =
         CanvasSize.create(CanvasWidth.create(width).requiredValue(), CanvasHeight.create(height).requiredValue())
 
     fun fixture(
@@ -45,14 +48,17 @@ internal object PresentationTestValues {
         )
     }
 
-    private fun defaultPaletteColors(): List<PixelColor> =
-        listOf(red, green, red, red, red, red, red, red, transparent)
+    private fun defaultPaletteColors(): List<PixelColor> = listOf(red, green, red, red, red, red, red, red, transparent)
 
     private fun defaultIndex(colors: List<PixelColor>): Int = if (colors.size > 8) 8 else 0
 
     private fun paletteIndex(value: Int): PaletteIndex = PaletteIndex.create(value).requiredValue()
 
-    private fun color(red: Int, green: Int, blue: Int): PixelColor =
+    private fun color(
+        red: Int,
+        green: Int,
+        blue: Int,
+    ): PixelColor =
         PixelColor.create(
             ColorChannel.create(red).requiredValue(),
             ColorChannel.create(green).requiredValue(),

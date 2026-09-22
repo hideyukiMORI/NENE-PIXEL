@@ -19,8 +19,8 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRet
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRollbackOutcome
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceAction
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReductionResult
-import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentImportSource
+import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.document.LegacyRgbaSource
 import io.github.hideyukimori.nenepixel.presentation.compose.EditorFixture
 import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestValues
