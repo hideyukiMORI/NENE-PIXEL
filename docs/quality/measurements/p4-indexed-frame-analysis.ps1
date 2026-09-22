@@ -1,14 +1,20 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '../baseline-profile-evidence.ps1')
+# Lane 3 revision 2026-09-23 (#120): baseline-relative verdict.
 
 $script:P4FrameSchema = 'nene-pixel-p4-indexed-actual-app-frame-v8'
-$script:P4FrameExperimentSchema = 'nene-pixel-p4-indexed-frame-experiment-v4'
+$script:P4FrameExperimentSchema = 'nene-pixel-p4-indexed-frame-experiment-v5'
+$script:P4FrameVerdictRule = 'lane3-2026-09-23-relative'
 $script:P4FrameGeometryId = 'initial-fit-centered-v1'
+# Decision families; diagnostic slots may additionally declare the third family below.
 $script:P4FrameWorkloadOrder = @('canvas16_tap', 'canvas256_repeated_diagonal')
+$script:P4FrameDiagnosticWorkloadOrder = @('canvas16_tap', 'canvas256_repeated_diagonal',
+    'canvas256_repeated_diagonal_window_x2')
 $script:P4FrameWarmups = 5
-$script:P4FrameOverrunP95Gate = 0.0
-$script:P4FrameOverrunP99Gate = 16.67
+# The v6 absolute overrun gates (p95 <= 0.0 ms, p99 <= 16.67 ms) moved to the M5 performance budget.
+$script:P4FrameRelativeP95ToleranceMs = 1.0
+$script:P4FrameRelativeP99ToleranceMs = 2.0
 $script:P4FrameInputP95Gate = 33.33
 $script:P4FrameGrossOverrun = 33.34
 $script:P4FrameGrossInput = 100.0
@@ -110,6 +116,56 @@ function Get-P4FrameSampleInput {
     return ($completion - $start) / 1000000.0
 }
 
+function ConvertTo-P4FrameDecimal {
+    param([Parameter(Mandatory = $true)][string]$Text, [Parameter(Mandatory = $true)][string]$Context)
+    $value = [decimal]0
+    if (
+        $Text -cnotmatch '^-?\d+\.\d{6}$' -or
+        -not [decimal]::TryParse($Text, [Globalization.NumberStyles]::Number,
+            [Globalization.CultureInfo]::InvariantCulture, [ref]$value)
+    ) {
+        throw "$Context is not a published six-decimal metric: $Text"
+    }
+    return $value
+}
+
+function Read-P4FrameBaselineReference {
+    param(
+        [Parameter(Mandatory = $true)][string]$BaselineAnalysisPath,
+        [Parameter(Mandatory = $true)][string]$ExperimentId
+    )
+    $path = [IO.Path]::GetFullPath($BaselineAnalysisPath)
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Baseline frame analysis is missing: $path" }
+    $baseline = Get-Content -Raw -LiteralPath $path | ConvertFrom-Json
+    $context = 'Baseline frame analysis'
+    $expected = [ordered]@{
+        role = 'baseline'; runner = 'decision'; verdict = 'baseline-recorded'; experiment_id = $ExperimentId
+    }
+    foreach ($key in $expected.Keys) {
+        $actual = Get-P4FrameObjectMember -Value $baseline -Name $key -Context $context
+        if ([string]$actual -cne $expected[$key]) { throw "$context '$key' is '$actual' but must be '$($expected[$key])'." }
+    }
+    if ((Get-P4FrameObjectMember -Value $baseline -Name 'complete_run' -Context $context) -isnot [bool] -or
+        -not $baseline.complete_run) {
+        throw "$context is not a complete decision run."
+    }
+    $families = Get-P4FrameObjectMember -Value $baseline -Name 'families' -Context $context
+    if ((@($families.PSObject.Properties.Name) -join '|') -cne ($script:P4FrameWorkloadOrder -join '|')) {
+        throw "$context families are not exactly the decision families."
+    }
+    $reference = [ordered]@{}
+    foreach ($workload in $script:P4FrameWorkloadOrder) {
+        $family = $families.$workload
+        $reference[$workload] = [ordered]@{
+            p95 = ConvertTo-P4FrameDecimal ([string](Get-P4FrameObjectMember -Value $family -Name 'frame_overrun_p95_ms' `
+                        -Context "$context family '$workload'")) "$context '$workload' p95"
+            p99 = ConvertTo-P4FrameDecimal ([string](Get-P4FrameObjectMember -Value $family -Name 'frame_overrun_p99_ms' `
+                        -Context "$context family '$workload'")) "$context '$workload' p99"
+        }
+    }
+    return [ordered]@{ path = $path; families = $reference }
+}
+
 function Test-P4FrameCapture {
     param(
         [Parameter(Mandatory = $true)][string]$SlotDirectory,
@@ -119,8 +175,20 @@ function Test-P4FrameCapture {
         [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{40}$')][string]$BuildCommit,
         [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedApkSha256,
         [Parameter(Mandatory = $true)][System.Collections.IDictionary]$ExpectedBounds,
-        [Parameter(Mandatory = $true)][string]$ExperimentId
+        [Parameter(Mandatory = $true)][string]$ExperimentId,
+        # Required for the decision candidate only: the decision baseline slot's analysis.json.
+        [string]$BaselineAnalysisPath = ''
     )
+
+    $isRelativeCandidate = $Runner -eq 'decision' -and $Role -eq 'candidate'
+    if ($isRelativeCandidate -ne (-not [string]::IsNullOrEmpty($BaselineAnalysisPath))) {
+        [Console]::Error.WriteLine('-BaselineAnalysisPath is required for the decision candidate and forbidden otherwise.')
+        exit 2
+    }
+    $baselineReference = if ($isRelativeCandidate) {
+        Read-P4FrameBaselineReference -BaselineAnalysisPath $BaselineAnalysisPath -ExperimentId $ExperimentId
+    }
+    else { $null }
 
     foreach ($workload in $script:P4FrameWorkloadOrder) {
         if (-not $ExpectedBounds.Contains($workload)) { throw "Expected frame bounds are missing '$workload'." }
@@ -150,15 +218,28 @@ function Test-P4FrameCapture {
             'workload_order', 'measured_workload_counts', 'measured_operation_count')) {
         if ($key -notin $stateNames) { throw "Frame run state is missing '$key'." }
     }
+    # Decision slots declare exactly families 1-2; diagnostic slots declare families 1-2 or 1-3.
+    $declaredOrder = @($state.workload_order | ForEach-Object { [string]$_ })
+    $allowedOrder = if ($Runner -eq 'decision') { $script:P4FrameWorkloadOrder } else { $script:P4FrameDiagnosticWorkloadOrder }
+    $declaredOrderValid =
+        $declaredOrder.Count -ge $script:P4FrameWorkloadOrder.Count -and
+        $declaredOrder.Count -le $allowedOrder.Count -and
+        ($declaredOrder -join '|') -ceq (@($allowedOrder | Select-Object -First $declaredOrder.Count) -join '|')
     if (
         $state.schema -cne $script:P4FrameExperimentSchema -or
         $state.experiment_id -cne $ExperimentId -or
         [int]$state.comparison_sequence_index -ne $SequenceIndex -or
         [int]$state.attempt -ne 1 -or
         $state.status -cne 'completed' -or
-        (@($state.workload_order) -join '|') -cne ($script:P4FrameWorkloadOrder -join '|')
+        -not $declaredOrderValid
     ) {
         throw 'Frame run state identity, attempt, completion or workload order drifted.'
+    }
+    foreach ($workload in $declaredOrder) {
+        if (-not $ExpectedBounds.Contains($workload) -or
+            [string]$ExpectedBounds[$workload] -cnotmatch '^\[\d+,\d+\]\[\d+,\d+\]$') {
+            throw "Expected frame bounds for '$workload' are missing or not an integer rectangle."
+        }
     }
 
     $metadata = Read-P4FrameMetadata -Lines @(Get-Content -LiteralPath $metadataPath)
@@ -170,7 +251,7 @@ function Test-P4FrameCapture {
     Assert-P4FrameMetadataValue $metadata 'run_kind' $Runner | Out-Null
     Assert-P4FrameMetadataValue $metadata 'candidate_role' $Role | Out-Null
     Assert-P4FrameMetadataValue $metadata 'comparison_sequence_index' ([string]$SequenceIndex) | Out-Null
-    Assert-P4FrameMetadataValue $metadata 'workload_order' ($script:P4FrameWorkloadOrder -join '|') | Out-Null
+    Assert-P4FrameMetadataValue $metadata 'workload_order' ($declaredOrder -join '|') | Out-Null
     Assert-P4FrameMetadataValue $metadata 'source_commit' $BuildCommit | Out-Null
     Assert-P4FrameMetadataValue $metadata 'apk_sha256' $ExpectedApkSha256 | Out-Null
     Assert-P4FrameMetadataValue $metadata 'apk_embedded_source_commit' $BuildCommit | Out-Null
@@ -178,8 +259,12 @@ function Test-P4FrameCapture {
     Assert-P4FrameMetadataValue $metadata 'device_evidence_class' 'physical_device' | Out-Null
     Assert-P4FrameMetadataValue $metadata 'warmups_per_workload' ([string]$script:P4FrameWarmups) | Out-Null
     Assert-P4FrameMetadataValue $metadata 'samples_per_workload' ([string]$expectedSamples) | Out-Null
-    Assert-P4FrameMetadataValue $metadata 'fatal_anr_matches' '0' | Out-Null
-    foreach ($workload in $script:P4FrameWorkloadOrder) {
+    $fatalText = Get-P4FrameMetadataValue -Metadata $metadata -Key 'fatal_anr_matches'
+    if ($fatalText -cnotmatch '^\d+$') { throw "Frame metadata fatal_anr_matches is not a count: $fatalText" }
+    $fatalMatches = [int]$fatalText
+    # Only a decision slot turns fatal matches into a verdict; a diagnostic slot still refuses them.
+    if ($Runner -eq 'diagnostic' -and $fatalMatches -ne 0) { throw 'A diagnostic frame slot recorded fatal matches.' }
+    foreach ($workload in $declaredOrder) {
         Assert-P4FrameMetadataValue $metadata "${workload}_surface_bounds" ([string]$ExpectedBounds[$workload]) | Out-Null
     }
     if ((Get-P4FrameMetadataValue -Metadata $metadata -Key 'percentile_method') -cnotmatch '^nearest-rank;') {
@@ -229,14 +314,19 @@ function Test-P4FrameCapture {
     }
 
     $presentWorkloads = @($samples | ForEach-Object { $_.workload } | Select-Object -Unique)
-    $expectedPrefix = @($script:P4FrameWorkloadOrder | Select-Object -First $presentWorkloads.Count)
+    # Decision: a prefix of families 1-2. Diagnostic: a prefix of the declared families 1-2 or 1-3.
+    $expectedPrefix = @($declaredOrder | Select-Object -First $presentWorkloads.Count)
     if (
         $presentWorkloads.Count -lt 1 -or
+        $presentWorkloads.Count -gt $declaredOrder.Count -or
         ($presentWorkloads -join '|') -cne ($expectedPrefix -join '|')
     ) {
         throw 'The measured frame families are not a prefix of the fixed workload order.'
     }
-    $completeRun = $presentWorkloads.Count -eq $script:P4FrameWorkloadOrder.Count
+    $completeRun = $presentWorkloads.Count -eq $declaredOrder.Count
+    if (-not $completeRun -and $Runner -eq 'decision') {
+        throw 'A decision frame slot must measure every decision family before the verdict.'
+    }
     if (-not $completeRun -and $status -cnotin @('fail', 'gross-regression')) {
         throw 'A frame family is missing without a recorded early stop.'
     }
@@ -320,13 +410,31 @@ function Test-P4FrameCapture {
                 throw "Recomputed '$key' is '$($recomputed[$key])' but the collector published '$published'."
             }
         }
-        $passed =
-            $overrunP95 -le $script:P4FrameOverrunP95Gate -and
-            $overrunP99 -le $script:P4FrameOverrunP99Gate -and
-            $inputP95 -le $script:P4FrameInputP95Gate
+        # The collector records gross regression only; the analyzer alone owns pass/fail (Lane 3).
+        $inputPassed = $inputP95 -le $script:P4FrameInputP95Gate
         $gross = $maximumOverrun -gt $script:P4FrameGrossOverrun -or $maximumInput -gt $script:P4FrameGrossInput
-        Assert-P4FrameMetadataValue $metadata "${workload}_threshold_status" $(if ($passed) { 'pass' } else { 'fail' }) | Out-Null
         Assert-P4FrameMetadataValue $metadata "${workload}_diagnostic_gross_regression" $(if ($gross) { 'true' } else { 'false' }) | Out-Null
+        $baselineP95 = $null; $baselineP99 = $null; $p95Margin = $null; $p99Margin = $null; $relativeStatus = $null
+        if ($isRelativeCandidate) {
+            # Compare the published six-decimal texts in decimal so the tolerance boundary is exact.
+            $reference = $baselineReference.families[$workload]
+            $candidateP95 = ConvertTo-P4FrameDecimal $recomputed["${workload}_frame_overrun_p95_ms"] "'$workload' p95"
+            $candidateP99 = ConvertTo-P4FrameDecimal $recomputed["${workload}_frame_overrun_p99_ms"] "'$workload' p99"
+            $p95Delta = $candidateP95 - $reference.p95
+            $p99Delta = $candidateP99 - $reference.p99
+            $relativePassed =
+                $p95Delta -le [decimal]$script:P4FrameRelativeP95ToleranceMs -and
+                $p99Delta -le [decimal]$script:P4FrameRelativeP99ToleranceMs -and
+                $inputPassed -and
+                $fatalMatches -eq 0
+            $baselineP95 = $reference.p95.ToString('F6', [Globalization.CultureInfo]::InvariantCulture)
+            $baselineP99 = $reference.p99.ToString('F6', [Globalization.CultureInfo]::InvariantCulture)
+            $p95Margin = $p95Delta.ToString('F6', [Globalization.CultureInfo]::InvariantCulture)
+            $p99Margin = $p99Delta.ToString('F6', [Globalization.CultureInfo]::InvariantCulture)
+            $relativeStatus = if ($relativePassed) { 'pass' } else { 'fail' }
+        }
+        # threshold_status: the relative status for the decision candidate, otherwise the input p95 gate.
+        $thresholdStatus = if ($isRelativeCandidate) { $relativeStatus } elseif ($inputPassed) { 'pass' } else { 'fail' }
         $families[$workload] = [ordered]@{
             frame_count = $familyFrames.Count
             operation_count = $expectedSamples
@@ -335,16 +443,24 @@ function Test-P4FrameCapture {
             input_to_committed_result_p95_ms = $recomputed["${workload}_input_to_committed_result_p95_ms"]
             maximum_frame_overrun_ms = $recomputed["${workload}_maximum_frame_overrun_ms"]
             maximum_input_to_committed_result_ms = $recomputed["${workload}_maximum_input_to_committed_result_ms"]
-            threshold_status = if ($passed) { 'pass' } else { 'fail' }
+            threshold_status = $thresholdStatus
             gross_regression = $gross
+            baseline_p95_ms = $baselineP95
+            baseline_p99_ms = $baselineP99
+            p95_margin_ms = $p95Margin
+            p99_margin_ms = $p99Margin
+            relative_status = $relativeStatus
         }
     }
 
-    $allPassed = $completeRun -and @($families.Keys | Where-Object { $families[$_].threshold_status -cne 'pass' }).Count -eq 0
+    $failedFamilies = @($families.Keys | Where-Object { $families[$_].threshold_status -cne 'pass' })
     $anyGross = @($families.Keys | Where-Object { $families[$_].gross_regression }).Count -gt 0
     $verdict =
-        if ($Runner -eq 'decision') {
-            if ($allPassed) { 'pass' } else { 'PERFORMANCE_FAIL' }
+        if ($Runner -eq 'decision' -and $Role -eq 'baseline') {
+            if ($fatalMatches -eq 0 -and $failedFamilies.Count -eq 0) { 'baseline-recorded' } else { 'baseline-invalid' }
+        }
+        elseif ($isRelativeCandidate) {
+            if ($failedFamilies.Count -eq 0) { 'pass' } else { 'PERFORMANCE_FAIL' }
         }
         elseif ($anyGross) { 'PERFORMANCE_FAIL' }
         else {
@@ -354,6 +470,7 @@ function Test-P4FrameCapture {
 
     return [ordered]@{
         verdict = $verdict
+        verdict_rule = $script:P4FrameVerdictRule
         schema = $script:P4FrameSchema
         experiment_schema = $script:P4FrameExperimentSchema
         experiment_id = $ExperimentId
@@ -372,8 +489,10 @@ function Test-P4FrameCapture {
         measured_operation_count = $samples.Count
         raw_frame_rows = $frames.Count
         valid_frame_rows = $frames.Count
-        fatal_anr_matches = 0
+        fatal_anr_matches = $fatalMatches
         complete_run = $completeRun
+        baseline_analysis_path = if ($isRelativeCandidate) { $baselineReference.path } else { $null }
+        failed_families = if ($isRelativeCandidate) { $failedFamilies } else { $null }
         families = $families
         frame_files = @(Get-P4FrameFileInventory -SlotDirectory $root)
     }
