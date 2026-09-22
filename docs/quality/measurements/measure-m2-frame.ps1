@@ -2862,7 +2862,7 @@ try {
         $metadata.Add("${prefix}_input_to_committed_result_p95_ms=$('{0:F6}' -f $family.InputP95)")
         $metadata.Add("${prefix}_maximum_frame_overrun_ms=$('{0:F6}' -f $family.MaximumFrameOverrun)")
         $metadata.Add("${prefix}_maximum_input_to_committed_result_ms=$('{0:F6}' -f $family.MaximumInputToCommitted)")
-        $metadata.Add("${prefix}_threshold_status=$(if ($family.Passed) { 'pass' } else { 'fail' })")
+        $metadata.Add("${prefix}_threshold_status=measured")
         $metadata.Add("${prefix}_diagnostic_gross_regression=$(if ($family.GrossRegression) { 'true' } else { 'false' })")
     }
     if ($physicalPresentEnabled) {

@@ -218,13 +218,10 @@ function Test-P4FrameCapture {
             'workload_order', 'measured_workload_counts', 'measured_operation_count')) {
         if ($key -notin $stateNames) { throw "Frame run state is missing '$key'." }
     }
-    # Decision slots declare exactly families 1-2; diagnostic slots declare families 1-2 or 1-3.
+    # Decision slots declare exactly families 1-2; diagnostic slots declare exactly families 1-3.
     $declaredOrder = @($state.workload_order | ForEach-Object { [string]$_ })
     $allowedOrder = if ($Runner -eq 'decision') { $script:P4FrameWorkloadOrder } else { $script:P4FrameDiagnosticWorkloadOrder }
-    $declaredOrderValid =
-        $declaredOrder.Count -ge $script:P4FrameWorkloadOrder.Count -and
-        $declaredOrder.Count -le $allowedOrder.Count -and
-        ($declaredOrder -join '|') -ceq (@($allowedOrder | Select-Object -First $declaredOrder.Count) -join '|')
+    $declaredOrderValid = ($declaredOrder -join '|') -ceq ($allowedOrder -join '|')
     if (
         $state.schema -cne $script:P4FrameExperimentSchema -or
         $state.experiment_id -cne $ExperimentId -or
@@ -265,7 +262,20 @@ function Test-P4FrameCapture {
     # Only a decision slot turns fatal matches into a verdict; a diagnostic slot still refuses them.
     if ($Runner -eq 'diagnostic' -and $fatalMatches -ne 0) { throw 'A diagnostic frame slot recorded fatal matches.' }
     foreach ($workload in $declaredOrder) {
+        # The window family draws on the same 256 by 256 surface; the collector records that surface
+        # once, under canvas256_repeated_diagonal_surface_bounds.
+        if ($workload -ceq $script:P4FrameDiagnosticWorkloadOrder[2]) {
+            if ([string]$ExpectedBounds[$workload] -cne [string]$ExpectedBounds['canvas256_repeated_diagonal']) {
+                throw "Expected frame bounds for '$workload' must equal the canvas256 surface bounds."
+            }
+            continue
+        }
         Assert-P4FrameMetadataValue $metadata "${workload}_surface_bounds" ([string]$ExpectedBounds[$workload]) | Out-Null
+    }
+    # The collector never judges: every measured family's threshold_status is `measured`.
+    foreach ($workload in @($state.measured_workload_counts.PSObject.Properties |
+                Where-Object { [int]$_.Value -gt 0 } | ForEach-Object { $_.Name })) {
+        Assert-P4FrameMetadataValue $metadata "${workload}_threshold_status" 'measured' | Out-Null
     }
     if ((Get-P4FrameMetadataValue -Metadata $metadata -Key 'percentile_method') -cnotmatch '^nearest-rank;') {
         throw 'Frame metadata does not record the nearest-rank percentile method.'
@@ -314,7 +324,7 @@ function Test-P4FrameCapture {
     }
 
     $presentWorkloads = @($samples | ForEach-Object { $_.workload } | Select-Object -Unique)
-    # Decision: a prefix of families 1-2. Diagnostic: a prefix of the declared families 1-2 or 1-3.
+    # Decision: a prefix of families 1-2. Diagnostic: a prefix of families 1-3 (a gross regression stops early).
     $expectedPrefix = @($declaredOrder | Select-Object -First $presentWorkloads.Count)
     if (
         $presentWorkloads.Count -lt 1 -or
