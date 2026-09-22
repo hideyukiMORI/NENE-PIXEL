@@ -184,6 +184,20 @@ The following narrow commands are diagnostic tools, not substitutes for `check`:
 
 Do not create lint or detekt baselines and do not exclude project-owned source sets. Initial intentional-failure evidence is recorded in [Initial Gate Proofs](quality/INITIAL_GATE_PROOFS.md) and [Architecture Gate Proofs](quality/ARCHITECTURE_GATE_PROOFS.md).
 
+## Run the developer tools under tools/
+
+`tools/` holds three PowerShell scripts that replace repeated preparation steps (ADR 0027, Issue #128).
+Run them with `pwsh -NoProfile -File`; each header states its arguments, JSON output, and exit codes,
+and each has a self-test under `tools/selftest/` that is the only check a change to that script needs
+(QLT-011). `prepare-device-checkout.ps1` builds the debug APK of a worktree offline, installs it while
+keeping app data, moves the app's recovery files into a named guard directory, and records the next
+launch target in a manifest under `build/reports/device-checkout/`; it never launches the app, starts a
+measurement, clears data, or uninstalls. `assert-protected-unchanged.ps1` reports, as JSON, any change
+to protected documents against a base ref, keeps a SHA-256 ledger for untracked evidence directories,
+and compares two JSON files while allowing only the listed fields to differ. `compare-screenshots.ps1`
+returns the bounding rectangle of the pixel difference between two PNGs and whether it lies inside a
+given rectangle. The design seat runs these directly and accepts on their actual output.
+
 ## Update dependencies reproducibly
 
 Dependency or plugin upgrades belong in a focused change. Edit exact versions only in `gradle/libs.versions.toml`, review primary-source release notes, and regenerate all dependency evidence with:
