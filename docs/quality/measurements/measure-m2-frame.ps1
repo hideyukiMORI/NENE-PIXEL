@@ -1,4 +1,4 @@
-# Lane 3 revision 2026-09-23 (#120): order, no fail-fast, verdict by analyzer only, experiment schema v5
+# Lane 3 revision 2026-09-23 (#120): order, no fail-fast, verdict by analyzer only, experiment schema v5, window_x2 diagnostic family
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
@@ -270,6 +270,20 @@ $workloadCatalog = @(
     }
 )
 $workloadOrder = @($workloadCatalog | ForEach-Object { $_.workload })
+# Diagnostic slots only (Lane 3 family 3): the exact event, dwell, reset and warmup sequence of
+# canvas256_repeated_diagonal on the same clean document, with the actual-size window shown at X2.
+# Only the family name and the window preparation/teardown differ; it is never a decision input.
+$windowDiagnosticWorkload = "canvas256_repeated_diagonal_window_x2"
+$windowDiagnosticScale = "x2"
+$windowDiagnosticSpec = [ordered]@{}
+foreach ($entry in $workloadCatalog[1].GetEnumerator()) {
+    $windowDiagnosticSpec[$entry.Key] = $entry.Value
+}
+$windowDiagnosticSpec.workload = $windowDiagnosticWorkload
+$diagnosticWorkloadCatalog = @($workloadCatalog) + @($windowDiagnosticSpec)
+$diagnosticWorkloadOrder = @($diagnosticWorkloadCatalog | ForEach-Object { $_.workload })
+$slotWorkloadCatalog = if ($RunKind -eq "diagnostic") { $diagnosticWorkloadCatalog } else { $workloadCatalog }
+$slotWorkloadOrder = @($slotWorkloadCatalog | ForEach-Object { $_.workload })
 $physicalPresentAnalyzer = Join-Path $PSScriptRoot "analyze-m2-physical-present.ps1"
 $physicalTraceState = $null
 $physicalAnalysis = $null
@@ -465,11 +479,13 @@ $expectedSurfaceBoundsByWorkload =
         [ordered]@{
             canvas16_tap = $BaselineCanvas16SurfaceBounds
             canvas256_repeated_diagonal = $BaselineCanvas256SurfaceBounds
+            canvas256_repeated_diagonal_window_x2 = $BaselineCanvas256SurfaceBounds
         }
     } else {
         [ordered]@{
             canvas16_tap = $CandidateCanvas16SurfaceBounds
             canvas256_repeated_diagonal = $CandidateCanvas256SurfaceBounds
+            canvas256_repeated_diagonal_window_x2 = $CandidateCanvas256SurfaceBounds
         }
     }
 if ($SourceCommit -ne $expectedSourceCommit) {
@@ -576,6 +592,13 @@ $experimentManifest =
         comparison_order = $comparisonOrder
         workload_order = $workloadOrder
         workload_catalog = $workloadCatalog
+        diagnostic_workload_order = $diagnosticWorkloadOrder
+        diagnostic_window_family = [ordered]@{
+            workload = $windowDiagnosticWorkload
+            event_sequence_of = $workloadCatalog[1].workload
+            window_scale = $windowDiagnosticScale
+            window_anchor = "default"
+        }
         geometry = [ordered]@{
             id = $geometryId
             baseline = [ordered]@{
@@ -655,7 +678,12 @@ function Test-RunStateIdentity {
     )
 
     $expectedCount = if ($SequenceIndex -le 2) { 50 } else { 10 }
+    $expectedOrder = if ($SequenceIndex -le 2) { $workloadOrder } else { $diagnosticWorkloadOrder }
     $propertyNames = if ($null -eq $State) { @() } else { @($State.PSObject.Properties.Name) }
+    $countsMatch =
+        $null -ne $State -and
+        "measured_workload_counts" -in $propertyNames -and
+        @($expectedOrder | Where-Object { [int]$State.measured_workload_counts.$_ -ne $expectedCount }).Count -eq 0
     return (
         $null -ne $State -and
         $State.schema -eq $experimentSchema -and
@@ -665,10 +693,9 @@ function Test-RunStateIdentity {
         "workload_order" -in $propertyNames -and
         "measured_workload_counts" -in $propertyNames -and
         "measured_operation_count" -in $propertyNames -and
-        (@($State.workload_order) -join "|") -ceq ($workloadOrder -join "|") -and
-        [int]$State.measured_workload_counts.canvas16_tap -eq $expectedCount -and
-        [int]$State.measured_workload_counts.canvas256_repeated_diagonal -eq $expectedCount -and
-        [int]$State.measured_operation_count -eq ($expectedCount * $workloadCatalog.Count)
+        (@($State.workload_order) -join "|") -ceq ($expectedOrder -join "|") -and
+        $countsMatch -and
+        [int]$State.measured_operation_count -eq ($expectedCount * $expectedOrder.Count)
     )
 }
 
@@ -841,9 +868,12 @@ if ($InspectGeometryOnly) {
 New-Item -ItemType Directory -Path $resolvedOutput | Out-Null
 New-Item -ItemType Directory -Path (Join-Path $resolvedOutput "raw") | Out-Null
 $runStatePath = Join-Path $resolvedOutput "run-state.json"
-$script:measuredWorkloadCounts = [ordered]@{
-    canvas16_tap = 0
-    canvas256_repeated_diagonal = 0
+$script:measuredWorkloadCounts = [ordered]@{}
+foreach ($slotWorkload in $slotWorkloadOrder) {
+    $script:measuredWorkloadCounts[$slotWorkload] = 0
+}
+function Get-MeasuredOperationCount {
+    return [int](($script:measuredWorkloadCounts.Values | Measure-Object -Sum).Sum)
 }
 function Write-RunState {
     param(
@@ -865,11 +895,9 @@ function Write-RunState {
             status = $Status
             verdict = $Verdict
             complete_run = $CompleteRun
-            workload_order = $workloadOrder
+            workload_order = $slotWorkloadOrder
             measured_workload_counts = $script:measuredWorkloadCounts
-            measured_operation_count =
-                [int]$script:measuredWorkloadCounts.canvas16_tap +
-                [int]$script:measuredWorkloadCounts.canvas256_repeated_diagonal
+            measured_operation_count = Get-MeasuredOperationCount
         }
     [System.IO.File]::WriteAllText(
         $runStatePath,
@@ -1139,7 +1167,7 @@ function Assert-LandscapeRootUi {
 function Get-WorkloadSpec {
     param([Parameter(Mandatory = $true)][string]$Workload)
 
-    $matches = @($workloadCatalog | Where-Object { $_.workload -ceq $Workload })
+    $matches = @($slotWorkloadCatalog | Where-Object { $_.workload -ceq $Workload })
     if ($matches.Count -ne 1) {
         throw "Unknown or ambiguous frame workload '$Workload'."
     }
@@ -1781,6 +1809,114 @@ function Invoke-CommitEventSequence {
     Start-Sleep -Milliseconds $drawWaitMilliseconds
 }
 
+function Add-ActualSizeWindowLog {
+    param(
+        [Parameter(Mandatory = $true)][string]$Workload,
+        [Parameter(Mandatory = $true)][string]$Line
+    )
+
+    [System.IO.File]::AppendAllText(
+        (Join-Path $resolvedOutput "window-$Workload.log"),
+        "$([datetime]::UtcNow.ToString('o')) $Line`n",
+        [System.Text.UTF8Encoding]::new($false)
+    )
+}
+
+function Get-ActualSizeWindowUiStep {
+    param(
+        [Parameter(Mandatory = $true)][string]$Workload,
+        [Parameter(Mandatory = $true)][string]$Step
+    )
+
+    Start-Sleep -Milliseconds $drawWaitMilliseconds
+    $ui = Get-CurrentEditorUi
+    [System.IO.File]::WriteAllText(
+        (Join-Path $resolvedOutput ("raw/{0}-window-{1}.xml" -f $Workload, $Step)),
+        $ui.OuterXml,
+        [System.Text.UTF8Encoding]::new($false)
+    )
+    Add-ActualSizeWindowLog -Workload $Workload -Line ("dump step=$Step")
+    return $ui
+}
+
+function Get-ActualSizeWindowNodes {
+    param([Parameter(Mandatory = $true)][xml]$Ui)
+
+    return @(
+        $Ui.SelectNodes("//*[@resource-id]") |
+            Where-Object { $_.GetAttribute("resource-id") -like "*editor_actual_size_window*" -and
+                $_.GetAttribute("resource-id") -notlike "*editor_actual_size_window_toggle" }
+    )
+}
+
+function Show-ActualSizeWindowAtScale {
+    # Lane 3 family 3 preparation: show the window through the dock control, cycle the chip until the
+    # window node describes the required scale (at most six taps, each verified through a dump), and
+    # require every family input point to lie outside the window bounds. Any failure is INVALID.
+    param(
+        [Parameter(Mandatory = $true)][string]$Workload,
+        [Parameter(Mandatory = $true)][object]$Geometry
+    )
+
+    $ui = Get-CurrentEditorUi
+    Add-ActualSizeWindowLog -Workload $Workload -Line ("tap editor_actual_size_window_toggle (show)")
+    Invoke-NodeTap -Node (Get-ResourceControlNode -Node (Get-ResourceNode -Ui $ui -Identity "editor_actual_size_window_toggle"))
+    $ui = Get-ActualSizeWindowUiStep -Workload $Workload -Step "shown"
+    $chipTaps = 0
+    while ($true) {
+        $windowNode = Get-ResourceNode -Ui $ui -Identity "editor_actual_size_window"
+        $description = $windowNode.GetAttribute("content-desc")
+        $scaleMatch = [regex]::Match($description, "x(\d+)$")
+        $scale = if ($scaleMatch.Success) { "x$($scaleMatch.Groups[1].Value)" } else { "" }
+        Add-ActualSizeWindowLog -Workload $Workload -Line ("window scale=$scale chip_taps=$chipTaps")
+        if ($scale -ceq $windowDiagnosticScale) {
+            break
+        }
+        if ($chipTaps -ge 6) {
+            throw "INVALID: the actual-size window did not describe $windowDiagnosticScale within six chip taps."
+        }
+        Add-ActualSizeWindowLog -Workload $Workload -Line ("tap editor_actual_size_window_chip")
+        Invoke-NodeTap -Node (Get-ResourceControlNode -Node (Get-ResourceNode -Ui $ui -Identity "editor_actual_size_window_chip"))
+        $chipTaps += 1
+        $ui = Get-ActualSizeWindowUiStep -Workload $Workload -Step "chip-$chipTaps"
+    }
+    $windowBoundsText = $windowNode.GetAttribute("bounds")
+    $windowBounds = Get-Bounds -Node $windowNode
+    Add-ActualSizeWindowLog -Workload $Workload -Line ("window bounds=$windowBoundsText")
+    foreach ($point in @(
+            @($Geometry.FirstX, $Geometry.FirstY),
+            @($Geometry.LastX, $Geometry.LastY)
+        )) {
+        if (
+            $point[0] -ge $windowBounds.Left -and $point[0] -le $windowBounds.Right -and
+            $point[1] -ge $windowBounds.Top -and $point[1] -le $windowBounds.Bottom
+        ) {
+            throw "INVALID: the $Workload input point ($($point[0]),$($point[1])) lies inside the actual-size window $windowBoundsText."
+        }
+    }
+    return [pscustomobject]@{
+        Scale = $scale
+        Bounds = $windowBoundsText
+        ChipTaps = $chipTaps
+    }
+}
+
+function Hide-ActualSizeWindow {
+    param(
+        [Parameter(Mandatory = $true)][string]$Workload
+    )
+
+    $ui = Get-CurrentEditorUi
+    Add-ActualSizeWindowLog -Workload $Workload -Line ("tap editor_actual_size_window_toggle (hide)")
+    Invoke-NodeTap -Node (Get-ResourceControlNode -Node (Get-ResourceNode -Ui $ui -Identity "editor_actual_size_window_toggle"))
+    $ui = Get-ActualSizeWindowUiStep -Workload $Workload -Step "hidden"
+    $remaining = @(Get-ActualSizeWindowNodes -Ui $ui)
+    Add-ActualSizeWindowLog -Workload $Workload -Line ("window nodes after hide=$($remaining.Count)")
+    if ($remaining.Count -ne 0) {
+        throw "INVALID: the actual-size window remained visible after $Workload."
+    }
+}
+
 function Write-RotationStateArtifact {
     param(
         [Parameter(Mandatory = $true)][string]$Name,
@@ -2411,10 +2547,19 @@ try {
         $physicalTraceState = Start-PhysicalPresentTrace
     }
     $operationOrdinal = 0
-    foreach ($spec in $workloadCatalog) {
+    $windowRecords = [ordered]@{}
+    foreach ($spec in $slotWorkloadCatalog) {
         $workload = $spec.workload
-        if ($workload -ne $workloadCatalog[0].workload) {
+        $isWindowFamily = $workload -ceq $windowDiagnosticWorkload
+        # The window family reuses the clean 256 by 256 document left by canvas256_repeated_diagonal.
+        if ($workload -ne $workloadCatalog[0].workload -and -not $isWindowFamily) {
             New-DocumentThroughUi -Spec $spec | Out-Null
+        }
+        if ($isWindowFamily) {
+            $windowRecords[$workload] =
+                Show-ActualSizeWindowAtScale `
+                    -Workload $workload `
+                    -Geometry (Assert-CleanWorkloadReady -Ui (Get-CurrentEditorUi) -Workload $workload)
         }
         foreach ($warmupIndex in 1..$warmupCount) {
             $geometry = Assert-CleanWorkloadReady -Ui (Get-CurrentEditorUi) -Workload $workload
@@ -2514,6 +2659,9 @@ try {
                 -JourneyIndex $sampleIndex `
                 -Workload $workload
         }
+        if ($isWindowFamily) {
+            Hide-ActualSizeWindow -Workload $workload
+        }
         $familySummaries = @($sampleSummaries | Where-Object { $_.workload -ceq $workload })
         $familyFrames = @($frameRows | Where-Object { $_.workload -ceq $workload })
         $familyResult =
@@ -2590,7 +2738,7 @@ try {
         throw "Aggregate frame counts must retain every preview and committed-result frame."
     }
     $summaryCursor = 0
-    foreach ($spec in @($workloadCatalog | Select-Object -First $familyResults.Count)) {
+    foreach ($spec in @($slotWorkloadCatalog | Select-Object -First $familyResults.Count)) {
         foreach ($sampleIndex in 1..$sampleCount) {
             $expectedOrdinal = $summaryCursor + 1
             $summary = $sampleSummaries[$summaryCursor]
@@ -2615,7 +2763,7 @@ try {
         }
     }
     $completeRun =
-        $familyResults.Count -eq $workloadCatalog.Count -and
+        $familyResults.Count -eq $slotWorkloadCatalog.Count -and
         $fatalCount -eq 0
     $grossRegression = @($familyResults | Where-Object { $_.GrossRegression }).Count -gt 0
     $acceptanceLane =
@@ -2647,7 +2795,7 @@ try {
         "candidate_role=$CandidateRole",
         "comparison_sequence_index=$ComparisonSequenceIndex",
         "comparison_order=$($comparisonOrder -join '|')",
-        "workload_order=$($workloadOrder -join '|')",
+        "workload_order=$($slotWorkloadOrder -join '|')",
         "input_injection=$inputInjection",
         "source_commit=$SourceCommit",
         "production_commit=$expectedProductionCommit",
@@ -2696,8 +2844,18 @@ try {
         "display_present_time_available=$(@($validFrames | Where-Object { $_.display_present_time_nanos -gt 0 }).Count -gt 0)",
         "boundary=DOWN preview plus UP commit; every phase frame retained; acceptance latency starts at earliest UP HandleInputStart and completes at latest UP-associated FrameCompleted after committed UI verification; DOWN-to-commit including the intentional preview dwell is diagnostic only"
     ) | ForEach-Object { $metadata.Add($_) }
+    if ($slotWorkloadOrder -ccontains $windowDiagnosticWorkload) {
+        $metadata.Add("measured_$windowDiagnosticWorkload=$($script:measuredWorkloadCounts[$windowDiagnosticWorkload])")
+    }
     foreach ($family in $familyResults) {
         $prefix = $family.Workload
+        if ($windowRecords.Contains($prefix)) {
+            $metadata.Add("${prefix}_window_scale=$($windowRecords[$prefix].Scale)")
+            $metadata.Add("${prefix}_window_bounds=$($windowRecords[$prefix].Bounds)")
+        }
+        else {
+            $metadata.Add("${prefix}_window_scale=none")
+        }
         $metadata.Add("${prefix}_frame_count=$($family.FrameCount)")
         $metadata.Add("${prefix}_frame_overrun_p95_ms=$('{0:F6}' -f $family.OverrunP95)")
         $metadata.Add("${prefix}_frame_overrun_p99_ms=$('{0:F6}' -f $family.OverrunP99)")
@@ -2741,9 +2899,7 @@ catch {
         -SourceError $sourceError
     $currentState = Get-RunState -Directory $resolvedOutput
     if ($null -eq $currentState -or $currentState.status -ne "completed") {
-        $measuredOperationCount =
-            [int]$script:measuredWorkloadCounts.canvas16_tap +
-            [int]$script:measuredWorkloadCounts.canvas256_repeated_diagonal
+        $measuredOperationCount = Get-MeasuredOperationCount
         $invalidStatus = if ($measuredOperationCount -eq 0) { "invalid-before-samples" } else { "invalid-after-samples" }
         Write-RunState -Status $invalidStatus -Verdict "invalid"
     }
