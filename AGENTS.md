@@ -77,6 +77,19 @@ names one changed proposition and one rerun set. A procedure walked by a model t
 instruction that changes operating policy is recorded as an ADR, a handoff section, and the first
 line of the handoff's next actions in one focused change.
 
+An implementation seat lives for one stage, accepted in
+[ADR 0028](docs/adr/0028-implementation-seat-shape.md): the probe of the actual code, the
+implementation, and each rework after a returned review are separate agents, and state passes
+between them through the report file and the mailbox. An `opus` seat is not reused for the next
+piece of work with `SendMessage`, and `fork` is never used for a background seat. Three S-size tasks
+beat one M-size task; one changed proposition is one new seat. Every implementation seat
+instruction contains the same four lines: run only the tests for the changed target and tail only
+the failing lines; write build and test logs to a file and read them with `grep`; read only the
+needed range of a file; report in at most 30 lines with the detail in the report file and only the
+path and the numbers returned to the parent. When quota consumption is suspected, the transcript
+usage is aggregated per seat (cache read, output, maximum context, turn count) before any remedy is
+chosen.
+
 ## Required completion report
 
 Every completed change must report:
