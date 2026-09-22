@@ -15,9 +15,9 @@ internal object LintPolicyProbe {
 
     fun assertAdvisoryDependencyChecks(result: BuildResult) {
         assertEquals(
-            "GradleDependency,NewerVersionAvailable",
+            "AndroidGradlePluginVersion,GradleDependency,NewerVersionAvailable",
             readPolicy(result, "informational"),
-            "Only the remote-index dependency checks may be informational.",
+            "Only the run-time version checks may be informational.",
         )
         assertEquals("true", readPolicy(result, "abortOnError"), "abortOnError must stay enabled.")
         assertEquals("true", readPolicy(result, "checkDependencies"), "checkDependencies must stay enabled.")
