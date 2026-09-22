@@ -55,7 +55,7 @@ An ADR must include:
 | [0014](0014-project-format-storage-recovery.md) | accepted | Project-format v1, fresh-document Save As, checked runtime persistence, and one bounded recovery record |
 | [0015](0015-project-format-v1-codec-contract.md) | accepted | One bounded project-format byte carrier, closed v1 codec result, and allocation-after-validation mapping |
 | [0016](0016-android-project-persistence-retirement.md) | accepted | Android Save As/load operations, one runtime-install path, and real conditional recovery retirement |
-| [0017](0017-advisory-dependency-freshness-lint.md) | accepted | Informational `GradleDependency` / `NewerVersionAvailable` lint and a deliberate monthly catalog refresh cadence |
+| [0017](0017-advisory-dependency-freshness-lint.md) | accepted | Informational `GradleDependency` / `NewerVersionAvailable` / `AndroidGradlePluginVersion` lint and a deliberate monthly catalog refresh cadence |
 | [0018](0018-bounded-autosave-debounce-contract.md) | accepted | Bounded autosave capture, 1 s quiet window, 5 s latency cap, `ON_STOP` flush, and one device publication evidence lane |
 | [0019](0019-exact-png-export.md) | accepted | Deterministic exact RGBA PNG and one fresh-output/physical-operation path |
 | [0020](0020-tablet-editor-appearance.md) | accepted | One workspace appearance owner, aubergine themes and bottom/physical-side tablet controls |
