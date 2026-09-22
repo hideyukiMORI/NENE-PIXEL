@@ -396,12 +396,13 @@ family 3 is diagnostic only:
    reset and warmup sequence of family 2 on the same clean 256 by 256 document, with the
    actual-size window shown at scale X2 at its default anchor for the whole family. Before the
    warmups the collector shows the window through the dock control `editor_actual_size_window_toggle`, then
-   taps the chip `editor_actual_size_window_chip` until the chip reads `X2` (the scale cycle is
+   taps the chip `editor_actual_size_window_chip` until the window node
+   `editor_actual_size_window` describes scale `x2` in its content description (the scale cycle is
    X4, X8, X16, X32, X1, X2; at most six taps, each verified through the semantics node); after the
    samples it hides the window through the same dock control and verifies that the window nodes are
    gone. The window is never dragged. The family's input points must lie outside the window's
-   bounds; an input point inside the window, a chip that does not read `X2`, or a window still
-   visible after the family is `INVALID` for that slot. The family exists to measure the commit-frame
+   bounds; an input point inside the window, a window that does not describe `x2`, or a window
+   still visible after the family is `INVALID` for that slot. The family exists to measure the commit-frame
    cost of the window's single `drawBitmap` against family 2 for the M5 budget (ADR 0026); it is
    never a decision input.
 
