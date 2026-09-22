@@ -27,6 +27,26 @@ The editor is expected to support a progressively implemented subset of:
 
 This list is direction, not a claim that the features already exist.
 
+## Interface principle
+
+The always-visible surface holds only primary actions: the ones a first-time user understands without
+instruction and uses in every session. For this editor they are draw, erase, choose a color, undo and redo,
+file, and settings.
+
+Infrequent actions, configuration, information display, and advanced features live one layer back: the
+settings sheet, a long press, or a secondary surface reached from a primary control.
+
+Adding anything to the always-visible surface requires the owning Issue to state both that the control is
+understood at first sight and that it is used every session. A control that satisfies one condition without
+the other goes back.
+
+Complexity is hidden by placement, never removed by dropping a capability the product needs. A hidden
+feature keeps the same canonical action or command path as a visible one; placement is presentation and
+never a second implementation route.
+
+This principle records the product owner's direction of 2026-09-22. The
+[Interface Inventory](INTERFACE_INVENTORY.md) records how the current editor surface maps onto it; that
+inventory is a record of current state, not an additional rule.
 ## Definition of strictness
 
 Strictness means all of the following:

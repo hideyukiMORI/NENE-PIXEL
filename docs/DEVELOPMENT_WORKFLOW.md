@@ -184,6 +184,7 @@ Review must reject:
 - manual generated-code edits
 - public APIs added “for possible future use”
 - unrelated cleanup hidden in feature changes
+- a new always-visible control without the first-sight and every-session justification required by the [Interface principle](PROJECT_CHARTER.md#interface-principle)
 
 ## Documentation policy
 
