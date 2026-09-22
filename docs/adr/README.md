@@ -66,3 +66,4 @@ An ADR must include:
 | [0025](0025-indexed-project-compatibility.md) | accepted | Exact indexed v2, typed legacy import and original-preserving recovery conversion before atomic cutover |
 | [0026](0026-actual-size-window.md) | accepted | One actual-size window over the canvas: closed integer scales, workspace-owned placement, shared committed bitmap |
 | [0027](0027-agent-seat-model-tiers.md) | accepted | Design seat keeps judgment; implementation on Opus, preparation on Sonnet, mechanical work on Haiku; repeated preparation becomes `tools/` scripts |
+| [0028](0028-implementation-seat-shape.md) | accepted | One implementation seat per stage (probe, implementation, each rework), small tool output in the instruction form, S-size tasks; Opus 5.5 as a measured trial |
