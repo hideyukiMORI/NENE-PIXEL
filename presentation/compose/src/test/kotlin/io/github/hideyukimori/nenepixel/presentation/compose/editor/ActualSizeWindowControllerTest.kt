@@ -43,7 +43,15 @@ internal class ActualSizeWindowControllerTest {
             fixture.controller.callbacks.onSetActualSizeWindow(window.withScale(window.scale.next()))
         }
         assertEquals(
-            listOf(ActualSizeScale.X2, ActualSizeScale.X4, ActualSizeScale.X8, ActualSizeScale.X1, ActualSizeScale.X2),
+            listOf(
+                ActualSizeScale.X4,
+                ActualSizeScale.X8,
+                ActualSizeScale.X16,
+                ActualSizeScale.X32,
+                ActualSizeScale.X1,
+                ActualSizeScale.X2,
+                ActualSizeScale.X4,
+            ),
             observed,
         )
         assertTrue(fixture.controller.renderState.actualSizeWindow.visible)

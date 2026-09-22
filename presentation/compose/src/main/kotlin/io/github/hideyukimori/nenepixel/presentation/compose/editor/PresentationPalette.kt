@@ -15,6 +15,10 @@ internal object PresentationPalette {
     private val lightSurround: Color = Color(0xFFBDBDBD)
     val grid: Color = Color.Black.copy(alpha = GRID_ALPHA)
     val actualSizeWindowFrame: Color = Color(0xFF5E2750)
+
+    /** Grip and scale-chip fill: a fixed light tint that stays legible on the frame in both themes. */
+    val actualSizeWindowLabel: Color = Color(0xFFF2E9EF)
+
     val eraserPreview: Color = Color(0xFF30343B).copy(alpha = ERASER_PREVIEW_ALPHA)
 
     private const val GRID_ALPHA: Float = 0.16f

@@ -18,17 +18,21 @@ internal class ActualSizeWindowReducerTest {
     private val admission = CommandGateway.create(state(canvas(4, 4))).captureSource()
 
     @Test
-    fun `the initial window is hidden at x2 anchored top trailing and cycles through every scale`() {
+    fun `the initial window is hidden at x4 anchored top trailing and cycles through every scale`() {
         val window = initial.actualSizeWindow
         assertFalse(window.visible)
-        assertEquals(ActualSizeScale.X2, window.scale)
+        assertEquals(ActualSizeScale.X4, window.scale)
         assertEquals(WindowAnchor.create(1.0, 0.0), window.anchor)
-        assertEquals(listOf(1, 2, 4, 8), ActualSizeScale.entries.map(ActualSizeScale::devicePixelsPerCell))
+        assertEquals(
+            listOf(1, 2, 4, 8, 16, 32),
+            ActualSizeScale.entries.map(ActualSizeScale::devicePixelsPerCell),
+        )
         assertEquals(
             ActualSizeScale.entries.toList(),
             generateSequence(ActualSizeScale.X1, ActualSizeScale::next).take(ActualSizeScale.entries.size).toList(),
         )
-        assertEquals(ActualSizeScale.X1, ActualSizeScale.X8.next())
+        assertEquals(ActualSizeScale.X1, ActualSizeScale.X32.next())
+        assertEquals(ActualSizeScale.X16, ActualSizeScale.X8.next())
         assertTrue(window.toggled().visible)
         assertFalse(window.toggled().toggled().visible)
     }
@@ -73,7 +77,7 @@ internal class ActualSizeWindowReducerTest {
 
     @Test
     fun `an equal window is unchanged and keeps both the state and an active gesture`() {
-        val action = WorkspaceAction.SetActualSizeWindow(initial.actualSizeWindow.withScale(ActualSizeScale.X2))
+        val action = WorkspaceAction.SetActualSizeWindow(initial.actualSizeWindow.withScale(ActualSizeScale.X4))
         val unchanged =
             assertInstanceOf(WorkspaceReductionResult.Unchanged::class.java, reducer.reduce(initial, action, admission))
         assertEquals(WorkspaceNoChangeReason.ActualSizeWindowAlreadySet, unchanged.reason)

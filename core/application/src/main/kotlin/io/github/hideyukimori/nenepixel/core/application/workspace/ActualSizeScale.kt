@@ -8,6 +8,8 @@ public enum class ActualSizeScale(
     X2(devicePixelsPerCell = 2),
     X4(devicePixelsPerCell = 4),
     X8(devicePixelsPerCell = 8),
+    X16(devicePixelsPerCell = 16),
+    X32(devicePixelsPerCell = 32),
     ;
 
     /** The next scale in declaration order, wrapping after the largest one. */

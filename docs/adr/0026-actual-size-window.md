@@ -68,6 +68,20 @@ committed bitmap. No document meaning, command, or persisted payload changes.
   window is not possible; move the window instead.
 - Wording: the glossary gains "actual-size window"; the word "preview" keeps its existing meaning.
 
+Amendment 2026-09-22 (#126): the window carries its own affordances. `ActualSizeScale` becomes
+`X1, X2, X4, X8, X16, X32` and `ActualSizeWindow.initial` opens at **X4**; the integer-multiple,
+centre-clip and half-edge rules are unchanged. The window gains two always-visible chrome bands
+outside the content: a grip handle along the top edge and a scale chip (`x4`) at the trailing bottom
+corner, the chip a `Role.Button` that cycles the scale. Dragging the handle, the content or the
+footer moves the window, and tapping the chip or the window body cycles the scale, so both existing
+gestures keep working. The window keeps a minimum outer width so the two bands fit; a narrower
+document is centred inside it, and the half-edge limit now applies to the outer size with the
+content an exact `columns x scale` multiple inside it. The UI label becomes "Preview"
+(`Preview` / `プレビュー` / `预览`) in all three locales; no type, key or command name changes.
+Reason: hide used the #118 window on the device on 2026-09-22 and could not find either gesture. A
+16 x 16 document at X2 is 38 device pixels with no scale readout and no handle, and the label
+"actual size" did not describe what the window is for.
+
 ## Rejected alternatives
 
 ### Reuse `ViewportZoom` for the window scale
@@ -106,6 +120,9 @@ information with no second construction route.
 ### Benefits
 
 - The artwork can be checked at exact device-pixel multiples while editing at any zoom.
+- Putting the affordances on the window is compatible with the Interface principle's "keep complexity
+  deeper": the front surface still carries only the dock toggle, and the handle and chip appear only
+  once the window itself is open (amendment 2026-09-22, #126).
 - One committed bitmap serves both views; stroke frames are untouched.
 - The window state follows the same reducer, test and replacement pattern as `EditorAppearance`.
 
@@ -157,6 +174,7 @@ private cache in `PixelCanvas`; no document or file changes.
 ## Related
 
 - Issue: [#118](https://github.com/hideyukiMORI/NENE-PIXEL/issues/118)
+- Amendment: [#126](https://github.com/hideyukiMORI/NENE-PIXEL/issues/126) (2026-09-22)
 - PR:
 - [ADR 0005](0005-pixel-color-representation-and-limits.md)
 - [ADR 0020](0020-tablet-editor-appearance.md)
