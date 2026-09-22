@@ -285,3 +285,18 @@ Forbidden package names:
 Cross-module access must use the declared public API. Importing another module's `internal`, generated, test-fixture, or implementation package is prohibited.
 
 The app composition root owns localized Android Context/Configuration and layout direction (ADR 0021).
+
+## Repository directories outside Gradle
+
+Directories that are not Gradle modules hold no application code and never become a second
+verification or measurement route (QLT-018):
+
+- `docs/` holds the canonical documents, ADRs, waivers, and quality evidence; measurement
+  collectors and analyzers live under `docs/quality/measurements/` next to the evidence they produce.
+- `build-logic/` holds the convention plugins and repository validators that the quality gate runs.
+- `tools/` holds developer scripts that replace preparation steps a model would otherwise repeat
+  ([ADR 0027](adr/0027-agent-seat-model-tiers.md)): device checkout preparation, the zero-diff and
+  field-level check of protected material, and screenshot pixel comparison. Each script states its
+  arguments, output shape, and exit codes in its header, runs under `pwsh -NoProfile -File`, adds no
+  dependency, and has a self-test under `tools/selftest/`. The scripts prepare and check; they never
+  launch the app, start a measurement, or delete anything on a device.
