@@ -19,7 +19,9 @@ internal class AcceptanceFixture {
     fun requireIsolation() {
         assumeTrue("Run only with the documented isolated device protocol", arguments.getString("m3Isolated") == "true")
         require(id.matches(Regex("[a-z0-9-]{1,35}")))
-        check(File(context.noBackupFilesDir, "issue-89-user-recovery-20260912").isDirectory)
+        val guard = arguments.getString("m3PreservationGuard").orEmpty()
+        require(guard.matches(Regex("issue-[0-9]+-user-recovery-[a-z0-9-]+")))
+        check(File(context.noBackupFilesDir, guard).isDirectory)
     }
 
     fun recordProcess(
@@ -60,17 +62,19 @@ internal class AcceptanceFixture {
         revision: Long,
         recovered: Boolean = false,
     ) {
-        assertEquals(234, bytes.size)
+        assertEquals(129, bytes.size)
         assertArrayEquals(byteArrayOf(78, 69, 78, 69, 80, 73, 88, 0), bytes.copyOfRange(0, 8))
         val buffer = ByteBuffer.wrap(bytes)
-        assertEquals(1, buffer.getShort(8).toInt())
+        assertEquals(2, buffer.getShort(8).toInt())
         assertEquals(8, buffer.getShort(10).toInt())
         assertEquals(6, buffer.getShort(12).toInt())
         assertEquals(documentId, bytes.copyOfRange(14, 30).joinToString("") { "%02x".format(it) })
         assertEquals(revision, buffer.getLong(30))
-        assertArrayEquals(expectedPixels(recovered), IntArray(48) { buffer.getInt(38 + it * 4) })
-        val crc = CRC32().apply { update(bytes, 0, 230) }.value
-        assertEquals(crc, buffer.getInt(230).toLong() and 0xffffffffL)
+        assertEquals(9, buffer.getShort(38).toInt())
+        assertEquals(8, bytes[40].toInt() and UBYTE_MASK)
+        assertArrayEquals(expectedIndices(recovered), IntArray(48) { bytes[77 + it].toInt() and UBYTE_MASK })
+        val crc = CRC32().apply { update(bytes, 0, 125) }.value
+        assertEquals(crc, buffer.getInt(125).toLong() and 0xffffffffL)
     }
 
     fun expectedPixels(recovered: Boolean = false): IntArray =
@@ -80,4 +84,16 @@ internal class AcceptanceFixture {
             this[29] = 0x0000ffff
             if (recovered) this[38] = 0x00ff00ff
         }
+
+    fun expectedIndices(recovered: Boolean = false): IntArray =
+        IntArray(48) { 8 }.apply {
+            this[9] = 0
+            this[11] = 0
+            this[29] = 4
+            if (recovered) this[38] = 3
+        }
+
+    private companion object {
+        const val UBYTE_MASK: Int = 0xff
+    }
 }

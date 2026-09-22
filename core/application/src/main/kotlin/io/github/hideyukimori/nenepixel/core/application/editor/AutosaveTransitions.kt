@@ -64,7 +64,7 @@ internal object AutosaveTransitions {
                 coordination.withAutosave(coordination.autosave.abandoned()),
                 AutosaveStart.NoCapture,
             )
-        } else if (coordination.recoveryState is RuntimeRecoveryState.Candidate) {
+        } else if (coordination.recoveryState.hasUnadoptedCandidate()) {
             PersistenceTransition(
                 coordination.withAutosave(coordination.autosave.withOutcome(AutosaveLastOutcome.OfferPending)),
                 AutosaveStart.OfferPending,

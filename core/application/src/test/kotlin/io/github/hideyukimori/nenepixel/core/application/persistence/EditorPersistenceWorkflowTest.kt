@@ -5,12 +5,13 @@ import io.github.hideyukimori.nenepixel.core.application.document.command.Comman
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandResult
 import io.github.hideyukimori.nenepixel.core.application.document.command.UndoCommand
 import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryAvailability
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.blackIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.canvas
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.green
-import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.palette
-import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.paletteIndex
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.greenIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.position
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.red
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.redIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.revision
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.state
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.stroke
@@ -131,7 +132,15 @@ internal class EditorPersistenceWorkflowTest {
     fun `save preserves an unadopted recovery candidate`() =
         runBlocking {
             val recoveryDocument = state(canvas(2, 2), documentId = documentId('a'))
-            val fixture = Fixture(RecoveryInspection.Candidate(generation(9), recoveryDocument))
+            val fixture =
+                Fixture(
+                    RecoveryInspection.Candidate(
+                        generation(9),
+                        io.github.hideyukimori.nenepixel.core.domain.document.DocumentImportSource.Current(
+                            recoveryDocument,
+                        ),
+                    ),
+                )
             fixture.initialize()
             fixture.storage.saveHandler = { ProjectSaveOutcome.Saved }
 
@@ -146,7 +155,15 @@ internal class EditorPersistenceWorkflowTest {
     fun `new document requires candidate-discard consent and retires that exact generation`() =
         runBlocking {
             val recoveryDocument = state(canvas(2, 2), documentId = documentId('a'))
-            val fixture = Fixture(RecoveryInspection.Candidate(generation(9), recoveryDocument))
+            val fixture =
+                Fixture(
+                    RecoveryInspection.Candidate(
+                        generation(9),
+                        io.github.hideyukimori.nenepixel.core.domain.document.DocumentImportSource.Current(
+                            recoveryDocument,
+                        ),
+                    ),
+                )
             fixture.initialize()
             val confirmation = assertAwaiting(fixture.workflow.createNewDocument(newRequest(3, 2)))
             assertEquals(PersistenceConfirmationReason.DISCARD_RECOVERY_CANDIDATE, confirmation.reason)
@@ -254,7 +271,7 @@ internal class EditorPersistenceWorkflowTest {
                 state(
                     canvas(3, 2),
                     revision = revision(5),
-                    pixels = listOf(red, green, red, green, red, green),
+                    indices = listOf(redIndex, greenIndex, redIndex, greenIndex, redIndex, greenIndex),
                     documentId = documentId('b'),
                 )
             val loadEntered = CompletableDeferred<Unit>()
@@ -262,7 +279,10 @@ internal class EditorPersistenceWorkflowTest {
             fixture.storage.loadHandler = {
                 loadEntered.complete(Unit)
                 releaseLoad.await()
-                ProjectLoadOutcome.Loaded(loaded)
+                ProjectLoadOutcome.Loaded(
+                    io.github.hideyukimori.nenepixel.core.domain.document.DocumentImportSource
+                        .Current(loaded),
+                )
             }
             fixture.recovery.retireHandler = { RecoveryRetirementOutcome.Retired(generation(1)) }
 
@@ -289,7 +309,10 @@ internal class EditorPersistenceWorkflowTest {
             fixture.storage.loadHandler = {
                 loadEntered.complete(Unit)
                 releaseLoad.await()
-                ProjectLoadOutcome.Loaded(loaded)
+                ProjectLoadOutcome.Loaded(
+                    io.github.hideyukimori.nenepixel.core.domain.document.DocumentImportSource
+                        .Current(loaded),
+                )
             }
             fixture.recovery.retireHandler = { RecoveryRetirementOutcome.Retired(generation(1)) }
 
@@ -338,7 +361,7 @@ internal class EditorPersistenceWorkflowTest {
                 )
             fixture.runtime.reduce(WorkspaceAction.SetViewport(previousViewport))
             fixture.runtime.reduce(WorkspaceAction.SelectTool(DrawingTool.Eraser))
-            fixture.runtime.reduce(WorkspaceAction.SelectPaletteEntry(paletteIndex(1)))
+            fixture.runtime.reduce(WorkspaceAction.SelectPaletteEntry(redIndex))
             val before = fixture.runtime.state
             fixture.recovery.retireHandler = { expected ->
                 assertEquals(ExpectedRecoveryLineage.Missing, expected)
@@ -358,7 +381,7 @@ internal class EditorPersistenceWorkflowTest {
             assertEquals(HistoryAvailability.None, after.historyAvailability)
             assertEquals(DocumentDirtyState.Clean, after.dirtyState)
             assertEquals(DrawingTool.Pencil, after.workspaceState.activeTool)
-            assertEquals(paletteIndex(0), after.workspaceState.activePaletteIndex)
+            assertEquals(blackIndex, after.workspaceState.activePaletteIndex)
             assertEquals(ViewportState.initial(after.documentState.size), after.workspaceState.viewport)
             assertEquals(listOf(ExpectedRecoveryLineage.Missing), fixture.recovery.retireCalls)
         }
@@ -416,7 +439,7 @@ internal class EditorPersistenceWorkflowTest {
             )
         fixture.runtime.reduce(WorkspaceAction.SetViewport(previousViewport))
         fixture.runtime.reduce(WorkspaceAction.SelectTool(DrawingTool.Eraser))
-        fixture.runtime.reduce(WorkspaceAction.SelectPaletteEntry(paletteIndex(1)))
+        fixture.runtime.reduce(WorkspaceAction.SelectPaletteEntry(redIndex))
         assertInstanceOf(
             WorkspaceReductionResult.Reduced::class.java,
             fixture.runtime.reduce(

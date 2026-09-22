@@ -1,6 +1,6 @@
 package io.github.hideyukimori.nenepixel.core.projectformat
 
-import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
+import io.github.hideyukimori.nenepixel.core.domain.document.DocumentImportSource
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertSame
@@ -12,7 +12,7 @@ internal class ProjectFormatV1CodecRejectionTest {
     @Test
     fun `maximum plus one reaches codec resource rejection`() {
         val source = ProjectFormatTestValues.carrier(ByteArray(ProjectFormatBytes.MAX_PROBE_BYTE_COUNT))
-        val rejection = rejected(ProjectFormatV1Codec.decode(source))
+        val rejection = rejected(ProjectFormatCodec.decode(source))
 
         val resource = assertInstanceOf(ProjectFormatRejection.ResourceLimitExceeded::class.java, rejection)
         assertEquals(ProjectFormatBytes.MAX_PROBE_BYTE_COUNT, resource.actualByteCount)
@@ -22,7 +22,7 @@ internal class ProjectFormatV1CodecRejectionTest {
     @Test
     fun `every byte truncation before the minimum length is typed`() {
         minimal.indices.forEach { byteCount ->
-            val rejection = rejected(ProjectFormatV1Codec.decode(carrier(minimal.copyOf(byteCount))))
+            val rejection = rejected(ProjectFormatCodec.decode(carrier(minimal.copyOf(byteCount))))
             val truncated = assertInstanceOf(ProjectFormatRejection.Truncated::class.java, rejection)
             assertEquals(byteCount, truncated.actualByteCount)
             val required =
@@ -40,7 +40,7 @@ internal class ProjectFormatV1CodecRejectionTest {
         val badMagic = minimal.copyOf().also { bytes -> bytes[0] = 0 }
         assertSame(ProjectFormatRejection.InvalidMagic, rejected(decode(badMagic)))
 
-        listOf(0, 2, UShort.MAX_VALUE.toInt()).forEach { wireVersion ->
+        listOf(0, 3, UShort.MAX_VALUE.toInt()).forEach { wireVersion ->
             val unsupportedBytes =
                 minimal.copyOf().also { bytes ->
                     writeUnsignedShort(bytes, ProjectFormatV1Layout.VERSION_OFFSET, wireVersion)
@@ -114,7 +114,7 @@ internal class ProjectFormatV1CodecRejectionTest {
         val mapper =
             ProjectFormatV1DomainMapper { _, _ ->
                 mapperCalls += 1
-                ProjectFormatTestValues.minimalDocument
+                ProjectFormatTestValues.minimalLegacySource()
             }
         val decoder = ProjectFormatV1Decoder(mapper)
         val invalidInputs =
@@ -127,12 +127,15 @@ internal class ProjectFormatV1CodecRejectionTest {
 
         invalidInputs.forEach { bytes -> rejected(decoder.decode(carrier(bytes))) }
         assertEquals(0, mapperCalls)
-        assertEquals(ProjectFormatTestValues.minimalDocument, accepted(decoder.decode(carrier(minimal))))
+        assertEquals(
+            ProjectFormatTestValues.minimalLegacySource(),
+            (accepted(decoder.decode(carrier(minimal))) as DocumentImportSource.Legacy).source,
+        )
         assertEquals(1, mapperCalls)
     }
 
-    private fun decode(bytes: ByteArray): ProjectFormatResult<DocumentState> =
-        ProjectFormatV1Codec.decode(carrier(bytes))
+    private fun decode(bytes: ByteArray): ProjectFormatResult<DocumentImportSource> =
+        ProjectFormatCodec.decode(carrier(bytes))
 
     private fun carrier(bytes: ByteArray): ProjectFormatBytes = ProjectFormatTestValues.carrier(bytes)
 

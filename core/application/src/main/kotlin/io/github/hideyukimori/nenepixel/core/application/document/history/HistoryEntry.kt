@@ -11,6 +11,9 @@ internal class HistoryEntry private constructor(
     val retainedChangeCount: Int
         get() = changeSet.retainedChangeCount
 
+    val payload: HistoryPayload
+        get() = HistoryPayload(changeSet.retainedChangeCount, changeSet.retainedByteCount)
+
     companion object {
         fun create(
             applied: CommandResult.Applied,

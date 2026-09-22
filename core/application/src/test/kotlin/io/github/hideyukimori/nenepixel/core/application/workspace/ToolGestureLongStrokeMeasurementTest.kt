@@ -1,7 +1,7 @@
 package io.github.hideyukimori.nenepixel.core.application.workspace
 
-import io.github.hideyukimori.nenepixel.core.domain.color.ColorChannel
-import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
+import io.github.hideyukimori.nenepixel.core.application.document.command.CommandGateway
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.state
 import io.github.hideyukimori.nenepixel.core.domain.drawing.StrokeEffect
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasHeight
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
@@ -9,6 +9,7 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasWidth
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelX
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelY
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelLimits
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -55,18 +56,28 @@ internal class ToolGestureLongStrokeMeasurementTest {
 
     private fun workloads(): List<LongStrokeWorkload> =
         listOf(
-            workload("continuous_pencil", continuousEndpoints(), StrokeEffect.Paint(red), canvas.pixelCount.toInt()),
-            workload("continuous_eraser", continuousEndpoints(), StrokeEffect.Erase, canvas.pixelCount.toInt()),
+            workload(
+                "continuous_pencil",
+                continuousEndpoints(),
+                StrokeEffect.Paint(paintIndex),
+                canvas.pixelCount.toInt(),
+            ),
+            workload(
+                "continuous_eraser",
+                continuousEndpoints(),
+                StrokeEffect.Erase(eraseIndex),
+                canvas.pixelCount.toInt(),
+            ),
             workload(
                 "repeated_pencil",
                 repeatedEndpoints(),
-                StrokeEffect.Paint(red),
+                StrokeEffect.Paint(paintIndex),
                 PixelLimits.MAX_RAW_STROKE_POSITIONS,
             ),
             workload(
                 "repeated_eraser",
                 repeatedEndpoints(),
-                StrokeEffect.Erase,
+                StrokeEffect.Erase(eraseIndex),
                 PixelLimits.MAX_RAW_STROKE_POSITIONS,
             ),
         )
@@ -77,7 +88,7 @@ internal class ToolGestureLongStrokeMeasurementTest {
         effect: StrokeEffect,
         expectedPositionCount: Int,
     ): LongStrokeWorkload {
-        var gesture = ToolGesture.begin(canvas, endpoints.first(), effect)
+        var gesture = ToolGesture.begin(canvas, endpoints.first(), effect, admission)
         endpoints.drop(1).forEach { endpoint ->
             gesture =
                 when (val result = gesture.extend(endpoint)) {
@@ -149,13 +160,9 @@ internal class ToolGestureLongStrokeMeasurementTest {
             CanvasWidth.create(CANVAS_EDGE).requiredValue(),
             CanvasHeight.create(CANVAS_EDGE).requiredValue(),
         )
-    private val red: PixelColor =
-        PixelColor.create(
-            ColorChannel.create(255).requiredValue(),
-            ColorChannel.create(0).requiredValue(),
-            ColorChannel.create(0).requiredValue(),
-            ColorChannel.create(255).requiredValue(),
-        )
+    private val eraseIndex: PaletteIndex = PaletteIndex.first
+    private val paintIndex: PaletteIndex = PaletteIndex.create(1).requiredValue()
+    private val admission = CommandGateway.create(state(canvas)).captureSource()
 
     private companion object {
         const val CANVAS_EDGE: Int = 256

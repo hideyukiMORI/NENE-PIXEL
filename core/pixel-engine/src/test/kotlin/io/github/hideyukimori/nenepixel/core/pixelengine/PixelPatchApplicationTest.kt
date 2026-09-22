@@ -1,6 +1,5 @@
 package io.github.hideyukimori.nenepixel.core.pixelengine
 
-import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.document.Revision
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.black
@@ -63,23 +62,23 @@ internal class PixelPatchApplicationTest {
     }
 
     @Test
-    fun `alpha zero hidden rgb survives packed apply and inverse exactly`() {
-        val hiddenSource = PixelColor.fromPackedRgba8888(0x12345600)
-        val hiddenTarget = PixelColor.fromPackedRgba8888(0xaabbcc00.toInt())
-        val original = snapshot(canvas(1, 1), pixels = listOf(hiddenSource))
+    fun `unsigned byte boundary survives packed apply and inverse exactly`() {
+        val source = PixelEngineTestValues.index(0)
+        val target = PixelEngineTestValues.index(255)
+        val original = snapshot(canvas(1, 1), pixels = listOf(source))
         val patch =
             created(
                 PixelPatch.create(
                     original.size,
                     original.revision,
-                    listOf(PixelChange.create(position(0, 0), hiddenSource, hiddenTarget)),
+                    listOf(PixelChange.create(position(0, 0), source, target)),
                 ),
             )
 
         val changed = applied(patch.applyTo(original))
         val restored = applied(patch.inverse().applyTo(changed))
 
-        assertEquals(hiddenTarget, changed.color(position(0, 0)))
+        assertEquals(target, changed.color(position(0, 0)))
         assertEquals(original, restored)
     }
 
@@ -145,8 +144,8 @@ internal class PixelPatchApplicationTest {
 
     private fun io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot.color(
         position: io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition,
-    ): io.github.hideyukimori.nenepixel.core.domain.color.PixelColor =
-        when (val result = colorAt(position)) {
+    ): io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex =
+        when (val result = indexAt(position)) {
             is DomainValueResult.Created -> result.value
             is DomainValueResult.Rejected -> fail("Test position was rejected: ${result.rejection}")
         }

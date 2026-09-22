@@ -14,6 +14,9 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelX
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelY
 import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import io.github.hideyukimori.nenepixel.presentation.compose.editor.EditorController
 import org.junit.jupiter.api.fail
@@ -22,6 +25,7 @@ internal object PresentationTestValues {
     val white: PixelColor = color(255, 255, 255)
     val red: PixelColor = color(255, 0, 0)
     val green: PixelColor = color(0, 255, 0)
+    val transparent: PixelColor = PixelColor.blank
 
     fun canvas(
         width: Int,
@@ -39,11 +43,12 @@ internal object PresentationTestValues {
 
     fun fixture(
         canvas: CanvasSize = canvas(4, 4),
-        paletteColors: List<PixelColor> = listOf(red, green),
+        paletteColors: List<PixelColor> = defaultPaletteColors(),
     ): EditorFixture {
         val palette = Palette.create(paletteColors).requiredValue()
-        val runtime = EditorRuntime.create(canvas, palette, TestDocumentIdSource())
-        val reducer = WorkspaceReducer.create(palette)
+        val definition = PaletteDefinition.create(palette, paletteIndex(defaultIndex(paletteColors))).requiredValue()
+        val runtime = EditorRuntime.create(canvas, definition, TestDocumentIdSource())
+        val reducer = WorkspaceReducer.create()
         val initialState = runtime.state
         return EditorFixture(
             initialDocument = initialState.documentState,
@@ -57,7 +62,42 @@ internal object PresentationTestValues {
     fun colorAt(
         state: DocumentState,
         position: PixelPosition,
-    ): PixelColor = state.snapshot.colorAt(position).requiredValue()
+    ): PixelColor {
+        val index = state.snapshot.indexAt(position).requiredValue()
+        return state.definition.palette
+            .entryAt(index)
+            .requiredValue()
+            .color
+    }
+
+    fun indexedSnapshot(
+        canvas: CanvasSize,
+        indices: List<Int>,
+    ): PixelSnapshot =
+        PixelSnapshot
+            .create(
+                canvas,
+                io.github.hideyukimori.nenepixel.core.domain.document.Revision
+                    .initial(),
+                indices.map(::paletteIndex),
+            ).requiredValue()
+
+    fun definition(
+        colors: List<PixelColor>,
+        defaultIndex: Int = 0,
+    ): PaletteDefinition =
+        PaletteDefinition
+            .create(
+                Palette.create(colors).requiredValue(),
+                paletteIndex(defaultIndex),
+            ).requiredValue()
+
+    private fun defaultPaletteColors(): List<PixelColor> =
+        listOf(red, green, white, white, white, white, white, white, transparent)
+
+    private fun defaultIndex(colors: List<PixelColor>): Int = if (colors.size > 8) 8 else 0
+
+    private fun paletteIndex(value: Int): PaletteIndex = PaletteIndex.create(value).requiredValue()
 
     private fun color(
         red: Int,

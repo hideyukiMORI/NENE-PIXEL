@@ -1,6 +1,5 @@
 package io.github.hideyukimori.nenepixel.core.pixelengine
 
-import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.document.Revision
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasHeight
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
@@ -9,6 +8,7 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelRegion
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelX
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelY
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelLimits
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
@@ -47,18 +47,18 @@ public class PixelPatch private constructor(
         val surface = PixelSurface.from(snapshot)
         repeat(changeCount) { index ->
             val positionIndex = storage.positions[index]
-            val actual = surface.packedRgba8888At(positionIndex)
+            val actual = surface.packedIndexAt(positionIndex)
             val expected = beforeAt(index)
             if (actual != expected) {
                 return rejected(
                     PixelPatchApplicationRejection.BeforeValueMismatch(
                         position = canvas.positionAt(positionIndex),
-                        expected = PixelColor.fromPackedRgba8888(expected),
-                        actual = PixelColor.fromPackedRgba8888(actual),
+                        expected = expected.toPaletteIndex(),
+                        actual = actual.toPaletteIndex(),
                     ),
                 )
             }
-            surface.writePackedRgba8888(positionIndex, afterAt(index))
+            surface.writePackedIndex(positionIndex, afterAt(index))
         }
         return PixelPatchApplicationResult.Applied(surface.snapshot(afterRevision))
     }
@@ -106,10 +106,10 @@ public class PixelPatch private constructor(
         "PixelPatch(canvas=$canvas, beforeRevision=$beforeRevision, " +
             "afterRevision=$afterRevision, changeCount=$changeCount)"
 
-    private fun beforeAt(index: Int): Int =
+    private fun beforeAt(index: Int): Byte =
         if (direction == PixelPatchDirection.Forward) storage.before[index] else storage.after[index]
 
-    private fun afterAt(index: Int): Int =
+    private fun afterAt(index: Int): Byte =
         if (direction == PixelPatchDirection.Forward) storage.after[index] else storage.before[index]
 
     public companion object {
@@ -147,12 +147,12 @@ public class PixelPatch private constructor(
             }
         }
 
-        internal fun createFromValidatedPackedRgba8888(
+        internal fun createFromValidatedPackedIndices(
             canvas: CanvasSize,
             beforeRevision: Revision,
             positions: IntArray,
-            before: IntArray,
-            after: IntArray,
+            before: ByteArray,
+            after: ByteArray,
             positionsAreContiguous: Boolean,
         ): PixelPatchCreationResult {
             val afterRevision = beforeRevision.nextOrNull()
@@ -208,8 +208,8 @@ public class PixelPatch private constructor(
                             beforeRevision,
                             afterRevision,
                             positions,
-                            IntArray(changes.size) { index -> changes[index].before.toPackedRgba8888() },
-                            IntArray(changes.size) { index -> changes[index].after.toPackedRgba8888() },
+                            ByteArray(changes.size) { index -> changes[index].before.value.toByte() },
+                            ByteArray(changes.size) { index -> changes[index].after.value.toByte() },
                         ),
                     direction = PixelPatchDirection.Forward,
                 ),
@@ -223,12 +223,42 @@ public class PixelPatch private constructor(
             val outside = changes.firstOrNull { change -> !canvas.contains(change.position) }
             val unchanged = changes.firstOrNull { change -> change.before == change.after }
             val duplicate = changes.zipWithNext().firstOrNull { (first, second) -> first.position == second.position }
+            val outsideStorage =
+                changes.firstNotNullOfOrNull { change ->
+                    when {
+                        change.before.value > U8_MASK -> change.position to change.before
+                        change.after.value > U8_MASK -> change.position to change.after
+                        else -> null
+                    }
+                }
             return when {
-                changes.isEmpty() -> PixelPatchCreationRejection.EmptyPatch
-                outside != null -> PixelPatchCreationRejection.PositionOutsideCanvas(canvas, outside.position)
-                unchanged != null -> PixelPatchCreationRejection.UnchangedPixel(unchanged.position)
-                duplicate != null -> PixelPatchCreationRejection.DuplicatePosition(duplicate.first.position)
-                else -> null
+                changes.isEmpty() -> {
+                    PixelPatchCreationRejection.EmptyPatch
+                }
+
+                outside != null -> {
+                    PixelPatchCreationRejection.PositionOutsideCanvas(canvas, outside.position)
+                }
+
+                unchanged != null -> {
+                    PixelPatchCreationRejection.UnchangedPixel(unchanged.position)
+                }
+
+                duplicate != null -> {
+                    PixelPatchCreationRejection.DuplicatePosition(duplicate.first.position)
+                }
+
+                outsideStorage != null -> {
+                    PixelPatchCreationRejection.IndexAboveStorageMaximum(
+                        outsideStorage.first,
+                        outsideStorage.second,
+                        U8_MASK,
+                    )
+                }
+
+                else -> {
+                    null
+                }
             }
         }
 
@@ -314,6 +344,8 @@ public class PixelPatch private constructor(
                 { change -> change.position.y.value },
                 { change -> change.position.x.value },
             )
+
+        private const val U8_MASK: Int = 0xff
     }
 }
 
@@ -328,8 +360,8 @@ private class PixelPatchStorage(
     val beforeRevision: Revision,
     val afterRevision: Revision,
     val positions: IntArray,
-    val before: IntArray,
-    val after: IntArray,
+    val before: ByteArray,
+    val after: ByteArray,
 )
 
 private enum class PixelPatchDirection {
@@ -348,6 +380,10 @@ private fun pixelPosition(
     x: Int,
     y: Int,
 ): PixelPosition = PixelPosition.create(PixelX.create(x).requiredValue(), PixelY.create(y).requiredValue())
+
+private fun Byte.toPaletteIndex(): PaletteIndex = PaletteIndex.create(toInt() and UNSIGNED_BYTE_MASK).requiredValue()
+
+private const val UNSIGNED_BYTE_MASK: Int = 0xff
 
 private fun <T> DomainValueResult<T>.requiredValue(): T =
     when (this) {

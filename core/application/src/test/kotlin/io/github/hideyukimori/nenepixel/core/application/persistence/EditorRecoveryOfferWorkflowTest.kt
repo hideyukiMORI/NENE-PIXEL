@@ -144,4 +144,10 @@ private val candidateDocument: DocumentState =
     state(canvas(2, 2), revision = revision(4), documentId = documentId('a'))
 
 private suspend fun candidateFixture(): Fixture =
-    Fixture(RecoveryInspection.Candidate(generation(9), candidateDocument)).also { it.initialize() }
+    Fixture(
+        RecoveryInspection.Candidate(
+            generation(9),
+            io.github.hideyukimori.nenepixel.core.domain.document.DocumentImportSource
+                .Current(candidateDocument),
+        ),
+    ).also { it.initialize() }

@@ -3,9 +3,9 @@ package io.github.hideyukimori.nenepixel.core.domain.drawing
 import io.github.hideyukimori.nenepixel.core.domain.DomainValueAssertions.created
 import io.github.hideyukimori.nenepixel.core.domain.DomainValueAssertions.rejected
 import io.github.hideyukimori.nenepixel.core.domain.DomainValueTestValues.canvasSize
-import io.github.hideyukimori.nenepixel.core.domain.DomainValueTestValues.color
 import io.github.hideyukimori.nenepixel.core.domain.DomainValueTestValues.pixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelLimits
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueRejection
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -20,14 +20,14 @@ internal class StrokeTest {
 
         assertEquals(
             DomainValueRejection.EmptyStrokePath,
-            rejected(Stroke.create(canvas, emptyList(), paint(BLACK))),
+            rejected(Stroke.create(canvas, emptyList(), paint(0))),
         )
         val rejection =
             rejected(
                 Stroke.create(
                     canvas,
                     listOf(pixelPosition(0, 0), pixelPosition(2, 0), pixelPosition(0, 2)),
-                    paint(BLACK),
+                    paint(0),
                 ),
             )
         val outside = assertInstanceOf(DomainValueRejection.PixelPositionOutsideCanvas::class.java, rejection)
@@ -49,7 +49,7 @@ internal class StrokeTest {
                 }
             }
 
-        val rejection = rejected(Stroke.create(canvas, path, paint(BLACK)))
+        val rejection = rejected(Stroke.create(canvas, path, paint(0)))
 
         assertEquals(emptyList<Int>(), accessedIndices)
         assertEquals(
@@ -68,12 +68,12 @@ internal class StrokeTest {
 
         assertEquals(
             PixelLimits.MAX_RAW_STROKE_POSITIONS - 1,
-            created(Stroke.create(canvas, List(PixelLimits.MAX_RAW_STROKE_POSITIONS - 1) { position }, paint(BLACK)))
+            created(Stroke.create(canvas, List(PixelLimits.MAX_RAW_STROKE_POSITIONS - 1) { position }, paint(0)))
                 .positionCount,
         )
         assertEquals(
             PixelLimits.MAX_RAW_STROKE_POSITIONS,
-            created(Stroke.create(canvas, List(PixelLimits.MAX_RAW_STROKE_POSITIONS) { position }, paint(BLACK)))
+            created(Stroke.create(canvas, List(PixelLimits.MAX_RAW_STROKE_POSITIONS) { position }, paint(0)))
                 .positionCount,
         )
     }
@@ -82,36 +82,32 @@ internal class StrokeTest {
     fun `stroke defensively owns one ordered path and has value equality`() {
         val canvas = canvasSize(2, 2)
         val input = mutableListOf(pixelPosition(1, 1), pixelPosition(0, 0), pixelPosition(1, 1))
-        val stroke = created(Stroke.create(canvas, input, paint(RED)))
-        val equal = created(Stroke.create(canvas, input.toList(), paint(RED)))
+        val stroke = created(Stroke.create(canvas, input, paint(1)))
+        val equal = created(Stroke.create(canvas, input.toList(), paint(1)))
 
         input.clear()
 
         assertEquals(listOf(pixelPosition(1, 1), pixelPosition(0, 0), pixelPosition(1, 1)), stroke.positions())
         assertEquals(listOf(3, 0, 3), List(stroke.positionCount, stroke::rowMajorIndexAt))
         assertEquals(3, stroke.positionCount)
-        assertEquals(paint(RED), stroke.effect)
+        assertEquals(paint(1), stroke.effect)
         assertEquals(equal, stroke)
         assertEquals(equal.hashCode(), stroke.hashCode())
         assertNotEquals(
             stroke,
-            created(Stroke.create(canvas, listOf(pixelPosition(0, 0), pixelPosition(1, 1)), paint(RED))),
+            created(Stroke.create(canvas, listOf(pixelPosition(0, 0), pixelPosition(1, 1)), paint(1))),
         )
         assertNotEquals(
             stroke,
-            created(Stroke.create(canvasSize(3, 2), stroke.positions(), paint(RED))),
+            created(Stroke.create(canvasSize(3, 2), stroke.positions(), paint(1))),
         )
-        assertNotEquals(stroke, created(Stroke.create(canvas, stroke.positions(), paint(BLACK))))
-        assertNotEquals(stroke, created(Stroke.create(canvas, stroke.positions(), StrokeEffect.Erase)))
+        assertNotEquals(stroke, created(Stroke.create(canvas, stroke.positions(), paint(0))))
+        assertNotEquals(stroke, created(Stroke.create(canvas, stroke.positions(), StrokeEffect.Erase(index(2)))))
     }
 
     private fun Stroke.positions(): List<PixelPosition> = buildList { forEachPosition(::add) }
 
-    private fun paint(color: io.github.hideyukimori.nenepixel.core.domain.color.PixelColor): StrokeEffect =
-        StrokeEffect.Paint(color)
+    private fun paint(slot: Int): StrokeEffect = StrokeEffect.Paint(index(slot))
 
-    private companion object {
-        val BLACK = color(0, 0, 0, 255)
-        val RED = color(255, 0, 0, 255)
-    }
+    private fun index(value: Int): PaletteIndex = created(PaletteIndex.create(value))
 }

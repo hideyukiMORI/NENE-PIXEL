@@ -5,7 +5,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.command.Comman
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandResult
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.canvas
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.position
-import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.red
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.redIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.state
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.stroke
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -20,9 +20,8 @@ internal class HistoryEntryTest {
         val gateway = CommandGateway.create(initial)
         val command =
             ApplyStrokeCommand.create(
-                initial.id,
-                initial.revision,
-                stroke(initial.size, listOf(position(0, 0)), red),
+                gateway.captureSource(),
+                stroke(initial.size, listOf(position(0, 0)), redIndex),
             )
         val applied = gateway.execute(command) as? CommandResult.Applied ?: fail("Expected applied command")
 

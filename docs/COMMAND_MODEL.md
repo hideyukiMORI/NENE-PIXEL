@@ -19,7 +19,7 @@ Examples:
 - `AddLayerCommand`
 - `RenameLayerCommand`
 - `ReorderLayerCommand`
-- `SetPaletteEntryCommand`
+- `ReplacePaletteCommand`
 - `ReplaceDocumentCommand`
 
 ### Workspace actions
@@ -82,6 +82,9 @@ previous `DocumentState`. One application `EditorRuntime` atomically owns the ac
 `CommandGateway`, `WorkspaceState`, and clean checkpoint. Its canonical new-document path creates a
 blank initial-revision document with empty history, a clean derived dirty state, and the canonical
 initial viewport, then replaces all owned runtime parts together.
+The new document inherits the current document's immutable PaletteDefinition, fills its defaultIndex
+and resets selection to slot zero. Initial app construction supplies the first definition once;
+there is no independently retained palette configuration.
 
 Raw dimension text is accepted only by `NewDocumentRequest.create`. Rejection occurs before
 identity generation, snapshot allocation, or runtime replacement. Cancellation does not invoke the
@@ -96,7 +99,10 @@ boundary defined by ADR 0014; they are not document commands against the abandon
 ## Durable document boundary
 
 Application-owned persistence ports exchange one immutable `DocumentState` capture or one fully
-validated loaded candidate. The application module never depends on the project-format codec, and a
+validated `DocumentImportSource.Current(DocumentState)` / `Legacy(LegacyRgbaSource)` candidate.
+The sole pixel-engine legacy planner performs exact classification and explicit reduction under
+ADR 0025; a legacy source is never installed as an editable document. The application module never
+depends on the project-format codec, and a
 persistence adapter never reads from or mutates a live runtime. Encoding, provider/file I/O, and
 decoding occur outside the runtime lock through suspend ports and an application-composed IO
 dispatcher.
@@ -114,7 +120,7 @@ operation flow; UI and adapters may only observe its read-only immutable project
 requests carrying opaque handles.
 
 Load validates the complete bounded file before installation. Editing may continue during the long
-read/decode phase. Its source token captures `DocumentId`, runtime generation, active operation
+read/decode/conversion phase. Its source token captures `DocumentId`, runtime generation, active operation
 identity, and starting `HistoryPosition`; all must match immediately before switching. Undo or redo
 back to that exact position is the same source state and may proceed, while a different position or
 new branch requires a typed stale/reconfirmation outcome and fresh discard consent. Generation-only
@@ -130,9 +136,11 @@ last-safe lineage and starts dirty because no user-file save checkpoint exists.
 Cancelling a save/load/confirmation operation invalidates its opaque operation identity but retains
 one physical-operation lease until the picker/transport call and cleanup have actually finished.
 Late success cannot update a checkpoint or install a runtime, and another operation remains typed
-busy while cancellation drains. An unadopted startup Candidate is preserved by Save As. P3-03 permits
-new/load to retire it only after an explicit warning that the recovery data will be discarded; P3-04
-later adds the recovery-accept path without changing this lineage rule.
+busy while cancellation drains. An unadopted startup Candidate is preserved by Save As. New/load
+normally require explicit recovery-discard consent before retiring it. ADR 0025 additionally requires
+a verified exact original-project copy before any retirement of a recovery-only legacy source that
+needs reduction. New/load/discard/decline/autosave cannot bypass that source-bound obligation.
+Cancelled conversion retains the startup candidate; copy selection or unverified write is no proof.
 
 Explicit user-file save is Save As to a fresh Android document only. Saved is returned only after
 all encoded bytes are written and closed, then read back byte-for-byte and validated. Existing
@@ -174,9 +182,10 @@ reads no wall time. A structured platform observer keeps the single derived dead
 while a publication is in flight. The publishing token excludes that capture from the next request;
 the cap for a distinct pending capture survives the preceding publication's completion.
 An obsolete request result cannot suspend a newer observation.
-Accepting the startup recovery offer installs the Candidate through the one
-runtime-install boundary, retains its generation as the new runtime's last-safe lineage, and starts
-dirty; declining retires that generation without replacing the runtime.
+Accepting a current or exactly convertible startup recovery offer uses the one runtime-install
+boundary, retains its generation as the new runtime's last-safe lineage, and starts dirty. A source
+that needs reduction enters ADR 0025's original-copy and preview coordination. Declining may retire
+the generation only after satisfying its preservation obligation, without replacing the runtime.
 
 ## Mandatory rules
 
@@ -209,21 +218,25 @@ oversized change set before sorting or packed ownership.
 
 Pencil and Eraser are one closed `DrawingTool` selection vocabulary. `WorkspaceState` owns the
 active tool, and `WorkspaceAction.SelectTool` is its only mutation route. Beginning a `ToolGesture`
-captures either `StrokeEffect.Paint` with the color resolved from the current palette selection or
-`StrokeEffect.Erase`; later tool or palette-selection changes do not alter that gesture.
+captures either `StrokeEffect.Paint(activePaletteIndex)` or
+`StrokeEffect.Erase(document.paletteDefinition.defaultIndex)` plus a gateway-issued
+`CommandSourceAdmission`. Later tool or selection changes do not alter that gesture.
 
-`Palette` is bounded immutable tool configuration supplied by the composition root and retained by
-`EditorRuntime`; it is not document or pixel truth. `WorkspaceState` owns only the typed
+`DocumentState` owns one `PaletteDefinition` containing the ordered colors and default index.
+`EditorRuntime` and `WorkspaceReducer` retain no independent palette configuration. `WorkspaceState`
+owns only the typed
 `activePaletteIndex`, and `WorkspaceAction.SelectPaletteEntry` is its only mutation route. The
-reducer returns a typed rejection for an index outside the configured palette and a typed unchanged
+reducer returns a typed rejection for an index outside the current document palette and a typed unchanged
 result for the current index. Selection emits no document command and changes no revision, history,
 or dirty state. Displayed active color is always derived from palette plus selection.
 
 Accepted document-pixel samples are connected by the one endpoint-inclusive, direction-symmetric,
 8-connected integer line rule in `ToolGesture`. The expanded count is checked against the raw-stroke
 limit before accepting each sample. One completed gesture produces exactly one
-`ApplyStrokeCommand`. Both effects enter the same handler, rasterizer, patch, and history path;
-Erase derives canonical `PixelBlank` as its target. Painting an equal value and erasing blank share
+`ApplyStrokeCommand.create(admission, stroke)`. BeginGesturePreview captures definition and admission
+under the same runtime lock; CommitPrepared retains both rather than rereading state at commit.
+Both effects enter the same handler, rasterizer, patch, and history path. The captured index must
+name a current palette entry before rasterization. Painting or erasing to the same index shares
 `NoEffectiveChange` and change no revision, history, or dirty state.
 
 ### CMD-006 — Validation precedes transition
@@ -231,10 +244,16 @@ Erase derives canonical `PixelBlank` as its target. Painting an equal value and 
 A handler MUST validate identifiers, dimensions, bounds, mode compatibility, and preconditions before changing state. Partial application is prohibited.
 
 Canvas axes are limited to 256 and total area to 65,536 pixels before snapshot, work-buffer, or
-render allocation. History accepts at most 64 committed entries and 524,288 total retained pixel
-changes; both budgets are checked before document and history commit. Limits are deterministic and
+render allocation. History accepts at most 64 committed entries, 524,288 total retained pixel
+changes and 8 MiB logical retained payload under ADR 0022; all budgets are checked before document
+and history commit. Limits are deterministic and
 MUST NOT branch on runtime free memory or adapter identity.
 
+Prepared commands carry a non-constructible `CommandSourceAdmission` issued by the gateway for its
+private owner identity, DocumentId, exact HistoryPosition and immutable planning base. Owner/id/
+position admission precedes handler work; equal revisions or equal snapshots do not authorize a
+new branch or another gateway. Undo to the exact source position remains equivalent. Palette-session
+runtime-generation admission is a separate check inside EditorRuntime, not a second gateway owner.
 An invalid command returns a typed rejection and leaves all state unchanged.
 
 ### CMD-007 — Results carry the complete change
@@ -255,21 +274,25 @@ Consumers MUST NOT infer the change again from UI input.
 Undo/redo MUST operate on committed `ChangeSet` records or their canonical inverse representation. UI-specific closures, arbitrary object snapshots per pixel, and handler-specific undo callbacks are prohibited.
 
 The canonical inverse is a directional view over the same packed position/before/after payload as
-the forward patch. It swaps exact before/after values and revisions without materializing a second
-change payload.
+the forward patch. ChangeSet also records a closed palette transition and permits an explicit
+no-index-change case for palette-only edits. Its inverse swaps exact definitions/defaults, indices
+and recorded revisions without materializing a second payload or inverting a many-to-one map.
+Palette-only changes advance revision/history/dirty and invalidate dependent pixels and autosave.
 
 Undo and redo themselves enter through the application command boundary.
 
 `CommandGateway` owns one `BoundedLinearHistory`: an immutable ordered entry list and one cursor
 between entries. Entries before the cursor are undoable and entries at or after it are redoable, so
 an interior cursor exposes both operations. A successful new command after undo removes the redo
-suffix before appending its `ChangeSet`. The oldest retained entries are then evicted until both the
-64-entry and 524,288-change budgets hold; the new entry is never silently discarded. A single entry
+suffix before appending its `ChangeSet`. The oldest retained entries are then evicted until the
+64-entry, 524,288-change and 8 MiB logical-payload budgets hold; the new entry is never silently
+discarded. A single entry
 that could not fit is rejected before either document or history commit.
 
 Each retained entry also records internal before/after `HistoryPosition` values. These positions
-distinguish replacement branches only inside the active runtime and are not revision, persistence,
-audit, or command-staleness identities. `EditorRuntime` derives `DocumentDirtyState` from the exact
+distinguish replacement branches only inside the active runtime and support clean, persistence and
+prepared-command source checks. They are not persisted lineage, revision or external audit identity.
+`EditorRuntime` derives `DocumentDirtyState` from the exact
 current document/position pair and its application-owned `DocumentCleanCheckpoint`. Undo to that
 checkpoint is clean; the same revision on a replacement branch is dirty; an evicted checkpoint is
 not recreated by undoing to the retained base.
@@ -296,18 +319,25 @@ Viewport pan and zoom enter only through `WorkspaceAction.SetViewport`. The redu
 
 Presentation may own pointer identifiers and the local one-pointer/two-pointer/suppressed phase needed to translate raw events. It MUST derive mapping from the current workspace viewport and current Document canvas through the canonical core `ViewportTransform`; it MUST NOT retain an authoritative matrix, viewport snapshot, or alternate rounding rule. After a second or additional pointer interrupts drawing, drawing resumes only after all pointers are up and a fresh gesture begins.
 
-## Indexed palette target (ADR 0022)
+## Indexed palette commands and preserved import (ADR 0022/0024)
 
-The M3 behavior above remains active until the atomic indexed runtime cutover. The accepted M4
-target in [ADR 0022](adr/0022-indexed-palette-and-migration.md) places PaletteDefinition in
-DocumentState and selection plus one bounded PaletteEditSession in WorkspaceState. Draft actions
-never change saved truth. Applying its complete validated mapping uses one ReplacePaletteCommand,
-including recorded palette/default/index transitions, selection reconciliation, invalidation and
-autosave. Palette-only and same-RGBA/different-slot changes are real changes; many-to-one mappings
-retain exact before indices for undo. Source preconditions include runtime generation and exact
-HistoryPosition; revision alone is insufficient. The target byte and changed-pixel history budgets,
-gesture cancellation, legacy conversion-required branch and fresh derived-work identity are defined
-there. No live indexed command is introduced by the preceding palette-value/JSON preparation.
+The atomic #106 cutover implements one indexed document, command, renderer and read-v1/write-v2
+path. ReplacePaletteCommand consumes the complete PaletteRemap of ADR 0023, with the captured source
+admission above. Forward replacement reconciles selection through WorkspaceReducer under the
+runtime lock; undo/redo retains a still-valid selection or uses the restored default. Definition
+changes cancel gestures. A later #107 adds the bounded workspace PaletteEditSession and its draft
+actions; draft changes never change saved truth.
+
+Legacy import retains an immutable exact source, origin and recovery generation in the existing
+persistence operation. Classification/reduction and future-owner preparation run on an injected
+dispatcher outside the runtime lock, retaining the one physical-operation lease through drain.
+Current source/history consent, operation/source identity and a monotonic destination epoch bind
+each reduced preview; A-to-B-to-A never admits the first A's late work. A verified original copy is
+bound to the source, independently of destination changes. Apply requires a current preview,
+current replacement consent and any required original-preservation proof. It prepares and installs
+a new identity, revision zero, dirty state and empty history through the existing atomic install
+boundary. Preview does not consume identities. No legacy RGBA editable mode or indexed-to-v1 writer
+is allowed. [ADR 0025](adr/0025-indexed-project-compatibility.md) fixes exact lifecycle and byte rules.
 
 ## Canonical result vocabulary
 

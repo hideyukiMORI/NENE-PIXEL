@@ -1,19 +1,25 @@
 package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
 import android.graphics.Bitmap
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 
-internal fun PixelSnapshot.toRenderedBitmap(): Bitmap {
+internal fun PixelSnapshot.toRenderedBitmap(definition: PaletteDefinition): Bitmap {
     val width = size.width.value
-    val colors = copyPackedRgba8888()
-    colors.indices.forEach { index -> colors[index] = colors[index].rgbaToArgb8888() }
+    val indices = copyPackedIndices()
+    val palette = definition.palette.entries().map { it.color.toPackedRgba8888().rgbaToArgb8888() }
+    val colors = IntArray(indices.size) { index -> palette[indices[index].toInt() and CHANNEL_MASK] }
     return Bitmap.createBitmap(colors, width, size.height.value, Bitmap.Config.ARGB_8888)
 }
 
-internal fun PixelSnapshot.toOpaqueRenderedBitmap(backgroundArgb: Int): Bitmap {
+internal fun PixelSnapshot.toOpaqueRenderedBitmap(
+    definition: PaletteDefinition,
+    backgroundArgb: Int,
+): Bitmap {
     val width = size.width.value
-    val colors = copyPackedRgba8888()
-    colors.indices.forEach { index -> colors[index] = colors[index].rgbaOverOpaqueArgb(backgroundArgb) }
+    val indices = copyPackedIndices()
+    val palette = definition.palette.entries().map { it.color.toPackedRgba8888().rgbaOverOpaqueArgb(backgroundArgb) }
+    val colors = IntArray(indices.size) { index -> palette[indices[index].toInt() and CHANNEL_MASK] }
     return Bitmap.createBitmap(colors, width, size.height.value, Bitmap.Config.ARGB_8888)
 }
 

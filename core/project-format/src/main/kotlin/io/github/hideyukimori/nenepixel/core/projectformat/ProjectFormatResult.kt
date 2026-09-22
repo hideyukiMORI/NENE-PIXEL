@@ -14,3 +14,11 @@ internal fun <T> accepted(value: T): ProjectFormatResult<T> = ProjectFormatResul
 
 internal fun rejected(rejection: ProjectFormatRejection): ProjectFormatResult<Nothing> =
     ProjectFormatResult.Rejected(rejection)
+
+internal inline fun <T, R> ProjectFormatResult<T>.andThen(
+    next: (T) -> ProjectFormatResult<R>,
+): ProjectFormatResult<R> =
+    when (this) {
+        is ProjectFormatResult.Accepted -> next(value)
+        is ProjectFormatResult.Rejected -> this
+    }

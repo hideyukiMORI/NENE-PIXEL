@@ -10,6 +10,8 @@ public class PaletteRemap private constructor(
     public val target: PaletteDefinition,
     private val destinations: List<PaletteIndex>,
 ) {
+    private val packedDestinations: ByteArray = ByteArray(destinations.size) { destinations[it].value.toByte() }
+
     public fun destinationAt(sourceIndex: PaletteIndex): DomainValueResult<PaletteIndex> =
         if (sourceIndex.value >= destinations.size) {
             rejected(DomainValueRejection.PaletteIndexOutsidePalette(sourceIndex, destinations.size))
@@ -18,6 +20,8 @@ public class PaletteRemap private constructor(
         }
 
     public fun destinations(): List<PaletteIndex> = destinations.toList()
+
+    public fun copyPackedDestinations(): ByteArray = packedDestinations.copyOf()
 
     override fun equals(other: Any?): Boolean =
         this === other ||

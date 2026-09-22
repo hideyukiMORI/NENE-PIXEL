@@ -11,6 +11,9 @@ internal object RecoveryAdoptionTransitions {
         coordination: PersistenceCoordination,
         context: SwitchContext,
     ): PersistenceTransition<PersistenceRequestResult> {
+        if (coordination.recoveryState is RuntimeRecoveryState.LegacyCandidate) {
+            return LegacyImportTransitions.startRecovery(coordination, context, LegacyImportPurpose.Convert)
+        }
         val candidate = coordination.recoveryState as? RuntimeRecoveryState.Candidate
         return when {
             coordination.activeOperation != null || coordination.inspectionInFlight -> {

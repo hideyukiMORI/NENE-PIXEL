@@ -25,8 +25,8 @@ internal class PixelSurfaceTest {
     }
 
     private fun io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot.onlyColor():
-        io.github.hideyukimori.nenepixel.core.domain.color.PixelColor =
-        when (val result = colorAt(position(0, 0))) {
+        io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex =
+        when (val result = indexAt(position(0, 0))) {
             is DomainValueResult.Created -> result.value
             is DomainValueResult.Rejected -> fail("Test position was rejected: ${result.rejection}")
         }

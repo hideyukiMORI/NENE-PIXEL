@@ -1,11 +1,15 @@
 package io.github.hideyukimori.nenepixel.core.domain.drawing
 
-import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 
 public sealed interface StrokeEffect {
+    public val targetIndex: PaletteIndex
+
     public data class Paint(
-        public val color: PixelColor,
+        override val targetIndex: PaletteIndex,
     ) : StrokeEffect
 
-    public data object Erase : StrokeEffect
+    public data class Erase(
+        override val targetIndex: PaletteIndex,
+    ) : StrokeEffect
 }

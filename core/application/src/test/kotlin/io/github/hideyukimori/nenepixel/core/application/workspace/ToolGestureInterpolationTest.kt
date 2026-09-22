@@ -1,8 +1,10 @@
 package io.github.hideyukimori.nenepixel.core.application.workspace
 
+import io.github.hideyukimori.nenepixel.core.application.document.command.CommandGateway
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.canvas
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.position
-import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.red
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.redIndex
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.state
 import io.github.hideyukimori.nenepixel.core.domain.drawing.StrokeEffect
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -43,7 +45,7 @@ internal class ToolGestureInterpolationTest {
     @Test
     fun `revisited segment preserves ordered overlap and prepares the identical stroke path`() {
         val canvas = canvas(6, 3)
-        val started = ToolGesture.begin(canvas, position(0, 0), StrokeEffect.Paint(red))
+        val started = ToolGesture.begin(canvas, position(0, 0), StrokeEffect.Paint(redIndex), admission(canvas))
         val outward = extended(started, position(5, 2))
         val returned = extended(outward, position(0, 0))
         val positions = returned.positions()
@@ -60,7 +62,7 @@ internal class ToolGestureInterpolationTest {
         start: PixelPosition,
         end: PixelPosition,
     ): List<PixelPosition> {
-        val gesture = ToolGesture.begin(canvas, start, StrokeEffect.Paint(red))
+        val gesture = ToolGesture.begin(canvas, start, StrokeEffect.Paint(redIndex), admission(canvas))
         return if (start == end) gesture.positions() else extended(gesture, end).positions()
     }
 
@@ -83,6 +85,9 @@ internal class ToolGestureInterpolationTest {
 
     private fun io.github.hideyukimori.nenepixel.core.domain.drawing.Stroke.positions(): List<PixelPosition> =
         buildList { forEachPosition(::add) }
+
+    private fun admission(canvas: io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize) =
+        CommandGateway.create(state(canvas)).captureSource()
 
     private companion object {
         const val PROPERTY_EDGE: Int = 8

@@ -1,12 +1,16 @@
 package io.github.hideyukimori.nenepixel.adapters.persistence
 
+import io.github.hideyukimori.nenepixel.core.application.persistence.LegacySourceCopyOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.PartialOutputCleanup
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectLoadOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectSaveOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectStorageFailure
+import io.github.hideyukimori.nenepixel.core.domain.document.DocumentImportSource
+import io.github.hideyukimori.nenepixel.core.projectformat.ProjectFormatCodec
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertThrows
@@ -18,6 +22,36 @@ import java.io.InputStream
 import java.io.OutputStream
 
 internal class AndroidProjectStorageAdapterTest {
+    @Test
+    fun `load returns typed current v2 source`() =
+        runBlocking {
+            val document = PersistenceTestValues.minimalDocument
+            val content = MemoryProjectContent(ProjectFormatCodec.encode(document).copyBytes())
+
+            assertEquals(
+                ProjectLoadOutcome.Loaded(DocumentImportSource.Current(document)),
+                adapter(content, InternalPickerResult.Selected(TestLocation)).load(),
+            )
+        }
+
+    @Test
+    fun `load preserves a maximum v1 source and verified copy writes exact canonical bytes`() =
+        runBlocking {
+            val source = PersistenceTestValues.maximumLegacySource()
+            val original = ProjectFormatCodec.encodeLegacySource(source).copyBytes()
+            val input = MemoryProjectContent(original)
+            val loaded = adapter(input, InternalPickerResult.Selected(TestLocation)).load()
+            assertEquals(ProjectLoadOutcome.Loaded(DocumentImportSource.Legacy(source)), loaded)
+
+            val output = MemoryProjectContent()
+            val result = adapter(output, InternalPickerResult.Selected(TestLocation)).copyLegacySource(source)
+
+            assertSame(LegacySourceCopyOutcome.Copied, result)
+            assertArrayEquals(original, output.storedBytes())
+            assertTrue(output.outputClosed)
+            assertTrue(output.inputClosed)
+        }
+
     @Test
     fun `save writes closes and validates the same fresh output`() =
         runBlocking {

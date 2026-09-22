@@ -63,3 +63,4 @@ An ADR must include:
 | [0022](0022-indexed-palette-and-migration.md) | accepted | Indexed palette target, atomic draft/document history, explicit v1 conversion and bounded palette JSON |
 | [0023](0023-palette-remap-planning.md) | accepted | Complete immutable palette remap and bounded number/nearest/explicit/reorder/delete planning before live cutover |
 | [0024](0024-differential-check-selection-and-result-reuse.md) | accepted | Diff-derived check selection, cross-stage reuse of passing results, unrelated-failure scope discipline, and policy-bound automation |
+| [0025](0025-indexed-project-compatibility.md) | accepted | Exact indexed v2, typed legacy import and original-preserving recovery conversion before atomic cutover |

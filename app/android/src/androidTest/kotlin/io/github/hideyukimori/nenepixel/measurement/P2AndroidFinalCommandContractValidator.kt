@@ -77,8 +77,10 @@ internal object P2AndroidFinalCommandContractValidator {
         outcome: CommandOutcomeDescriptor,
     ) {
         val noOp = spec.kind == P2CommandWorkloadKind.DenseNoOp
-        val undo = spec.kind == P2CommandWorkloadKind.DenseUndo
+        val undo = spec.kind in setOf(P2CommandWorkloadKind.DenseUndo, P2CommandWorkloadKind.PaletteManyToOneUndo)
+        val palette = spec.kind.ordinal >= P2CommandWorkloadKind.PaletteRecolorFull.ordinal
         check(outcome.resultKind == if (noOp) "rejected_no_effective_change" else "applied")
+        check(outcome.sourceRevision == if (undo) 1L else 0L)
         check(outcome.revision == if (undo || noOp) 0L else 1L)
         check(
             outcome.history ==
@@ -88,6 +90,29 @@ internal object P2AndroidFinalCommandContractValidator {
                     else -> "undo_available"
                 },
         )
+        check(outcome.definitionTransition == if (palette) "changed" else "unchanged")
+        val expectedDefaultBefore =
+            when (spec.kind) {
+                P2CommandWorkloadKind.SparseApply,
+                P2CommandWorkloadKind.DenseApply,
+                P2CommandWorkloadKind.DenseEraser,
+                P2CommandWorkloadKind.DenseNoOp,
+                P2CommandWorkloadKind.DenseUndo,
+                P2CommandWorkloadKind.DenseRedo,
+                -> 2
+
+                P2CommandWorkloadKind.PaletteDefaultOnly,
+                P2CommandWorkloadKind.PaletteRecolorFull,
+                P2CommandWorkloadKind.PaletteManyToOneDense,
+                P2CommandWorkloadKind.PaletteManyToOneUndo,
+                P2CommandWorkloadKind.PaletteManyToOneRedo,
+                -> 0
+            }
+        val expectedDefaultAfter =
+            if (spec.kind == P2CommandWorkloadKind.PaletteDefaultOnly) 255 else expectedDefaultBefore
+        check(outcome.defaultIndexBefore == expectedDefaultBefore)
+        check(outcome.defaultIndexAfter == expectedDefaultAfter)
+        check(outcome.expectedDefinitionIdentity)
         check(outcome.unchangedStateIdentity == noOp)
         if (noOp) {
             check(outcome.changeSetBeforeRevision == null)

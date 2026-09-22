@@ -3,10 +3,9 @@ package io.github.hideyukimori.nenepixel.core.domain.pixel
 import io.github.hideyukimori.nenepixel.core.domain.DomainValueAssertions.created
 import io.github.hideyukimori.nenepixel.core.domain.DomainValueAssertions.rejected
 import io.github.hideyukimori.nenepixel.core.domain.DomainValueTestValues.canvasSize
-import io.github.hideyukimori.nenepixel.core.domain.DomainValueTestValues.color
 import io.github.hideyukimori.nenepixel.core.domain.DomainValueTestValues.pixelPosition
-import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.document.Revision
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueRejection
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
@@ -15,105 +14,62 @@ import org.junit.jupiter.api.Test
 
 internal class PixelSnapshotTest {
     @Test
-    fun `snapshot uses row major typed queries and value equality`() {
-        val pixels = listOf(BLACK, RED, GREEN, BLUE)
-        val first = created(PixelSnapshot.create(canvasSize(2, 2), Revision.initial(), pixels))
-        val same = created(PixelSnapshot.create(canvasSize(2, 2), Revision.initial(), pixels))
-        val later = created(PixelSnapshot.create(canvasSize(2, 2), created(Revision.create(1L)), pixels))
+    fun `snapshot stores unsigned U8 indices in row major order`() {
+        val values = listOf(index(0), index(127), index(128), index(255))
+        val snapshot = created(PixelSnapshot.create(canvasSize(2, 2), Revision.initial(), values))
 
-        assertEquals(BLACK, created(first.colorAt(pixelPosition(0, 0))))
-        assertEquals(RED, created(first.colorAt(pixelPosition(1, 0))))
-        assertEquals(GREEN, created(first.colorAt(pixelPosition(0, 1))))
-        assertEquals(BLUE, created(first.colorAt(pixelPosition(1, 1))))
-        assertEquals(first, same)
-        assertEquals(first.hashCode(), same.hashCode())
-        assertNotEquals(first, later)
+        assertEquals(index(0), created(snapshot.indexAt(pixelPosition(0, 0))))
+        assertEquals(index(127), created(snapshot.indexAt(pixelPosition(1, 0))))
+        assertEquals(index(128), created(snapshot.indexAt(pixelPosition(0, 1))))
+        assertEquals(index(255), created(snapshot.indexAt(pixelPosition(1, 1))))
+        assertEquals(listOf(0, 127, -128, -1), snapshot.copyPackedIndices().map(Byte::toInt))
     }
 
     @Test
-    fun `snapshot rejects an inexact pixel count`() {
-        val rejection = rejected(PixelSnapshot.create(canvasSize(2, 2), Revision.initial(), listOf(BLACK)))
-
-        val mismatch = assertInstanceOf(DomainValueRejection.PixelSnapshotSizeMismatch::class.java, rejection)
-        assertEquals(4L, mismatch.expectedPixelCount)
-        assertEquals(1, mismatch.actualPixelCount)
-    }
-
-    @Test
-    fun `maximum canvas mismatch is rejected before reading or copying an element`() {
-        val canvas = canvasSize(PixelLimits.MAX_CANVAS_AXIS, PixelLimits.MAX_CANVAS_AXIS)
+    fun `snapshot rejects mismatch before list access and rejects index above U8`() {
         val sentinel =
-            object : AbstractList<PixelColor>() {
+            object : AbstractList<PaletteIndex>() {
                 override val size: Int = 1
 
-                override fun get(index: Int): PixelColor = error("Snapshot mismatch read element $index.")
+                override fun get(index: Int): PaletteIndex = error("must not read $index")
             }
+        assertInstanceOf(
+            DomainValueRejection.PixelSnapshotSizeMismatch::class.java,
+            rejected(PixelSnapshot.create(canvasSize(2, 2), Revision.initial(), sentinel)),
+        )
 
-        val rejection = rejected(PixelSnapshot.create(canvas, Revision.initial(), sentinel))
-        val mismatch = assertInstanceOf(DomainValueRejection.PixelSnapshotSizeMismatch::class.java, rejection)
-
-        assertEquals(PixelLimits.MAX_CANVAS_PIXELS.toLong(), canvas.pixelCount)
-        assertEquals(PixelLimits.MAX_CANVAS_PIXELS.toLong(), mismatch.expectedPixelCount)
-        assertEquals(1, mismatch.actualPixelCount)
+        val rejection = rejected(PixelSnapshot.create(canvasSize(1, 1), Revision.initial(), listOf(index(256))))
+        assertEquals(DomainValueRejection.PixelSnapshotIndexAboveStorageMaximum(0, index(256), 255), rejection)
     }
 
     @Test
-    fun `snapshot rejects an outside typed position`() {
-        val snapshot = created(PixelSnapshot.create(canvasSize(1, 1), Revision.initial(), listOf(BLACK)))
+    fun `packed input output and revision copy never alias backing storage`() {
+        val input = byteArrayOf(0, 255.toByte())
+        val snapshot = created(PixelSnapshot.createPackedIndices(canvasSize(2, 1), Revision.initial(), input))
+        input[0] = 12
+        val output = snapshot.copyPackedIndices()
+        output[1] = 12
+        val later = snapshot.withRevision(created(Revision.create(1)))
 
+        assertEquals(index(0), created(snapshot.indexAt(pixelPosition(0, 0))))
+        assertEquals(index(255), created(snapshot.indexAt(pixelPosition(1, 0))))
+        assertEquals(listOf<Byte>(0, 255.toByte()), later.copyPackedIndices().toList())
+        assertNotEquals(snapshot, later)
+    }
+
+    @Test
+    fun `filled snapshot validates U8 and outside query is typed`() {
+        val snapshot = created(PixelSnapshot.createFilled(canvasSize(2, 1), Revision.initial(), index(255)))
+        assertEquals(listOf(255, 255), snapshot.copyPackedIndices().map { it.toInt() and 0xff })
         assertInstanceOf(
             DomainValueRejection.PixelPositionOutsideCanvas::class.java,
-            rejected(snapshot.colorAt(pixelPosition(1, 0))),
+            rejected(snapshot.indexAt(pixelPosition(2, 0))),
+        )
+        assertInstanceOf(
+            DomainValueRejection.PixelSnapshotIndexAboveStorageMaximum::class.java,
+            rejected(PixelSnapshot.createFilled(canvasSize(1, 1), Revision.initial(), index(256))),
         )
     }
 
-    @Test
-    fun `snapshot defensively owns mutable factory input`() {
-        val input = mutableListOf(BLACK)
-        val snapshot = created(PixelSnapshot.create(canvasSize(1, 1), Revision.initial(), input))
-
-        input[0] = RED
-
-        assertEquals(BLACK, created(snapshot.colorAt(pixelPosition(0, 0))))
-    }
-
-    @Test
-    fun `packed snapshot inputs and bulk reads are defensive`() {
-        val packed = intArrayOf(BLACK.toPackedRgba8888(), TRANSPARENT_RED.toPackedRgba8888())
-        val snapshot =
-            created(
-                PixelSnapshot.createPackedRgba8888(
-                    canvasSize(2, 1),
-                    Revision.initial(),
-                    packed,
-                ),
-            )
-
-        packed[0] = RED.toPackedRgba8888()
-        val copy = snapshot.copyPackedRgba8888()
-        copy[1] = BLACK.toPackedRgba8888()
-
-        assertEquals(BLACK, created(snapshot.colorAt(pixelPosition(0, 0))))
-        assertEquals(TRANSPARENT_RED, created(snapshot.colorAt(pixelPosition(1, 0))))
-        assertEquals(TRANSPARENT_RED.toPackedRgba8888(), created(snapshot.packedRgba8888At(pixelPosition(1, 0))))
-    }
-
-    @Test
-    fun `filled snapshot owns one canonical value across the validated canvas`() {
-        val snapshot = PixelSnapshot.createFilled(canvasSize(3, 2), Revision.initial(), TRANSPARENT_RED)
-
-        assertEquals(Revision.initial(), snapshot.revision)
-        assertEquals(
-            List(6) { TRANSPARENT_RED.toPackedRgba8888() },
-            snapshot.copyPackedRgba8888().toList(),
-        )
-    }
-
-    private companion object {
-        val BLACK = color(0, 0, 0, 255)
-        val RED = color(255, 0, 0, 255)
-        val GREEN = color(0, 255, 0, 255)
-        val BLUE = color(0, 0, 255, 255)
-        val TRANSPARENT_RED = color(255, 0, 0, 0)
-    }
+    private fun index(value: Int): PaletteIndex = created(PaletteIndex.create(value))
 }

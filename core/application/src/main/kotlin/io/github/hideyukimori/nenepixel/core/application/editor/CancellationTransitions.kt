@@ -54,10 +54,11 @@ internal object CancellationTransitions {
             }
 
             is ActivePersistenceOperation.Switch.Loading -> {
-                PersistenceTransition(
-                    coordination.withActive(ActivePersistenceOperation.Switch.Cancelling(active.handle)),
-                    PersistenceCancellationResult.CancellationStarted,
-                )
+                cancelLoading(coordination, active)
+            }
+
+            is ActivePersistenceOperation.Switch.LegacyImport -> {
+                cancelLegacyImport(coordination, active)
             }
 
             is ActivePersistenceOperation.Switch.Confirming,
@@ -84,6 +85,52 @@ internal object CancellationTransitions {
             }
         }
 
+    private fun cancelLoading(
+        coordination: PersistenceCoordination,
+        operation: ActivePersistenceOperation.Switch.Loading,
+    ): PersistenceTransition<PersistenceCancellationResult> =
+        PersistenceTransition(
+            coordination.withActive(ActivePersistenceOperation.Switch.Cancelling(operation.handle)),
+            PersistenceCancellationResult.CancellationStarted,
+        )
+
+    private fun cancelLegacyImport(
+        coordination: PersistenceCoordination,
+        operation: ActivePersistenceOperation.Switch.LegacyImport,
+    ): PersistenceTransition<PersistenceCancellationResult> {
+        val phase = operation.phase
+        return when (phase) {
+            is LegacyImportPhase.Required -> {
+                PersistenceTransition(
+                    coordination.finished(PersistenceLastOutcome.Cancelled),
+                    PersistenceCancellationResult.Cancelled,
+                )
+            }
+
+            is LegacyImportPhase.Copying,
+            is LegacyImportPhase.Reducing,
+            is LegacyImportPhase.Preparing,
+            -> {
+                val preview =
+                    when (phase) {
+                        is LegacyImportPhase.Required -> phase.preview
+                        is LegacyImportPhase.Copying -> phase.previousPreview
+                        is LegacyImportPhase.Preparing -> phase.preview
+                        is LegacyImportPhase.Reducing -> null
+                        is LegacyImportPhase.Cancelling -> phase.preview
+                    }
+                PersistenceTransition(
+                    coordination.withActive(operation.withPhase(LegacyImportPhase.Cancelling(preview))),
+                    PersistenceCancellationResult.CancellationStarted,
+                )
+            }
+
+            is LegacyImportPhase.Cancelling -> {
+                PersistenceTransition(coordination, PersistenceCancellationResult.Stale)
+            }
+        }
+    }
+
     fun completeCancellation(
         coordination: PersistenceCoordination,
         handle: PersistenceOperationHandle,
@@ -103,7 +150,11 @@ internal object CancellationTransitions {
             }
 
             active is ActivePersistenceOperation.Switch.Loading ||
-                active is ActivePersistenceOperation.Switch.Cancelling -> {
+                active is ActivePersistenceOperation.Switch.Cancelling ||
+                (
+                    active is ActivePersistenceOperation.Switch.LegacyImport &&
+                        active.phase is LegacyImportPhase.Cancelling
+                ) -> {
                 coordination.cancelled()
             }
 

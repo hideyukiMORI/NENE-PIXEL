@@ -7,6 +7,10 @@ public data class PersistenceOperationProjection internal constructor(
 )
 
 public sealed interface PersistenceOperationPhase {
+    public sealed interface LegacyImport : PersistenceOperationPhase {
+        public val import: LegacyImportProjection
+    }
+
     public data object Initializing : PersistenceOperationPhase
 
     public data object Idle : PersistenceOperationPhase
@@ -23,9 +27,30 @@ public sealed interface PersistenceOperationPhase {
         public val operation: PersistenceOperationHandle,
     ) : PersistenceOperationPhase
 
+    public data class LegacyConversionRequired internal constructor(
+        override val import: LegacyImportProjection,
+    ) : LegacyImport
+
+    public data class CopyingLegacySource internal constructor(
+        override val import: LegacyImportProjection,
+    ) : LegacyImport
+
+    public data class ReducingLegacySource internal constructor(
+        override val import: LegacyImportProjection,
+    ) : LegacyImport
+
+    public data class PreparingLegacyAdoption internal constructor(
+        override val import: LegacyImportProjection,
+    ) : LegacyImport
+
     public data class NeedsConfirmation internal constructor(
         public val request: PersistenceConfirmationRequest,
     ) : PersistenceOperationPhase
+
+    public data class NeedsLegacyConfirmation internal constructor(
+        public val request: PersistenceConfirmationRequest,
+        override val import: LegacyImportProjection,
+    ) : LegacyImport
 
     public data class Switching internal constructor(
         public val operation: PersistenceOperationHandle,
@@ -34,6 +59,10 @@ public sealed interface PersistenceOperationPhase {
     public data class Cancelling internal constructor(
         public val operation: PersistenceOperationHandle,
     ) : PersistenceOperationPhase
+
+    public data class CancellingLegacyImport internal constructor(
+        override val import: LegacyImportProjection,
+    ) : LegacyImport
 
     public data class Discarding internal constructor(
         public val operation: PersistenceOperationHandle,
@@ -84,6 +113,8 @@ public sealed interface PersistenceLastOutcome {
 
     public data object Recovered : PersistenceLastOutcome
 
+    public data object LegacyConverted : PersistenceLastOutcome
+
     public data object RecoveryDeclined : PersistenceLastOutcome
 
     public data object Cancelled : PersistenceLastOutcome
@@ -123,6 +154,11 @@ public sealed interface RecoveryStatus {
     public data object Clear : RecoveryStatus
 
     public data object UnadoptedCandidate : RecoveryStatus
+
+    public data class UnadoptedLegacyCandidate internal constructor(
+        public val source: LegacySourcePreview,
+        public val distinctColorCount: Int,
+    ) : RecoveryStatus
 
     public data class Unknown internal constructor(
         public val reason: RecoveryUnavailableReason,

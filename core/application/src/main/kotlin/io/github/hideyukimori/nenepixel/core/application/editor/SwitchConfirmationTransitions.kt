@@ -21,6 +21,10 @@ internal sealed interface SwitchContinuation {
         val result: PersistenceRequestResult,
     ) : SwitchContinuation
 
+    data class LegacyPrepare(
+        val permit: LegacyAdoptionPermit,
+    ) : SwitchContinuation
+
     data object Stale : SwitchContinuation
 
     data object TooLate : SwitchContinuation
@@ -111,7 +115,27 @@ internal object SwitchConfirmationTransitions {
             is PendingSwitch.Recover -> {
                 adopted(RecoveryAdoptionTransitions.adopt(coordination, pending.candidate))
             }
+
+            is PendingSwitch.LegacyPrepared -> {
+                legacyPrepared(coordination, pending, context)
+            }
         }
+
+    private fun legacyPrepared(
+        coordination: PersistenceCoordination,
+        pending: PendingSwitch.LegacyPrepared,
+        context: SwitchContext,
+    ): PersistenceTransition<SwitchContinuation> {
+        val transition =
+            LegacyImportTransitions.prepareAdoption(coordination, pending.operation, pending.preview, context)
+        val continuation =
+            when (val start = transition.result) {
+                is LegacyAdoptionStart.Permit -> SwitchContinuation.LegacyPrepare(start.permit)
+                is LegacyAdoptionStart.Confirmation -> SwitchContinuation.Confirmation(start.request)
+                is LegacyAdoptionStart.Result -> SwitchContinuation.Result(start.result)
+            }
+        return PersistenceTransition(transition.next, continuation, transition.effect)
+    }
 
     private fun adopted(
         transition: PersistenceTransition<PersistenceRequestResult>,
@@ -129,7 +153,11 @@ internal object SwitchConfirmationTransitions {
         source: RuntimeSourceToken,
     ): PersistenceTransition<SwitchContinuation> {
         val operation =
-            ActivePersistenceOperation.Switch.Ready(handle, source, candidate, SwitchKind.NewDocument)
+            ActivePersistenceOperation.Switch.Ready(
+                handle,
+                source,
+                PreparedSwitch(candidate, SwitchKind.NewDocument, null),
+            )
         return PersistenceTransition(coordination.withActive(operation), SwitchContinuation.Ready(handle))
     }
 
@@ -140,7 +168,11 @@ internal object SwitchConfirmationTransitions {
         source: RuntimeSourceToken,
     ): PersistenceTransition<SwitchContinuation> {
         val operation =
-            ActivePersistenceOperation.Switch.Ready(handle, source, pending.candidate, pending.kind)
+            ActivePersistenceOperation.Switch.Ready(
+                handle,
+                source,
+                PreparedSwitch(pending.candidate, pending.kind, pending.verifiedLegacyRecovery),
+            )
         return PersistenceTransition(coordination.withActive(operation), SwitchContinuation.Ready(handle))
     }
 }

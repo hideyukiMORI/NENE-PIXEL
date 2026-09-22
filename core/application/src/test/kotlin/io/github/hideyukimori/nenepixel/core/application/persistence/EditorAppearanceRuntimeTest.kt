@@ -21,7 +21,14 @@ internal class EditorAppearanceRuntimeTest {
     fun `accepted recovery retains appearance while installing the recovered document`() =
         runBlocking {
             val document = state(canvas(3, 2))
-            val fixture = Fixture(RecoveryInspection.Candidate(generation(9), document))
+            val fixture =
+                Fixture(
+                    RecoveryInspection.Candidate(
+                        generation(9),
+                        io.github.hideyukimori.nenepixel.core.domain.document.DocumentImportSource
+                            .Current(document),
+                    ),
+                )
             fixture.initialize()
             fixture.runtime.reduce(WorkspaceAction.SetAppearance(appearance))
             assertCompleted(PersistenceLastOutcome.Recovered, fixture.workflow.acceptRecovery())
@@ -55,7 +62,12 @@ internal class EditorAppearanceRuntimeTest {
             assertEquals(canvas(3, 2), fixture.runtime.state.documentState.size)
             assertEquals(appearance, fixture.runtime.state.workspaceState.appearance)
             val document = state(canvas(6, 2))
-            fixture.storage.loadHandler = { ProjectLoadOutcome.Loaded(document) }
+            fixture.storage.loadHandler = {
+                ProjectLoadOutcome.Loaded(
+                    io.github.hideyukimori.nenepixel.core.domain.document.DocumentImportSource
+                        .Current(document),
+                )
+            }
             fixture.workflow.load()
             assertEquals(document, fixture.runtime.state.documentState)
             assertEquals(appearance, fixture.runtime.state.workspaceState.appearance)

@@ -1,15 +1,16 @@
 package io.github.hideyukimori.nenepixel.core.application.document.command
 
 import com.sun.management.ThreadMXBean
-import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.black
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.blackIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.canvas
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.defaultDocumentId
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.position
-import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.red
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.redIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.revision
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.snapshot
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.state
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.stroke
+import io.github.hideyukimori.nenepixel.core.application.document.transition.IndexChanges
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.drawing.Stroke
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
@@ -48,7 +49,7 @@ internal class M1CoreMeasurementTest {
 
     private fun measureSnapshotCreation(edge: Int): MeasurementMetric {
         val size = canvas(edge, edge)
-        val pixels = List(size.pixelCount.toInt()) { black }
+        val indices = List(size.pixelCount.toInt()) { blackIndex }
         val expected = snapshot(size)
         return measure(
             name = "snapshot_create",
@@ -57,7 +58,7 @@ internal class M1CoreMeasurementTest {
             boundary = "PixelSnapshot.create defensive row-major ownership",
         ) {
             MeasuredOperation(
-                execute = { PixelSnapshot.create(size, revision(0L), pixels) },
+                execute = { PixelSnapshot.create(size, revision(0L), indices) },
                 verify = { result -> assertEquals(expected, result.requiredValue()) },
             )
         }
@@ -88,11 +89,11 @@ internal class M1CoreMeasurementTest {
             val fixture = fixture(edge)
             val gateway = CommandGateway.create(fixture.initial)
             MeasuredOperation(
-                execute = { gateway.execute(fixture.applyCommand) },
+                execute = { gateway.execute(ApplyStrokeCommand.create(gateway.captureSource(), fixture.stroke)) },
                 verify = { result ->
                     val applied = result.requiredApplied()
                     assertEquals(fixture.expectedApplied, gateway.runtimeState.documentState)
-                    assertEquals(edge, applied.changeSet.patch.changeCount)
+                    assertEquals(edge, applied.changeSet.changedPatch().changeCount)
                 },
             )
         }
@@ -106,7 +107,8 @@ internal class M1CoreMeasurementTest {
         ) {
             val fixture = fixture(edge)
             val gateway = CommandGateway.create(fixture.initial)
-            val original = gateway.execute(fixture.applyCommand).requiredApplied()
+            val original =
+                gateway.execute(ApplyStrokeCommand.create(gateway.captureSource(), fixture.stroke)).requiredApplied()
             val afterApply = gateway.runtimeState.documentState
             val command = UndoCommand.create(afterApply.id, afterApply.revision)
             MeasuredOperation(
@@ -114,7 +116,7 @@ internal class M1CoreMeasurementTest {
                 verify = { result ->
                     val undo = result.requiredApplied()
                     assertEquals(fixture.initial, gateway.runtimeState.documentState)
-                    assertEquals(original.changeSet.inversePatch, undo.changeSet.patch)
+                    assertEquals(original.changeSet.changedPatch().inverse(), undo.changeSet.changedPatch())
                 },
             )
         }
@@ -128,7 +130,8 @@ internal class M1CoreMeasurementTest {
         ) {
             val fixture = fixture(edge)
             val gateway = CommandGateway.create(fixture.initial)
-            val original = gateway.execute(fixture.applyCommand).requiredApplied()
+            val original =
+                gateway.execute(ApplyStrokeCommand.create(gateway.captureSource(), fixture.stroke)).requiredApplied()
             val afterApply = gateway.runtimeState.documentState
             gateway.execute(UndoCommand.create(afterApply.id, afterApply.revision)).requiredApplied()
             val afterUndo = gateway.runtimeState.documentState
@@ -138,7 +141,7 @@ internal class M1CoreMeasurementTest {
                 verify = { result ->
                     val redo = result.requiredApplied()
                     assertEquals(fixture.expectedApplied, gateway.runtimeState.documentState)
-                    assertEquals(original.changeSet.patch, redo.changeSet.patch)
+                    assertEquals(original.changeSet.changedPatch(), redo.changeSet.changedPatch())
                 },
             )
         }
@@ -204,20 +207,19 @@ internal class M1CoreMeasurementTest {
     private fun fixture(edge: Int): CoreMeasurementFixture {
         val size = canvas(edge, edge)
         val path = List(edge) { coordinate -> position(coordinate, coordinate) }
-        val measuredStroke = stroke(size, path, red)
+        val measuredStroke = stroke(size, path, redIndex)
         val initial = state(size)
         val expectedPixels =
             List(size.pixelCount.toInt()) { index ->
                 val x = index % edge
                 val y = index / edge
-                if (x == y) red else black
+                if (x == y) redIndex else blackIndex
             }
         val expectedApplied = state(size, revision(1L), expectedPixels, defaultDocumentId)
         return CoreMeasurementFixture(
             initial = initial,
             expectedApplied = expectedApplied,
             stroke = measuredStroke,
-            applyCommand = ApplyStrokeCommand.create(initial.id, initial.revision, measuredStroke),
         )
     }
 
@@ -332,8 +334,10 @@ internal class M1CoreMeasurementTest {
         val initial: DocumentState,
         val expectedApplied: DocumentState,
         val stroke: Stroke,
-        val applyCommand: ApplyStrokeCommand,
     )
+
+    private fun io.github.hideyukimori.nenepixel.core.application.document.transition.ChangeSet.changedPatch() =
+        (indexChanges as IndexChanges.Changed).patch
 
     private class ThreadAllocationCounter private constructor(
         private val bean: ThreadMXBean,

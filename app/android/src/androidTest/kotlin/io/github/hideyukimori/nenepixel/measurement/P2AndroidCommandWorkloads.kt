@@ -6,6 +6,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.command.Comman
 import io.github.hideyukimori.nenepixel.core.application.document.command.DocumentCommand
 import io.github.hideyukimori.nenepixel.core.application.document.command.RedoCommand
 import io.github.hideyukimori.nenepixel.core.application.document.command.RejectionReason
+import io.github.hideyukimori.nenepixel.core.application.document.command.ReplacePaletteCommand
 import io.github.hideyukimori.nenepixel.core.application.document.command.UndoCommand
 import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryAvailability
 import io.github.hideyukimori.nenepixel.core.domain.color.ColorChannel
@@ -22,6 +23,10 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelRegion
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelX
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelY
+import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteRemap
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import org.junit.Assert.assertEquals
@@ -34,9 +39,14 @@ internal enum class P2CommandWorkloadKind(
     SparseApply("sparse_apply_stroke"),
     DenseApply("dense_apply_stroke"),
     DenseEraser("dense_eraser_stroke"),
-    DenseNoOp("dense_same_color_no_op"),
+    DenseNoOp("dense_same_target_no_op"),
     DenseUndo("dense_undo"),
     DenseRedo("dense_redo"),
+    PaletteRecolorFull("palette_recolor_full"),
+    PaletteDefaultOnly("palette_default_only"),
+    PaletteManyToOneDense("palette_many_to_one_dense"),
+    PaletteManyToOneUndo("palette_many_to_one_undo"),
+    PaletteManyToOneRedo("palette_many_to_one_redo"),
 }
 
 internal data class P2CommandWorkloadSpec(
@@ -55,9 +65,8 @@ internal data class P2CommandWorkloadSpec(
 
 internal object P2CommandWorkloadCatalog {
     private val CANVAS_EDGES: List<Int> = listOf(16, 64, 256)
-    val legacyKinds: List<P2CommandWorkloadKind> =
-        P2CommandWorkloadKind.entries.filterNot { kind -> kind == P2CommandWorkloadKind.DenseEraser }
-    val m2Kinds: List<P2CommandWorkloadKind> = P2CommandWorkloadKind.entries
+    val commonKinds: List<P2CommandWorkloadKind> = P2CommandWorkloadKind.entries.take(COMMON_WORKLOAD_COUNT)
+    val candidateKinds: List<P2CommandWorkloadKind> = P2CommandWorkloadKind.entries
 
     val specs: List<P2CommandWorkloadSpec> =
         CANVAS_EDGES.flatMap(::squareSpecs)
@@ -70,20 +79,27 @@ internal object P2CommandWorkloadCatalog {
     fun shapeSpecs(
         width: Int,
         height: Int,
-        kinds: List<P2CommandWorkloadKind> = legacyKinds,
+        kinds: List<P2CommandWorkloadKind> = commonKinds,
     ): List<P2CommandWorkloadSpec> {
         require(width > 0 && height > 0) { "Workload width and height must be positive." }
         return kinds.map { kind -> P2CommandWorkloadSpec(kind, width, height) }
     }
+
+    private const val COMMON_WORKLOAD_COUNT: Int = 6
 }
 
 internal data class CommandOutcomeDescriptor(
     val resultKind: String,
+    val sourceRevision: Long,
     val revision: Long,
     val history: String,
     val changeSetBeforeRevision: Long?,
     val changeSetAfterRevision: Long?,
     val renderInvalidation: P2CommandRegionDescriptor?,
+    val definitionTransition: String,
+    val defaultIndexBefore: Int,
+    val defaultIndexAfter: Int,
+    val expectedDefinitionIdentity: Boolean,
     val unchangedStateIdentity: Boolean,
 )
 
@@ -129,6 +145,8 @@ internal class PreparedCommandWorkload internal constructor(
     private val expectedState: DocumentState?,
     private val unchangedStateReference: DocumentState?,
     private val expectedResult: ExpectedCommandResult,
+    private val sourceDocument: DocumentState,
+    private val expectedDefinition: PaletteDefinition,
     private val expectedBeforeRevision: Long,
     private val expectedAfterRevision: Long,
     private val expectedHistory: HistoryAvailability,
@@ -148,6 +166,8 @@ internal class PreparedCommandWorkload internal constructor(
 
     fun verifySample(result: CommandResult): CommandOutcomeDescriptor {
         val runtimeState = gateway.runtimeState
+        assertEquals(expectedBeforeRevision, sourceDocument.revision.value)
+        assertSame(expectedDefinition, runtimeState.documentState.definition)
         if (expectSameStateInstance) assertSame(requireNotNull(unchangedStateReference), runtimeState.documentState)
         assertEquals(expectedAfterRevision, runtimeState.documentState.revision.value)
         assertEquals(expectedHistory, runtimeState.historyAvailability)
@@ -162,11 +182,16 @@ internal class PreparedCommandWorkload internal constructor(
             )
         return CommandOutcomeDescriptor(
             resultKind = resultDescriptor.resultKind,
+            sourceRevision = sourceDocument.revision.value,
             revision = runtimeState.documentState.revision.value,
             history = runtimeState.historyAvailability.csvName(),
             changeSetBeforeRevision = resultDescriptor.changeSetBeforeRevision,
             changeSetAfterRevision = resultDescriptor.changeSetAfterRevision,
             renderInvalidation = resultDescriptor.renderInvalidation,
+            definitionTransition = if (sourceDocument.definition === expectedDefinition) "unchanged" else "changed",
+            defaultIndexBefore = sourceDocument.definition.defaultIndex.value,
+            defaultIndexAfter = runtimeState.documentState.definition.defaultIndex.value,
+            expectedDefinitionIdentity = runtimeState.documentState.definition === expectedDefinition,
             unchangedStateIdentity = runtimeState.documentState === unchangedStateReference,
         )
     }
@@ -199,6 +224,11 @@ internal class PreparedCommandWorkload internal constructor(
                 P2CommandWorkloadKind.DenseNoOp -> WorkloadFactory.noOp(spec, correctness)
                 P2CommandWorkloadKind.DenseUndo -> WorkloadFactory.undo(spec, correctness)
                 P2CommandWorkloadKind.DenseRedo -> WorkloadFactory.redo(spec, correctness)
+                P2CommandWorkloadKind.PaletteRecolorFull -> WorkloadFactory.paletteRecolor(spec, correctness)
+                P2CommandWorkloadKind.PaletteDefaultOnly -> WorkloadFactory.paletteDefault(spec, correctness)
+                P2CommandWorkloadKind.PaletteManyToOneDense -> WorkloadFactory.paletteManyToOne(spec, correctness)
+                P2CommandWorkloadKind.PaletteManyToOneUndo -> WorkloadFactory.paletteManyToOneUndo(spec, correctness)
+                P2CommandWorkloadKind.PaletteManyToOneRedo -> WorkloadFactory.paletteManyToOneRedo(spec, correctness)
             }
     }
 }
@@ -237,7 +267,9 @@ private object WorkloadFactory {
         return prepared(
             spec = spec,
             gateway = gateway,
-            command = values.applyCommand(initial, path),
+            command = values.applyCommand(gateway, path),
+            sourceDocument = initial,
+            expectedDefinition = initial.definition,
             expectedState =
                 if (correctness) {
                     val expectedPixels = if (sparse) values.diagonalRedPixels() else values.redPixels()
@@ -264,7 +296,9 @@ private object WorkloadFactory {
         return prepared(
             spec = spec,
             gateway = gateway,
-            command = values.eraseCommand(initial, values.densePath()),
+            command = values.eraseCommand(gateway, values.densePath()),
+            sourceDocument = initial,
+            expectedDefinition = initial.definition,
             expectedState =
                 if (correctness) {
                     P2CommandOraclePreparationTracker.recordEraserExpectedDocument()
@@ -291,7 +325,9 @@ private object WorkloadFactory {
         return prepared(
             spec = spec,
             gateway = gateway,
-            command = values.applyCommand(initial, values.densePath()),
+            command = values.applyCommand(gateway, values.densePath()),
+            sourceDocument = initial,
+            expectedDefinition = initial.definition,
             expectedState = initial.takeIf { correctness },
             unchangedStateReference = initial,
             expectedResult = ExpectedCommandResult.NoEffectiveChange,
@@ -311,13 +347,15 @@ private object WorkloadFactory {
         val initial = values.document(Revision.initial(), values.whitePixels())
         val gateway = CommandGateway.create(initial)
         gateway
-            .execute(values.applyCommand(initial, values.densePath()))
+            .execute(values.applyCommand(gateway, values.densePath()))
             .requireApplied(P2ExpectedCommandTransition(0L, 1L, values.fullRegion()))
         val applied = gateway.runtimeState.documentState
         return prepared(
             spec = spec,
             gateway = gateway,
             command = UndoCommand.create(applied.id, applied.revision),
+            sourceDocument = applied,
+            expectedDefinition = initial.definition,
             expectedState = initial.takeIf { correctness },
             unchangedStateReference = null,
             expectedResult = ExpectedCommandResult.Applied,
@@ -336,7 +374,7 @@ private object WorkloadFactory {
         val initial = values.document(Revision.initial(), values.whitePixels())
         val gateway = CommandGateway.create(initial)
         gateway
-            .execute(values.applyCommand(initial, values.densePath()))
+            .execute(values.applyCommand(gateway, values.densePath()))
             .requireApplied(P2ExpectedCommandTransition(0L, 1L, values.fullRegion()))
         val applied = gateway.runtimeState.documentState
         gateway
@@ -347,6 +385,8 @@ private object WorkloadFactory {
             spec = spec,
             gateway = gateway,
             command = RedoCommand.create(undone.id, undone.revision),
+            sourceDocument = undone,
+            expectedDefinition = applied.definition,
             expectedState = applied.takeIf { correctness },
             unchangedStateReference = null,
             expectedResult = ExpectedCommandResult.Applied,
@@ -357,10 +397,116 @@ private object WorkloadFactory {
         )
     }
 
+    fun paletteRecolor(
+        spec: P2CommandWorkloadSpec,
+        correctness: Boolean,
+    ): PreparedCommandWorkload {
+        val values = IndexedPaletteMeasurementValues(spec.canvasWidth, spec.canvasHeight)
+        return paletteForward(spec, correctness, values.recolorTransition())
+    }
+
+    fun paletteDefault(
+        spec: P2CommandWorkloadSpec,
+        correctness: Boolean,
+    ): PreparedCommandWorkload {
+        val values = IndexedPaletteMeasurementValues(spec.canvasWidth, spec.canvasHeight)
+        return paletteForward(spec, correctness, values.defaultTransition())
+    }
+
+    fun paletteManyToOne(
+        spec: P2CommandWorkloadSpec,
+        correctness: Boolean,
+    ): PreparedCommandWorkload {
+        val values = IndexedPaletteMeasurementValues(spec.canvasWidth, spec.canvasHeight)
+        return paletteForward(spec, correctness, values.manyToOneTransition())
+    }
+
+    fun paletteManyToOneUndo(
+        spec: P2CommandWorkloadSpec,
+        correctness: Boolean,
+    ): PreparedCommandWorkload {
+        val values = IndexedPaletteMeasurementValues(spec.canvasWidth, spec.canvasHeight)
+        val transition = values.manyToOneTransition()
+        val gateway = CommandGateway.create(transition.initial)
+        gateway.execute(ReplacePaletteCommand.create(gateway.captureSource(), transition.remap)).requireApplied(
+            P2ExpectedCommandTransition(0L, 1L, values.fullRegion()),
+        )
+        val applied = gateway.runtimeState.documentState
+        return prepared(
+            spec = spec,
+            gateway = gateway,
+            command = UndoCommand.create(applied.id, applied.revision),
+            sourceDocument = applied,
+            expectedDefinition = transition.initial.definition,
+            expectedState = transition.initial.takeIf { correctness },
+            unchangedStateReference = null,
+            expectedResult = ExpectedCommandResult.Applied,
+            beforeRevision = 1L,
+            afterRevision = 0L,
+            history = HistoryAvailability.RedoAvailable,
+            renderInvalidation = values.fullRegion(),
+        )
+    }
+
+    fun paletteManyToOneRedo(
+        spec: P2CommandWorkloadSpec,
+        correctness: Boolean,
+    ): PreparedCommandWorkload {
+        val values = IndexedPaletteMeasurementValues(spec.canvasWidth, spec.canvasHeight)
+        val transition = values.manyToOneTransition()
+        val gateway = CommandGateway.create(transition.initial)
+        gateway.execute(ReplacePaletteCommand.create(gateway.captureSource(), transition.remap)).requireApplied(
+            P2ExpectedCommandTransition(0L, 1L, values.fullRegion()),
+        )
+        val applied = gateway.runtimeState.documentState
+        gateway.execute(UndoCommand.create(applied.id, applied.revision)).requireApplied(
+            P2ExpectedCommandTransition(1L, 0L, values.fullRegion()),
+        )
+        val undone = gateway.runtimeState.documentState
+        return prepared(
+            spec = spec,
+            gateway = gateway,
+            command = RedoCommand.create(undone.id, undone.revision),
+            sourceDocument = undone,
+            expectedDefinition = transition.expected.definition,
+            expectedState = transition.expected.takeIf { correctness },
+            unchangedStateReference = null,
+            expectedResult = ExpectedCommandResult.Applied,
+            beforeRevision = 0L,
+            afterRevision = 1L,
+            history = HistoryAvailability.UndoAvailable,
+            renderInvalidation = values.fullRegion(),
+        )
+    }
+
+    private fun paletteForward(
+        spec: P2CommandWorkloadSpec,
+        correctness: Boolean,
+        transition: IndexedPaletteTransitionFixture,
+    ): PreparedCommandWorkload {
+        val gateway = CommandGateway.create(transition.initial)
+        return prepared(
+            spec = spec,
+            gateway = gateway,
+            command = ReplacePaletteCommand.create(gateway.captureSource(), transition.remap),
+            sourceDocument = transition.initial,
+            expectedDefinition = transition.expected.definition,
+            expectedState = transition.expected.takeIf { correctness },
+            unchangedStateReference = null,
+            expectedResult = ExpectedCommandResult.Applied,
+            beforeRevision = 0L,
+            afterRevision = 1L,
+            history = HistoryAvailability.UndoAvailable,
+            renderInvalidation = transition.expected.size.fullRegion(),
+        )
+    }
+
     private fun prepared(
         spec: P2CommandWorkloadSpec,
         gateway: CommandGateway,
         command: DocumentCommand,
+        sourceDocument: DocumentState,
+        expectedDefinition: PaletteDefinition,
         expectedState: DocumentState?,
         unchangedStateReference: DocumentState?,
         expectedResult: ExpectedCommandResult,
@@ -377,12 +523,103 @@ private object WorkloadFactory {
             expectedState,
             unchangedStateReference,
             expectedResult,
+            sourceDocument,
+            expectedDefinition,
             beforeRevision,
             afterRevision,
             history,
             renderInvalidation,
             expectSameStateInstance,
         )
+}
+
+private data class IndexedPaletteTransitionFixture(
+    val initial: DocumentState,
+    val expected: DocumentState,
+    val remap: PaletteRemap,
+)
+
+private class IndexedPaletteMeasurementValues(
+    canvasWidth: Int,
+    canvasHeight: Int,
+) {
+    private val canvas =
+        CanvasSize.create(
+            CanvasWidth.create(canvasWidth).requiredValue(),
+            CanvasHeight.create(canvasHeight).requiredValue(),
+        )
+    private val documentId = DocumentId.create(INDEXED_DOCUMENT_ID).requiredValue()
+    private val sourcePalette =
+        Palette.create(List(PALETTE_SIZE) { slot -> PixelColor.fromPackedRgba8888(slot) }).requiredValue()
+    private val sourceDefinition = PaletteDefinition.create(sourcePalette, PaletteIndex.first).requiredValue()
+    private val identityDestinations = List(PALETTE_SIZE) { slot -> PaletteIndex.create(slot).requiredValue() }
+
+    fun recolorTransition(): IndexedPaletteTransitionFixture {
+        val targetColors = sourcePalette.entries().map { entry -> entry.color }.toMutableList()
+        targetColors[0] = PixelColor.fromPackedRgba8888(RECOLORED_SLOT_ZERO)
+        val target =
+            PaletteDefinition.create(Palette.create(targetColors).requiredValue(), PaletteIndex.first).requiredValue()
+        val pixels = List(canvas.pixelCount.toInt()) { PaletteIndex.first }
+        return fixture(sourceDefinition, target, pixels, pixels, identityDestinations)
+    }
+
+    fun defaultTransition(): IndexedPaletteTransitionFixture {
+        val target =
+            PaletteDefinition
+                .create(sourcePalette, PaletteIndex.create(PALETTE_SIZE - 1).requiredValue())
+                .requiredValue()
+        val pixels = List(canvas.pixelCount.toInt()) { PaletteIndex.first }
+        return fixture(sourceDefinition, target, pixels, pixels, identityDestinations)
+    }
+
+    fun manyToOneTransition(): IndexedPaletteTransitionFixture {
+        val targetColors = sourcePalette.entries().take(2).map { entry -> entry.color }
+        val target =
+            PaletteDefinition.create(Palette.create(targetColors).requiredValue(), PaletteIndex.first).requiredValue()
+        val before =
+            List(canvas.pixelCount.toInt()) { position ->
+                PaletteIndex.create(position % PALETTE_SIZE).requiredValue()
+            }
+        val destinations =
+            List(PALETTE_SIZE) { slot ->
+                PaletteIndex.create(if (slot == 1) 0 else 1).requiredValue()
+            }
+        val after = before.map { source -> destinations[source.value] }
+        return fixture(sourceDefinition, target, before, after, destinations)
+    }
+
+    fun fullRegion(): PixelRegion = canvas.fullRegion()
+
+    private fun fixture(
+        source: PaletteDefinition,
+        target: PaletteDefinition,
+        before: List<PaletteIndex>,
+        after: List<PaletteIndex>,
+        destinations: List<PaletteIndex>,
+    ): IndexedPaletteTransitionFixture =
+        IndexedPaletteTransitionFixture(
+            initial = document(source, Revision.initial(), before),
+            expected = document(target, Revision.create(1L).requiredValue(), after),
+            remap = PaletteRemap.create(source, target, destinations).requiredValue(),
+        )
+
+    private fun document(
+        definition: PaletteDefinition,
+        revision: Revision,
+        indices: List<PaletteIndex>,
+    ): DocumentState =
+        DocumentState
+            .create(
+                documentId,
+                definition,
+                PixelSnapshot.create(canvas, revision, indices).requiredValue(),
+            ).requiredValue()
+
+    private companion object {
+        const val PALETTE_SIZE: Int = 256
+        const val RECOLORED_SLOT_ZERO: Int = 0x01000000
+        const val INDEXED_DOCUMENT_ID: String = "55555555555555555555555555555555"
+    }
 }
 
 private class CoreMeasurementValues(
@@ -395,18 +632,29 @@ private class CoreMeasurementValues(
             CanvasHeight.create(canvasHeight).requiredValue(),
         )
     private val documentId: DocumentId = DocumentId.create(DOCUMENT_ID).requiredValue()
-    private val white: PixelColor = color(CHANNEL_MAX, CHANNEL_MAX, CHANNEL_MAX, CHANNEL_MAX)
-    private val red: PixelColor = color(CHANNEL_MAX, CHANNEL_MIN, CHANNEL_MIN, CHANNEL_MAX)
+    private val definition: PaletteDefinition =
+        PaletteDefinition
+            .create(
+                Palette
+                    .create(
+                        listOf(
+                            color(CHANNEL_MAX, CHANNEL_MAX, CHANNEL_MAX, CHANNEL_MAX),
+                            color(CHANNEL_MAX, CHANNEL_MIN, CHANNEL_MIN, CHANNEL_MAX),
+                            PixelColor.blank,
+                        ),
+                    ).requiredValue(),
+                DEFAULT_INDEX,
+            ).requiredValue()
 
-    fun whitePixels(): List<PixelColor> = List(canvas.pixelCount.toInt()) { white }
+    fun whitePixels(): List<PaletteIndex> = List(canvas.pixelCount.toInt()) { PaletteIndex.first }
 
-    fun redPixels(): List<PixelColor> = List(canvas.pixelCount.toInt()) { red }
+    fun redPixels(): List<PaletteIndex> = List(canvas.pixelCount.toInt()) { RED_INDEX }
 
-    fun blankPixels(): List<PixelColor> = List(canvas.pixelCount.toInt()) { PixelColor.blank }
+    fun blankPixels(): List<PaletteIndex> = List(canvas.pixelCount.toInt()) { DEFAULT_INDEX }
 
-    fun diagonalRedPixels(): List<PixelColor> =
+    fun diagonalRedPixels(): List<PaletteIndex> =
         List(canvas.pixelCount.toInt()) { index ->
-            if (index % canvas.width.value == index / canvas.width.value) red else white
+            if (index % canvas.width.value == index / canvas.width.value) RED_INDEX else PaletteIndex.first
         }
 
     fun diagonalPath(): List<PixelPosition> =
@@ -419,31 +667,31 @@ private class CoreMeasurementValues(
 
     fun document(
         revision: Revision,
-        pixels: List<PixelColor>,
+        pixels: List<PaletteIndex>,
     ): DocumentState =
-        DocumentState.create(
-            documentId,
-            PixelSnapshot.create(canvas, revision, pixels).requiredValue(),
-        )
+        DocumentState
+            .create(
+                documentId,
+                definition,
+                PixelSnapshot.create(canvas, revision, pixels).requiredValue(),
+            ).requiredValue()
 
     fun applyCommand(
-        state: DocumentState,
+        gateway: CommandGateway,
         path: List<PixelPosition>,
     ): ApplyStrokeCommand =
         ApplyStrokeCommand.create(
-            state.id,
-            state.revision,
-            Stroke.create(canvas, path, StrokeEffect.Paint(red)).requiredValue(),
+            gateway.captureSource(),
+            Stroke.create(canvas, path, StrokeEffect.Paint(RED_INDEX)).requiredValue(),
         )
 
     fun eraseCommand(
-        state: DocumentState,
+        gateway: CommandGateway,
         path: List<PixelPosition>,
     ): ApplyStrokeCommand =
         ApplyStrokeCommand.create(
-            state.id,
-            state.revision,
-            Stroke.create(canvas, path, StrokeEffect.Erase).requiredValue(),
+            gateway.captureSource(),
+            Stroke.create(canvas, path, StrokeEffect.Erase(DEFAULT_INDEX)).requiredValue(),
         )
 
     fun revision(value: Long): Revision = Revision.create(value).requiredValue()
@@ -486,6 +734,8 @@ private class CoreMeasurementValues(
         const val DOCUMENT_ID: String = "33333333333333333333333333333333"
         const val CHANNEL_MIN: Int = 0
         const val CHANNEL_MAX: Int = 255
+        val RED_INDEX: PaletteIndex = PaletteIndex.create(1).requiredValue()
+        val DEFAULT_INDEX: PaletteIndex = PaletteIndex.create(2).requiredValue()
     }
 }
 
@@ -540,6 +790,15 @@ private fun PixelRegion.descriptor(): P2CommandRegionDescriptor =
         width = size.width.value,
         height = size.height.value,
     )
+
+private fun CanvasSize.fullRegion(): PixelRegion {
+    val origin =
+        PixelPosition.create(
+            PixelX.create(0).requiredValue(),
+            PixelY.create(0).requiredValue(),
+        )
+    return PixelRegion.create(this, origin, this).requiredValue()
+}
 
 private fun HistoryAvailability.csvName(): String =
     when (this) {

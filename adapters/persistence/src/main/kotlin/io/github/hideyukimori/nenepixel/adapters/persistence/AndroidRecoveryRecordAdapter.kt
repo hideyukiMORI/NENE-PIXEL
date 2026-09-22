@@ -9,6 +9,7 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRec
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRetirementFailure
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRetirementOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRollbackOutcome
+import io.github.hideyukimori.nenepixel.core.domain.document.DocumentImportSource
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.sync.Mutex
@@ -118,7 +119,7 @@ public class AndroidRecoveryRecordAdapter private constructor(
             is RecoveryEncodeResult.Encoded -> {
                 publicationOutcome(
                     writer.publish(encoded.bytes, generation) { record ->
-                        record == RecoveryRecord.Candidate(generation, document)
+                        record == RecoveryRecord.Candidate(generation, DocumentImportSource.Current(document))
                     },
                 )
             }
@@ -158,7 +159,7 @@ public class AndroidRecoveryRecordAdapter private constructor(
             is InternalInspection.Record -> {
                 when (val record = inspection.record) {
                     is RecoveryRecord.Retired -> RecoveryInspection.Retired(record.generation)
-                    is RecoveryRecord.Candidate -> RecoveryInspection.Candidate(record.generation, record.document)
+                    is RecoveryRecord.Candidate -> RecoveryInspection.Candidate(record.generation, record.source)
                 }
             }
         }

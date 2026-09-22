@@ -28,7 +28,9 @@ import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.drawing.StrokeEffect
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
+import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import io.github.hideyukimori.nenepixel.presentation.compose.R
 import io.github.hideyukimori.nenepixel.presentation.compose.input.viewportPointerInput
 
@@ -65,8 +67,8 @@ internal fun PixelCanvas(
         val surface = createViewportSurface() ?: return@Canvas
         val geometry = geometries.resolve(canvas, surface, current.viewport) ?: return@Canvas
         drawCanvasMargins(geometry.destination, PresentationPalette.canvasSurround(current.appearance.theme))
-        drawPixels(geometry.destination, pixels.render(current.snapshot), pixelPaint)
-        drawPreview(geometry.transform, current.preview)
+        drawPixels(geometry.destination, pixels.render(current.snapshot, current.definition), pixelPaint)
+        drawPreview(geometry.transform, current.preview, current.definition)
         drawGrid(geometry)
     }
 }
@@ -75,12 +77,17 @@ private class RenderedBitmapCache(
     private val backgroundArgb: Int,
 ) {
     private var source: PixelSnapshot? = null
+    private var sourceDefinition: PaletteDefinition? = null
     private var rendered: Bitmap? = null
 
-    fun render(snapshot: PixelSnapshot): Bitmap {
-        if (source !== snapshot) {
+    fun render(
+        snapshot: PixelSnapshot,
+        definition: PaletteDefinition,
+    ): Bitmap {
+        if (source !== snapshot || sourceDefinition !== definition) {
             source = snapshot
-            rendered = snapshot.toOpaqueRenderedBitmap(backgroundArgb)
+            sourceDefinition = definition
+            rendered = snapshot.toOpaqueRenderedBitmap(definition, backgroundArgb)
         }
         return requireNotNull(rendered)
     }
@@ -231,17 +238,28 @@ private fun DrawScope.drawPixels(
 private fun DrawScope.drawPreview(
     transform: ViewportTransform,
     preview: ToolGesture?,
+    definition: PaletteDefinition,
 ) {
-    val previewColor = preview?.effect?.previewColor() ?: return
+    val previewColor = preview?.effect?.previewColor(definition) ?: return
     preview.forEachPosition { position ->
         transform.surfaceBounds(position)?.let { bounds -> drawPixel(bounds, previewColor) }
     }
 }
 
-private fun StrokeEffect.previewColor(): Color =
-    when (this) {
-        is StrokeEffect.Paint -> color.toComposeColor().copy(alpha = PREVIEW_ALPHA)
-        StrokeEffect.Erase -> PresentationPalette.eraserPreview
+private fun StrokeEffect.previewColor(definition: PaletteDefinition): Color =
+    when (val entry = definition.palette.entryAt(targetIndex)) {
+        is DomainValueResult.Created -> {
+            val color = entry.value.color
+            if (this is StrokeEffect.Erase && color.alpha.value.toInt() == 0) {
+                PresentationPalette.eraserPreview
+            } else {
+                color.toComposeColor().copy(alpha = PREVIEW_ALPHA)
+            }
+        }
+
+        is DomainValueResult.Rejected -> {
+            error("Render preview target is invalid: ${entry.rejection}")
+        }
     }
 
 private fun DrawScope.drawPixel(

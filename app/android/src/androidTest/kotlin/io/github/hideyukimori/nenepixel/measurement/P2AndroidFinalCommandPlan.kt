@@ -28,6 +28,7 @@ internal data class P2AndroidFinalCommandPlan(
     enum class PublicationPolicy {
         OverwriteExisting,
         FailIfExists,
+        KeepPartial,
     }
 
     val candidateId: String

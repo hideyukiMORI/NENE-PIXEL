@@ -1,0 +1,40 @@
+import org.gradle.api.DefaultTask
+import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.tasks.InputFile
+import org.gradle.api.tasks.OutputDirectory
+import org.gradle.api.tasks.TaskAction
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+
+abstract class P4CopyNativeVcs extends DefaultTask {
+    @InputFile abstract RegularFileProperty getSourceFile()
+    @OutputDirectory abstract DirectoryProperty getOutputDirectory()
+    @TaskAction void copyRecord() {
+        def target = outputDirectory.file('META-INF/version-control-info.textproto').get().asFile
+        Files.createDirectories(target.parentFile.toPath())
+        Files.copy(sourceFile.get().asFile.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
+    }
+}
+
+// Same AGP-native metadata producer for both role builds and their AndroidTest packages.
+gradle.beforeProject { p ->
+    ['com.android.application', 'com.android.library'].each { pluginId ->
+        p.pluginManager.withPlugin(pluginId) {
+            p.extensions.getByName('android').buildTypes.configureEach { buildType ->
+                buildType.vcsInfo.include = true
+            }
+            def copied = p.tasks.register('prepareP4AndroidTestVcs', P4CopyNativeVcs) {
+                dependsOn(':app:android:extractDebugVersionControlInfo')
+                sourceFile.set(p.rootProject.layout.projectDirectory.file('app/android/build/intermediates/version_control_info_file/debug/extractDebugVersionControlInfo/version-control-info.textproto'))
+                outputDirectory.set(p.layout.buildDirectory.dir('generated/p4-test-vcs-resources'))
+            }
+            def components = p.extensions.getByName('androidComponents')
+            components.onVariants(components.selector().withBuildType('debug')) { variant ->
+                if (variant.androidTest != null) {
+                    variant.androidTest.sources.resources.addGeneratedSourceDirectory(copied) { task -> task.outputDirectory }
+                }
+            }
+        }
+    }
+}

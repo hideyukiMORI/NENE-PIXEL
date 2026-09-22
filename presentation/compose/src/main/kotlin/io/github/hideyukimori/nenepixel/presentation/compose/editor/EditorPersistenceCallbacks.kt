@@ -6,25 +6,21 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.Persistence
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationHandle
 
 public class EditorPersistenceCallbacks private constructor(
-    private val exportPng: () -> Unit,
-    private val saveAs: () -> Unit,
-    private val load: () -> Unit,
-    private val createNewDocument: (NewDocumentRequestResult) -> Unit,
-    private val confirm: (PersistenceConfirmationRequest) -> Unit,
-    private val cancel: (PersistenceOperationHandle) -> Unit,
-    private val acceptRecovery: () -> Unit,
-    private val declineRecovery: () -> Unit,
+    private val files: ProjectFileCallbacks,
+    private val decisions: PersistenceDecisionCallbacks,
+    internal val conversion: LegacyConversionCallbacks,
+    internal val presets: LegacyPalettePresets,
 ) {
     internal fun onExportPng() {
-        exportPng()
+        files.exportPng()
     }
 
     internal fun onSaveAs() {
-        saveAs()
+        files.saveAs()
     }
 
     internal fun onLoad() {
-        load()
+        files.load()
     }
 
     internal fun onCreateNewDocument(
@@ -33,7 +29,7 @@ public class EditorPersistenceCallbacks private constructor(
     ): NewDocumentSubmission =
         when (val request = NewDocumentRequest.create(rawWidth, rawHeight)) {
             is NewDocumentRequestResult.Created -> {
-                createNewDocument(request)
+                files.createNewDocument(request)
                 NewDocumentSubmission.Submitted
             }
 
@@ -43,41 +39,27 @@ public class EditorPersistenceCallbacks private constructor(
         }
 
     internal fun onConfirm(request: PersistenceConfirmationRequest) {
-        confirm(request)
+        decisions.confirm(request)
     }
 
     internal fun onCancel(operation: PersistenceOperationHandle) {
-        cancel(operation)
+        decisions.cancel(operation)
     }
 
     internal fun onAcceptRecovery() {
-        acceptRecovery()
+        decisions.acceptRecovery()
     }
 
     internal fun onDeclineRecovery() {
-        declineRecovery()
+        decisions.declineRecovery()
     }
 
     public companion object {
         public fun create(
-            exportPng: () -> Unit,
-            saveAs: () -> Unit,
-            load: () -> Unit,
-            createNewDocument: (NewDocumentRequestResult) -> Unit,
-            confirm: (PersistenceConfirmationRequest) -> Unit,
-            cancel: (PersistenceOperationHandle) -> Unit,
-            acceptRecovery: () -> Unit,
-            declineRecovery: () -> Unit,
-        ): EditorPersistenceCallbacks =
-            EditorPersistenceCallbacks(
-                exportPng,
-                saveAs,
-                load,
-                createNewDocument,
-                confirm,
-                cancel,
-                acceptRecovery,
-                declineRecovery,
-            )
+            files: ProjectFileCallbacks,
+            decisions: PersistenceDecisionCallbacks,
+            conversion: LegacyConversionCallbacks,
+            presets: LegacyPalettePresets,
+        ): EditorPersistenceCallbacks = EditorPersistenceCallbacks(files, decisions, conversion, presets)
     }
 }

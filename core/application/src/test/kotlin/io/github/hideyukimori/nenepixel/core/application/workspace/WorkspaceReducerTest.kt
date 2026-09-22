@@ -1,7 +1,9 @@
 package io.github.hideyukimori.nenepixel.core.application.workspace
 
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandGateway
+import io.github.hideyukimori.nenepixel.core.application.document.command.CommandSourceAdmission
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.canvas
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.definition
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.green
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.palette
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.paletteIndex
@@ -18,6 +20,7 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.View
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
 import io.github.hideyukimori.nenepixel.core.domain.drawing.Stroke
 import io.github.hideyukimori.nenepixel.core.domain.drawing.StrokeEffect
+import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelLimits
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -28,7 +31,9 @@ import org.junit.jupiter.api.Test
 
 internal class WorkspaceReducerTest {
     private val palette = palette(red, green)
-    private val reducer = WorkspaceReducer.create(palette)
+    private val definition = definition(paletteIndex(0), red, green)
+    private val reducer = WorkspaceReducer.create()
+    private val admissions = mutableMapOf<CanvasSize, CommandSourceAdmission>()
 
     @Test
     fun `initial workspace contains first palette selection fit viewport and no preview`() {
@@ -51,12 +56,12 @@ internal class WorkspaceReducerTest {
 
         val changed =
             reduced(
-                reducer.reduce(previewing, WorkspaceAction.SelectPaletteEntry(paletteIndex(1))),
+                reduce(canvas, previewing, WorkspaceAction.SelectPaletteEntry(paletteIndex(1))),
             )
-        val repeated = unchanged(reducer.reduce(changed, WorkspaceAction.SelectPaletteEntry(paletteIndex(1))))
+        val repeated = unchanged(reduce(canvas, changed, WorkspaceAction.SelectPaletteEntry(paletteIndex(1))))
 
         assertEquals(paletteIndex(1), changed.activePaletteIndex)
-        assertEquals(StrokeEffect.Paint(red), changed.preview?.effect)
+        assertEquals(StrokeEffect.Paint(paletteIndex(0)), changed.preview?.effect)
         assertEquals(previewing.preview, changed.preview)
         assertEquals(WorkspaceNoChangeReason.ActivePaletteEntryAlreadySelected, repeated.reason)
         assertSame(changed, repeated.nextState)
@@ -67,7 +72,7 @@ internal class WorkspaceReducerTest {
         val canvas = canvas(2, 1)
         val initial = WorkspaceState.create(canvas)
 
-        val result = rejected(reducer.reduce(initial, WorkspaceAction.SelectPaletteEntry(paletteIndex(2))))
+        val result = rejected(reduce(canvas, initial, WorkspaceAction.SelectPaletteEntry(paletteIndex(2))))
         val rejection =
             assertInstanceOf(
                 WorkspaceActionRejection.PaletteIndexOutsidePalette::class.java,
@@ -83,16 +88,16 @@ internal class WorkspaceReducerTest {
     fun `active tool changes only through reducer and an active gesture keeps its captured effect`() {
         val canvas = canvas(2, 1)
         val initial = WorkspaceState.create(canvas)
-        val eraserSelected = reduced(reducer.reduce(initial, WorkspaceAction.SelectTool(DrawingTool.Eraser)))
-        val repeated = unchanged(reducer.reduce(eraserSelected, WorkspaceAction.SelectTool(DrawingTool.Eraser)))
+        val eraserSelected = reduced(reduce(canvas, initial, WorkspaceAction.SelectTool(DrawingTool.Eraser)))
+        val repeated = unchanged(reduce(canvas, eraserSelected, WorkspaceAction.SelectTool(DrawingTool.Eraser)))
         val previewing = begin(eraserSelected, canvas, position(0, 0))
-        val pencilSelected = reduced(reducer.reduce(previewing, WorkspaceAction.SelectTool(DrawingTool.Pencil)))
+        val pencilSelected = reduced(reduce(canvas, previewing, WorkspaceAction.SelectTool(DrawingTool.Pencil)))
 
         assertEquals(DrawingTool.Eraser, eraserSelected.activeTool)
         assertEquals(WorkspaceNoChangeReason.ActiveToolAlreadySelected, repeated.reason)
         assertSame(eraserSelected, repeated.nextState)
         assertEquals(DrawingTool.Pencil, pencilSelected.activeTool)
-        assertEquals(StrokeEffect.Erase, pencilSelected.preview?.effect)
+        assertEquals(StrokeEffect.Erase(paletteIndex(0)), pencilSelected.preview?.effect)
         assertEquals(previewing.preview, pencilSelected.preview)
     }
 
@@ -103,12 +108,13 @@ internal class WorkspaceReducerTest {
         val previewing = begin(initial, canvas, position(0, 0))
 
         assertEquals(canvas, previewing.preview?.canvas)
-        assertEquals(StrokeEffect.Paint(red), previewing.preview?.effect)
+        assertEquals(StrokeEffect.Paint(paletteIndex(0)), previewing.preview?.effect)
         assertEquals(listOf(position(0, 0)), previewing.preview?.positions())
 
         val alreadyActive =
             rejected(
-                reducer.reduce(
+                reduce(
+                    canvas,
                     previewing,
                     WorkspaceAction.BeginGesturePreview(canvas, position(2, 0)),
                 ),
@@ -116,7 +122,7 @@ internal class WorkspaceReducerTest {
         assertEquals(WorkspaceActionRejection.PreviewAlreadyActive, alreadyActive.rejection)
         assertSame(previewing, alreadyActive.nextState)
 
-        val outside = rejected(reducer.reduce(initial, WorkspaceAction.BeginGesturePreview(canvas, position(2, 0))))
+        val outside = rejected(reduce(canvas, initial, WorkspaceAction.BeginGesturePreview(canvas, position(2, 0))))
         assertOutside(outside, initial, canvas, position(2, 0))
     }
 
@@ -138,7 +144,7 @@ internal class WorkspaceReducerTest {
         assertEquals(expected, previewing.preview?.positions())
         assertEquals(expected.size, previewing.preview?.positionCount)
 
-        val prepared = prepared(reducer.reduce(previewing, WorkspaceAction.PrepareGestureCommit))
+        val prepared = prepared(reduce(canvas, previewing, WorkspaceAction.PrepareGestureCommit))
         assertEquals(expected, prepared.stroke.positions())
     }
 
@@ -147,13 +153,13 @@ internal class WorkspaceReducerTest {
         val canvas = canvas(2, 1)
         val initial = WorkspaceState.create(canvas)
         val withoutPreview =
-            rejected(reducer.reduce(initial, WorkspaceAction.ExtendGesturePreview(position(2, 0))))
+            rejected(reduce(canvas, initial, WorkspaceAction.ExtendGesturePreview(position(2, 0))))
         assertEquals(WorkspaceActionRejection.NoActivePreview, withoutPreview.rejection)
         assertSame(initial, withoutPreview.nextState)
 
         val oneSample = begin(initial, canvas, position(0, 0))
         val twoSamples = extend(oneSample, position(1, 0))
-        val duplicate = unchanged(reducer.reduce(twoSamples, WorkspaceAction.ExtendGesturePreview(position(1, 0))))
+        val duplicate = unchanged(reduce(canvas, twoSamples, WorkspaceAction.ExtendGesturePreview(position(1, 0))))
         val revisited = extend(duplicate.nextState, position(0, 0))
 
         assertEquals(WorkspaceNoChangeReason.DuplicatePreviewSample, duplicate.reason)
@@ -161,7 +167,7 @@ internal class WorkspaceReducerTest {
         assertEquals(listOf(position(0, 0)), oneSample.preview?.positions())
         assertEquals(listOf(position(0, 0), position(1, 0), position(0, 0)), revisited.preview?.positions())
 
-        val outside = rejected(reducer.reduce(revisited, WorkspaceAction.ExtendGesturePreview(position(2, 0))))
+        val outside = rejected(reduce(canvas, revisited, WorkspaceAction.ExtendGesturePreview(position(2, 0))))
         assertOutside(outside, revisited, canvas, position(2, 0))
     }
 
@@ -171,14 +177,14 @@ internal class WorkspaceReducerTest {
         val gateway = CommandGateway.create(document)
         val previewing = begin(WorkspaceState.create(document.size), document.size, position(0, 0))
 
-        val cancelled = reduced(reducer.reduce(previewing, WorkspaceAction.CancelGesturePreview))
+        val cancelled = reduced(reduce(document.size, previewing, WorkspaceAction.CancelGesturePreview))
 
         assertEquals(paletteIndex(0), cancelled.activePaletteIndex)
         assertEquals(ViewportState.initial(document.size), cancelled.viewport)
         assertNull(cancelled.preview)
         assertEquals(document, gateway.runtimeState.documentState)
 
-        val repeated = rejected(reducer.reduce(cancelled, WorkspaceAction.CancelGesturePreview))
+        val repeated = rejected(reduce(document.size, cancelled, WorkspaceAction.CancelGesturePreview))
         assertEquals(WorkspaceActionRejection.NoActivePreview, repeated.rejection)
         assertSame(cancelled, repeated.nextState)
     }
@@ -192,18 +198,19 @@ internal class WorkspaceReducerTest {
                 begin(WorkspaceState.create(document.size), document.size, position(0, 0)),
                 position(1, 0),
             )
-        val recolored = reduced(reducer.reduce(previewing, WorkspaceAction.SelectPaletteEntry(paletteIndex(1))))
+        val recolored =
+            reduced(reduce(document.size, previewing, WorkspaceAction.SelectPaletteEntry(paletteIndex(1))))
 
-        val prepared = prepared(reducer.reduce(recolored, WorkspaceAction.PrepareGestureCommit))
+        val prepared = prepared(reduce(document.size, recolored, WorkspaceAction.PrepareGestureCommit))
 
         assertEquals(document.size, prepared.stroke.canvas)
-        assertEquals(StrokeEffect.Paint(red), prepared.stroke.effect)
+        assertEquals(StrokeEffect.Paint(paletteIndex(0)), prepared.stroke.effect)
         assertEquals(listOf(position(0, 0), position(1, 0)), prepared.stroke.positions())
         assertEquals(paletteIndex(1), prepared.nextState.activePaletteIndex)
         assertNull(prepared.nextState.preview)
         assertEquals(document, gateway.runtimeState.documentState)
 
-        val outOfOrder = rejected(reducer.reduce(prepared.nextState, WorkspaceAction.PrepareGestureCommit))
+        val outOfOrder = rejected(reduce(document.size, prepared.nextState, WorkspaceAction.PrepareGestureCommit))
         assertEquals(WorkspaceActionRejection.NoActivePreview, outOfOrder.rejection)
         assertSame(prepared.nextState, outOfOrder.nextState)
     }
@@ -219,7 +226,7 @@ internal class WorkspaceReducerTest {
 
         val capMinusOne = extend(state, position(2, 0))
         val cap = extend(capMinusOne, position(3, 0))
-        val rejected = rejected(reducer.reduce(cap, WorkspaceAction.ExtendGesturePreview(position(4, 0))))
+        val rejected = rejected(reduce(canvas, cap, WorkspaceAction.ExtendGesturePreview(position(4, 0))))
         val rejection =
             assertInstanceOf(
                 WorkspaceActionRejection.PreviewPathAboveSupportedMaximum::class.java,
@@ -248,8 +255,8 @@ internal class WorkspaceReducerTest {
                 WorkspaceAction.CancelGesturePreview,
             )
 
-        val first = replay(WorkspaceState.create(canvas), actions)
-        val second = replay(WorkspaceState.create(canvas), actions)
+        val first = replay(canvas, WorkspaceState.create(canvas), actions)
+        val second = replay(canvas, WorkspaceState.create(canvas), actions)
 
         assertEquals(first, second)
         assertEquals(first.last().nextState, second.last().nextState)
@@ -264,7 +271,7 @@ internal class WorkspaceReducerTest {
         val previewing = begin(initial, canvas, position(0, 0))
         val changedViewport = ViewportState.create(zoom(2.0), initial.viewport.center)
 
-        val changed = reduced(reducer.reduce(previewing, WorkspaceAction.SetViewport(changedViewport)))
+        val changed = reduced(reduce(canvas, previewing, WorkspaceAction.SetViewport(changedViewport)))
 
         assertEquals(changedViewport, changed.viewport)
         assertEquals(paletteIndex(0), changed.activePaletteIndex)
@@ -278,8 +285,8 @@ internal class WorkspaceReducerTest {
         val initial = WorkspaceState.create(canvas)
         val previewing = begin(initial, canvas, position(0, 0))
 
-        val cancelled = reduced(reducer.reduce(previewing, WorkspaceAction.SetViewport(initial.viewport)))
-        val repeated = unchanged(reducer.reduce(cancelled, WorkspaceAction.SetViewport(initial.viewport)))
+        val cancelled = reduced(reduce(canvas, previewing, WorkspaceAction.SetViewport(initial.viewport)))
+        val repeated = unchanged(reduce(canvas, cancelled, WorkspaceAction.SetViewport(initial.viewport)))
 
         assertEquals(initial.viewport, cancelled.viewport)
         assertNull(cancelled.preview)
@@ -291,22 +298,35 @@ internal class WorkspaceReducerTest {
         state: WorkspaceState,
         canvas: io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize,
         position: PixelPosition,
-    ): WorkspaceState = reduced(reducer.reduce(state, WorkspaceAction.BeginGesturePreview(canvas, position)))
+    ): WorkspaceState = reduced(reduce(canvas, state, WorkspaceAction.BeginGesturePreview(canvas, position)))
 
     private fun extend(
         state: WorkspaceState,
         position: PixelPosition,
-    ): WorkspaceState = reduced(reducer.reduce(state, WorkspaceAction.ExtendGesturePreview(position)))
+    ): WorkspaceState =
+        reduced(reduce(checkNotNull(state.preview).canvas, state, WorkspaceAction.ExtendGesturePreview(position)))
 
     private fun replay(
+        canvas: io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize,
         initial: WorkspaceState,
         actions: List<WorkspaceAction>,
     ): List<WorkspaceReductionResult> =
         actions
             .fold(Replay(initial, emptyList())) { replay, action ->
-                val result = reducer.reduce(replay.state, action)
+                val result = reduce(canvas, replay.state, action)
                 Replay(result.nextState, replay.results + result)
             }.results
+
+    private fun reduce(
+        canvas: io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize,
+        state: WorkspaceState,
+        action: WorkspaceAction,
+    ): WorkspaceReductionResult = reducer.reduce(state, action, admission(canvas))
+
+    private fun admission(canvas: io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize) =
+        admissions.getOrPut(canvas) {
+            CommandGateway.create(state(canvas, definition = definition)).captureSource()
+        }
 
     private fun assertOutside(
         result: WorkspaceReductionResult.Rejected,

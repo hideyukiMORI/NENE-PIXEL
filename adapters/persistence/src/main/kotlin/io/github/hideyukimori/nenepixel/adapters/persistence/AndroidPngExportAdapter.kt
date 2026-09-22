@@ -12,7 +12,7 @@ public class AndroidPngExportAdapter private constructor(
     private val ioDispatcher: CoroutineDispatcher,
 ) : PngExportPort {
     override suspend fun export(document: DocumentState): PngExportOutcome {
-        val bytes = withContext(ioDispatcher) { PngEncoder.encode(document.snapshot).copyBytes() }
+        val bytes = withContext(ioDispatcher) { PngEncoder.encode(document).copyBytes() }
         return when (
             val result =
                 output.write(

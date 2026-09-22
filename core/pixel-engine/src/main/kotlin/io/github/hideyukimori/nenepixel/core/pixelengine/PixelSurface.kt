@@ -1,37 +1,39 @@
 package io.github.hideyukimori.nenepixel.core.pixelengine
 
-import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.document.Revision
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 
 internal class PixelSurface private constructor(
     private val size: CanvasSize,
-    private val packedPixels: IntArray,
+    private val packedIndices: ByteArray,
 ) {
-    fun colorAt(position: PixelPosition): PixelColor =
-        PixelColor.fromPackedRgba8888(packedPixels[position.rowMajorIndex(size)])
+    fun indexAt(position: PixelPosition): PaletteIndex =
+        PaletteIndex.create(packedIndices[position.rowMajorIndex(size)].toInt() and U8_MASK).requiredValue()
 
-    fun packedRgba8888At(rowMajorIndex: Int): Int = packedPixels[rowMajorIndex]
+    fun packedIndexAt(rowMajorIndex: Int): Byte = packedIndices[rowMajorIndex]
 
     fun write(change: PixelChange) {
-        packedPixels[change.position.rowMajorIndex(size)] = change.after.toPackedRgba8888()
+        packedIndices[change.position.rowMajorIndex(size)] = change.after.value.toByte()
     }
 
-    fun writePackedRgba8888(
+    fun writePackedIndex(
         rowMajorIndex: Int,
-        value: Int,
+        value: Byte,
     ) {
-        packedPixels[rowMajorIndex] = value
+        packedIndices[rowMajorIndex] = value
     }
 
     fun snapshot(revision: Revision): PixelSnapshot =
-        PixelSnapshot.createPackedRgba8888(size, revision, packedPixels).requiredValue()
+        PixelSnapshot.createPackedIndices(size, revision, packedIndices).requiredValue()
 
     companion object {
-        fun from(snapshot: PixelSnapshot): PixelSurface = PixelSurface(snapshot.size, snapshot.copyPackedRgba8888())
+        private const val U8_MASK: Int = 0xff
+
+        fun from(snapshot: PixelSnapshot): PixelSurface = PixelSurface(snapshot.size, snapshot.copyPackedIndices())
     }
 }
 

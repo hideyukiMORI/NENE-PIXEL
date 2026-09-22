@@ -180,8 +180,8 @@ public class AutosavePublicationEvidenceJournalTest {
             java.nio.file.Files
                 .createTempDirectory("autosave-existing-")
                 .toFile()
-        val csv = java.io.File(directory, "m3-autosave-publication-device-v2.csv")
-        val status = java.io.File(directory, "m3-autosave-publication-device-v2.status")
+        val csv = java.io.File(directory, "p4-indexed-publication-device-candidate-v1.csv")
+        val status = java.io.File(directory, "p4-indexed-publication-device-candidate-v1.status")
         csv.writeText("old-csv")
         status.writeText("old-status")
         try {
@@ -237,6 +237,30 @@ public class AutosavePublicationEvidenceJournalTest {
             directory.listFiles()?.forEach { it.delete() }
             directory.delete()
         }
+    }
+
+    @Test
+    public fun candidateRowsUseTheFixedRoleAndSchema() {
+        val expectedGeneration =
+            when (
+                val result =
+                    io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryGeneration.create(
+                        1L,
+                    )
+            ) {
+                is io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryGenerationResult.Created -> {
+                    result.generation
+                }
+
+                io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryGenerationResult.Rejected -> {
+                    error("Invalid synthetic generation")
+                }
+            }
+        val sample = PublicationSample(42L, expectedGeneration.value, RecordWriteResult.Written(expectedGeneration))
+        val row = AutosavePublicationEvidenceReport.sampleRow("candidate_v2_max", 19, "sample", sample)
+
+        assertTrue(AutosavePublicationEvidenceReport.validates(row))
+        assertFalse(AutosavePublicationEvidenceReport.validates(row.replace(",candidate,", ",baseline,")))
     }
 
     private class LambdaStatement(

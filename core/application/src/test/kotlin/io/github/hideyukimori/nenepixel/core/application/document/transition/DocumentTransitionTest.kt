@@ -1,13 +1,13 @@
 package io.github.hideyukimori.nenepixel.core.application.document.transition
 
 import io.github.hideyukimori.nenepixel.core.application.document.command.RejectionReason
-import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.black
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.blackIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.canvas
-import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.colorAt
-import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.green
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.greenIndex
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.indexAt
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.patch
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.position
-import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.red
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.redIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.revision
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.state
 import io.github.hideyukimori.nenepixel.core.application.document.transition.DocumentTransitionAssertions.created
@@ -25,18 +25,18 @@ internal class DocumentTransitionTest {
             patch(
                 current.size,
                 current.revision,
-                listOf(PixelChange.create(position(1, 0), black, red)),
+                listOf(PixelChange.create(position(1, 0), blackIndex, redIndex)),
             )
 
-        val first = created(DocumentTransition.create(current, patch))
-        val second = created(DocumentTransition.create(current, patch))
+        val first = created(DocumentTransition.create(current, ChangeSet.create(patch)))
+        val second = created(DocumentTransition.create(current, ChangeSet.create(patch)))
 
         assertEquals(first, second)
         assertEquals(current.id, first.nextState.id)
         assertEquals(current.size, first.nextState.size)
         assertEquals(revision(1L), first.nextState.revision)
-        assertEquals(red, colorAt(first.nextState.snapshot, position(1, 0)))
-        assertEquals(black, colorAt(current.snapshot, position(1, 0)))
+        assertEquals(redIndex, indexAt(first.nextState.snapshot, position(1, 0)))
+        assertEquals(blackIndex, indexAt(current.snapshot, position(1, 0)))
         assertEquals(first.changeSet, second.changeSet)
     }
 
@@ -48,17 +48,17 @@ internal class DocumentTransitionTest {
             patch(
                 smallerCanvas,
                 current.revision,
-                listOf(PixelChange.create(position(0, 0), black, red)),
+                listOf(PixelChange.create(position(0, 0), blackIndex, redIndex)),
             )
 
-        val reason = rejected(DocumentTransition.create(current, patch))
+        val reason = rejected(DocumentTransition.create(current, ChangeSet.create(patch)))
 
         val mismatch = assertInstanceOf(RejectionReason.CanvasMismatch::class.java, reason)
         assertEquals(smallerCanvas, mismatch.expected)
         assertEquals(current.size, mismatch.actual)
         assertEquals(revision(0L), current.revision)
-        assertEquals(black, colorAt(current.snapshot, position(0, 0)))
-        assertEquals(black, colorAt(current.snapshot, position(1, 0)))
+        assertEquals(blackIndex, indexAt(current.snapshot, position(0, 0)))
+        assertEquals(blackIndex, indexAt(current.snapshot, position(1, 0)))
     }
 
     @Test
@@ -68,35 +68,35 @@ internal class DocumentTransitionTest {
             patch(
                 current.size,
                 revision(1L),
-                listOf(PixelChange.create(position(0, 0), black, red)),
+                listOf(PixelChange.create(position(0, 0), blackIndex, redIndex)),
             )
 
-        val reason = rejected(DocumentTransition.create(current, patch))
+        val reason = rejected(DocumentTransition.create(current, ChangeSet.create(patch)))
 
         val mismatch = assertInstanceOf(RejectionReason.RevisionMismatch::class.java, reason)
         assertEquals(revision(1L), mismatch.expected)
         assertEquals(revision(2L), mismatch.actual)
         assertEquals(revision(2L), current.revision)
-        assertEquals(black, colorAt(current.snapshot, position(0, 0)))
+        assertEquals(blackIndex, indexAt(current.snapshot, position(0, 0)))
     }
 
     @Test
     fun `before value mismatch is typed and leaves the current state unchanged`() {
-        val current = state(canvas(1, 1), pixels = listOf(green))
+        val current = state(canvas(1, 1), indices = listOf(greenIndex))
         val patch =
             patch(
                 current.size,
                 current.revision,
-                listOf(PixelChange.create(position(0, 0), black, red)),
+                listOf(PixelChange.create(position(0, 0), blackIndex, redIndex)),
             )
 
-        val reason = rejected(DocumentTransition.create(current, patch))
+        val reason = rejected(DocumentTransition.create(current, ChangeSet.create(patch)))
 
         val mismatch = assertInstanceOf(RejectionReason.PixelBeforeValueMismatch::class.java, reason)
         assertEquals(position(0, 0), mismatch.position)
-        assertEquals(black, mismatch.expected)
-        assertEquals(green, mismatch.actual)
+        assertEquals(blackIndex, mismatch.expected)
+        assertEquals(greenIndex, mismatch.actual)
         assertEquals(revision(0L), current.revision)
-        assertEquals(green, colorAt(current.snapshot, position(0, 0)))
+        assertEquals(greenIndex, indexAt(current.snapshot, position(0, 0)))
     }
 }

@@ -51,6 +51,17 @@ public sealed interface DomainValueRejection {
         public val actualPixelCount: Int,
     ) : DomainValueRejection
 
+    public data class PixelSnapshotIndexAboveStorageMaximum internal constructor(
+        public val position: Int,
+        public val attemptedIndex: PaletteIndex,
+        public val maximum: Int,
+    ) : DomainValueRejection
+
+    public data class LegacyRgbaSourceSizeMismatch internal constructor(
+        public val expectedPixelCount: Long,
+        public val actualPixelCount: Int,
+    ) : DomainValueRejection
+
     public data class PixelPositionOutsideCanvas internal constructor(
         public val canvas: CanvasSize,
         public val position: PixelPosition,

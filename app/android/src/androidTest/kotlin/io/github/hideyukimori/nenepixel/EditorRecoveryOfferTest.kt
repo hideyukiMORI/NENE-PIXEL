@@ -18,6 +18,8 @@ import io.github.hideyukimori.nenepixel.core.application.document.history.Histor
 import io.github.hideyukimori.nenepixel.core.application.editor.DocumentDirtyState
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryInspection
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRecordPort
+import io.github.hideyukimori.nenepixel.core.domain.document.DocumentImportSource
+import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -59,8 +61,8 @@ internal class EditorRecoveryOfferTest {
 
             val candidate = awaitCandidate()
             assertEquals(1L, candidate.generation.value)
-            assertEquals(1L, candidate.document.revision.value)
-            assertArrayEquals(drawn, candidate.document.snapshot.copyPackedRgba8888())
+            assertEquals(1L, candidate.document().revision.value)
+            assertArrayEquals(drawn, candidate.document().visiblePixels())
         }
     }
 
@@ -91,7 +93,7 @@ internal class EditorRecoveryOfferTest {
             scenario.onActivity { activity ->
                 val state = activity.editorModel().runtime.state
                 assertEquals(1L, state.documentState.revision.value)
-                assertArrayEquals(drawn, state.documentState.snapshot.copyPackedRgba8888())
+                assertArrayEquals(drawn, state.documentState.visiblePixels())
                 assertEquals(HistoryAvailability.None, state.historyAvailability)
                 assertEquals(DocumentDirtyState.Dirty, state.dirtyState)
             }
@@ -115,11 +117,21 @@ internal class EditorRecoveryOfferTest {
             pixels =
                 activity
                     .editorModel()
-                    .runtime.state.documentState.snapshot
-                    .copyPackedRgba8888()
+                    .runtime.state.documentState
+                    .visiblePixels()
         }
         return pixels
     }
+
+    private fun DocumentState.visiblePixels(): IntArray =
+        snapshot
+            .copyPackedIndices()
+            .map { packed ->
+                definition.palette
+                    .entries()[packed.toInt() and UBYTE_MASK]
+                    .color
+                    .toPackedRgba8888()
+            }.toIntArray()
 
     private fun awaitCandidate(): RecoveryInspection.Candidate {
         val probe = probe()
@@ -134,6 +146,12 @@ internal class EditorRecoveryOfferTest {
         }
         error("The lifecycle flush did not publish a recovery Candidate; last inspection was $last")
     }
+
+    private fun RecoveryInspection.Candidate.document(): DocumentState =
+        when (val imported = source) {
+            is DocumentImportSource.Current -> imported.document
+            is DocumentImportSource.Legacy -> error("Lifecycle recovery must publish a current document")
+        }
 
     private fun probe(): RecoveryRecordPort =
         AndroidRecoveryRecordAdapter.create(AtomicFile(recoveryPath()), Dispatchers.IO.limitedParallelism(1))
@@ -155,5 +173,6 @@ internal class EditorRecoveryOfferTest {
         const val CANVAS_CENTER_PERCENT: Float = 0.5f
         const val OFFER_TIMEOUT_MILLIS: Long = 10_000L
         const val POLL_MILLIS: Long = 100L
+        const val UBYTE_MASK: Int = 0xff
     }
 }

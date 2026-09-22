@@ -146,7 +146,14 @@ internal class PngExportWorkflowTest {
     fun `export failure is typed and preserves unadopted recovery`() =
         runBlocking {
             val source = initializedFixture().runtime.state.documentState
-            val fixture = Fixture(RecoveryInspection.Candidate(generation(1), source))
+            val fixture =
+                Fixture(
+                    RecoveryInspection.Candidate(
+                        generation(1),
+                        io.github.hideyukimori.nenepixel.core.domain.document.DocumentImportSource
+                            .Current(source),
+                    ),
+                )
             fixture.initialize()
             val before = fixture.runtime.state
             fixture.exporter.handler =

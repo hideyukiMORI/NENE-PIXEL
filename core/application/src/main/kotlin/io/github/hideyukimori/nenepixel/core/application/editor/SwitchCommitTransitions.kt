@@ -83,7 +83,7 @@ internal object SwitchCommitTransitions {
         coordination: PersistenceCoordination,
         operation: ActivePersistenceOperation.Switch.Ready,
     ): PersistenceTransition<SwitchBegin> =
-        when (val lineage = coordination.recoveryState.expectedLineage()) {
+        when (val lineage = expectedLineage(coordination, operation)) {
             is ExpectedLineageResult.Available -> {
                 val switching =
                     ActivePersistenceOperation.Switch.Switching(
@@ -108,6 +108,21 @@ internal object SwitchCommitTransitions {
             }
         }
 
+    private fun expectedLineage(
+        coordination: PersistenceCoordination,
+        operation: ActivePersistenceOperation.Switch.Ready,
+    ): ExpectedLineageResult {
+        val proof = operation.verifiedLegacyRecovery ?: return coordination.recoveryState.expectedLineage()
+        val recovery = coordination.recoveryState as? RuntimeRecoveryState.LegacyCandidate
+        return if (recovery != null && recovery.generation == proof.generation &&
+            recovery.candidate.source === proof.source
+        ) {
+            ExpectedLineageResult.Available(ExpectedRecoveryLineage.Present(proof.generation))
+        } else {
+            ExpectedLineageResult.Unavailable
+        }
+    }
+
     private fun recheckSource(
         coordination: PersistenceCoordination,
         operation: ActivePersistenceOperation.Switch.Ready,
@@ -120,7 +135,11 @@ internal object SwitchCommitTransitions {
                     ActivePersistenceOperation.Switch.Confirming(
                         operation.handle,
                         context.source,
-                        PendingSwitch.Prepared(operation.candidate, operation.kind),
+                        PendingSwitch.Prepared(
+                            operation.candidate,
+                            operation.kind,
+                            operation.verifiedLegacyRecovery,
+                        ),
                         creation.request,
                     )
                 PersistenceTransition(
@@ -196,6 +215,7 @@ internal object SwitchCommitTransitions {
             when (kind) {
                 SwitchKind.Loaded -> PersistenceLastOutcome.Loaded
                 SwitchKind.NewDocument -> PersistenceLastOutcome.NewDocumentCreated
+                SwitchKind.LegacyImported -> PersistenceLastOutcome.LegacyConverted
             }
         val advanced =
             coordination

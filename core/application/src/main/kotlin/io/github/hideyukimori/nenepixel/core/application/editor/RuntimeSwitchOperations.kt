@@ -1,15 +1,17 @@
 package io.github.hideyukimori.nenepixel.core.application.editor
 
+import io.github.hideyukimori.nenepixel.core.application.persistence.ClassifiedProjectLoadOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceCancellationResult
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceConfirmationRequest
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationHandle
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceRequestResult
-import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectLoadOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRetirementOutcome
 
 internal class RuntimeSwitchOperations(
     private val runtime: EditorRuntime,
 ) {
+    val legacy: RuntimeLegacyImportOperations = RuntimeLegacyImportOperations(runtime)
+
     fun beginLoad(): SwitchStart =
         runtime.transact { transaction ->
             SwitchStartTransitions.beginLoad(transaction.coordination, transaction.switchContext())
@@ -26,7 +28,7 @@ internal class RuntimeSwitchOperations(
 
     fun completeLoadTransport(
         handle: PersistenceOperationHandle,
-        outcome: ProjectLoadOutcome,
+        outcome: ClassifiedProjectLoadOutcome,
     ): LoadTransportCompletion =
         runtime.transact { transaction ->
             LoadTransportTransitions.complete(

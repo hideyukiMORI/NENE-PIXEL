@@ -1,10 +1,12 @@
 package io.github.hideyukimori.nenepixel.core.application.document.command
 
-import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentId
 import io.github.hideyukimori.nenepixel.core.domain.document.Revision
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
+import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueRejection
 
 public sealed interface RejectionReason {
     public data class TargetDocumentMismatch internal constructor(
@@ -24,8 +26,8 @@ public sealed interface RejectionReason {
 
     public data class PixelBeforeValueMismatch internal constructor(
         public val position: PixelPosition,
-        public val expected: PixelColor,
-        public val actual: PixelColor,
+        public val expected: PaletteIndex,
+        public val actual: PaletteIndex,
     ) : RejectionReason
 
     public data object NoEffectiveChange : RejectionReason
@@ -42,4 +44,22 @@ public sealed interface RejectionReason {
     ) : RejectionReason
 
     public data object HistoryPositionExhausted : RejectionReason
+
+    public data object SourceOwnerMismatch : RejectionReason
+
+    public data object SourceHistoryMismatch : RejectionReason
+
+    public data class PaletteSourceMismatch internal constructor(
+        public val expected: PaletteDefinition,
+        public val actual: PaletteDefinition,
+    ) : RejectionReason
+
+    public data class InvalidIndexedValue internal constructor(
+        public val rejection: DomainValueRejection,
+    ) : RejectionReason
+
+    public data class HistoryEntryAboveRetainedPayloadMaximum internal constructor(
+        public val attemptedBytes: Long,
+        public val maximum: Long,
+    ) : RejectionReason
 }

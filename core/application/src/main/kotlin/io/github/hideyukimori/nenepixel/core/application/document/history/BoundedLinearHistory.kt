@@ -5,10 +5,21 @@ import io.github.hideyukimori.nenepixel.core.application.document.command.Comman
 internal class BoundedLinearHistory private constructor(
     private val entries: List<HistoryEntry>,
     private val cursor: Int,
-    private val basePosition: HistoryPosition,
-    private val latestPosition: HistoryPosition,
-    val retainedChangeCount: Int,
+    private val lineage: HistoryLineage,
+    private val retainedPayload: HistoryPayload,
 ) {
+    val retainedChangeCount: Int
+        get() = retainedPayload.changeCount
+
+    val retainedByteCount: Long
+        get() = retainedPayload.byteCount
+
+    private val basePosition: HistoryPosition
+        get() = lineage.base
+
+    private val latestPosition: HistoryPosition
+        get() = lineage.latest
+
     val entryCount: Int
         get() = entries.size
 
@@ -43,12 +54,12 @@ internal class BoundedLinearHistory private constructor(
 
     fun moveBackward(): BoundedLinearHistory {
         check(undoEntry != null) { "History cannot move backward without an undo entry." }
-        return BoundedLinearHistory(entries, cursor - 1, basePosition, latestPosition, retainedChangeCount)
+        return BoundedLinearHistory(entries, cursor - 1, lineage, retainedPayload)
     }
 
     fun moveForward(): BoundedLinearHistory {
         check(redoEntry != null) { "History cannot move forward without a redo entry." }
-        return BoundedLinearHistory(entries, cursor + 1, basePosition, latestPosition, retainedChangeCount)
+        return BoundedLinearHistory(entries, cursor + 1, lineage, retainedPayload)
     }
 
     private fun append(
@@ -58,14 +69,9 @@ internal class BoundedLinearHistory private constructor(
         val retainedPrefix = entries.take(cursor)
         val nextEntry = HistoryEntry.create(applied, currentPosition, afterPosition)
         val candidates = retainedPrefix + nextEntry
-        return when (val retention = HistoryRetentionPolicy.retain(candidates.map(HistoryEntry::retainedChangeCount))) {
+        return when (val retention = HistoryRetentionPolicy.retain(candidates.map(HistoryEntry::payload))) {
             is HistoryRetentionResult.Rejected -> {
-                HistoryAppendResult.Rejected(
-                    HistoryAppendRejection.EntryAboveRetainedChangeMaximum(
-                        retention.rejection.attemptedCount,
-                        retention.rejection.maximum,
-                    ),
-                )
+                HistoryAppendResult.Rejected(retention.rejection)
             }
 
             is HistoryRetentionResult.Retained -> {
@@ -81,9 +87,8 @@ internal class BoundedLinearHistory private constructor(
                         BoundedLinearHistory(
                             retainedEntries,
                             retainedEntries.size,
-                            nextBasePosition,
-                            afterPosition,
-                            retention.retainedChangeCount,
+                            HistoryLineage(nextBasePosition, afterPosition),
+                            HistoryPayload(retention.retainedChangeCount, retention.retainedByteCount),
                         ),
                 )
             }
@@ -95,9 +100,8 @@ internal class BoundedLinearHistory private constructor(
             BoundedLinearHistory(
                 entries = emptyList(),
                 cursor = 0,
-                basePosition = HistoryPosition.initial,
-                latestPosition = HistoryPosition.initial,
-                retainedChangeCount = 0,
+                lineage = HistoryLineage(HistoryPosition.initial, HistoryPosition.initial),
+                retainedPayload = HistoryPayload(0, 0L),
             )
     }
 }
@@ -119,4 +123,14 @@ internal sealed interface HistoryAppendRejection {
     ) : HistoryAppendRejection
 
     data object PositionExhausted : HistoryAppendRejection
+
+    data class EntryAboveRetainedPayloadMaximum(
+        val attemptedBytes: Long,
+        val maximum: Long,
+    ) : HistoryAppendRejection
 }
+
+private data class HistoryLineage(
+    val base: HistoryPosition,
+    val latest: HistoryPosition,
+)

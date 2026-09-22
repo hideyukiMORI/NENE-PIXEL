@@ -95,6 +95,17 @@ synthetic v0 migration. When a later schema is accepted, a separate ADR must def
 deterministic read-old/write-current migration path. The v1 bytes and semantics remain fixed and
 are protected by committed golden fixtures.
 
+## Indexed reader and original-copy refinement (ADR 0025)
+
+The byte table, limits, validation precedence, CRC and complete RGBA meaning above remain unchanged.
+[ADR 0025](adr/0025-indexed-project-compatibility.md) replaces the old live RGBA decoder result with
+exact immutable LegacyRgbaSource, carried by DocumentImportSource.Legacy. The common ProjectFormatCodec
+dispatches v1/v2 explicitly; per-version implementations are internal. The v1 encoder accepts only
+LegacyRgbaSource for verified exact original copying. DocumentState encoding writes v2 exclusively.
+The sole pixel-engine import planner decides exact indexed conversion or ConversionRequired after
+decoding; format and adapters never quantize. Earlier PixelSnapshot references in this v1 contract
+describe its historical RGBA mapping, not an indexed-to-v1 compatibility writer.
+
 ## Byte ownership
 
 The project-format implementation may use bounded private mutable byte scratch while encoding or

@@ -3,6 +3,7 @@ package io.github.hideyukimori.nenepixel.adapters.persistence
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryGeneration
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRetirementFailure
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRollbackOutcome
+import io.github.hideyukimori.nenepixel.core.domain.document.DocumentImportSource
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
@@ -20,7 +21,11 @@ internal class RecoveryRecordWriterTest {
 
         val result =
             writer(file).publish(bytes, generation) { record ->
-                record == RecoveryRecord.Candidate(generation, PersistenceTestValues.minimalDocument)
+                record ==
+                    RecoveryRecord.Candidate(
+                        generation,
+                        DocumentImportSource.Current(PersistenceTestValues.minimalDocument),
+                    )
             }
 
         assertEquals(RecordWriteResult.Written(generation), result)

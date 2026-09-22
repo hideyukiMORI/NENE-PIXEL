@@ -1,11 +1,11 @@
 package io.github.hideyukimori.nenepixel.core.pixelengine
 
-import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.black
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.canvas
-import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.colorAt
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.eraserStroke
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.green
+import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.index
+import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.indexAt
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.position
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.red
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.region
@@ -21,6 +21,14 @@ import org.junit.jupiter.api.Test
 
 internal class StrokeRasterizationTest {
     @Test
+    fun `target above packed U8 storage is rejected before rasterization`() {
+        val canvas = canvas(1, 1)
+        val rejection = rejected(rasterizeStroke(snapshot(canvas), stroke(canvas, listOf(position(0, 0)), index(256))))
+
+        assertEquals(StrokeRasterizationRejection.TargetIndexAboveStorageMaximum(index(256), 255), rejection)
+    }
+
+    @Test
     fun `rasterization changes only listed pixels without interpolation and inverse restores input`() {
         val canvas = canvas(3, 1)
         val original = snapshot(canvas, pixels = listOf(black, green, black))
@@ -30,9 +38,9 @@ internal class StrokeRasterizationTest {
         val changed = applied(patch.applyTo(original))
         val restored = applied(patch.inverse().applyTo(changed))
 
-        assertEquals(red, colorAt(changed, position(0, 0)))
-        assertEquals(green, colorAt(changed, position(1, 0)))
-        assertEquals(red, colorAt(changed, position(2, 0)))
+        assertEquals(red, indexAt(changed, position(0, 0)))
+        assertEquals(green, indexAt(changed, position(1, 0)))
+        assertEquals(red, indexAt(changed, position(2, 0)))
         assertEquals(region(canvas, position(0, 0), canvas(3, 1)), patch.affectedRegion)
         assertEquals(original, restored)
     }
@@ -78,13 +86,13 @@ internal class StrokeRasterizationTest {
 
         assertEquals(1, patch.changeCount)
         assertEquals(region(canvas, position(2, 0), canvas(1, 1)), patch.affectedRegion)
-        assertEquals(red, colorAt(changed, position(0, 0)))
-        assertEquals(black, colorAt(changed, position(1, 0)))
-        assertEquals(red, colorAt(changed, position(2, 0)))
+        assertEquals(red, indexAt(changed, position(0, 0)))
+        assertEquals(black, indexAt(changed, position(1, 0)))
+        assertEquals(red, indexAt(changed, position(2, 0)))
     }
 
     @Test
-    fun `eraser replaces with canonical blank through the same patch and inverse path`() {
+    fun `eraser writes its captured target index through the same patch and inverse path`() {
         val canvas = canvas(3, 1)
         val original = snapshot(canvas, pixels = listOf(red, green, black))
         val stroke = eraserStroke(canvas, listOf(position(0, 0), position(2, 0), position(0, 0)))
@@ -93,17 +101,17 @@ internal class StrokeRasterizationTest {
         val changed = applied(patch.applyTo(original))
         val restored = applied(patch.inverse().applyTo(changed))
 
-        assertEquals(2, patch.changeCount)
-        assertEquals(PixelColor.blank, colorAt(changed, position(0, 0)))
-        assertEquals(green, colorAt(changed, position(1, 0)))
-        assertEquals(PixelColor.blank, colorAt(changed, position(2, 0)))
+        assertEquals(1, patch.changeCount)
+        assertEquals(black, indexAt(changed, position(0, 0)))
+        assertEquals(green, indexAt(changed, position(1, 0)))
+        assertEquals(black, indexAt(changed, position(2, 0)))
         assertEquals(original, restored)
     }
 
     @Test
     fun `already blank erase shares the canonical no changes result`() {
         val canvas = canvas(1, 1)
-        val original = snapshot(canvas, revision(Long.MAX_VALUE), listOf(PixelColor.blank))
+        val original = snapshot(canvas, revision(Long.MAX_VALUE), listOf(black))
 
         assertEquals(
             StrokeRasterizationResult.NoChanges,
@@ -131,7 +139,7 @@ internal class StrokeRasterizationTest {
             assertInstanceOf(StrokeRasterizationRejection.CanvasMismatch::class.java, outside)
         assertEquals(largerCanvas, canvasRejection.expected)
         assertEquals(smallerSnapshot.size, canvasRejection.actual)
-        assertEquals(black, colorAt(smallerSnapshot, position(0, 0)))
+        assertEquals(black, indexAt(smallerSnapshot, position(0, 0)))
 
         val overflowSnapshot = snapshot(canvas(1, 1), revision(Long.MAX_VALUE))
         val changedStroke = stroke(overflowSnapshot.size, listOf(position(0, 0)), red)
@@ -139,6 +147,6 @@ internal class StrokeRasterizationTest {
             StrokeRasterizationRejection.RevisionOverflow,
             rejected(rasterizeStroke(overflowSnapshot, changedStroke)),
         )
-        assertEquals(black, colorAt(overflowSnapshot, position(0, 0)))
+        assertEquals(black, indexAt(overflowSnapshot, position(0, 0)))
     }
 }

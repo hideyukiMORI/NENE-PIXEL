@@ -1,12 +1,13 @@
 package io.github.hideyukimori.nenepixel.core.application.document.command
 
-import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.black
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.blackIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.canvas
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.patch
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.position
-import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.red
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.redIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.revision
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.state
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ChangeSet
 import io.github.hideyukimori.nenepixel.core.application.document.transition.DocumentTransition
 import io.github.hideyukimori.nenepixel.core.application.document.transition.DocumentTransitionResult
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelChange
@@ -22,10 +23,10 @@ internal class CommandResultContractTest {
             patch(
                 current.size,
                 current.revision,
-                listOf(PixelChange.create(position(0, 0), black, red)),
+                listOf(PixelChange.create(position(0, 0), blackIndex, redIndex)),
             )
         val changeSet =
-            when (val result = DocumentTransition.create(current, patch)) {
+            when (val result = DocumentTransition.create(current, ChangeSet.create(patch))) {
                 is DocumentTransitionResult.Created -> result.transition.changeSet
                 is DocumentTransitionResult.Rejected -> fail("Test transition was rejected: ${result.reason}")
             }

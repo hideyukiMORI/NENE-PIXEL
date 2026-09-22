@@ -7,6 +7,9 @@ import io.github.hideyukimori.nenepixel.core.domain.document.Revision
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasHeight
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasWidth
+import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import org.junit.Assert.assertArrayEquals
@@ -17,11 +20,11 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 internal class CanvasBitmapProjectionTest {
     @Test
-    fun bitmapProjectionPreservesRowMajorArgbDimensionsAndSourceSnapshot() {
+    fun bitmapProjectionResolvesRowMajorIndicesAgainstDefinition() {
         val expected = intArrayOf(OPAQUE_RED, OPAQUE_GREEN, HALF_ALPHA_BLUE, TRANSPARENT_BLACK)
-        val source = snapshot(expected)
+        val source = snapshot(intArrayOf(0, 1, 2, 3))
 
-        val rendered = source.toRenderedBitmap()
+        val rendered = source.toRenderedBitmap(definition(expected))
 
         assertEquals(CANVAS_WIDTH, rendered.width)
         assertEquals(CANVAS_HEIGHT, rendered.height)
@@ -29,15 +32,15 @@ internal class CanvasBitmapProjectionTest {
         rendered.getPixels(actual, 0, CANVAS_WIDTH, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT)
         assertArrayEquals(expected, actual)
         assertEquals(Revision.initial(), source.revision)
-        assertArrayEquals(expected, source.argbPixels())
+        assertArrayEquals(intArrayOf(0, 1, 2, 3), source.indices())
     }
 
     @Test
     fun opaqueBitmapProjectionCompositesDisplayAlphaOverCanvasColorWithoutChangingSource() {
         val sourcePixels = intArrayOf(OPAQUE_RED, OPAQUE_GREEN, HALF_ALPHA_BLUE, TRANSPARENT_BLACK)
-        val source = snapshot(sourcePixels)
+        val source = snapshot(intArrayOf(0, 1, 2, 3))
 
-        val rendered = source.toOpaqueRenderedBitmap(OPAQUE_WHITE)
+        val rendered = source.toOpaqueRenderedBitmap(definition(sourcePixels), OPAQUE_WHITE)
 
         val actual = IntArray(sourcePixels.size)
         rendered.getPixels(actual, 0, CANVAS_WIDTH, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT)
@@ -45,25 +48,52 @@ internal class CanvasBitmapProjectionTest {
             intArrayOf(OPAQUE_RED, OPAQUE_GREEN, HALF_ALPHA_BLUE_OVER_WHITE, OPAQUE_WHITE),
             actual,
         )
-        assertArrayEquals(sourcePixels, source.argbPixels())
+        assertArrayEquals(intArrayOf(0, 1, 2, 3), source.indices())
     }
 
-    private fun snapshot(argb: IntArray): PixelSnapshot {
+    @Test
+    fun sameSnapshotRendersDifferentlyWhenOnlyThePaletteDefinitionChanges() {
+        val source = snapshot(intArrayOf(0))
+        val first = source.toRenderedBitmap(definition(intArrayOf(OPAQUE_RED, OPAQUE_GREEN)))
+        val second = source.toRenderedBitmap(definition(intArrayOf(OPAQUE_GREEN, OPAQUE_RED)))
+
+        assertEquals(OPAQUE_RED, first.getPixel(0, 0))
+        assertEquals(OPAQUE_GREEN, second.getPixel(0, 0))
+    }
+
+    @Test
+    fun transparentDefaultPreviewPreservesAlphaAndOpaquePreviewCompositesIt() {
+        val source = snapshot(intArrayOf(1))
+        val transparentDefault = definition(intArrayOf(OPAQUE_RED, TRANSPARENT_BLACK), defaultIndex = 1)
+
+        assertEquals(TRANSPARENT_BLACK, source.toRenderedBitmap(transparentDefault).getPixel(0, 0))
+        assertEquals(OPAQUE_WHITE, source.toOpaqueRenderedBitmap(transparentDefault, OPAQUE_WHITE).getPixel(0, 0))
+    }
+
+    private fun snapshot(indices: IntArray): PixelSnapshot {
+        val edge = if (indices.size == 1) 1 else CANVAS_WIDTH
         val size =
-            CanvasSize.create(
-                CanvasWidth.create(CANVAS_WIDTH).requiredValue(),
-                CanvasHeight.create(CANVAS_HEIGHT).requiredValue(),
-            )
+            CanvasSize
+                .create(
+                    CanvasWidth.create(edge).requiredValue(),
+                    CanvasHeight.create(edge).requiredValue(),
+                )
         return PixelSnapshot
-            .create(size, Revision.initial(), argb.map(::pixelColor))
+            .create(size, Revision.initial(), indices.map { PaletteIndex.create(it).requiredValue() })
             .requiredValue()
     }
 
-    private fun PixelSnapshot.argbPixels(): IntArray =
-        IntArray(size.pixelCount.toInt()) { index ->
-            val position = pixelPosition(index % size.width.value, index / size.width.value)
-            colorAt(position).requiredValue().argb
-        }
+    private fun PixelSnapshot.indices(): IntArray = copyPackedIndices().map { it.toInt() and UBYTE_MASK }.toIntArray()
+
+    private fun definition(
+        argb: IntArray,
+        defaultIndex: Int = 0,
+    ): PaletteDefinition =
+        PaletteDefinition
+            .create(
+                Palette.create(argb.map(::pixelColor)).requiredValue(),
+                PaletteIndex.create(defaultIndex).requiredValue(),
+            ).requiredValue()
 
     private fun pixelColor(argb: Int): PixelColor =
         PixelColor.create(
@@ -74,13 +104,6 @@ internal class CanvasBitmapProjectionTest {
         )
 
     private fun channel(value: Int): ColorChannel = ColorChannel.create(value and UBYTE_MASK).requiredValue()
-
-    private val PixelColor.argb: Int
-        get() =
-            (alpha.value.toInt() shl ALPHA_SHIFT) or
-                (red.value.toInt() shl RED_SHIFT) or
-                (green.value.toInt() shl GREEN_SHIFT) or
-                blue.value.toInt()
 
     private fun <T> DomainValueResult<T>.requiredValue(): T =
         when (this) {

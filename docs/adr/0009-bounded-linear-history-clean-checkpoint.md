@@ -7,6 +7,23 @@
   `ARC-012`, `CMD-001`, `CMD-003`, `CMD-005` through `CMD-009`, `CMD-011`, `KOT-002`,
   `KOT-003`, `KOT-007`, `KOT-008`, `KOT-013`, `KOT-016`, `QLT-006` through `QLT-010`
 
+## Indexed cutover refinement (2026-09-13, #106)
+
+[ADR 0022](0022-indexed-palette-and-migration.md) and
+[ADR 0025](0025-indexed-project-compatibility.md) extend this same owner to chronological drawing
+and palette transitions. ChangeSet retains exact before/after definitions/defaults plus indexed
+changes or a closed no-index-change case. Palette-only changes still record revisions and history;
+the shared directional inverse never attempts to invert a many-to-one mapping.
+
+Oldest-first eviction now satisfies all three simultaneous bounds: 64 entries, 524,288 changed
+pixels and 8 MiB logical payload. ADR 0022 fixes the byte formula; redo truncation occurs first and
+an oversized new entry is rejected before commit. HistoryPosition additionally participates in
+gateway-issued CommandSourceAdmission and existing persistence preconditions. It remains internal
+and nonserialized; owner identity plus document/exact position admits a prepared command, never
+revision or snapshot-reference identity alone. The clean-checkpoint behavior below is unchanged.
+Historical dual-budget and no-command-staleness descriptions below describe the prior scope;
+their measurement results are not indexed-runtime evidence. Rollback after v2 preserves both readers.
+
 ## Context
 
 The M1 gateway retains exactly one `HistoryEntry` in mutually exclusive Empty, Undo, or Redo

@@ -1,11 +1,15 @@
 package io.github.hideyukimori.nenepixel.core.application.persistence
 
+import io.github.hideyukimori.nenepixel.core.domain.document.DocumentImportSource
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
+import io.github.hideyukimori.nenepixel.core.domain.document.LegacyRgbaSource
 
 public interface ProjectStoragePort {
     public suspend fun save(document: DocumentState): ProjectSaveOutcome
 
     public suspend fun load(): ProjectLoadOutcome
+
+    public suspend fun copyLegacySource(source: LegacyRgbaSource): LegacySourceCopyOutcome
 }
 
 public sealed interface ProjectSaveOutcome {
@@ -21,7 +25,7 @@ public sealed interface ProjectSaveOutcome {
 
 public sealed interface ProjectLoadOutcome {
     public data class Loaded(
-        public val document: DocumentState,
+        public val source: DocumentImportSource,
     ) : ProjectLoadOutcome
 
     public data object Cancelled : ProjectLoadOutcome
@@ -29,6 +33,17 @@ public sealed interface ProjectLoadOutcome {
     public data class Failed(
         public val failure: ProjectStorageFailure,
     ) : ProjectLoadOutcome
+}
+
+public sealed interface LegacySourceCopyOutcome {
+    public data object Copied : LegacySourceCopyOutcome
+
+    public data object Cancelled : LegacySourceCopyOutcome
+
+    public data class Failed(
+        public val failure: ProjectStorageFailure,
+        public val cleanup: PartialOutputCleanup,
+    ) : LegacySourceCopyOutcome
 }
 
 public enum class ProjectTransportPhase {

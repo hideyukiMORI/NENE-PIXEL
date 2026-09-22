@@ -16,6 +16,9 @@ internal object ProjectStorageRejectionMapper {
             ProjectFormatRejection.InvalidRevision,
             is ProjectFormatRejection.TrailingData,
             is ProjectFormatRejection.ChecksumMismatch,
+            is ProjectFormatRejection.InvalidPaletteEntryCount,
+            is ProjectFormatRejection.DefaultIndexOutsidePalette,
+            is ProjectFormatRejection.PixelIndexOutsidePalette,
             -> ProjectStorageFailure.InvalidProject
         }
 }

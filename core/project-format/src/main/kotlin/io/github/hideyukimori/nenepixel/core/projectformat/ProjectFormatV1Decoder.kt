@@ -1,22 +1,28 @@
 package io.github.hideyukimori.nenepixel.core.projectformat
 
-import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentId
-import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
+import io.github.hideyukimori.nenepixel.core.domain.document.DocumentImportSource
+import io.github.hideyukimori.nenepixel.core.domain.document.LegacyRgbaSource
 import io.github.hideyukimori.nenepixel.core.domain.document.Revision
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasHeight
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasWidth
-import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 
 internal class ProjectFormatV1Decoder(
     private val mapper: ProjectFormatV1DomainMapper = CanonicalProjectFormatV1DomainMapper,
 ) {
-    fun decode(source: ProjectFormatBytes): ProjectFormatResult<DocumentState> =
+    fun decode(source: ProjectFormatBytes): ProjectFormatResult<DocumentImportSource> =
         when (val validated = validate(source)) {
-            is ProjectFormatResult.Accepted -> accepted(mapper.map(source, validated.value))
-            is ProjectFormatResult.Rejected -> validated
+            is ProjectFormatResult.Accepted -> {
+                accepted(
+                    DocumentImportSource.Legacy(mapper.map(source, validated.value)),
+                )
+            }
+
+            is ProjectFormatResult.Rejected -> {
+                validated
+            }
         }
 
     private fun validate(source: ProjectFormatBytes): ProjectFormatResult<ValidatedProjectFormatV1> {
@@ -201,29 +207,35 @@ internal fun interface ProjectFormatV1DomainMapper {
     fun map(
         source: ProjectFormatBytes,
         fields: ValidatedProjectFormatV1,
-    ): DocumentState
+    ): LegacyRgbaSource
 }
 
 internal object CanonicalProjectFormatV1DomainMapper : ProjectFormatV1DomainMapper {
     override fun map(
         source: ProjectFormatBytes,
         fields: ValidatedProjectFormatV1,
-    ): DocumentState {
+    ): LegacyRgbaSource {
         val pixels =
-            List(fields.pixelCount) { pixelIndex ->
+            IntArray(fields.pixelCount) { pixelIndex ->
                 val offset = ProjectFormatV1Layout.PIXEL_OFFSET + pixelIndex * Int.SIZE_BYTES
-                PixelColor.fromPackedRgba8888(ProjectFormatBigEndian.readInt(source, offset))
+                ProjectFormatBigEndian.readInt(source, offset)
             }
-        val snapshot =
-            when (val result = PixelSnapshot.create(fields.size, fields.revision, pixels)) {
-                is DomainValueResult.Created -> {
-                    result.value
-                }
+        return when (
+            val result =
+                LegacyRgbaSource.createPackedRgba8888(
+                    fields.id,
+                    fields.revision,
+                    fields.size,
+                    pixels,
+                )
+        ) {
+            is DomainValueResult.Created -> {
+                result.value
+            }
 
-                is DomainValueResult.Rejected -> {
-                    error("Validated v1 pixels failed snapshot mapping: ${result.rejection}")
-                }
+            is DomainValueResult.Rejected -> {
+                error("Validated v1 pixels failed legacy-source mapping: ${result.rejection}")
             }
-        return DocumentState.create(fields.id, snapshot)
+        }
     }
 }

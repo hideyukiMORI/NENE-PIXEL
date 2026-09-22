@@ -126,8 +126,11 @@ internal object SwitchStartTransitions {
                     ActivePersistenceOperation.Switch.Ready(
                         handle,
                         context.source,
-                        context.newDocumentOwners(intent.request),
-                        SwitchKind.NewDocument,
+                        PreparedSwitch(
+                            context.newDocumentOwners(intent.request),
+                            SwitchKind.NewDocument,
+                            null,
+                        ),
                     )
                 PersistenceTransition(coordination.withActive(operation), SwitchStart.Ready(handle))
             }

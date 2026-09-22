@@ -28,6 +28,8 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasHeight
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasWidth
 import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import io.github.hideyukimori.nenepixel.presentation.compose.R
 import org.junit.Assert.assertEquals
@@ -179,7 +181,7 @@ internal class UndoRedoEditorTest {
 
         val drawn = controller.renderState
         assertEquals(1L, drawn.snapshot.revision.value)
-        assertTrue(drawn.snapshot.copyPackedRgba8888().any { pixel -> pixel != PixelColor.blank.toPackedRgba8888() })
+        assertTrue(drawn.snapshot.copyPackedIndices().any { index -> index.toInt() and UBYTE_MASK != DEFAULT_INDEX })
 
         composeRule.onNodeWithTag("editor_eraser_tool").performClick()
         composeRule.waitForIdle()
@@ -193,8 +195,8 @@ internal class UndoRedoEditorTest {
         assertEquals(2L, controller.renderState.snapshot.revision.value)
         assertTrue(
             controller.renderState.snapshot
-                .copyPackedRgba8888()
-                .all { pixel -> pixel == PixelColor.blank.toPackedRgba8888() },
+                .copyPackedIndices()
+                .all { index -> index.toInt() and UBYTE_MASK == DEFAULT_INDEX },
         )
     }
 
@@ -243,10 +245,11 @@ internal class UndoRedoEditorTest {
         composeRule.waitForIdle()
 
         assertEquals(
-            EXACT_PALETTE_RGBA,
+            SECOND_PALETTE_INDEX,
             controller.renderState.snapshot
-                .copyPackedRgba8888()
-                .first(),
+                .copyPackedIndices()
+                .first()
+                .toInt() and UBYTE_MASK,
         )
         assertEquals(1L, controller.renderState.snapshot.revision.value)
     }
@@ -404,11 +407,20 @@ internal class UndoRedoEditorTest {
                     listOf(
                         color(CHANNEL_MAX, CHANNEL_MIN, CHANNEL_MIN),
                         color(1, 2, 3, alpha = 4),
+                        color(CHANNEL_MAX, CHANNEL_MAX, CHANNEL_MAX),
+                        color(CHANNEL_MAX, CHANNEL_MAX, CHANNEL_MAX),
+                        color(CHANNEL_MAX, CHANNEL_MAX, CHANNEL_MAX),
+                        color(CHANNEL_MAX, CHANNEL_MAX, CHANNEL_MAX),
+                        color(CHANNEL_MAX, CHANNEL_MAX, CHANNEL_MAX),
+                        color(CHANNEL_MAX, CHANNEL_MAX, CHANNEL_MAX),
+                        PixelColor.blank,
                     ),
                 ).requiredValue()
+        val definition =
+            PaletteDefinition.create(palette, PaletteIndex.create(DEFAULT_INDEX).requiredValue()).requiredValue()
         return EditorController
             .create(
-                EditorRuntime.create(size, palette, documentIdSource),
+                EditorRuntime.create(size, definition, documentIdSource),
             ).also { activeController = it }
     }
 
@@ -444,6 +456,9 @@ internal class UndoRedoEditorTest {
         const val THIRD_PIXEL_PERCENT: Float = 0.15f
         const val SWIPE_DURATION_MILLIS: Long = 300L
         const val EXACT_PALETTE_RGBA: Int = 0x01020304
+        const val SECOND_PALETTE_INDEX: Int = 1
+        const val DEFAULT_INDEX: Int = 8
+        const val UBYTE_MASK: Int = 0xff
         const val FIRST_PALETTE_DESCRIPTION: String = "editor_palette_entry_1"
         const val SECOND_PALETTE_DESCRIPTION: String = "editor_palette_entry_2"
     }

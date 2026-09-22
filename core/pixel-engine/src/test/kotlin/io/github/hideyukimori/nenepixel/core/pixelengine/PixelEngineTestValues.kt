@@ -1,7 +1,5 @@
 package io.github.hideyukimori.nenepixel.core.pixelengine
 
-import io.github.hideyukimori.nenepixel.core.domain.color.ColorChannel
-import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.document.Revision
 import io.github.hideyukimori.nenepixel.core.domain.drawing.Stroke
 import io.github.hideyukimori.nenepixel.core.domain.drawing.StrokeEffect
@@ -12,14 +10,15 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelRegion
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelX
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelY
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import org.junit.jupiter.api.fail
 
 internal object PixelEngineTestValues {
-    val black: PixelColor = color(0, 0, 0, 255)
-    val red: PixelColor = color(255, 0, 0, 255)
-    val green: PixelColor = color(0, 255, 0, 255)
+    val black: PaletteIndex = index(0)
+    val red: PaletteIndex = index(1)
+    val green: PaletteIndex = index(2)
 
     fun canvas(
         width: Int,
@@ -36,13 +35,13 @@ internal object PixelEngineTestValues {
     fun stroke(
         canvas: CanvasSize,
         path: List<PixelPosition>,
-        color: PixelColor,
-    ): Stroke = Stroke.create(canvas, path, StrokeEffect.Paint(color)).value()
+        index: PaletteIndex,
+    ): Stroke = Stroke.create(canvas, path, StrokeEffect.Paint(index)).value()
 
     fun eraserStroke(
         canvas: CanvasSize,
         path: List<PixelPosition>,
-    ): Stroke = Stroke.create(canvas, path, StrokeEffect.Erase).value()
+    ): Stroke = Stroke.create(canvas, path, StrokeEffect.Erase(black)).value()
 
     fun region(
         canvas: CanvasSize,
@@ -53,26 +52,15 @@ internal object PixelEngineTestValues {
     fun snapshot(
         canvas: CanvasSize,
         revision: Revision = Revision.initial(),
-        pixels: List<PixelColor> = List(canvas.pixelCount.toInt()) { black },
+        pixels: List<PaletteIndex> = List(canvas.pixelCount.toInt()) { black },
     ): PixelSnapshot = PixelSnapshot.create(canvas, revision, pixels).value()
 
-    fun colorAt(
+    fun indexAt(
         snapshot: PixelSnapshot,
         position: PixelPosition,
-    ): PixelColor = snapshot.colorAt(position).value()
+    ): PaletteIndex = snapshot.indexAt(position).value()
 
-    private fun color(
-        red: Int,
-        green: Int,
-        blue: Int,
-        alpha: Int,
-    ): PixelColor =
-        PixelColor.create(
-            ColorChannel.create(red).value(),
-            ColorChannel.create(green).value(),
-            ColorChannel.create(blue).value(),
-            ColorChannel.create(alpha).value(),
-        )
+    fun index(value: Int): PaletteIndex = PaletteIndex.create(value).value()
 
     private fun <T> DomainValueResult<T>.value(): T =
         when (this) {

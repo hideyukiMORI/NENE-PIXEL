@@ -119,7 +119,7 @@ internal class EditorRuntimeLifecycleTest {
             assertEquals(
                 256,
                 state.documentState.snapshot
-                    .copyPackedRgba8888()
+                    .copyPackedIndices()
                     .size,
             )
         }

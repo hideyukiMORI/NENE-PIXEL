@@ -7,6 +7,8 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasHeight
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasWidth
 import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 
 internal fun createEditorRuntime(): EditorRuntime =
@@ -16,7 +18,12 @@ internal fun createEditorRuntime(): EditorRuntime =
                 CanvasWidth.create(INITIAL_CANVAS_EDGE).requiredValue(),
                 CanvasHeight.create(INITIAL_CANVAS_EDGE).requiredValue(),
             ),
-        palette = createMvpPalette(),
+        definition =
+            PaletteDefinition
+                .create(
+                    createMvpPalette(),
+                    PaletteIndex.create(INITIAL_DEFAULT_INDEX).requiredValue(),
+                ).requiredValue(),
         documentIdSource = UuidDocumentIdSource(),
     )
 
@@ -32,6 +39,7 @@ private fun createMvpPalette(): Palette =
                 color(CHANNEL_MAX, CHANNEL_MAX, CHANNEL_MIN),
                 color(CHANNEL_MIN, CHANNEL_MAX, CHANNEL_MAX),
                 color(CHANNEL_MAX, CHANNEL_MIN, CHANNEL_MAX),
+                PixelColor.blank,
             ),
         ).requiredValue()
 
@@ -54,5 +62,6 @@ private fun <T> DomainValueResult<T>.requiredValue(): T =
     }
 
 private const val INITIAL_CANVAS_EDGE: Int = 16
+private const val INITIAL_DEFAULT_INDEX: Int = 8
 private const val CHANNEL_MIN: Int = 0
 private const val CHANNEL_MAX: Int = 255

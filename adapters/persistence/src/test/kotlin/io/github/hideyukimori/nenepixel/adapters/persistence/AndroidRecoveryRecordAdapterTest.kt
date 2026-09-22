@@ -7,6 +7,7 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryPub
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRetirementFailure
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRetirementOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRollbackOutcome
+import io.github.hideyukimori.nenepixel.core.domain.document.DocumentImportSource
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -56,7 +57,7 @@ internal class AndroidRecoveryRecordAdapterTest {
             assertEquals(
                 RecoveryInspection.Candidate(
                     PersistenceTestValues.generation(7L),
-                    PersistenceTestValues.minimalDocument,
+                    DocumentImportSource.Current(PersistenceTestValues.minimalDocument),
                 ),
                 adapter.inspect(),
             )
@@ -279,7 +280,10 @@ internal class AndroidRecoveryRecordAdapterTest {
             assertEquals(0, file.failCalls)
             assertArrayEquals(encodedCandidate(1L), file.bytes)
             assertEquals(
-                RecoveryInspection.Candidate(PersistenceTestValues.generation(1L), document),
+                RecoveryInspection.Candidate(
+                    PersistenceTestValues.generation(1L),
+                    DocumentImportSource.Current(document),
+                ),
                 adapter.inspect(),
             )
         }
@@ -354,9 +358,12 @@ internal class AndroidRecoveryRecordAdapterTest {
                 RecoveryPublicationOutcome.Published(PersistenceTestValues.generation(1L)),
                 result,
             )
-            assertEquals(RecoveryRecordCodec.MAX_RECORD_BYTE_COUNT, file.bytes?.size)
+            assertEquals(RecoveryRecordLayout.V2_MAX_CANDIDATE_BYTE_COUNT, file.bytes?.size)
             assertEquals(
-                RecoveryInspection.Candidate(PersistenceTestValues.generation(1L), document),
+                RecoveryInspection.Candidate(
+                    PersistenceTestValues.generation(1L),
+                    DocumentImportSource.Current(document),
+                ),
                 adapter.inspect(),
             )
         }
