@@ -93,4 +93,4 @@ and explicit protocol identities. Never rewrite historical results or maintain t
 - [Quality Gates](../QUALITY_GATES.md)
 - [ADR 0005](0005-pixel-color-representation-and-limits.md)
 - Supersedes: historical zero-miss diagnostic admission for future runs only; no historical verdict
-- Superseded by: none
+- Superseded by: [ADR 0024](0024-differential-check-selection-and-result-reuse.md) extends the execution policy (QLT-011, QLT-012, new QLT-017 and QLT-018) only; the decision above otherwise stands

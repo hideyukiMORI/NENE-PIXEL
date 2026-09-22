@@ -107,15 +107,21 @@ generation automatically.
 
 ## Run the canonical quality gate
 
-Execution frequency is mandatory under [QLT-011 through QLT-016](QUALITY_GATES.md#verification-execution-policy).
+Execution frequency is mandatory under [QLT-011 through QLT-018](QUALITY_GATES.md#verification-execution-policy).
+Select each command from the diff and name the regression it detects before running it.
 During a core application iteration, for example, run:
 
 ```powershell
 .\gradlew.bat :core:application:test :core:application:ktlintCheck :core:application:detekt
 ```
 
-For a prose edit, run `.\gradlew.bat validateDocumentation`. Handoff and review preparation need
-only affected narrow checks. At the final PR merge candidate, required CI runs the canonical command:
+Narrow the test task further with `--tests` when one contract changed, for example
+`.\gradlew.bat :core:application:test --tests "*ToolGestureInterpolationTest"`. For a prose edit, run
+`.\gradlew.bat validateDocumentation`; app behavior tests do not run for documentation, comment, or
+rule changes. For a script or developer-tool change, run only that tool's own short check, such as its
+validator script or self-test. Handoff and review preparation reuse the recorded passing results; a
+change of assignee, stage, report, or commit identity is not a reason to rerun them. At the final PR
+merge candidate, required CI runs the canonical command:
 
 ```powershell
 .\gradlew.bat check :app:android:assembleDebug
@@ -134,6 +140,14 @@ Use normal cache/daemon defaults. Do not append forced-rerun or cache-disabling 
 specific recorded justification required by QLT-012. No device benchmark or profile regeneration
 is required solely because documentation changed. Historical measurement commands are not current
 run authorization; validate the owning Issue, protocol, and harness before new collection.
+
+When a check fails for a reason the current diff cannot have caused, record it with its command and
+log in a separate Issue under QLT-017 and continue the current work; do not start a full rerun or fix
+it inside the current change. A check that passes on a rerun with unchanged inputs is recorded as
+failing; a pass after a corrective change is a new result.
+
+Automatic execution is limited to the required CI `quality` job described below (QLT-018); do not add
+a Gradle-running hook on commit or push.
 
 CI runs the full command only from the non-draft merge-ready pull-request route described in
 [Development Workflow](DEVELOPMENT_WORKFLOW.md#continuous-integration). Draft events fail the
