@@ -676,9 +676,12 @@ function Get-P4DeviceLanePlan {
             )
         }
         'frame' {
-            # measure-m2-frame.ps1 installs the release-like APK itself; the quarantine step installs
-            # the debug APK first because release-like is non-debuggable and cannot be reached by run-as.
-            $plan.install_kinds = @()
+            # The frame slot measures only the role's app_release_like artifact (protocol Lane 3). It is
+            # installed by measure-m2-frame.ps1 itself, which then reads the installed base APK from the
+            # device (`pm path` + `sha256sum`) and refuses the slot unless its SHA-256 equals that
+            # artifact's. The recovery quarantine installs app_debug earlier only because run-as needs a
+            # debuggable build; that install is a precondition, never the measured variant.
+            $plan.install_kinds = @('app_release_like')
             $plan.dexopt_packages = @()
             $plan.recovery_quarantine =
                 Get-P4RecoveryQuarantinePlan -Manifest $Manifest -Role $role -SlotId ([string]$Slot.id)

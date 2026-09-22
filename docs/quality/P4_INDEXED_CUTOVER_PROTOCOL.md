@@ -462,13 +462,12 @@ All roles are release-like, packaged-profile-installed, and explicitly compiled
 accepted profile may be used only when its source/acceptance/pair/canonical and
 packaged identities pass the exact preflight for that role; otherwise the frame
 experiment is blocked and profile handling is decided separately under ADR
-0010. The frame lane installs the role's `app_release_like` artifact, and before every slot the
-collector reads the installed package's APK from the device and verifies its SHA-256 against that
-artifact; a declared variant string is never evidence of the installed variant. This requirement
-exists because run5's three frame slots were collected on the `app_debug` artifact with a
-command-line `speed-profile` compilation while their metadata declared `release-like`; those
-records stand as historical results but are not release-like evidence, and the M2 exit frame
-evidence was release-like, so the variant is the first difference to isolate.
+0010. The recovery quarantine that precedes a frame slot needs a debuggable install (`run-as`), so
+the quarantine installs `app_debug` and the collector then installs the role's `app_release_like`
+artifact itself; run5's frame slots were collected that way (their `apk_sha256` is the role's
+release-like artifact). Before every slot the collector additionally reads the installed package's
+APK path from the device and verifies its SHA-256 against that artifact, so the installed variant
+is evidence on the device, not only a host-side hash of the file that was installed.
 
 The wrapper bound is derived from the slot's own operation count, not fixed:
 `wrapper_bound = 300 seconds of setup + 15 seconds per operation`, where

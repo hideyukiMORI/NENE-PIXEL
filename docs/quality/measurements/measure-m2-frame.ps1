@@ -291,6 +291,7 @@ $physicalAnalysis = $null
 if ($physicalPresentEnabled) {
     throw "$physicalPresentSchema collection is exhausted and retained for historical analysis only."
 }
+# -Variant is a declaration, not evidence; the evidence is the installed APK SHA-256 (Assert-M2InstalledApkIdentity).
 if ($Variant -ne "release-like" -or $CompilationMode -ne "speed-profile") {
     throw "The v4 comparison requires release-like and speed-profile for every slot."
 }
@@ -810,6 +811,7 @@ if ($ComparisonSequenceIndex -gt 1 -and -not $InspectGeometryOnly) {
         throw "Sequence slot $ComparisonSequenceIndex requires complete slot $($ComparisonSequenceIndex - 1) that did not stop the experiment."
     }
 }
+# -Variant is a declaration, not evidence; the evidence is the installed APK SHA-256 (Assert-M2InstalledApkIdentity).
 if ($RunKind -eq "decision" -and ($Variant -ne "release-like" -or $CompilationMode -ne "speed-profile")) {
     throw "Decision collection requires release-like and speed-profile."
 }
@@ -920,6 +922,44 @@ function Invoke-TargetAdb {
         throw "adb failed ($LASTEXITCODE): adb -s <physical-device> $($AdbArguments -join ' ')`n$($commandOutput -join "`n")"
     }
     return $commandOutput | ForEach-Object { $_.ToString() }
+}
+
+function Assert-M2InstalledApkIdentity {
+    <#
+        Protocol Lane 3: the evidence of the installed variant is the installed package itself, never
+        the host file or the declared -Variant string. Reads the package's base APK from the device
+        (`pm path` + `sha256sum`) and requires its SHA-256 to equal the role's app_release_like identity.
+        A mismatch throws before any warmup, so the slot is INVALID before samples.
+    #>
+    param(
+        [Parameter(Mandatory = $true)][string]$ExpectedApkSha256,
+        [Parameter(Mandatory = $true)][string]$Role
+    )
+    if ($ExpectedApkSha256 -cnotmatch '^[0-9a-f]{64}$') {
+        throw "INVALID: the $Role release-like APK has no fixed SHA-256 identity."
+    }
+    $pathLines = @(Invoke-TargetAdb -AdbArguments @("shell", "pm", "path", $packageName) |
+            ForEach-Object { $_.Trim() } | Where-Object { $_ -cmatch '^package:/' })
+    $basePaths = @($pathLines | ForEach-Object { $_.Substring("package:".Length) } |
+            Where-Object { $_.EndsWith("/base.apk") })
+    if ($basePaths.Count -ne 1) {
+        throw "INVALID: $packageName does not expose exactly one installed base APK."
+    }
+    $digests = @(Invoke-TargetAdb -AdbArguments @("shell", "sha256sum", $basePaths[0]) | ForEach-Object {
+            $match = [regex]::Match($_, '^([0-9a-f]{64})\s')
+            if ($match.Success) { $match.Groups[1].Value }
+        })
+    if ($digests.Count -ne 1) {
+        throw "INVALID: the installed base APK of $packageName did not report exactly one digest."
+    }
+    if ($digests[0] -cne $ExpectedApkSha256) {
+        throw "INVALID: the installed $packageName base APK is not the $Role release-like artifact."
+    }
+    return [pscustomobject]@{
+        expected_apk_sha256 = $ExpectedApkSha256
+        installed_apk_path = $basePaths[0]
+        installed_apk_sha256 = $digests[0]
+    }
 }
 
 function Get-TargetProperty {
@@ -2444,6 +2484,7 @@ if ($InspectGeometryOnly) {
 }
 
 $deviceIdentity = $null
+$installedApkIdentity = $null
 $originalStayAwake = $null
 $environmentRows = [System.Collections.Generic.List[object]]::new()
 $environmentPath = Join-Path $resolvedOutput "environment.csv"
@@ -2484,6 +2525,8 @@ try {
     Invoke-TargetAdb -AdbArguments @("shell", "cmd", "input", "keyevent", "WAKEUP") | Out-Null
     Start-Sleep -Milliseconds 250
     Invoke-TargetAdb -AdbArguments @("install", "-r", "-d", $artifactIdentity.resolved_apk_path) | Out-Null
+    # Slot admission: the installed package, not the host file, must be the role's release-like artifact.
+    $installedApkIdentity = Assert-M2InstalledApkIdentity -ExpectedApkSha256 $expectedApkSha256 -Role $CandidateRole
     Invoke-TargetAdb -AdbArguments @("shell", "cmd", "package", "compile", "--reset", $packageName) | Out-Null
     $profileInstallResult = "not-requested"
     if ($CompilationMode -eq "speed-profile") {
@@ -2812,6 +2855,8 @@ try {
         "apk_embedded_source_commit=$($artifactIdentity.embedded_source_commit)",
         "apk_bytes=$($artifactIdentity.apk_byte_count)",
         "apk_sha256=$($artifactIdentity.apk_sha256)",
+        "installed_apk_path=$($installedApkIdentity.installed_apk_path)",
+        "installed_apk_sha256=$($installedApkIdentity.installed_apk_sha256)",
         "profile_acceptance_reader_sha256=$profileAcceptanceReaderSha256",
         "profile_generation_source_commit=$(if ($CandidateRole -eq 'baseline') { $BaselineProfileGenerationSourceCommit } else { $CandidateProfileGenerationSourceCommit })",
         "profile_generation_app_apk_sha256=$(if ($CandidateRole -eq 'baseline') { $BaselineProfileGenerationAppApkSha256 } else { $CandidateProfileGenerationAppApkSha256 })",
