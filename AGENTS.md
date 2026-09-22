@@ -56,6 +56,27 @@ Read the active GitHub Issue, relevant accepted ADRs, and active waivers after t
 - MUST NOT start device performance measurement, profile regeneration, or forced cold builds merely because a commit, documentation, or handoff changed. Apply the documented trigger and artifact-identity rules.
 - MUST NOT treat historical measurement recipes as current authorization. Reconcile the Issue, accepted protocol, and executable harness before collecting new acceptance evidence; preserve historical FAIL/invalid results.
 
+## Agent seats and model tiers
+
+The design seat (the top model) owns adjudication, acceptance, scoring, the wording of instructions
+and specifications, narrative, and decisions about protected material; it never delegates them.
+Every background agent is created with an explicit model by the kind of work, accepted in
+[ADR 0027](docs/adr/0027-agent-seat-model-tiers.md):
+
+| Work | Model |
+| --- | --- |
+| Implementation (one task = one branch = one PR) and rework after a returned review | `opus` |
+| Preparation: survey notes, inventories, output or PNG comparison, device checkout preparation, persona opinions, reconciling reports against evidence | `sonnet` |
+| Pure mechanical work: mailbox moves, test-list matching, diff enumeration, zero-diff confirmation on protected material | `haiku` |
+
+The tier test is who fixes the error: work the design seat verifies by comparison may go down a
+tier. A preparation note is at most 300 lines with at most 15 open questions; persona seats are at
+most four on `sonnet`, at most 150 lines each; from the second returned review on, an instruction
+names one changed proposition and one rerun set. A procedure walked by a model twice becomes a
+`tools/` script through a `chore` Issue, and the design seat runs scripts directly. An owner
+instruction that changes operating policy is recorded as an ADR, a handoff section, and the first
+line of the handoff's next actions in one focused change.
+
 ## Required completion report
 
 Every completed change must report:

@@ -65,3 +65,4 @@ An ADR must include:
 | [0024](0024-differential-check-selection-and-result-reuse.md) | accepted | Diff-derived check selection, cross-stage reuse of passing results, unrelated-failure scope discipline, and policy-bound automation |
 | [0025](0025-indexed-project-compatibility.md) | accepted | Exact indexed v2, typed legacy import and original-preserving recovery conversion before atomic cutover |
 | [0026](0026-actual-size-window.md) | accepted | One actual-size window over the canvas: closed integer scales, workspace-owned placement, shared committed bitmap |
+| [0027](0027-agent-seat-model-tiers.md) | accepted | Design seat keeps judgment; implementation on Opus, preparation on Sonnet, mechanical work on Haiku; repeated preparation becomes `tools/` scripts |
