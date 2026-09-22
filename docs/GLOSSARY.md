@@ -14,8 +14,8 @@ One concept has one canonical name. New synonyms in code are prohibited. Add or 
 | `EditorTheme` | Closed Dark or Light appearance selection | system theme Boolean |
 | `EditorLayout` | Closed Tabletop bottom controls or Handheld side controls selection | device orientation, tablet Boolean |
 | `EditorControlEdge` | Physical Left or Right control and drawer edge independent of text direction | RTL alignment, dominant-hand Boolean |
-| actual-size window | Floating window over the canvas showing the committed document at an exact device-pixel multiple, owned by WorkspaceState and changed through SetActualSizeWindow | preview, thumbnail, minimap, zoom window |
-| `ActualSizeScale` | Closed X1/X2/X4/X8 device-pixels-per-cell multiple of the actual-size window | ViewportZoom, scale factor Double |
+| actual-size window | Floating window over the canvas showing the committed document at an exact device-pixel multiple, owned by WorkspaceState and changed through SetActualSizeWindow; its UI label is Preview (a separate concept from the ToolGesture preview, and the code type names are unchanged, ADR 0026 amendment #126) | preview gesture, thumbnail, minimap, zoom window |
+| `ActualSizeScale` | Closed X1/X2/X4/X8/X16/X32 device-pixels-per-cell multiple of the actual-size window | ViewportZoom, scale factor Double |
 | `ActualSizeWindow` | Workspace-owned visibility, ActualSizeScale and WindowAnchor of the one actual-size window | Compose visibility flag, saved preference |
 | `WindowAnchor` | Normalized 0..1 top-left placement of a floating window inside the free space of the editor work area, on physical left/right and top/bottom axes | pixel offset, drag state, ViewportCenter |
 | `EditorRuntime` | Application owner of the current CommandGateway, WorkspaceState, clean checkpoint, persistence coordination, and derived projections | view model, controller, session |

@@ -12,6 +12,7 @@ import androidx.compose.ui.graphics.PixelMap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
@@ -177,6 +178,68 @@ internal class ActualSizeWindowTest {
 
     @Test
     fun draggingTheWindowPublishesOneAnchorThatMatchesWhereItLanded() {
+        assertDragPublishesOneAnchor(WINDOW_TAG)
+    }
+
+    @Test
+    fun draggingTheHandleBandMovesTheWindowAndPublishesOneAnchor() {
+        assertDragPublishesOneAnchor(HANDLE_TAG)
+    }
+
+    @Test
+    fun theScaleChipShowsTheScaleAndCyclesItWithoutMovingTheWindow() {
+        val controller = controller()
+        setEditorContent(controller, WIDE_EDGE, TALL_EDGE)
+        showWindow(controller, ActualSizeScale.X4)
+        setAnchor(controller, 0.0, 0.0)
+        val before = boundsPixels(WINDOW_TAG)
+        composeRule
+            .onNodeWithTag(CHIP_TAG)
+            .assertIsDisplayed()
+            .assertHasClickAction()
+            .performClick()
+        composeRule.waitForIdle()
+        assertEquals(ActualSizeScale.X8, controller.renderState.actualSizeWindow.scale)
+        composeRule.onNodeWithTag(CHIP_TAG).performClick()
+        composeRule.waitForIdle()
+        assertEquals(ActualSizeScale.X16, controller.renderState.actualSizeWindow.scale)
+        assertEquals(WindowAnchor.create(0.0, 0.0), controller.renderState.actualSizeWindow.anchor)
+        val after = boundsPixels(WINDOW_TAG)
+        assertNear("The chip must not move the window", before.left, after.left)
+        assertNear("The chip must not move the window", before.top, after.top)
+        val chip = boundsPixels(CHIP_TAG)
+        val content = boundsPixels(CONTENT_TAG)
+        assertTrue("The chip stays below the content: $chip under $content", chip.top >= content.bottom)
+        assertTrue("The chip stays at the trailing corner: $chip in $after", chip.right <= after.right)
+    }
+
+    @Test
+    fun aNarrowDocumentKeepsTheMinimumOuterWidthAndCentresItsContent() {
+        val controller = controller()
+        setEditorContent(controller, WIDE_EDGE, TALL_EDGE)
+        showWindow(controller, ActualSizeScale.X1)
+        val window = boundsPixels(WINDOW_TAG)
+        val content = boundsPixels(CONTENT_TAG)
+        composeRule.onNodeWithTag(HANDLE_TAG).assertIsDisplayed()
+        val handle = boundsPixels(HANDLE_TAG)
+        assertNear(
+            "A narrow document keeps the minimum outer width",
+            chromePixels(WINDOW_MINIMUM_WIDTH),
+            window.width(),
+        )
+        assertNear("One device pixel per cell", DOCUMENT_WIDTH, content.width())
+        assertNear("One device pixel per cell", DOCUMENT_HEIGHT, content.height())
+        assertNear(
+            "The content is centred inside the minimum width",
+            window.left + (window.width() - content.width()) / 2,
+            content.left,
+        )
+        assertNear("The handle band occupies the top edge", window.top, handle.top)
+        assertNear("The content starts below the handle", window.top + chromePixels(WINDOW_HANDLE), content.top)
+        assertNear("The footer band closes the window", window.bottom - chromePixels(WINDOW_FOOTER), content.bottom)
+    }
+
+    private fun assertDragPublishesOneAnchor(tag: String) {
         val controller = controller()
         setEditorContent(controller, WIDE_EDGE, TALL_EDGE)
         showWindow(controller, ActualSizeScale.X8)
@@ -186,7 +249,7 @@ internal class ActualSizeWindowTest {
                 controller.renderStates.collect { published += it.actualSizeWindow }
             }
         val before = boundsPixels(WINDOW_TAG)
-        composeRule.onNodeWithTag(WINDOW_TAG).performTouchInput {
+        composeRule.onNodeWithTag(tag).performTouchInput {
             down(center)
             moveBy(Offset(-DRAG_STEP, DRAG_STEP))
             moveBy(Offset(-DRAG_STEP, DRAG_STEP))
@@ -249,9 +312,8 @@ internal class ActualSizeWindowTest {
     ) {
         val render = controller.renderState
         val expected = render.snapshot.toOpaqueRenderedBitmap(render.definition, canvasBackgroundArgb())
-        val frame = framePixels()
-        val image = composeRule.onNodeWithTag(WINDOW_TAG).captureToImage().toPixelMap()
-        assertEquals(expected.getPixel(source.left, source.top), image[frame, frame].toArgb())
+        val image = composeRule.onNodeWithTag(CONTENT_TAG).captureToImage().toPixelMap()
+        assertEquals(expected.getPixel(source.left, source.top), image[0, 0].toArgb())
         assertFalse(
             "The clipped centre must differ from the painted first row",
             expected.getPixel(source.left, source.top) == expected.getPixel(source.left, 0),
@@ -277,17 +339,16 @@ internal class ActualSizeWindowTest {
         val render = controller.renderState
         val expected = render.snapshot.toOpaqueRenderedBitmap(render.definition, canvasBackgroundArgb())
         val factor = scale.devicePixelsPerCell
-        val frame = framePixels()
-        val image = composeRule.onNodeWithTag(WINDOW_TAG).captureToImage().toPixelMap()
-        val columns = (image.width - frame * 2) / factor
-        val rows = (image.height - frame * 2) / factor
-        assertEquals("Window width at $scale", columns * factor + frame * 2, image.width)
-        assertEquals("Window height at $scale", rows * factor + frame * 2, image.height)
+        val image = composeRule.onNodeWithTag(CONTENT_TAG).captureToImage().toPixelMap()
+        assertEquals("Content width at $scale must be whole cells", 0, image.width % factor)
+        assertEquals("Content height at $scale must be whole cells", 0, image.height % factor)
+        val columns = image.width / factor
+        val rows = image.height / factor
         val source = WindowSource((expected.width - columns) / 2, (expected.height - rows) / 2, columns, rows)
         repeat(rows) { y ->
             repeat(columns) { x ->
                 val color = expected.getPixel(source.left + x, source.top + y)
-                assertScaledCell(image, frame + x * factor, frame + y * factor, ScaledCell(factor, color))
+                assertScaledCell(image, x * factor, y * factor, ScaledCell(factor, color))
             }
         }
         return source
@@ -367,7 +428,7 @@ internal class ActualSizeWindowTest {
         }
     }
 
-    private fun framePixels(): Int = with(composeRule.density) { WINDOW_FRAME.roundToPx() }
+    private fun chromePixels(band: Dp): Int = with(composeRule.density) { band.roundToPx() }
 
     private fun canvasBackgroundArgb(): Int = PresentationPalette.canvasBackground.toArgb()
 
@@ -472,13 +533,18 @@ internal class ActualSizeWindowTest {
     )
 
     private companion object {
-        val WINDOW_FRAME: Dp = 2.dp
+        val WINDOW_HANDLE: Dp = 20.dp
+        val WINDOW_FOOTER: Dp = 22.dp
+        val WINDOW_MINIMUM_WIDTH: Dp = 96.dp
         val WIDE_EDGE: Dp = 600.dp
         val TALL_EDGE: Dp = 400.dp
         val ANCHORS: List<Pair<Double, Double>> = listOf(0.0 to 0.0, 1.0 to 1.0, 0.5 to 0.5, 1.0 to 0.0)
         const val ROOT_TAG: String = "fixed actual size root"
         const val WINDOW_TAG: String = "editor_actual_size_window"
         const val TOGGLE_TAG: String = "editor_actual_size_window_toggle"
+        const val HANDLE_TAG: String = "editor_actual_size_window_handle"
+        const val CONTENT_TAG: String = "editor_actual_size_window_content"
+        const val CHIP_TAG: String = "editor_actual_size_window_chip"
         const val CANVAS_TAG: String = "editor_canvas_4_3"
         const val DOCUMENT_WIDTH: Int = 4
         const val DOCUMENT_HEIGHT: Int = 3

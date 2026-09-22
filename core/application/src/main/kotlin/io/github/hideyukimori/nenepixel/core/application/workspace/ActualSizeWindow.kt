@@ -27,9 +27,9 @@ public class ActualSizeWindow private constructor(
     override fun toString(): String = "ActualSizeWindow(visible=$visible, scale=$scale, anchor=$anchor)"
 
     public companion object {
-        /** Hidden, doubled, anchored at the physical top-right corner of the work area. */
+        /** Hidden, quadrupled, anchored at the physical top-right corner of the work area. */
         public val initial: ActualSizeWindow =
-            ActualSizeWindow(false, ActualSizeScale.X2, WindowAnchor.topRight)
+            ActualSizeWindow(false, ActualSizeScale.X4, WindowAnchor.topRight)
 
         private const val HASH_MULTIPLIER: Int = 31
     }

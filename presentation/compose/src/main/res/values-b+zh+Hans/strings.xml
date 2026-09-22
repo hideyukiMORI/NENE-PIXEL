@@ -13,9 +13,10 @@
     <string name="undo">撤销</string>
     <string name="redo">重做</string>
     <string name="open_palette">打开调色板</string>
-    <string name="actual_size">实际尺寸</string>
-    <string name="actual_size_window_toggle">实际尺寸窗口</string>
-    <string name="actual_size_window">实际尺寸窗口 x%1$d</string>
+    <string name="actual_size">预览</string>
+    <string name="actual_size_window_toggle">预览窗口</string>
+    <string name="actual_size_window">预览窗口 x%1$d</string>
+    <string name="actual_size_window_scale">x%1$d</string>
     <string name="active_rgba">当前RGBA %1$d、%2$d、%3$d、%4$d</string>
     <string name="palette_colors">调色板颜色</string>
     <string name="palette_entry">调色板颜色%1$d，RGBA %2$d、%3$d、%4$d、%5$d</string>
