@@ -12,7 +12,7 @@ The `P0-03` implementation provides compiler warning failure, ktlint formatting,
 
 Compiler warnings in project-owned Kotlin code MUST be errors. Android lint, detekt, formatting, and test warnings configured as errors must fail CI.
 
-The two lint checks whose result depends on the newest version published at run time, `GradleDependency` and `NewerVersionAvailable`, are informational by [ADR 0017](adr/0017-advisory-dependency-freshness-lint.md). They still run and still appear in the lint report; catalog freshness is enforced by the dependency refresh cadence below, not by the merge gate.
+The three lint checks whose result depends on the newest version published at run time, `GradleDependency`, `NewerVersionAvailable`, and `AndroidGradlePluginVersion`, are informational by [ADR 0017](adr/0017-advisory-dependency-freshness-lint.md) (the third added 2026-09-22 for #115). They still run and still appear in the lint report; catalog freshness is enforced by the dependency refresh cadence below, not by the merge gate.
 
 ### QLT-002 — Greenfield baselines are prohibited
 
@@ -126,8 +126,9 @@ Performance-driven architecture exceptions require a reproducible benchmark, nam
 ## Verification execution policy
 
 The following rules are the single authority for verification frequency and performance evaluation,
-accepted in [ADR 0011](adr/0011-change-scoped-verification.md). They govern future work, including
-Issue #54. Historical evidence remains immutable. These are mandatory agent/reviewer obligations;
+accepted in [ADR 0011](adr/0011-change-scoped-verification.md) and extended by
+[ADR 0024](adr/0024-differential-check-selection-and-result-reuse.md). They govern future work,
+including Issue #54. Historical evidence remains immutable. These are mandatory agent/reviewer obligations;
 they are not claims that Gradle automatically detects every process violation.
 
 ### QLT-011 — Verification follows the changed behavior
@@ -139,7 +140,7 @@ boundary during iteration. The following triggers are mandatory:
 | Change or event | Required verification |
 | --- | --- |
 | Code iteration | Affected contract/regression tests and relevant compile/static checks; include consumers when their contract is affected |
-| Iteration completion, handoff, or review preparation | Affected narrow checks only; these events MUST NOT independently trigger the full suite |
+| Iteration completion, handoff, or review preparation | No new execution; reuse the recorded passing results under QLT-012. Rerun only the checks these events actually invalidate; they MUST NOT independently trigger the full suite |
 | Issue's PR ready to merge | Required successful CI `quality` running canonical `./gradlew check :app:android:assembleDebug` for the final merge candidate; no duplicate local full run is required |
 | Documentation-only change | Documentation validation during development; the same pre-merge CI gate applies when merging, with no device measurement or profile generation solely for prose changes |
 | UI or lifecycle behavior | Relevant device/emulator functional tests in addition to host contracts |
@@ -147,8 +148,24 @@ boundary during iteration. The following triggers are mandatory:
 | Representation, storage format, or supported limit change | Relevant boundary/round-trip/corruption tests and latency or retained-memory evidence affected by that decision |
 | Baseline Profile update | Explicit generation and reproducibility verification under ADR 0010; ordinary builds verify the committed artifact |
 
+Checks are selected from the diff. Before a check runs, name the changed behavior and the regression
+the check detects: in the changed code itself, or in a direct dependent or caller whose contract the
+change affects. A check whose regression cannot be stated this way MUST NOT run. Changing how the eraser preview
+is rendered, for example, verifies the reducer's preview transitions and the tool's visual contract;
+it does not rerun history round-trips or device latency when the command runtime is unchanged.
+Documentation, comment, and rule changes need no app behavior tests. A hook, script, or
+developer-tool change needs only that tool's short functional check. This governs planned
+verification; a recorded diagnostic run under QLT-012 or QLT-017 is not a selection violation.
+
+The full canonical suite is never the default. Run it locally only when a limited set cannot show the
+impact, such as a shared build-logic, toolchain, or cross-module contract change; this is the
+integration or CI-environment diagnosis named below. State the scope and the reason in one line
+before starting. "To be safe", habit, and "the hook runs it anyway" are not
+reasons. Do not add approval ceremony around that statement.
+
 QLT-006 through QLT-009 remain mandatory. A trigger does not require rerunning unrelated historical
-candidate matrices. Existing mandatory tests MUST NOT be excluded or disconnected to save time.
+candidate matrices. Existing mandatory tests MUST NOT be excluded or disconnected to save time;
+selection decides what runs now, not what exists.
 Moving measurement-only work out of `check` requires a separate accepted decision preserving its
 correctness contracts. Future serialization requirements apply when that behavior is implemented.
 
@@ -157,8 +174,8 @@ commit, candidate reversal, work report, or intermediate completed subtask. Keep
 out of the merge-ready CI phase. Required CI must validate the current candidate against its current
 base under branch protection; changed head/base or invalid evidence requires a fresh applicable
 result before merging. An old successful SHA, skipped job, or narrow check is not a passing full gate.
-A local full run is optional only for a concrete integration diagnosis or CI-environment investigation;
-record why narrow checks cannot answer it. It does not replace required CI branch protection.
+A local full run is optional only for the concrete integration or CI-environment diagnosis described
+above; record why narrow checks cannot answer it. It does not replace required CI branch protection.
 
 An iteration completion unit is one reviewable behavior or contract slice: its implementation,
 affected consumers, regression contracts, and governing documentation when those must change
@@ -180,6 +197,15 @@ After successful verification, repeat only checks invalidated by a relevant inpu
 or unresolved concern. The pre-merge gate still applies to final inputs. A later prose-only edit
 requires revalidation of those documents, not a new device result.
 
+A passing result stays valid across a change of assignee, work stage, appended documentation, and
+commit identity. A handoff between design, implementation, and review, moving from iteration to
+review to pull request to merge, adding a report or comment, and a rebase, squash, or message amend
+that leaves the verified paths and their relevant dependencies unchanged are not input changes and
+MUST NOT trigger a rerun. Rerun only for a relevant change, a failure, or a concrete unverified
+concern the recorded run did not cover. Reviewers read the recorded command, tree identity, and log;
+they do not re-execute a passing check merely to confirm it, only for a stated concrete concern.
+Record a reused result with the command, the commit or tree hash it ran against, and the log location.
+
 Invalidation follows contracts, not file count. A producer contract change invalidates its affected
 consumer compile/contracts even when those consumers were not edited. An implementation-only change
 does not invalidate unrelated modules. Candidate withdrawal, a status report, handoff, or moving a
@@ -200,7 +226,8 @@ Before collecting performance data, fix the metric, population, percentile calcu
 warmups, sample count, comparison order, numeric diagnostic rejection boundary, decision batches,
 and allowed invalid-run recovery in the Issue and versioned protocol. Keep every collected result.
 Unspecified "margin" MUST NOT be a gate. Never rerun until green, drop slow samples, or select only
-the favorable batch. Aborting after a diagnostic failure does not erase its evidence.
+the favorable batch. Aborting after a diagnostic failure does not erase its evidence. The general
+form of the rerun prohibition for every check is QLT-017.
 
 A small diagnostic batch is for detecting predeclared gross regressions, correctness failures, or
 invalid collection. Boundary results MUST be marked inconclusive for final acceptance and proceed
@@ -253,6 +280,34 @@ Report verification wall time separately from measured operation latency, reused
 identity, remaining uncertainty, and the next decision. Do not claim unmeasured speedups or automatic
 enforcement for review-only rules.
 
+### QLT-017 — Unrelated failures are recorded, not chased
+
+Fix every failure the current diff causes. A failure the diff cannot have caused, because its inputs
+are unchanged, it reproduces on the base revision, or its cause is environmental, is recorded in its
+own Issue with the command, log location, and the base reproduction or reason. Do not stop the
+current work to rerun the full suite, fix the unrelated failure inside the current change, or widen
+the Issue. When such a failure blocks the required merge gate, fix it as its own focused change first;
+the current pull request does not absorb it.
+
+A check that passes on a rerun with unchanged inputs is failing. Do not accept that pass; record the
+instability with both logs and route it to its own Issue. A pass after a corrective change is a new
+result, not a retry. This generalizes the retry prohibition of QLT-013 to every check, not only
+performance samples.
+
+### QLT-018 — Automatic execution follows the same policy
+
+Hooks, CI, and agent automation are bound by QLT-011, QLT-012, and QLT-017. No automation runs the
+full suite without a stated reason, and no automation forces a rerun at push, review, or merge of
+work whose applicable checks already passed on unchanged inputs. The repository keeps no local Git
+hooks and no agent hooks that run Gradle; adding one requires an accepted decision before it exists
+and must satisfy this rule. The required CI `quality` job on the final non-draft merge candidate is
+the single automatic full run; it is the pre-merge gate, not a duplicate, and draft events fail
+closed before toolchain setup. That job reruns on every non-draft pull-request event, including
+`edited`, because a base retarget arrives as `edited` and a skipped job would satisfy the required
+check; ADR 0024 records why this repetition is accepted. Prefer the existing target selection
+(`--tests` filters and module tasks) and recorded result reuse over any automatic test-selection
+infrastructure. Disabling verification wholesale is prohibited.
+
 ## Merge gate
 
 Once Git is initialized and CI exists, `main` must require:
@@ -268,4 +323,4 @@ Direct pushes, force pushes, and branch deletion on `main` must be blocked.
 
 ## Dependency refresh
 
-The version catalog is refreshed by the maintainer through one focused `build(toolchain)` Issue and PR, never inside a feature PR. The cadence is at least monthly, aligned with the Compose BOM release, or earlier when a needed fix ships. The input is the informational `GradleDependency` / `NewerVersionAvailable` findings of a network-enabled `:app:android:lintDebug` run; `--offline` runs do not report them. A refresh regenerates locks with the exceptional command in [Development Setup](DEVELOPMENT_SETUP.md), appends verification metadata, records a dated paragraph in the affected ADR, and leaves historical evidence documents unchanged (precedent: #48, #92). A dependency introduced by a feature PR is declared at the newest published release in that PR.
+The version catalog is refreshed by the maintainer through one focused `build(toolchain)` Issue and PR, never inside a feature PR. The cadence is at least monthly, aligned with the Compose BOM release, or earlier when a needed fix ships. The input is the informational `GradleDependency` / `NewerVersionAvailable` / `AndroidGradlePluginVersion` findings of a network-enabled `:app:android:lintDebug` run; `--offline` runs do not report them. A refresh regenerates locks with the exceptional command in [Development Setup](DEVELOPMENT_SETUP.md), appends verification metadata, records a dated paragraph in the affected ADR, and leaves historical evidence documents unchanged (precedent: #48, #92). A dependency introduced by a feature PR is declared at the newest published release in that PR.

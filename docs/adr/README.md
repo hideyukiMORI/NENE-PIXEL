@@ -55,11 +55,12 @@ An ADR must include:
 | [0014](0014-project-format-storage-recovery.md) | accepted | Project-format v1, fresh-document Save As, checked runtime persistence, and one bounded recovery record |
 | [0015](0015-project-format-v1-codec-contract.md) | accepted | One bounded project-format byte carrier, closed v1 codec result, and allocation-after-validation mapping |
 | [0016](0016-android-project-persistence-retirement.md) | accepted | Android Save As/load operations, one runtime-install path, and real conditional recovery retirement |
-| [0017](0017-advisory-dependency-freshness-lint.md) | accepted | Informational `GradleDependency` / `NewerVersionAvailable` lint and a deliberate monthly catalog refresh cadence |
+| [0017](0017-advisory-dependency-freshness-lint.md) | accepted | Informational `GradleDependency` / `NewerVersionAvailable` / `AndroidGradlePluginVersion` lint and a deliberate monthly catalog refresh cadence |
 | [0018](0018-bounded-autosave-debounce-contract.md) | accepted | Bounded autosave capture, 1 s quiet window, 5 s latency cap, `ON_STOP` flush, and one device publication evidence lane |
 | [0019](0019-exact-png-export.md) | accepted | Deterministic exact RGBA PNG and one fresh-output/physical-operation path |
 | [0020](0020-tablet-editor-appearance.md) | accepted | One workspace appearance owner, aubergine themes and bottom/physical-side tablet controls |
 | [0021](0021-app-language-resources.md) | accepted | App language ownership, localized resources and stable UI test identities |
 | [0022](0022-indexed-palette-and-migration.md) | accepted | Indexed palette target, atomic draft/document history, explicit v1 conversion and bounded palette JSON |
 | [0023](0023-palette-remap-planning.md) | accepted | Complete immutable palette remap and bounded number/nearest/explicit/reorder/delete planning before live cutover |
+| [0024](0024-differential-check-selection-and-result-reuse.md) | accepted | Diff-derived check selection, cross-stage reuse of passing results, unrelated-failure scope discipline, and policy-bound automation |
 | [0025](0025-indexed-project-compatibility.md) | accepted | Exact indexed v2, typed legacy import and original-preserving recovery conversion before atomic cutover |

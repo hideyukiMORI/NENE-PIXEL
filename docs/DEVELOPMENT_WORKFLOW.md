@@ -28,8 +28,8 @@ Exploration may happen without an Issue when it is read-only and produces no rep
 5. Change policy/ADR first when the accepted design changes.
 6. Implement the smallest complete change.
 7. Add or update tests and generated contracts.
-8. Record the change scope and verification triggers under QLT-011 through QLT-016, then run the narrowest useful checks during development.
-9. Complete affected narrow checks for handoff/review preparation; reserve the full canonical suite for the final PR merge candidate under QLT-011.
+8. Record the change scope and verification triggers under QLT-011 through QLT-018, select each check from the diff with the regression it detects, and run only those during development.
+9. Reuse the recorded passing results for handoff and review preparation; rerun only what a relevant change, failure, or concrete unverified concern invalidates. Reserve the full canonical suite for the final PR merge candidate under QLT-011.
 10. Self-review against every affected rule ID.
 11. Open a PR linked to the Issue.
 12. Merge only after required CI `quality` passes canonical `./gradlew check :app:android:assembleDebug` for the current merge candidate. Do not duplicate that full run locally. Changed head/base must satisfy branch protection again.
@@ -41,8 +41,12 @@ Verification frequency, device-measurement triggers, artifact reuse, bounded exp
 prospective performance decisions MUST follow the [verification execution policy](QUALITY_GATES.md#verification-execution-policy).
 The Issue verification plan MUST be fixed before expensive execution. Review MUST reject unexplained
 forced rebuilds, repeated successful checks, untriggered device runs, and evidence collected with a
-protocol/harness mismatch. A local documentation update is not permission to run a new benchmark.
-These review obligations supplement the unchanged automated canonical gate.
+protocol/harness mismatch. Review MUST also reject checks that no stated regression justifies, reruns
+whose only trigger is a change of assignee, stage, documentation, or commit identity, unrelated
+failures fixed inside the change instead of recorded in their own Issue, and any pass obtained by
+retrying an unstable check on unchanged inputs. A reviewer reads the recorded result and its tree
+identity; re-executing a passing check is not required unless the reviewer states a concrete
+unverified concern. A local documentation update is not permission to run a new benchmark. These review obligations supplement the unchanged automated canonical gate.
 
 Performance policy changes MUST preserve historical verdicts and give revised protocols distinct
 identities. A proposed implementation or tool replacement is not approved merely because a policy
@@ -163,6 +167,8 @@ Canonical path used:
 Rule IDs:
 Behavior/schema changes:
 Verification:
+Reused results (command, tree identity, log) | none:
+Unrelated failures recorded (Issue) | none:
 Performance evidence (if relevant):
 Waivers: none | WVR-NNNN
 Remaining risks:
@@ -178,6 +184,7 @@ Review must reject:
 - manual generated-code edits
 - public APIs added “for possible future use”
 - unrelated cleanup hidden in feature changes
+- a new always-visible control without the first-sight and every-session justification required by the [Interface principle](PROJECT_CHARTER.md#interface-principle)
 
 ## Documentation policy
 

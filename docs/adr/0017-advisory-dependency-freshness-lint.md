@@ -51,8 +51,15 @@ Catalog freshness is enforced by a deliberate cadence instead of by unrelated PR
   introduces it (precedent: `kotlinx-coroutines` 1.11.0 in #86).
 
 `QUALITY_GATES.md` records the carve-out under `QLT-001` and the refresh cadence under a new
-Dependency refresh section. ADR 0001 remains the toolchain authority; only the severity of these two
+Dependency refresh section. ADR 0001 remains the toolchain authority; only the severity of these
 checks is superseded.
+
+Amendment 2026-09-22 (#115): `AndroidGradlePluginVersion` joins the informational set. On 2026-09-22
+AGP 9.4.1 was published and the required CI `quality` job for main `2dd4e01` failed in
+`:app:android:lintDebug` with four `AndroidGradlePluginVersion` errors on `agp = "9.4.0"`
+(run 35681046922) although the pull request changed only Markdown. The check compares the catalog
+literal against the newest plugin published at the moment it runs, which is the property this
+decision already carves out. The AGP upgrade itself follows the refresh cadence above.
 
 ## Rejected alternatives
 
@@ -98,14 +105,15 @@ can be added later without changing this decision.
 
 - Freshness is now a maintainer obligation. If the cadence lapses, the catalog ages silently; the
   informational findings in the report are the mitigation.
-- Two lint check IDs are named in build logic; if AGP renames them the override becomes inert. The
+- Three lint check IDs are named in build logic; if AGP renames them the override becomes inert. The
   build-logic functional test asserts the configured set so a rename is visible.
 
 ## Enforcement impact
 
-- `build-logic`: `AndroidConvention.kt` adds the two IDs to `lint.informational`; the shared
-  functional test asserts that exactly these two IDs are informational and that
-  `warningsAsErrors`, `abortOnError`, `checkDependencies`, and `checkReleaseBuilds` remain `true`.
+- `build-logic`: `AndroidConvention.kt` adds the three IDs to `lint.informational` (the third added
+  2026-09-22); the shared functional test asserts that exactly these three IDs are informational
+  and that `warningsAsErrors`, `abortOnError`, `checkDependencies`, and `checkReleaseBuilds` remain
+  `true`.
 - Intentional-failure and restored-green proof, recorded in PR #95. An unused catalog
   entry `androidx.collection:collection` 1.4.0 (newest 1.6.0) was added temporarily so that lint
   resolution stays inside the locked graph. With network access, `:app:android:lintDebug` on this
@@ -121,16 +129,18 @@ can be added later without changing this decision.
 
 ## Migration and rollback
 
-No code or data migrates. The change is two lint severities in one convention file. Rollback
-removes the two IDs from `lint.informational` and the test assertion, and reverts the
+No code or data migrates. The change is three lint severities in one convention file. Rollback
+removes the three IDs from `lint.informational` and the test assertion, and reverts the
 `QUALITY_GATES.md` and ADR 0001 wording; the freshness cadence then becomes the merge gate again,
 with the incidents above as the known cost.
 
 ## Related
 
 - Issue: #93
-- Incidents: #48, #92
+- Incidents: #48, #92, #115
+- Amendment: #115 (2026-09-22)
 - PR: #95
 - Builds on: ADR 0001 initial build toolchain
-- Supersedes: ADR 0001 for the severity of `GradleDependency` and `NewerVersionAvailable` only
+- Supersedes: ADR 0001 for the severity of `GradleDependency`, `NewerVersionAvailable`, and
+  `AndroidGradlePluginVersion` only
 - Superseded by: none
