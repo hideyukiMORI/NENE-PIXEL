@@ -1,5 +1,6 @@
 package io.github.hideyukimori.nenepixel.core.application.workspace
 
+import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteDraftRejection
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
@@ -34,4 +35,8 @@ public sealed interface WorkspaceActionRejection {
     public data object PaletteSessionAlreadyActive : WorkspaceActionRejection
 
     public data object NoPaletteSession : WorkspaceActionRejection
+
+    public data class PaletteDraftRejected internal constructor(
+        public val reason: PaletteDraftRejection,
+    ) : WorkspaceActionRejection
 }

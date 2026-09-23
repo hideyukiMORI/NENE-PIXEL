@@ -1,6 +1,7 @@
 package io.github.hideyukimori.nenepixel.core.application.workspace.palette
 
 import io.github.hideyukimori.nenepixel.core.application.editor.RuntimeSourceToken
+import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceActionRejection
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteRemap
 
@@ -14,6 +15,20 @@ public class PaletteEditSession private constructor(
     internal val timeline: List<PaletteDraftEntry>,
     internal val cursor: Int,
 ) {
+    /** Plans one draft operation; a change appends one entry after the cursor and discards the redo branch. */
+    internal fun edit(operation: PaletteDraftOperation): PaletteDraftTransition =
+        when (val plan = PaletteDraftPlanner.plan(draft, operation)) {
+            is PaletteDraftPlan.Planned -> PaletteDraftTransition.Changed(appended(plan.remap))
+            PaletteDraftPlan.Unchanged -> PaletteDraftTransition.Unchanged
+            is PaletteDraftPlan.Rejected -> PaletteDraftTransition.Rejected(plan.rejection)
+        }
+
+    private fun appended(remap: PaletteRemap): PaletteEditSession {
+        val after = remap.target
+        val entry = PaletteDraftEntry(draft, after, remap, PaletteDraftPayload.bytes(draft, after))
+        return PaletteEditSession(base, after, timeline.take(cursor) + entry, cursor + 1)
+    }
+
     override fun equals(other: Any?): Boolean =
         this === other ||
             (
@@ -49,3 +64,16 @@ internal data class PaletteDraftEntry(
     val remap: PaletteRemap,
     val payloadBytes: Long,
 )
+
+/** The outcome of one draft transition; `Rejected` and `Unchanged` leave the session reference untouched. */
+internal sealed interface PaletteDraftTransition {
+    data class Changed(
+        val session: PaletteEditSession,
+    ) : PaletteDraftTransition
+
+    data object Unchanged : PaletteDraftTransition
+
+    data class Rejected(
+        val rejection: WorkspaceActionRejection,
+    ) : PaletteDraftTransition
+}

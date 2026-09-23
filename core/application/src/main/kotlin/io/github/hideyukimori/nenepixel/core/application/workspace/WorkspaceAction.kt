@@ -1,5 +1,6 @@
 package io.github.hideyukimori.nenepixel.core.application.workspace
 
+import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteDraftOperation
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportState
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
@@ -41,4 +42,8 @@ public sealed interface WorkspaceAction {
     ) : WorkspaceAction
 
     public data object CancelPaletteEdit : WorkspaceAction
+
+    public data class EditPaletteDraft(
+        public val operation: PaletteDraftOperation,
+    ) : WorkspaceAction
 }

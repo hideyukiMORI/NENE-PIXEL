@@ -17,6 +17,7 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceRedu
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReductionAssertions.reduced
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReductionAssertions.rejected
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReductionAssertions.unchanged
+import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteDraftOperation
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteEditSession
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportState
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportValueResult
@@ -362,6 +363,60 @@ internal class WorkspaceReducerTest {
 
         assertEquals(WorkspaceActionRejection.NoPaletteSession, result.rejection)
         assertSame(initial, result.nextState)
+    }
+
+    @Test
+    fun `edit palette draft without a session is rejected`() {
+        val canvas = canvas(2, 1)
+        val initial = WorkspaceState.create(canvas)
+        val action = WorkspaceAction.EditPaletteDraft(PaletteDraftOperation.SetDefault(paletteIndex(1)))
+
+        val result = rejected(reduce(canvas, initial, action))
+
+        assertEquals(WorkspaceActionRejection.NoPaletteSession, result.rejection)
+        assertSame(initial, result.nextState)
+    }
+
+    @Test
+    fun `edit palette draft replaces only the session`() {
+        val canvas = canvas(2, 1)
+        val selected =
+            reduced(reduce(canvas, WorkspaceState.create(canvas), WorkspaceAction.SelectPaletteEntry(paletteIndex(1))))
+        val opened = open(begin(selected, canvas, position(0, 0)), canvas)
+        val action = WorkspaceAction.EditPaletteDraft(PaletteDraftOperation.SetDefault(paletteIndex(1)))
+
+        val edited = reduced(reduce(canvas, opened, action))
+
+        val session = checkNotNull(edited.paletteEditSession)
+        assertEquals(paletteIndex(1), session.draft.defaultIndex)
+        assertEquals(1, session.timeline.size)
+        assertEquals(opened.preview, edited.preview)
+        assertEquals(paletteIndex(1), edited.activePaletteIndex)
+        assertEquals(opened.withPaletteEditSession(session), edited)
+    }
+
+    @Test
+    fun `edit palette draft without a change keeps the workspace`() {
+        val canvas = canvas(2, 1)
+        val opened = open(WorkspaceState.create(canvas), canvas)
+        val action = WorkspaceAction.EditPaletteDraft(PaletteDraftOperation.SetDefault(paletteIndex(0)))
+
+        val result = unchanged(reduce(canvas, opened, action))
+
+        assertEquals(WorkspaceNoChangeReason.PaletteDraftUnchanged, result.reason)
+        assertSame(opened, result.nextState)
+    }
+
+    @Test
+    fun `edit palette draft rejection keeps the workspace`() {
+        val canvas = canvas(2, 1)
+        val opened = open(WorkspaceState.create(canvas), canvas)
+        val action = WorkspaceAction.EditPaletteDraft(PaletteDraftOperation.SetDefault(paletteIndex(2)))
+
+        val result = rejected(reduce(canvas, opened, action))
+
+        assertEquals(WorkspaceActionRejection.PaletteIndexOutsidePalette(paletteIndex(2), 2), result.rejection)
+        assertSame(opened, result.nextState)
     }
 
     private fun open(
