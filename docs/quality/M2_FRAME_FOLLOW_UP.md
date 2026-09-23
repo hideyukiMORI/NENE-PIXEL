@@ -1,6 +1,6 @@
 # M2 Actual-app Frame Follow-up
 
-Status: schema-v7 tooling and historical results retained; optimized shipping release accepted from the completed post-#77 frame-v3 experiment.
+Status: schema-v7 tooling and historical results retained; optimized shipping release accepted from the completed post-#77 frame-v3 experiment. The M5 drawing-latency budget connection of 2026-09-23 is the last section; its number is decided under Issue #135.
 
 ## Current-main integration boundary
 
@@ -2571,3 +2571,43 @@ packaging, functional checks, and this app-issued FrameTimeline comparison do no
 class/profile coverage equivalence under the new mapping. Strict SurfaceFlinger physical-present
 correlation remains unmeasured. No profile was regenerated, no retry or replacement was used, and
 no waiver is active.
+
+## M5 drawing-latency budget connection — 2026-09-23 (Issue #120)
+
+M5 exits only when "performance budgets pass on the named minimum profile"
+(`docs/MILESTONES.md`). For drawing latency the named profile is
+`NENE-P2-ALLDOCUBE-IPL80MP-A16-API36` (`P2_REPRESENTATION_LIMIT_EVIDENCE.md`, named physical
+minimum profile), the measurement route is the P4 Lane 3 frame collector on release-like
+`benchmarkRelease` artifacts compiled `speed-profile` with the accepted packaged profile, and the
+deadline on that profile is the `WorkloadTarget` of vsync + 10.0 ms at 90 Hz (period 11.11 ms),
+neither 11.11 nor 16.67 ms. This section connects main's measured state to that exit criterion; it
+fixes no number.
+
+Measured state of the production tree that main carries since Issue #124 (`fff2434`, collected as
+candidate `b6c4cd9` in `p4-indexed-v7-20260923-frame1`, recorded in
+`M4_INDEXED_CUTOVER_EVIDENCE.md`, Lane 3 revision):
+
+| Family | Samples | Overrun p95 / p99 | UP-to-committed p95 |
+| --- | ---: | ---: | ---: |
+| `canvas16_tap` | 50 | 1.178 / 2.582 ms | 10.343 ms |
+| `canvas256_repeated_diagonal` | 50 | 1.258 / 1.803 ms | 10.881 ms |
+| `canvas16_tap` (diagnostic) | 10 | 1.269 / 3.219 ms | 12.185 ms |
+| `canvas256_repeated_diagonal_window_x2` (diagnostic) | 10 | 2.067 / 2.664 ms | 11.508 ms |
+
+Against the two gates that exist today:
+
+- The M2-exit absolute gate, all-frame overrun nearest-rank p95 of at most 0.0 ms, is not met by
+  main. It was met at M2 exit (-0.94 ms, later -0.02 ms), main measured +1.14 / +8.37 ms in run5
+  (v6, 2026-09-22), and +1.18 / +1.26 ms after Issue #124. Issue #124 attributed 7.8 ms of the
+  `canvas256_repeated_diagonal` overrun to per-pixel preview drawing by measurement and removed it;
+  the remaining about 1.2 ms per family is unattributed, and the sections above end with no further
+  evidence-backed production candidate for a miss of that size.
+- The v7 Lane 3 absolute gates, UP-to-committed p95 of at most 33.33 ms, zero fatal/ANR/process-death
+  matches and no gross regression, are met by main; the relative rule (p95 within +1.0 ms and p99
+  within +2.0 ms of the accepted baseline) guards regressions and is not a budget.
+
+Whether M5 keeps the M2-exit absolute gate as its budget, adopts a committed-result budget with the
+relative rule as the regression guard, or fixes another number is a product decision; a changed
+frame budget is not made by measurement alone. That decision, the budget's single documented home,
+and the promotion of the provisional +1.0 / +2.0 ms tolerance to a fixed value are Issue #135. No
+production edit or device collection is authorized by this section.
