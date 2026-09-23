@@ -37,6 +37,20 @@ internal class PendingPaletteImportTest {
     }
 
     @Test
+    fun `unresolved sources by number are the draft slots outside a shorter import`() {
+        val staged = staged()
+
+        assertEquals(indices(2), checkNotNull(staged.pendingImport).unresolvedSources(staged.draft))
+    }
+
+    @Test
+    fun `unresolved sources are empty for a nearest import`() {
+        val nearest = changed(staged().setImportMode(PaletteImportMode.Nearest))
+
+        assertEquals(emptyList<PaletteIndex>(), checkNotNull(nearest.pendingImport).unresolvedSources(nearest.draft))
+    }
+
+    @Test
     fun `an assigned by number import confirms as one draft entry and clears the pending import`() {
         val assigned = changed(staged().assignImportSlot(paletteIndex(2), paletteIndex(0)))
 

@@ -22,6 +22,10 @@ public class PendingPaletteImport internal constructor(
         destination: PaletteIndex,
     ): PendingPaletteImport = PendingPaletteImport(target, mode, assignments + (source to destination))
 
+    /** The slots of `source` that still need an assignment before Confirm resolves; empty when it resolves. */
+    public fun unresolvedSources(source: PaletteDefinition): List<PaletteIndex> =
+        (resolve(source) as? PaletteImportResolution.Unresolved)?.sources.orEmpty()
+
     /** Resolves one destination per slot of `source`, or lists every source slot that still needs an assignment. */
     internal fun resolve(source: PaletteDefinition): PaletteImportResolution =
         when (mode) {

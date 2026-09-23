@@ -43,8 +43,8 @@ internal fun PaletteImportSection(
 ) {
     val pickedState = rememberSaveable { mutableIntStateOf(NO_SOURCE) }
     var picked by pickedState
-    val sources = pending.assignableSources(draft)
-    val unresolved = sources.count { it !in pending.assignments }
+    val sources = pending.unresolvedSources(draft)
+    val unresolved = sources.size
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             stringResource(R.string.palette_import_title),
@@ -140,19 +140,6 @@ private fun ImportSwatch(
     ) {
         Box(Modifier.fillMaxWidth().weight(1f).background(color.toComposeColor()))
         Text(stringResource(R.string.entry_number, number), style = MaterialTheme.typography.labelSmall)
-    }
-}
-
-/**
- * The draft slots this mode maps through assignments: every slot for Explicit, the slots past the import for ByNumber,
- * none for Nearest. Display only; `PendingPaletteImport.resolve` stays the authority on Confirm.
- */
-internal fun PendingPaletteImport.assignableSources(draft: PaletteDefinition): List<PaletteIndex> {
-    val sources = draft.palette.entries().map { it.index }
-    return when (mode) {
-        PaletteImportMode.ByNumber -> sources.filter { it.value >= target.palette.entryCount }
-        PaletteImportMode.Nearest -> emptyList()
-        PaletteImportMode.Explicit -> sources
     }
 }
 

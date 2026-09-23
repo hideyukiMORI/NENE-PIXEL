@@ -136,11 +136,11 @@ internal class PaletteEditorControllerTest {
         val source = fixture.initialDocument.definition
         val session = fixture.runtime.state.workspaceState.paletteEditSession
         val byNumber = requireNotNull(session?.pendingImport)
-        assertEquals((3..8).map(::slot), byNumber.assignableSources(source))
+        assertEquals((3..8).map(::slot), byNumber.unresolvedSources(source))
         val staged = palette.onImportMode(PaletteImportMode.Nearest)
         val nearest = requireNotNull(staged.paletteEditSession?.pendingImport)
         assertEquals(PaletteImportMode.Nearest, nearest.mode)
-        assertTrue(nearest.assignableSources(source).isEmpty())
+        assertTrue(nearest.unresolvedSources(source).isEmpty())
         val confirmed = palette.onConfirmImport()
         assertNull(confirmed.paletteNotice)
         assertNull(confirmed.paletteEditSession?.pendingImport)
