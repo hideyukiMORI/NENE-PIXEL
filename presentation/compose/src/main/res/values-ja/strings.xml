@@ -62,11 +62,13 @@
     <string name="cancelling_operation">処理をキャンセル中</string>
     <string name="discarding_recovery">復元データを破棄中</string>
     <string name="png_export_failed">PNGの書き出しに失敗しました</string>
+    <string name="palette_json_export_failed">パレットJSONの書き出しに失敗しました</string>
     <string name="recovery_unavailable">復元データを利用できません</string>
     <string name="recovery_preserved">復元データを保持します</string>
     <string name="autosave_failed">自動保存に失敗しました</string>
     <string name="autosave_uncertain">自動保存の結果を確認できません</string>
     <string name="png_exported">PNGを書き出しました</string>
+    <string name="palette_json_exported">パレットJSONを書き出しました</string>
     <string name="project_saved">プロジェクトを保存しました</string>
     <string name="project_loaded">プロジェクトを読み込みました</string>
     <string name="new_document_created">新しい作品を作成しました</string>

@@ -14,6 +14,8 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.LegacyReduc
 import io.github.hideyukimori.nenepixel.core.application.persistence.LegacyReductionRequestResult
 import io.github.hideyukimori.nenepixel.core.application.persistence.LegacySourceCopyOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.LegacySourcePreview
+import io.github.hideyukimori.nenepixel.core.application.persistence.PaletteJsonExportOutcome
+import io.github.hideyukimori.nenepixel.core.application.persistence.PaletteJsonExportPort
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationHandle
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationPhase
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistencePorts
@@ -195,7 +197,12 @@ private class P4LegacyImportRetentionWorkload {
     val workflow: EditorPersistenceWorkflow =
         EditorPersistenceWorkflow.create(
             runtime,
-            PersistencePorts(storage, P4MissingRecoveryRecord(), P4CancelledPngExport()),
+            PersistencePorts(
+                storage,
+                P4MissingRecoveryRecord(),
+                P4CancelledPngExport(),
+                P4CancelledPaletteJsonExport(),
+            ),
             Dispatchers.Unconfined,
         )
     private val oldProjections = mutableListOf<WeakReference<LegacyReductionProjection>>()
@@ -340,6 +347,11 @@ private class P4MissingRecoveryRecord : RecoveryRecordPort {
 
 private class P4CancelledPngExport : PngExportPort {
     override suspend fun export(document: DocumentState): PngExportOutcome = PngExportOutcome.Cancelled
+}
+
+private class P4CancelledPaletteJsonExport : PaletteJsonExportPort {
+    override suspend fun export(definition: PaletteDefinition): PaletteJsonExportOutcome =
+        PaletteJsonExportOutcome.Cancelled
 }
 
 private class P4SequentialDocumentIdSource : DocumentIdSource {

@@ -125,6 +125,9 @@ internal class SchedulerFixture(
                 },
                 recovery,
                 pngExport,
+                io.github.hideyukimori.nenepixel.core.application.persistence.PaletteJsonExportPort {
+                    io.github.hideyukimori.nenepixel.core.application.persistence.PaletteJsonExportOutcome.Cancelled
+                },
             ),
             Dispatchers.Unconfined,
         )

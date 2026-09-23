@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import io.github.hideyukimori.nenepixel.adapters.persistence.AndroidPaletteJsonExportAdapter
 import io.github.hideyukimori.nenepixel.adapters.persistence.AndroidPngExportAdapter
 import io.github.hideyukimori.nenepixel.adapters.persistence.AndroidProjectStorageAdapter
 import io.github.hideyukimori.nenepixel.adapters.persistence.AndroidRecoveryRecordAdapter
@@ -136,6 +137,7 @@ internal class EditorRuntimeViewModel private constructor(
                         projectStorage,
                         recoveryRecord,
                         AndroidPngExportAdapter.create(application.contentResolver, pickerBroker, ioDispatcher),
+                        AndroidPaletteJsonExportAdapter.create(application.contentResolver, pickerBroker, ioDispatcher),
                     ),
                     Dispatchers.Default,
                 )

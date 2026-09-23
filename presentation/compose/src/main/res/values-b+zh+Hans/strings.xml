@@ -62,11 +62,13 @@
     <string name="cancelling_operation">正在取消操作</string>
     <string name="discarding_recovery">正在丢弃恢复数据</string>
     <string name="png_export_failed">PNG导出失败</string>
+    <string name="palette_json_export_failed">调色板JSON导出失败</string>
     <string name="recovery_unavailable">恢复数据不可用</string>
     <string name="recovery_preserved">将保留恢复数据</string>
     <string name="autosave_failed">自动保存失败</string>
     <string name="autosave_uncertain">无法确认自动保存结果</string>
     <string name="png_exported">已导出PNG</string>
+    <string name="palette_json_exported">已导出调色板JSON</string>
     <string name="project_saved">已保存项目</string>
     <string name="project_loaded">已读取项目</string>
     <string name="new_document_created">已创建新作品</string>

@@ -62,11 +62,13 @@
     <string name="cancelling_operation">Cancelling operation</string>
     <string name="discarding_recovery">Discarding recovery data</string>
     <string name="png_export_failed">PNG export failed</string>
+    <string name="palette_json_export_failed">Palette JSON export failed</string>
     <string name="recovery_unavailable">Recovery data is unavailable</string>
     <string name="recovery_preserved">Recovery data will be preserved</string>
     <string name="autosave_failed">Autosave failed</string>
     <string name="autosave_uncertain">Autosave result is uncertain</string>
     <string name="png_exported">PNG exported</string>
+    <string name="palette_json_exported">Palette JSON exported</string>
     <string name="project_saved">Project saved</string>
     <string name="project_loaded">Project loaded</string>
     <string name="new_document_created">New document created</string>
