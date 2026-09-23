@@ -18,16 +18,13 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
-import io.github.hideyukimori.nenepixel.core.application.workspace.ToolGesture
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportGridVisibility
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportState
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportSurface
-import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportSurfaceBounds
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportTransform
 import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.drawing.StrokeEffect
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
-import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import io.github.hideyukimori.nenepixel.presentation.compose.R
@@ -43,6 +40,7 @@ internal fun PixelCanvas(
 ) {
     val background = PresentationPalette.canvasBackground.toArgb()
     val geometries = remember { CanvasGeometryCache() }
+    val previews = remember { PreviewBitmapCache() }
     Canvas(
         modifier =
             modifier
@@ -64,7 +62,7 @@ internal fun PixelCanvas(
             committed.render(current.snapshot, current.definition, background),
             committed.paint,
         )
-        drawPreview(geometry.transform, current.preview, current.definition)
+        previews.renderPreview(current)?.let { preview -> drawPixels(geometry.destination, preview, committed.paint) }
         drawGrid(geometry)
     }
 }
@@ -125,7 +123,6 @@ private class CanvasGeometryCache {
 }
 
 private class CanvasGeometry(
-    val transform: ViewportTransform,
     val destination: RectF,
     val gridPath: Path?,
 )
@@ -156,7 +153,7 @@ private fun createCanvasGeometry(
         if (transform.gridVisibility == ViewportGridVisibility.Visible && gridPath == null) {
             null
         } else {
-            CanvasGeometry(transform, destination, gridPath)
+            CanvasGeometry(destination, gridPath)
         }
     }
 }
@@ -211,15 +208,16 @@ private fun DrawScope.drawPixels(
     }
 }
 
-private fun DrawScope.drawPreview(
-    transform: ViewportTransform,
-    preview: ToolGesture?,
-    definition: PaletteDefinition,
-) {
-    val previewColor = preview?.effect?.previewColor(definition) ?: return
-    preview.forEachPosition { position ->
-        transform.surfaceBounds(position)?.let { bounds -> drawPixel(bounds, previewColor) }
-    }
+private fun PreviewBitmapCache.renderPreview(state: EditorRenderState): Bitmap? {
+    val preview = state.preview ?: return null
+    return render(
+        preview,
+        state.snapshot.size.width.value,
+        state.snapshot.size.height.value,
+        preview.effect
+            .previewColor(state.definition)
+            .toArgb(),
+    )
 }
 
 private fun StrokeEffect.previewColor(definition: PaletteDefinition): Color =
@@ -237,17 +235,6 @@ private fun StrokeEffect.previewColor(definition: PaletteDefinition): Color =
             error("Render preview target is invalid: ${entry.rejection}")
         }
     }
-
-private fun DrawScope.drawPixel(
-    bounds: ViewportSurfaceBounds,
-    color: Color,
-) {
-    drawRect(
-        color = color,
-        topLeft = Offset(bounds.left.toFloat(), bounds.top.toFloat()),
-        size = Size((bounds.right - bounds.left).toFloat(), (bounds.bottom - bounds.top).toFloat()),
-    )
-}
 
 private fun DrawScope.drawGrid(geometry: CanvasGeometry) {
     val path = geometry.gridPath ?: return
