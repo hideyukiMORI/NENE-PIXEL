@@ -37,4 +37,7 @@ public sealed interface PaletteDraftRejection {
     public data object NoUndoAvailable : PaletteDraftRejection
 
     public data object NoRedoAvailable : PaletteDraftRejection
+
+    /** The draft was opened against a runtime source that is no longer current. */
+    public data object StaleBase : PaletteDraftRejection
 }

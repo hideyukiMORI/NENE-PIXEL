@@ -174,6 +174,8 @@ public class EditorRuntime private constructor(
 
         fun documentState(): DocumentState = owners.commandGateway.runtimeState.documentState
 
+        fun captureSource(): CommandSourceAdmission = owners.commandGateway.captureSource()
+
         fun historyPosition(): HistoryPosition = owners.commandGateway.runtimeState.historyPosition
 
         fun documentId(): DocumentId = owners.documentId()
