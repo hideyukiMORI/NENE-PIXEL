@@ -2,7 +2,10 @@
 param(
     [Parameter(Mandatory = $true)][string]$ManifestPath,
     [Parameter(Mandatory = $true)][string]$SlotId,
-    [Parameter(Mandatory = $true)][string]$OutputDirectory
+    [Parameter(Mandatory = $true)][string]$OutputDirectory,
+    # Frame decision candidate only: the decision baseline slot's analysis.json. When omitted it is
+    # resolved from the same experiment root; any other slot refuses it.
+    [string]$BaselineAnalysisPath = ''
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -88,13 +91,43 @@ function Test-P4HostCapture {
         sample_count = 20 * $groups.Count; groups = $observed; metadata = $metadata }
 }
 
+function Resolve-P4FrameBaselineAnalysisPath {
+    <#
+        Lane 3 (#120): only the decision candidate is judged against the decision baseline. The
+        baseline reference is that slot's wrapper analysis.json under the same experiment root; an
+        explicit path is accepted only for the decision candidate. Refusal is exit 2, like the
+        analyzer's own argument check.
+    #>
+    param($Manifest, $Slot, [string]$BaselineAnalysisPath)
+    $isDecisionCandidate = $Slot.lane -ceq 'frame' -and $Slot.runner -ceq 'decision' -and $Slot.role -ceq 'candidate'
+    if (-not $isDecisionCandidate) {
+        if (-not [string]::IsNullOrEmpty($BaselineAnalysisPath)) {
+            [Console]::Error.WriteLine('-BaselineAnalysisPath is accepted only for the frame decision candidate.')
+            exit 2
+        }
+        return ''
+    }
+    if ([string]::IsNullOrEmpty($BaselineAnalysisPath)) {
+        $baselineSlot = @(Get-P4FrameSlotCatalog | Where-Object { $_.runner -ceq 'decision' -and $_.role -ceq 'baseline' })
+        $BaselineAnalysisPath = Join-Path (Join-Path ([string]$Manifest.output_directory) $baselineSlot[0].id) 'analysis.json'
+    }
+    if (-not (Test-Path -LiteralPath $BaselineAnalysisPath -PathType Leaf)) {
+        [Console]::Error.WriteLine("The decision baseline analysis is missing: $BaselineAnalysisPath")
+        exit 2
+    }
+    return [IO.Path]::GetFullPath($BaselineAnalysisPath)
+}
+
 function Invoke-P4SlotAnalysis {
-    param([string]$ManifestPath, [string]$SlotId, [string]$OutputDirectory)
+    param([string]$ManifestPath, [string]$SlotId, [string]$OutputDirectory, [string]$BaselineAnalysisPath = '')
     $manifest = Get-Content -LiteralPath $ManifestPath -Raw | ConvertFrom-Json -AsHashtable
     Assert-P4ManifestContract $manifest
-    $slot = @(Get-P4SlotCatalog | Where-Object { $_.id -ceq $SlotId })
+    # Frame slots belong to Issue #120's own four-slot catalog, outside Issue #106's order.
+    $slot = @(@(Get-P4SlotCatalog) + @(Get-P4FrameSlotCatalog) | Where-Object { $_.id -ceq $SlotId })
     if ($slot.Count -ne 1) { throw 'Unknown slot.' }
     $slot = $slot[0]
+    $BaselineAnalysisPath = Resolve-P4FrameBaselineAnalysisPath -Manifest $manifest -Slot $slot `
+        -BaselineAnalysisPath $BaselineAnalysisPath
     switch ($slot.lane) {
         'host' {
             $stem = switch ($slot.runner) { 'project' { 'project-format' }; 'recovery' { 'recovery-record' }; 'legacy' { 'legacy-import' } }
@@ -149,15 +182,18 @@ function Invoke-P4SlotAnalysis {
                     [StringComparison]::OrdinalIgnoreCase)) {
                 throw 'The frame slot directory is outside the declared frame experiment directory.'
             }
+            # The window family draws on the 256 by 256 surface, so it reuses the canvas256 bounds.
             $bounds = [ordered]@{
                 canvas16_tap = [string]$manifest.device["$($slot.role)_canvas16_bounds"]
                 canvas256_repeated_diagonal = [string]$manifest.device["$($slot.role)_canvas256_bounds"]
+                canvas256_repeated_diagonal_window_x2 = [string]$manifest.device["$($slot.role)_canvas256_bounds"]
             }
             $result = Test-P4FrameCapture -SlotDirectory ([string]$slotRecord.slot_directory) -Role $slot.role `
                 -Runner $slot.runner -SequenceIndex ([int]$slot.run) `
                 -BuildCommit $manifest.roles[$slot.role].build_commit `
                 -ExpectedApkSha256 ([string]$manifest.roles[$slot.role].artifacts.app_release_like.sha256) `
-                -ExpectedBounds $bounds -ExperimentId ([string]$manifest.experiment_id)
+                -ExpectedBounds $bounds -ExperimentId ([string]$manifest.experiment_id) `
+                -BaselineAnalysisPath $BaselineAnalysisPath
             $recorded = @($slotRecord.files | ForEach-Object { "$($_.relative_path)`t$($_.sha256)" })
             $observed = @($result.frame_files | ForEach-Object { "$($_.relative_path)`t$($_.sha256)" })
             if (@(Compare-Object $recorded $observed).Count -ne 0) {
@@ -181,4 +217,4 @@ function Invoke-P4SlotAnalysis {
     Write-NewInvocationFile (Join-Path $OutputDirectory 'analysis.json') ($result | ConvertTo-Json -Depth 15)
 }
 
-if ($MyInvocation.InvocationName -ne '.') { Invoke-P4SlotAnalysis $ManifestPath $SlotId $OutputDirectory }
+if ($MyInvocation.InvocationName -ne '.') { Invoke-P4SlotAnalysis $ManifestPath $SlotId $OutputDirectory $BaselineAnalysisPath }

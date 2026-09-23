@@ -13,8 +13,13 @@ $ErrorActionPreference = 'Stop'
 # role clone's own build tree, so it holds that clone's measurement sources only - the P4 tooling
 # itself lives at newer commits and is bound through `tools.*`, not through measurement_files.
 $script:P4ProtocolId = 'nene-pixel-p4-indexed-cutover-verification-v7'
+# Lane 3 revision (still v7 identity) takes its Issue/protocol agreement from Issue #120;
+# Issue #106 carried the run5 agreement and is CLOSED.
+$script:P4AgreementIssue = 120
 $script:P4ManifestSchema = 'nene-pixel-p4-indexed-preflight-v7'
-$script:P4BaselineProduction = '2dd4e01e3bbe88967237cde4e28412d2962fd590'
+# Lane 3 revision (still v7 identity): baseline production is main at collection time (2f0b617, 2026-09-23).
+# Issue #106's accepted baseline 2dd4e01 stays bound only to the preserved run5 evidence.
+$script:P4BaselineProduction = '2f0b617e56f7bcf3d71b5a258a48e0edead354d9'
 
 # Exactly one contract record per lane boundary. Absent, duplicate or unknown scopes are refusals.
 $script:P4CollectorContractScopes = @(
@@ -102,24 +107,25 @@ $script:P4HostClasspathSchema = 'nene-pixel-p4-host-classpath-v1'
 
 function Get-P4FrameWrapperBound {
     <#
-        Protocol v5 (Lane 3) derives the frame wrapper bound from the slot's own operation
-        count instead of fixing it at 300/600 s. Under v7 that lane belongs to Issue #120, so this
-        helper only defines the retained frame slots of `Get-P4FrameSlotCatalog`:
+        Protocol v5 (Lane 3, Issue #120) derives the frame wrapper bound from the slot's own
+        operation count instead of fixing it at 300/600 s:
 
             wrapper_bound = 300 s setup + 15 s x operations
-            operations    = 2 workload families x (warmups + samples)
+            operations    = workload families x (warmups + samples)
 
-        so a diagnostic slot is 2 x (5 + 10) = 30 operations -> 750 s and a decision slot is
-        2 x (5 + 50) = 110 operations -> 1950 s. V4's fixed 300/600 s came from the ~122 s
-        intentional dwell alone and ignored the per-operation gfxinfo/framestats/pull/UI cost and the
-        16 MOVE injections of the canvas256 family. Every reported per-frame metric comes from
-        `gfxinfo`, so the bound changes no measured value; it guards a hang only.
+        A decision slot measures families 1-2, so it is 2 x (5 + 50) = 110 operations -> 1950 s; a
+        diagnostic slot measures families 1-3, so it is 3 x (5 + 10) = 45 operations -> 975 s. V4's
+        fixed 300/600 s came from the ~122 s intentional dwell alone and ignored the per-operation
+        gfxinfo/framestats/pull/UI cost and the 16 MOVE injections of the 256 by 256 families. Every
+        reported per-frame metric comes from `gfxinfo`, so the bound changes no measured value; it
+        guards a hang only.
     #>
     param(
+        [Parameter(Mandatory = $true)][ValidateRange(1, 3)][int]$Families,
         [Parameter(Mandatory = $true)][ValidateRange(0, 1000)][int]$Warmups,
         [Parameter(Mandatory = $true)][ValidateRange(1, 1000)][int]$Samples
     )
-    $operations = 2 * ($Warmups + $Samples)
+    $operations = $Families * ($Warmups + $Samples)
     return [int](300 + 15 * $operations)
 }
 
@@ -158,20 +164,23 @@ function Get-P4FrameSlotCatalog {
     <#
         Protocol v7 moved Lane 3 out of Issue #106's fixed order and acceptance to Issue #120, so these
         four frame slots are not part of `Get-P4SlotCatalog` and are neither reserved nor collected
-        under the v7 identity. They are retained here as the executable slot definition that the
-        preserved `p4-indexed-v6-20260917-run5` frame records were collected under, and as the
-        starting point Issue #120 revises; the frame analyzer contract checks itself against them.
+        under Issue #106. Issue #120's Lane 3 revision (frame experiment schema v5) fixes the order
+        decision baseline, decision candidate, diagnostic baseline, diagnostic candidate; the ids
+        carry that order. The preserved run5 records keep their v6 ids (`frame-1-baseline-diagnostic`
+        ... `frame-4-baseline-decision`) as historical names only.
     #>
     $slots = [System.Collections.Generic.List[object]]::new()
     $sequence = 0
-    foreach ($slot in @('baseline-diagnostic', 'candidate-diagnostic', 'candidate-decision', 'baseline-decision')) {
+    foreach ($slot in @('baseline-decision', 'candidate-decision', 'baseline-diagnostic', 'candidate-diagnostic')) {
         $sequence++
         $parts = $slot.Split('-')
         $diagnostic = $parts[1] -eq 'diagnostic'
+        $families = if ($diagnostic) { 3 } else { 2 }
         $warmups = 5
         $samples = if ($diagnostic) { 10 } else { 50 }
         $slots.Add([ordered]@{ id = "frame-$sequence-$slot"; lane = 'frame'; role = $parts[0]; runner = $parts[1];
-            run = $sequence; timeout_seconds = (Get-P4FrameWrapperBound -Warmups $warmups -Samples $samples);
+            run = $sequence;
+            timeout_seconds = (Get-P4FrameWrapperBound -Families $families -Warmups $warmups -Samples $samples);
             warmups = $warmups; samples = $samples })
     }
     return $slots.ToArray()
@@ -830,7 +839,7 @@ function Assert-P4RoleSource {
     $status = @(& git -C $Role.worktree status --porcelain --untracked-files=normal)
     if ($LASTEXITCODE -ne 0 -or $status.Count -ne 0) { throw "Unclean build worktree: $Name" }
     if ($Name -eq 'baseline' -and ($Role.production_commit -cne $script:P4BaselineProduction -or
-        $Role.build_commit -ceq $Role.production_commit)) { throw 'Baseline must be an immutable test overlay atop 2dd4e01.' }
+        $Role.build_commit -ceq $Role.production_commit)) { throw 'Baseline must be an immutable test overlay atop the accepted baseline production commit.' }
     $sourceTree = Get-P4ProductionTreeHash $Role.worktree $Role.production_commit
     $buildTree = Get-P4ProductionTreeHash $Role.worktree $Role.build_commit
     if ($sourceTree -cne $buildTree -or $buildTree -cne $Role.production_tree_sha256) {
@@ -967,8 +976,10 @@ function Assert-P4ManifestArtifacts {
         Assert-P4FileRecord $record.log 'verification.log'
     }
     if ($Stage -ceq 'reservation') {
-        $issue = (& gh issue view 106 --repo hideyukiMORI/NENE-PIXEL --json body,state | ConvertFrom-Json)
-        if ($LASTEXITCODE -ne 0 -or $issue.state -cne 'OPEN' -or -not $issue.body.Contains($script:P4ProtocolId)) {
+        # The body is judged inside jq; pwsh receives only ASCII, so the result does not depend on the console encoding.
+        $agreementFilter = '[.state, (.body | contains("' + $script:P4ProtocolId + '"))] | @tsv'
+        $agreement = @(& gh issue view $script:P4AgreementIssue --repo hideyukiMORI/NENE-PIXEL --json body,state --jq $agreementFilter) -join "`n"
+        if ($LASTEXITCODE -ne 0 -or $agreement -cne "OPEN`ttrue") {
             throw 'Issue/protocol agreement is missing.'
         }
         Assert-P4LiveDeviceAdmission $Manifest $RepositoryRoot
