@@ -13,7 +13,11 @@ $ErrorActionPreference = 'Stop'
 $manifest = Get-Content -LiteralPath $ManifestPath -Raw | ConvertFrom-Json -AsHashtable
 Assert-P4ManifestContract $manifest
 # $matches is an automatic variable that regex operators overwrite; the slot lookup keeps its own name.
-$slotMatches = @(Get-P4SlotCatalog | Where-Object { $_.id -ceq $SlotId })
+# Frame slots resolve from Issue #120's own four-slot catalog, outside Issue #106's order.
+$frameCatalog = @(Get-P4FrameSlotCatalog)
+$catalog = if (@($frameCatalog | Where-Object { $_.id -ceq $SlotId }).Count -eq 1) { $frameCatalog }
+    else { @(Get-P4SlotCatalog) }
+$slotMatches = @($catalog | Where-Object { $_.id -ceq $SlotId })
 if ($slotMatches.Count -ne 1) { throw 'Unknown collector slot.' }
 $slot = $slotMatches[0]
 $expectedOutput = [IO.Path]::GetFullPath((Join-Path $manifest.output_directory $SlotId))
