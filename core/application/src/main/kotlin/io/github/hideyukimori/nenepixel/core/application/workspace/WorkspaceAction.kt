@@ -1,10 +1,12 @@
 package io.github.hideyukimori.nenepixel.core.application.workspace
 
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteDraftOperation
+import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteImportMode
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportState
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 
 public sealed interface WorkspaceAction {
@@ -41,15 +43,37 @@ public sealed interface WorkspaceAction {
         public val viewport: ViewportState,
     ) : WorkspaceAction
 
-    public data object CancelPaletteEdit : WorkspaceAction
+    /** Every action the palette session owns; the reducer hands the whole family to the session reduction. */
+    public sealed interface PaletteSessionAction : WorkspaceAction
+
+    public data object CancelPaletteEdit : PaletteSessionAction
 
     public data class EditPaletteDraft(
         public val operation: PaletteDraftOperation,
-    ) : WorkspaceAction
+    ) : PaletteSessionAction
 
-    public data object UndoPaletteDraft : WorkspaceAction
+    public data object UndoPaletteDraft : PaletteSessionAction
 
-    public data object RedoPaletteDraft : WorkspaceAction
+    public data object RedoPaletteDraft : PaletteSessionAction
+
+    /** Stages an imported palette as the pending import of the open draft, replacing any earlier one. */
+    public data class ImportPaletteDraft(
+        public val definition: PaletteDefinition,
+    ) : PaletteSessionAction
+
+    public data class SetPaletteImportMode(
+        public val mode: PaletteImportMode,
+    ) : PaletteSessionAction
+
+    /** Maps draft slot `source` to imported slot `destination` in the pending import. */
+    public data class AssignPaletteImportSlot(
+        public val source: PaletteIndex,
+        public val destination: PaletteIndex,
+    ) : PaletteSessionAction
+
+    public data object ConfirmPaletteImport : PaletteSessionAction
+
+    public data object CancelPaletteImport : PaletteSessionAction
 }
 
 /**
@@ -67,6 +91,11 @@ internal fun WorkspaceAction.isAllowedDuringPaletteSession(): Boolean =
         is WorkspaceAction.EditPaletteDraft,
         WorkspaceAction.UndoPaletteDraft,
         WorkspaceAction.RedoPaletteDraft,
+        is WorkspaceAction.ImportPaletteDraft,
+        is WorkspaceAction.SetPaletteImportMode,
+        is WorkspaceAction.AssignPaletteImportSlot,
+        WorkspaceAction.ConfirmPaletteImport,
+        WorkspaceAction.CancelPaletteImport,
         is BeginPaletteEdit,
         is ReconcileDocumentPalette,
         -> true

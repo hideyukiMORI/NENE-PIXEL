@@ -53,12 +53,7 @@ public class WorkspaceReducer private constructor() {
                 setViewport(state, action)
             }
 
-            is BeginPaletteEdit,
-            WorkspaceAction.CancelPaletteEdit,
-            is WorkspaceAction.EditPaletteDraft,
-            WorkspaceAction.UndoPaletteDraft,
-            WorkspaceAction.RedoPaletteDraft,
-            -> {
+            is WorkspaceAction.PaletteSessionAction -> {
                 reducePaletteSession(state, action)
             }
 
@@ -268,15 +263,25 @@ private fun setActualSizeWindow(
 
 private fun reducePaletteSession(
     state: WorkspaceState,
-    action: WorkspaceAction,
+    action: WorkspaceAction.PaletteSessionAction,
 ): WorkspaceReductionResult =
     when (action) {
         is BeginPaletteEdit -> beginPaletteEdit(state, action)
+
         WorkspaceAction.CancelPaletteEdit -> cancelPaletteEdit(state)
+
         is WorkspaceAction.EditPaletteDraft -> editPaletteDraft(state, action)
+
         WorkspaceAction.UndoPaletteDraft -> transitionPaletteDraft(state, PaletteEditSession::undo)
+
         WorkspaceAction.RedoPaletteDraft -> transitionPaletteDraft(state, PaletteEditSession::redo)
-        else -> error("Not a palette session action: $action")
+
+        is WorkspaceAction.ImportPaletteDraft,
+        is WorkspaceAction.SetPaletteImportMode,
+        is WorkspaceAction.AssignPaletteImportSlot,
+        WorkspaceAction.ConfirmPaletteImport,
+        WorkspaceAction.CancelPaletteImport,
+        -> reducePaletteImport(state, action)
     }
 
 private fun beginPaletteEdit(
@@ -304,7 +309,7 @@ private fun editPaletteDraft(
 ): WorkspaceReductionResult = transitionPaletteDraft(state) { session -> session.edit(action.operation) }
 
 /** The one mapping from a draft transition to a workspace reduction; only the palette session slot changes. */
-private fun transitionPaletteDraft(
+internal fun transitionPaletteDraft(
     state: WorkspaceState,
     step: (PaletteEditSession) -> PaletteDraftTransition,
 ): WorkspaceReductionResult {

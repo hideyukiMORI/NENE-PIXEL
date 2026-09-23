@@ -9,6 +9,7 @@ import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteRemap
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
+import io.github.hideyukimori.nenepixel.core.pixelengine.palette.PaletteRemapPlanner
 
 /**
  * The ephemeral palette draft and its draft-only history (ADR 0022). It owns no document state and no document history;
@@ -17,6 +18,9 @@ import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
  * `origin` is the definition the session began from and never changes. `evicted` is the accumulated remap from
  * `origin` to the `before` of the oldest retained entry (to the draft when the timeline is empty); it absorbs every
  * entry the retention budget drops, so the composed remap always starts at `origin`.
+ *
+ * `pendingImport` is an imported palette waiting to replace the draft; while it is set, draft edits and draft history
+ * are rejected until it is confirmed (one draft entry) or cancelled.
  */
 public class PaletteEditSession private constructor(
     internal val base: RuntimeSourceToken,
@@ -25,27 +29,36 @@ public class PaletteEditSession private constructor(
     public val draft: PaletteDefinition,
     internal val timeline: List<PaletteDraftEntry>,
     internal val cursor: Int,
+    public val pendingImport: PendingPaletteImport?,
 ) {
     /** Plans one draft operation; a change appends one entry after the cursor and discards the redo branch. */
     internal fun edit(operation: PaletteDraftOperation): PaletteDraftTransition =
-        when (val plan = PaletteDraftPlanner.plan(draft, operation)) {
-            is PaletteDraftPlan.Planned -> PaletteDraftTransition.Changed(appended(plan.remap))
-            PaletteDraftPlan.Unchanged -> PaletteDraftTransition.Unchanged
-            is PaletteDraftPlan.Rejected -> PaletteDraftTransition.Rejected(plan.rejection)
+        if (pendingImport != null) {
+            draftRejected(PaletteDraftRejection.ImportPending)
+        } else {
+            transition(PaletteDraftPlanner.plan(draft, operation))
         }
 
     /** Moves the cursor back one entry and restores that entry's `before`; the timeline is unchanged. */
     internal fun undo(): PaletteDraftTransition =
-        if (cursor > 0) {
-            PaletteDraftTransition.Changed(moved(timeline[cursor - 1].before, cursor - 1))
+        if (pendingImport != null) {
+            draftRejected(PaletteDraftRejection.ImportPending)
+        } else if (cursor > 0) {
+            PaletteDraftTransition.Changed(
+                PaletteEditSession(base, origin, evicted, timeline[cursor - 1].before, timeline, cursor - 1, null),
+            )
         } else {
             draftRejected(PaletteDraftRejection.NoUndoAvailable)
         }
 
     /** Moves the cursor forward one entry and restores that entry's `after`; the timeline is unchanged. */
     internal fun redo(): PaletteDraftTransition =
-        if (cursor < timeline.size) {
-            PaletteDraftTransition.Changed(moved(timeline[cursor].after, cursor + 1))
+        if (pendingImport != null) {
+            draftRejected(PaletteDraftRejection.ImportPending)
+        } else if (cursor < timeline.size) {
+            PaletteDraftTransition.Changed(
+                PaletteEditSession(base, origin, evicted, timeline[cursor].after, timeline, cursor + 1, null),
+            )
         } else {
             draftRejected(PaletteDraftRejection.NoRedoAvailable)
         }
@@ -62,9 +75,17 @@ public class PaletteEditSession private constructor(
         return draft == origin && composedRemap().destinations() == unchanged
     }
 
+    /** Maps a planned draft step to a transition; a planned remap is appended as one entry. */
+    internal fun transition(plan: PaletteDraftPlan): PaletteDraftTransition =
+        when (plan) {
+            is PaletteDraftPlan.Planned -> PaletteDraftTransition.Changed(appended(plan.remap))
+            PaletteDraftPlan.Unchanged -> PaletteDraftTransition.Unchanged
+            is PaletteDraftPlan.Rejected -> PaletteDraftTransition.Rejected(plan.rejection)
+        }
+
     /**
      * Appends after the cursor, then evicts oldest-first under the shared ADR 0022 retention budget; the remap of
-     * every evicted entry is folded into `evicted`.
+     * every evicted entry is folded into `evicted`. An appended entry always leaves no pending import.
      */
     private fun appended(remap: PaletteRemap): PaletteEditSession {
         val after = remap.target
@@ -79,16 +100,12 @@ public class PaletteEditSession private constructor(
             } else {
                 evicted
             }
-        return PaletteEditSession(base, origin, folded, after, retained, retained.size)
+        return PaletteEditSession(base, origin, folded, after, retained, retained.size, null)
     }
 
-    private fun moved(
-        restored: PaletteDefinition,
-        movedCursor: Int,
-    ): PaletteEditSession = PaletteEditSession(base, origin, evicted, restored, timeline, movedCursor)
-
-    private fun draftRejected(reason: PaletteDraftRejection): PaletteDraftTransition =
-        PaletteDraftTransition.Rejected(WorkspaceActionRejection.PaletteDraftRejected(reason))
+    /** The same draft and history with `pending` as the pending import. */
+    internal fun withPendingImport(pending: PendingPaletteImport?): PaletteEditSession =
+        PaletteEditSession(base, origin, evicted, draft, timeline, cursor, pending)
 
     override fun equals(other: Any?): Boolean =
         this === other ||
@@ -99,16 +116,17 @@ public class PaletteEditSession private constructor(
                     evicted == other.evicted &&
                     draft == other.draft &&
                     timeline == other.timeline &&
-                    cursor == other.cursor
+                    cursor == other.cursor &&
+                    pendingImport == other.pendingImport
             )
 
     override fun hashCode(): Int =
-        listOf(base, origin, evicted, draft, timeline, cursor)
+        listOf(base, origin, evicted, draft, timeline, cursor, pendingImport)
             .fold(INITIAL_HASH) { hash, value -> hash * HASH_MULTIPLIER + value.hashCode() }
 
     override fun toString(): String =
         "PaletteEditSession(base=$base, origin=$origin, evicted=$evicted, draft=$draft, " +
-            "timelineSize=${timeline.size}, cursor=$cursor)"
+            "timelineSize=${timeline.size}, cursor=$cursor, pendingImport=$pendingImport)"
 
     internal companion object {
         private const val INITIAL_HASH: Int = 1
@@ -119,7 +137,7 @@ public class PaletteEditSession private constructor(
             definition: PaletteDefinition,
         ): PaletteEditSession {
             val identity = remapOf(definition, definition, definition.palette.entries().map { it.index })
-            return PaletteEditSession(base, definition, identity, definition, emptyList(), 0)
+            return PaletteEditSession(base, definition, identity, definition, emptyList(), 0, null)
         }
 
         private fun evictedEntryCount(candidates: List<PaletteDraftEntry>): Int {
@@ -168,6 +186,76 @@ public class PaletteEditSession private constructor(
             }
     }
 }
+
+/** Stages `definition` as the pending import, replacing any earlier one; mode `ByNumber`, no assignments. */
+internal fun PaletteEditSession.stageImport(definition: PaletteDefinition): PaletteDraftTransition =
+    PaletteDraftTransition.Changed(
+        withPendingImport(PendingPaletteImport(definition, PaletteImportMode.ByNumber, emptyMap())),
+    )
+
+/** Changes the pending import mode and keeps its assignments. */
+internal fun PaletteEditSession.setImportMode(mode: PaletteImportMode): PaletteDraftTransition =
+    pendingTransition { pending ->
+        if (pending.mode == mode) {
+            PaletteDraftTransition.Unchanged
+        } else {
+            PaletteDraftTransition.Changed(withPendingImport(pending.withMode(mode)))
+        }
+    }
+
+/** Assigns draft slot `source` to import slot `destination`; both must be inside their palettes. */
+internal fun PaletteEditSession.assignImportSlot(
+    source: PaletteIndex,
+    destination: PaletteIndex,
+): PaletteDraftTransition =
+    pendingTransition { pending ->
+        when {
+            source.value >= draft.palette.entryCount -> {
+                draftRejected(PaletteDraftRejection.ImportSourceOutsidePalette(source))
+            }
+
+            destination.value >= pending.target.palette.entryCount -> {
+                draftRejected(PaletteDraftRejection.ImportDestinationOutsidePalette(destination))
+            }
+
+            pending.assignments[source] == destination -> {
+                PaletteDraftTransition.Unchanged
+            }
+
+            else -> {
+                PaletteDraftTransition.Changed(withPendingImport(pending.assigned(source, destination)))
+            }
+        }
+    }
+
+/** Resolves the pending import against the draft and appends it as one draft entry; the pending import clears. */
+internal fun PaletteEditSession.confirmImport(): PaletteDraftTransition =
+    pendingTransition { pending ->
+        when (val resolution = pending.resolve(draft)) {
+            is PaletteImportResolution.Unresolved -> {
+                draftRejected(PaletteDraftRejection.UnresolvedImportSources(resolution.sources))
+            }
+
+            is PaletteImportResolution.Resolved -> {
+                transition(
+                    PaletteDraftPlanner.planned(
+                        PaletteRemapPlanner.explicit(draft, pending.target, resolution.destinations),
+                    ),
+                )
+            }
+        }
+    }
+
+/** Drops the pending import; the draft and its history are unchanged. */
+internal fun PaletteEditSession.cancelImport(): PaletteDraftTransition =
+    pendingTransition { PaletteDraftTransition.Changed(withPendingImport(null)) }
+
+private fun PaletteEditSession.pendingTransition(
+    step: (PendingPaletteImport) -> PaletteDraftTransition,
+): PaletteDraftTransition = pendingImport?.let(step) ?: draftRejected(PaletteDraftRejection.NoPendingImport)
+
+private fun draftRejected(reason: PaletteDraftRejection): PaletteDraftTransition =
+    PaletteDraftTransition.Rejected(WorkspaceActionRejection.PaletteDraftRejected(reason))
 
 /** One draft-history step; it owns the before/after definitions and their remap, never document history. */
 internal data class PaletteDraftEntry(

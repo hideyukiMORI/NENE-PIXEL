@@ -7,4 +7,4 @@ import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 internal data class BeginPaletteEdit(
     val base: RuntimeSourceToken,
     val definition: PaletteDefinition,
-) : WorkspaceAction
+) : WorkspaceAction.PaletteSessionAction

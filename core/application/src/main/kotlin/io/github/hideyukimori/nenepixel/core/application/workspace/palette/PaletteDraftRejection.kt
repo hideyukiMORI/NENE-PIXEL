@@ -40,4 +40,23 @@ public sealed interface PaletteDraftRejection {
 
     /** The draft was opened against a runtime source that is no longer current. */
     public data object StaleBase : PaletteDraftRejection
+
+    /** An import transition was requested while no import is pending. */
+    public data object NoPendingImport : PaletteDraftRejection
+
+    /** Draft edits and draft history wait until the pending import is confirmed or cancelled. */
+    public data object ImportPending : PaletteDraftRejection
+
+    /** The pending import cannot be confirmed until each of these draft slots has a destination. */
+    public data class UnresolvedImportSources internal constructor(
+        public val sources: List<PaletteIndex>,
+    ) : PaletteDraftRejection
+
+    public data class ImportSourceOutsidePalette internal constructor(
+        public val index: PaletteIndex,
+    ) : PaletteDraftRejection
+
+    public data class ImportDestinationOutsidePalette internal constructor(
+        public val index: PaletteIndex,
+    ) : PaletteDraftRejection
 }

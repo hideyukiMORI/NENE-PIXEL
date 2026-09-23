@@ -111,7 +111,8 @@ internal object PaletteDraftPlanner {
         }
     }
 
-    private fun planned(result: PaletteRemapResult): PaletteDraftPlan =
+    /** Translates one `PaletteRemapPlanner` result; the import confirmation reuses it for its explicit remap. */
+    fun planned(result: PaletteRemapResult): PaletteDraftPlan =
         when (result) {
             is PaletteRemapResult.Planned -> {
                 PaletteDraftPlan.Planned(result.remap)
