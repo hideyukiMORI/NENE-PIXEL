@@ -9,6 +9,10 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.EditorPersi
 import io.github.hideyukimori.nenepixel.core.application.persistence.ExpectedRecoveryLineage
 import io.github.hideyukimori.nenepixel.core.application.persistence.LegacyReductionHandle
 import io.github.hideyukimori.nenepixel.core.application.persistence.LegacySourceCopyOutcome
+import io.github.hideyukimori.nenepixel.core.application.persistence.PaletteJsonExportOutcome
+import io.github.hideyukimori.nenepixel.core.application.persistence.PaletteJsonExportPort
+import io.github.hideyukimori.nenepixel.core.application.persistence.PaletteJsonImportOutcome
+import io.github.hideyukimori.nenepixel.core.application.persistence.PaletteJsonImportPort
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationHandle
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistencePorts
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectLoadOutcome
@@ -35,16 +39,18 @@ internal fun TestNenePixelEditor(
     projectStorage: ProjectStoragePort = TestProjectStoragePort,
     presets: LegacyPalettePresets? = null,
     recoveryRecord: RecoveryRecordPort? = null,
+    paletteJson: TestPaletteJsonPorts = TestPaletteJsonPorts(),
 ) {
     val scope = rememberCoroutineScope()
     val persistence =
-        remember(controller, scope, projectStorage, presets) {
+        remember(controller, scope, projectStorage, presets, paletteJson) {
             TestPersistenceHost(
                 controller,
                 scope,
                 projectStorage,
                 presets ?: defaultPresets(controller),
                 recoveryRecord ?: TestRecoveryRecordPort(),
+                paletteJson,
             )
         }
     LaunchedEffect(persistence) { persistence.initialize() }
@@ -72,12 +78,19 @@ private fun defaultPresets(controller: EditorController): LegacyPalettePresets =
         LegacyPalettePresets(definition, definition, definition)
     }
 
+/** Palette JSON file ports for one fixture; both default to a cancelled picker. */
+internal data class TestPaletteJsonPorts(
+    val export: PaletteJsonExportPort = PaletteJsonExportPort { PaletteJsonExportOutcome.Cancelled },
+    val import: PaletteJsonImportPort = PaletteJsonImportPort { PaletteJsonImportOutcome.Cancelled },
+)
+
 private class TestPersistenceHost(
     private val controller: EditorController,
     private val scope: CoroutineScope,
     projectStorage: ProjectStoragePort,
     presets: LegacyPalettePresets,
     recovery: RecoveryRecordPort,
+    paletteJson: TestPaletteJsonPorts,
 ) {
     val workflow =
         EditorPersistenceWorkflow.create(
@@ -88,19 +101,20 @@ private class TestPersistenceHost(
                 io.github.hideyukimori.nenepixel.core.application.persistence.PngExportPort {
                     io.github.hideyukimori.nenepixel.core.application.persistence.PngExportOutcome.Cancelled
                 },
-                io.github.hideyukimori.nenepixel.core.application.persistence.PaletteJsonExportPort {
-                    io.github.hideyukimori.nenepixel.core.application.persistence.PaletteJsonExportOutcome.Cancelled
-                },
-                io.github.hideyukimori.nenepixel.core.application.persistence.PaletteJsonImportPort {
-                    io.github.hideyukimori.nenepixel.core.application.persistence.PaletteJsonImportOutcome.Cancelled
-                },
+                paletteJson.export,
+                paletteJson.import,
             ),
             Dispatchers.Unconfined,
         )
     val callbacks =
         EditorPersistenceCallbacks.create(
             ProjectFileCallbacks(
-                exchange = FileExchangeCallbacks(exportPng = {}, exportPaletteJson = {}, importPaletteJson = {}),
+                exchange =
+                    FileExchangeCallbacks(
+                        exportPng = {},
+                        exportPaletteJson = { complete { workflow.paletteJson.export() } },
+                        importPaletteJson = { complete { workflow.paletteJson.import() } },
+                    ),
                 saveAs = { complete { workflow.saveAs() } },
                 load = { complete { workflow.load() } },
                 createNewDocument = { request -> complete { workflow.createNewDocument(request) } },
