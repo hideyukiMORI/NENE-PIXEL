@@ -192,6 +192,8 @@ internal class PaletteEditorScreenTest {
             activity.setContentView(ComposeView(activity).apply { setContent { EditorContent(controller) } })
         }
         composeRule.onNodeWithTag("editor_palette_editor_slot_1").assertIsDisplayed()
+        // The re-hosted ComposeView does not restore saveable UI selection; reselect the edited slot.
+        editorNode("editor_palette_editor_slot_2").performClick()
         editorNode("editor_palette_editor_hex").assert(hasText(EDITED_HEX))
         assertEquals(edited, draft(controller))
     }
