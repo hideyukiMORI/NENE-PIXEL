@@ -9,6 +9,7 @@ public class EditorPersistenceWorkflow private constructor(
     private val runtime: EditorRuntime,
     private val flows: PersistenceFlows,
     private val pngExport: PersistencePngExportFlow,
+    private val paletteJsonExport: PersistencePaletteJsonFlow,
 ) {
     public val operation: StateFlow<PersistenceOperationProjection>
         get() = runtime.persistenceOperation
@@ -23,6 +24,8 @@ public class EditorPersistenceWorkflow private constructor(
     public suspend fun saveAs(): PersistenceRequestResult = flows.save.saveAs()
 
     public suspend fun exportPng(): PersistenceRequestResult = pngExport.exportPng()
+
+    public suspend fun exportPaletteJson(): PersistenceRequestResult = paletteJsonExport.export()
 
     public suspend fun load(): PersistenceRequestResult = flows.switch.load()
 
@@ -67,6 +70,7 @@ public class EditorPersistenceWorkflow private constructor(
                     PersistenceRecoveryFlow(runtime.recoveryOperations, ports.recoveryRecord),
                 ),
                 PersistencePngExportFlow(runtime.pngExportOperations, ports.pngExport, autosave),
+                PersistencePaletteJsonFlow(runtime.paletteJsonOperations, ports.paletteJsonExport, autosave),
             )
         }
     }

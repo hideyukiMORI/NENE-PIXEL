@@ -5,4 +5,5 @@ public data class PersistencePorts(
     public val projectStorage: ProjectStoragePort,
     public val recoveryRecord: RecoveryRecordPort,
     public val pngExport: PngExportPort,
+    public val paletteJsonExport: PaletteJsonExportPort,
 )

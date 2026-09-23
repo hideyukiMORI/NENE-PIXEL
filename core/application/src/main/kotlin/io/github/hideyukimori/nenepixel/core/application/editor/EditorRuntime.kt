@@ -36,6 +36,7 @@ public class EditorRuntime private constructor(
         MutableStateFlow(PersistenceProjectionMapper.projectAutosave(coordination))
 
     internal val pngExportOperations: RuntimePngExportOperations = RuntimePngExportOperations(this)
+    internal val paletteJsonOperations: RuntimePaletteJsonOperations = RuntimePaletteJsonOperations(this)
 
     internal val saveOperations: RuntimeSaveOperations = RuntimeSaveOperations(this)
     internal val switchOperations: RuntimeSwitchOperations = RuntimeSwitchOperations(this)
