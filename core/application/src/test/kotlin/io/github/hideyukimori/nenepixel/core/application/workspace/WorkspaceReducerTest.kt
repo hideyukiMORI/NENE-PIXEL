@@ -2,7 +2,9 @@ package io.github.hideyukimori.nenepixel.core.application.workspace
 
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandGateway
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandSourceAdmission
+import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryPosition
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.canvas
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.defaultDocumentId
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.definition
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.green
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.palette
@@ -10,10 +12,12 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.App
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.position
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.red
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.state
+import io.github.hideyukimori.nenepixel.core.application.editor.RuntimeSourceToken
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReductionAssertions.prepared
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReductionAssertions.reduced
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReductionAssertions.rejected
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReductionAssertions.unchanged
+import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteEditSession
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportState
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportValueResult
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportZoom
@@ -34,6 +38,7 @@ internal class WorkspaceReducerTest {
     private val definition = definition(paletteIndex(0), red, green)
     private val reducer = WorkspaceReducer.create()
     private val admissions = mutableMapOf<CanvasSize, CommandSourceAdmission>()
+    private val paletteBase = RuntimeSourceToken(1L, defaultDocumentId, HistoryPosition.initial)
 
     @Test
     fun `initial workspace contains first palette selection fit viewport and no preview`() {
@@ -293,6 +298,76 @@ internal class WorkspaceReducerTest {
         assertEquals(WorkspaceNoChangeReason.ViewportAlreadySet, repeated.reason)
         assertSame(cancelled, repeated.nextState)
     }
+
+    @Test
+    fun `begin palette edit opens a session whose draft is the document definition`() {
+        val canvas = canvas(2, 1)
+        val initial = WorkspaceState.create(canvas)
+
+        val opened = reduced(reduce(canvas, initial, BeginPaletteEdit(paletteBase, definition)))
+
+        val session = checkNotNull(opened.paletteEditSession)
+        assertEquals(paletteBase, session.base)
+        assertSame(definition, session.draft)
+        assertEquals(PaletteEditSession.begin(paletteBase, definition), session)
+        assertEquals(initial.withPaletteEditSession(session), opened)
+    }
+
+    @Test
+    fun `begin palette edit keeps preview and active palette selection`() {
+        val canvas = canvas(2, 1)
+        val selected =
+            reduced(reduce(canvas, WorkspaceState.create(canvas), WorkspaceAction.SelectPaletteEntry(paletteIndex(1))))
+        val previewing = begin(selected, canvas, position(0, 0))
+
+        val opened = reduced(reduce(canvas, previewing, BeginPaletteEdit(paletteBase, definition)))
+
+        assertEquals(previewing.preview, opened.preview)
+        assertEquals(paletteIndex(1), opened.activePaletteIndex)
+        assertEquals(previewing.viewport, opened.viewport)
+        assertEquals(previewing.appearance, opened.appearance)
+        assertEquals(previewing.actualSizeWindow, opened.actualSizeWindow)
+    }
+
+    @Test
+    fun `second begin palette edit is rejected without replacing the session`() {
+        val canvas = canvas(2, 1)
+        val opened = open(WorkspaceState.create(canvas), canvas)
+        val otherBase = RuntimeSourceToken(2L, defaultDocumentId, HistoryPosition.create(1L))
+
+        val result = rejected(reduce(canvas, opened, BeginPaletteEdit(otherBase, definition)))
+
+        assertEquals(WorkspaceActionRejection.PaletteSessionAlreadyActive, result.rejection)
+        assertSame(opened, result.nextState)
+    }
+
+    @Test
+    fun `cancel palette edit clears only the session`() {
+        val canvas = canvas(2, 1)
+        val previewing = begin(WorkspaceState.create(canvas), canvas, position(0, 0))
+        val opened = reduced(reduce(canvas, previewing, BeginPaletteEdit(paletteBase, definition)))
+
+        val cancelled = reduced(reduce(canvas, opened, WorkspaceAction.CancelPaletteEdit))
+
+        assertNull(cancelled.paletteEditSession)
+        assertEquals(previewing, cancelled)
+    }
+
+    @Test
+    fun `cancel palette edit without a session is rejected`() {
+        val canvas = canvas(2, 1)
+        val initial = WorkspaceState.create(canvas)
+
+        val result = rejected(reduce(canvas, initial, WorkspaceAction.CancelPaletteEdit))
+
+        assertEquals(WorkspaceActionRejection.NoPaletteSession, result.rejection)
+        assertSame(initial, result.nextState)
+    }
+
+    private fun open(
+        state: WorkspaceState,
+        canvas: CanvasSize,
+    ): WorkspaceState = reduced(reduce(canvas, state, BeginPaletteEdit(paletteBase, definition)))
 
     private fun begin(
         state: WorkspaceState,

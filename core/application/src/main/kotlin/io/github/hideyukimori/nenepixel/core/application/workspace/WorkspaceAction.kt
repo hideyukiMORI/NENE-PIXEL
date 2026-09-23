@@ -39,4 +39,6 @@ public sealed interface WorkspaceAction {
     public data class SetViewport(
         public val viewport: ViewportState,
     ) : WorkspaceAction
+
+    public data object CancelPaletteEdit : WorkspaceAction
 }

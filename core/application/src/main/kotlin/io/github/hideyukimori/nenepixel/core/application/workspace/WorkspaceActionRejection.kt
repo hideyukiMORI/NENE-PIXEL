@@ -30,4 +30,8 @@ public sealed interface WorkspaceActionRejection {
         public val attemptedCount: Long,
         public val maximum: Int,
     ) : WorkspaceActionRejection
+
+    public data object PaletteSessionAlreadyActive : WorkspaceActionRejection
+
+    public data object NoPaletteSession : WorkspaceActionRejection
 }

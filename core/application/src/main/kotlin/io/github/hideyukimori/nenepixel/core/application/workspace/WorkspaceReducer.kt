@@ -1,6 +1,7 @@
 package io.github.hideyukimori.nenepixel.core.application.workspace
 
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandSourceAdmission
+import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteEditSession
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
 import io.github.hideyukimori.nenepixel.core.domain.drawing.StrokeEffect
 import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
@@ -53,6 +54,10 @@ public class WorkspaceReducer private constructor() {
 
             is WorkspaceAction.SetViewport -> {
                 setViewport(state, action)
+            }
+
+            is BeginPaletteEdit, WorkspaceAction.CancelPaletteEdit -> {
+                reducePaletteSession(state, action)
             }
 
             is ReconcileDocumentPalette -> {
@@ -257,4 +262,33 @@ private fun setActualSizeWindow(
         WorkspaceReductionResult.Unchanged(state, WorkspaceNoChangeReason.ActualSizeWindowAlreadySet)
     } else {
         WorkspaceReductionResult.Reduced(state.withActualSizeWindow(window))
+    }
+
+private fun reducePaletteSession(
+    state: WorkspaceState,
+    action: WorkspaceAction,
+): WorkspaceReductionResult =
+    when (action) {
+        is BeginPaletteEdit -> beginPaletteEdit(state, action)
+        WorkspaceAction.CancelPaletteEdit -> cancelPaletteEdit(state)
+        else -> error("Not a palette session action: $action")
+    }
+
+private fun beginPaletteEdit(
+    state: WorkspaceState,
+    action: BeginPaletteEdit,
+): WorkspaceReductionResult =
+    if (state.paletteEditSession != null) {
+        WorkspaceReductionResult.Rejected(state, WorkspaceActionRejection.PaletteSessionAlreadyActive)
+    } else {
+        WorkspaceReductionResult.Reduced(
+            state.withPaletteEditSession(PaletteEditSession.begin(action.base, action.definition)),
+        )
+    }
+
+private fun cancelPaletteEdit(state: WorkspaceState): WorkspaceReductionResult =
+    if (state.paletteEditSession == null) {
+        WorkspaceReductionResult.Rejected(state, WorkspaceActionRejection.NoPaletteSession)
+    } else {
+        WorkspaceReductionResult.Reduced(state.withPaletteEditSession(null))
     }

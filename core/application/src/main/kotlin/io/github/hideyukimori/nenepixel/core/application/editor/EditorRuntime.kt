@@ -7,6 +7,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.command.Docume
 import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryPosition
 import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveProjection
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationProjection
+import io.github.hideyukimori.nenepixel.core.application.workspace.BeginPaletteEdit
 import io.github.hideyukimori.nenepixel.core.application.workspace.ReconcileDocumentPalette
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceAction
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceActionRejection
@@ -72,6 +73,24 @@ public class EditorRuntime private constructor(
             }
         }
 
+    /** Opens a palette draft from the runtime's own source token and document definition (ADR 0022). */
+    public fun beginPaletteEdit(): WorkspaceReductionResult =
+        synchronized(runtimeLock) {
+            if (coordination.activeOperation.isSwitching()) {
+                WorkspaceReductionResult.Rejected(
+                    owners.workspaceState,
+                    WorkspaceActionRejection.PersistenceBusy,
+                )
+            } else {
+                reduceWorkspaceLocked(
+                    BeginPaletteEdit(
+                        owners.sourceToken(coordination.runtimeGeneration),
+                        owners.commandGateway.runtimeState.documentState.definition,
+                    ),
+                )
+            }
+        }
+
     internal fun <R> transact(block: (RuntimeTransaction) -> PersistenceTransition<R>): R =
         synchronized(runtimeLock) {
             val transition = block(RuntimeTransaction())
@@ -132,7 +151,9 @@ public class EditorRuntime private constructor(
             RuntimeOwnerEffect.None -> { }
 
             RuntimeOwnerEffect.CancelPreview -> {
-                cancelPreviewLocked()
+                if (owners.workspaceState.preview != null) {
+                    reduceWorkspaceLocked(WorkspaceAction.CancelGesturePreview)
+                }
             }
 
             is RuntimeOwnerEffect.InstallCleanCheckpoint -> {
@@ -153,12 +174,6 @@ public class EditorRuntime private constructor(
                         .nextState
                 owners = effect.owners.copy(workspaceState = workspace)
             }
-        }
-    }
-
-    private fun cancelPreviewLocked() {
-        if (owners.workspaceState.preview != null) {
-            reduceWorkspaceLocked(WorkspaceAction.CancelGesturePreview)
         }
     }
 

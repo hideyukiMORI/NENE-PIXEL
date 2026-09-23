@@ -21,6 +21,8 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.App
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.redIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.stroke
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceAction
+import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceActionRejection
+import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReductionResult
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportState
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentId
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
@@ -208,6 +210,32 @@ internal class EditorRuntimeTest {
         assertEquals(before.historyAvailability, after.historyAvailability)
         assertEquals(before.dirtyState, after.dirtyState)
         assertEquals(paletteIndex(1), after.workspaceState.activePaletteIndex)
+    }
+
+    @Test
+    fun `begin palette edit captures the runtime source token and document definition`() {
+        val runtime = EditorRuntime.create(canvas(2, 2), toolDefinition, SequentialDocumentIdSource())
+        applyOnePixel(runtime)
+        val expectedBase = runtime.read { transaction -> transaction.switchContext().source }
+
+        val result = assertInstanceOf(WorkspaceReductionResult.Reduced::class.java, runtime.beginPaletteEdit())
+
+        val session = result.nextState.paletteEditSession ?: fail("Palette session was not opened")
+        assertEquals(expectedBase, session.base)
+        assertSame(runtime.state.documentState.definition, session.draft)
+        assertSame(result.nextState, runtime.state.workspaceState)
+    }
+
+    @Test
+    fun `second begin palette edit is rejected and keeps the first session`() {
+        val runtime = EditorRuntime.create(canvas(2, 2), toolDefinition, SequentialDocumentIdSource())
+        runtime.beginPaletteEdit()
+        val opened = runtime.state.workspaceState
+
+        val result = assertInstanceOf(WorkspaceReductionResult.Rejected::class.java, runtime.beginPaletteEdit())
+
+        assertEquals(WorkspaceActionRejection.PaletteSessionAlreadyActive, result.rejection)
+        assertSame(opened, runtime.state.workspaceState)
     }
 
     private fun applyOnePixel(runtime: EditorRuntime) {

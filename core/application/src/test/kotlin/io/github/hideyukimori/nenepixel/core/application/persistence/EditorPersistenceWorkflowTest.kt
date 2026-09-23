@@ -42,6 +42,7 @@ import kotlinx.coroutines.withContext
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertNotEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -462,6 +463,10 @@ internal class EditorPersistenceWorkflowTest {
         val reduction = fixture.runtime.reduce(WorkspaceAction.SelectTool(DrawingTool.Eraser))
         val rejected = assertInstanceOf(WorkspaceReductionResult.Rejected::class.java, reduction)
         assertEquals(WorkspaceActionRejection.PersistenceBusy, rejected.rejection)
+        val paletteBegin =
+            assertInstanceOf(WorkspaceReductionResult.Rejected::class.java, fixture.runtime.beginPaletteEdit())
+        assertEquals(WorkspaceActionRejection.PersistenceBusy, paletteBegin.rejection)
+        assertNull(fixture.runtime.state.workspaceState.paletteEditSession)
         assertEquals(PersistenceCancellationResult.TooLate, fixture.workflow.cancel(handle))
         assertEquals(PersistenceRequestResult.Busy, fixture.workflow.load())
     }
