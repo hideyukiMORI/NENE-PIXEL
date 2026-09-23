@@ -13,6 +13,7 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceActi
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceActionRejection
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReducer
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReductionResult
+import io.github.hideyukimori.nenepixel.core.application.workspace.isAllowedDuringPaletteSession
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentId
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
@@ -56,6 +57,8 @@ public class EditorRuntime private constructor(
         synchronized(runtimeLock) {
             if (coordination.activeOperation.isSwitching()) {
                 CommandResult.Failed(CommandFailure.PersistenceBusy)
+            } else if (owners.workspaceState.paletteEditSession != null) {
+                CommandResult.Failed(CommandFailure.PaletteSessionActive)
             } else {
                 executeLocked(command)
             }
@@ -67,6 +70,11 @@ public class EditorRuntime private constructor(
                 WorkspaceReductionResult.Rejected(
                     owners.workspaceState,
                     WorkspaceActionRejection.PersistenceBusy,
+                )
+            } else if (owners.workspaceState.paletteEditSession != null && !action.isAllowedDuringPaletteSession()) {
+                WorkspaceReductionResult.Rejected(
+                    owners.workspaceState,
+                    WorkspaceActionRejection.PaletteSessionActive,
                 )
             } else {
                 reduceWorkspaceLocked(action)
@@ -186,6 +194,8 @@ public class EditorRuntime private constructor(
         fun historyPosition(): HistoryPosition = owners.commandGateway.runtimeState.historyPosition
 
         fun documentId(): DocumentId = owners.documentId()
+
+        fun paletteSessionActive(): Boolean = owners.workspaceState.paletteEditSession != null
 
         fun switchContext(): SwitchContext {
             val definition = documentState().definition

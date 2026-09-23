@@ -51,3 +51,29 @@ public sealed interface WorkspaceAction {
 
     public data object RedoPaletteDraft : WorkspaceAction
 }
+
+/**
+ * ADR 0022: while a palette draft is open, only appearance, viewport, selection, preview cancellation and
+ * draft actions pass; drawing and tool changes wait until the session closes.
+ */
+internal fun WorkspaceAction.isAllowedDuringPaletteSession(): Boolean =
+    when (this) {
+        is WorkspaceAction.SetAppearance,
+        is WorkspaceAction.SetActualSizeWindow,
+        is WorkspaceAction.SetViewport,
+        is WorkspaceAction.SelectPaletteEntry,
+        WorkspaceAction.CancelGesturePreview,
+        WorkspaceAction.CancelPaletteEdit,
+        is WorkspaceAction.EditPaletteDraft,
+        WorkspaceAction.UndoPaletteDraft,
+        WorkspaceAction.RedoPaletteDraft,
+        is BeginPaletteEdit,
+        is ReconcileDocumentPalette,
+        -> true
+
+        is WorkspaceAction.SelectTool,
+        is WorkspaceAction.BeginGesturePreview,
+        is WorkspaceAction.ExtendGesturePreview,
+        WorkspaceAction.PrepareGestureCommit,
+        -> false
+    }

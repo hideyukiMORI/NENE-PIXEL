@@ -28,6 +28,9 @@ public sealed interface PersistenceRequestResult {
     ) : PersistenceRequestResult
 
     public data object RecoveryUnavailable : PersistenceRequestResult
+
+    /** A palette draft is open; document switches wait until it closes (ADR 0022). */
+    public data object PaletteSessionActive : PersistenceRequestResult
 }
 
 public sealed interface PersistenceCancellationResult {

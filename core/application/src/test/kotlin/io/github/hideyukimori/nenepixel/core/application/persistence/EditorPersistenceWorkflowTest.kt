@@ -21,6 +21,7 @@ import io.github.hideyukimori.nenepixel.core.application.editor.EditorRuntime
 import io.github.hideyukimori.nenepixel.core.application.editor.EditorRuntimeState
 import io.github.hideyukimori.nenepixel.core.application.editor.NewDocumentRejection
 import io.github.hideyukimori.nenepixel.core.application.editor.NewDocumentRequest
+import io.github.hideyukimori.nenepixel.core.application.editor.SwitchBegin
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceAction
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceActionRejection
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReductionResult
@@ -430,6 +431,56 @@ internal class EditorPersistenceWorkflowTest {
             assertInstanceOf(PersistenceFailure.RecoveryRetirementFailed::class.java, failure)
             assertOldOwnersPreserved(fixture, before)
         }
+
+    @Test
+    fun `palette session rejects load without starting an operation`() =
+        runBlocking {
+            val fixture = initializedFixture()
+            openPaletteSession(fixture)
+
+            assertEquals(PersistenceRequestResult.PaletteSessionActive, fixture.workflow.load())
+
+            assertNull(fixture.runtime.read { transaction -> transaction.coordination.activeOperation })
+            assertEquals(PersistenceOperationPhase.Idle, fixture.workflow.operation.value.phase)
+        }
+
+    @Test
+    fun `palette session rejects new document without starting an operation`() =
+        runBlocking {
+            val fixture = initializedFixture()
+            openPaletteSession(fixture)
+
+            assertEquals(
+                PersistenceRequestResult.PaletteSessionActive,
+                fixture.workflow.createNewDocument(newRequest(3, 2)),
+            )
+
+            assertNull(fixture.runtime.read { transaction -> transaction.coordination.activeOperation })
+            assertEquals(1, fixture.ids.callCount)
+        }
+
+    @Test
+    fun `palette session opened during confirmation blocks the switch commit`() =
+        runBlocking {
+            val fixture = initializedFixture()
+            apply(fixture.runtime, position(0, 0), red)
+            val confirmation = assertAwaiting(fixture.workflow.createNewDocument(newRequest(3, 2)))
+            openPaletteSession(fixture)
+            val before = fixture.runtime.state
+
+            assertEquals(PersistenceRequestResult.PaletteSessionActive, fixture.workflow.confirm(confirmation))
+
+            assertEquals(
+                SwitchBegin.Result(PersistenceRequestResult.PaletteSessionActive),
+                fixture.runtime.switchOperations.beginSwitch(confirmation.operation),
+            )
+            assertSame(before.documentState, fixture.runtime.state.documentState)
+            assertTrue(fixture.recovery.retireCalls.isEmpty())
+        }
+
+    private fun openPaletteSession(fixture: Fixture) {
+        assertInstanceOf(WorkspaceReductionResult.Reduced::class.java, fixture.runtime.beginPaletteEdit())
+    }
 
     private fun prepareDirtyRuntimeWithPreview(fixture: Fixture): EditorRuntimeState {
         apply(fixture.runtime, position(0, 0), red)

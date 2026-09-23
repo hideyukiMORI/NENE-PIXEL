@@ -8,6 +8,9 @@ import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 public sealed interface WorkspaceActionRejection {
     public data object PersistenceBusy : WorkspaceActionRejection
 
+    /** A palette draft is open; drawing and tool changes wait until it closes (ADR 0022). */
+    public data object PaletteSessionActive : WorkspaceActionRejection
+
     public data object PreviewAlreadyActive : WorkspaceActionRejection
 
     public data object NoActivePreview : WorkspaceActionRejection
