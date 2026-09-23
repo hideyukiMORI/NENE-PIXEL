@@ -33,4 +33,8 @@ public sealed interface PaletteDraftRejection {
     public data object ReplacementIsRemovedIndex : PaletteDraftRejection
 
     public data object BelowDefinitionMinimum : PaletteDraftRejection
+
+    public data object NoUndoAvailable : PaletteDraftRejection
+
+    public data object NoRedoAvailable : PaletteDraftRejection
 }

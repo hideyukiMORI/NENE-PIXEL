@@ -18,6 +18,7 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceRedu
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReductionAssertions.rejected
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReductionAssertions.unchanged
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteDraftOperation
+import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteDraftRejection
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteEditSession
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportState
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportValueResult
@@ -416,6 +417,52 @@ internal class WorkspaceReducerTest {
         val result = rejected(reduce(canvas, opened, action))
 
         assertEquals(WorkspaceActionRejection.PaletteIndexOutsidePalette(paletteIndex(2), 2), result.rejection)
+        assertSame(opened, result.nextState)
+    }
+
+    @Test
+    fun `undo and redo palette draft without a session are rejected`() {
+        val canvas = canvas(2, 1)
+        val initial = WorkspaceState.create(canvas)
+
+        val undo = rejected(reduce(canvas, initial, WorkspaceAction.UndoPaletteDraft))
+        val redo = rejected(reduce(canvas, initial, WorkspaceAction.RedoPaletteDraft))
+
+        assertEquals(WorkspaceActionRejection.NoPaletteSession, undo.rejection)
+        assertSame(initial, undo.nextState)
+        assertEquals(WorkspaceActionRejection.NoPaletteSession, redo.rejection)
+        assertSame(initial, redo.nextState)
+    }
+
+    @Test
+    fun `undo and redo palette draft replace only the session`() {
+        val canvas = canvas(2, 1)
+        val opened = open(begin(WorkspaceState.create(canvas), canvas, position(0, 0)), canvas)
+        val action = WorkspaceAction.EditPaletteDraft(PaletteDraftOperation.SetDefault(paletteIndex(1)))
+        val edited = reduced(reduce(canvas, opened, action))
+
+        val undone = reduced(reduce(canvas, edited, WorkspaceAction.UndoPaletteDraft))
+        val redone = reduced(reduce(canvas, undone, WorkspaceAction.RedoPaletteDraft))
+
+        val undoneSession = checkNotNull(undone.paletteEditSession)
+        assertSame(definition, undoneSession.draft)
+        assertEquals(0, undoneSession.cursor)
+        assertEquals(opened.withPaletteEditSession(undoneSession), undone)
+        assertEquals(opened.withPaletteEditSession(redone.paletteEditSession), redone)
+        assertEquals(edited, redone)
+    }
+
+    @Test
+    fun `undo palette draft without a draft entry is rejected and keeps the workspace`() {
+        val canvas = canvas(2, 1)
+        val opened = open(WorkspaceState.create(canvas), canvas)
+
+        val result = rejected(reduce(canvas, opened, WorkspaceAction.UndoPaletteDraft))
+
+        assertEquals(
+            WorkspaceActionRejection.PaletteDraftRejected(PaletteDraftRejection.NoUndoAvailable),
+            result.rejection,
+        )
         assertSame(opened, result.nextState)
     }
 

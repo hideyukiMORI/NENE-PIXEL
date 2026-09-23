@@ -46,4 +46,8 @@ public sealed interface WorkspaceAction {
     public data class EditPaletteDraft(
         public val operation: PaletteDraftOperation,
     ) : WorkspaceAction
+
+    public data object UndoPaletteDraft : WorkspaceAction
+
+    public data object RedoPaletteDraft : WorkspaceAction
 }

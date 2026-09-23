@@ -16,6 +16,7 @@ import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteLimits
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelLimits
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueRejection
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -265,6 +266,100 @@ internal class PaletteEditSessionTest {
         assertSame(second.draft, second.timeline[1].after)
         assertSame(definition, second.timeline[0].before)
         assertEquals(1, first.timeline.size)
+    }
+
+    @Test
+    fun `undo restores the entry before and keeps the timeline`() {
+        val edited = changed(PaletteEditSession.begin(base, definition).edit(PaletteDraftOperation.AppendSlot(black)))
+        val entry = edited.timeline.single()
+
+        val undone = changed(edited.undo())
+
+        assertSame(entry.before, undone.draft)
+        assertEquals(0, undone.cursor)
+        assertEquals(1, undone.timeline.size)
+        assertSame(entry, undone.timeline.single())
+        assertSame(base, undone.base)
+    }
+
+    @Test
+    fun `undo at the start of the draft history is rejected without changing the session`() {
+        val session = PaletteEditSession.begin(base, definition)
+
+        val rejection = rejection(session.undo())
+
+        assertEquals(draftRejected(PaletteDraftRejection.NoUndoAvailable), rejection)
+        assertSame(definition, session.draft)
+        assertEquals(0, session.cursor)
+        assertTrue(session.timeline.isEmpty())
+    }
+
+    @Test
+    fun `redo after undo restores the entry after`() {
+        val edited = changed(PaletteEditSession.begin(base, definition).edit(PaletteDraftOperation.AppendSlot(black)))
+        val entry = edited.timeline.single()
+
+        val redone = changed(changed(edited.undo()).redo())
+
+        assertSame(entry.after, redone.draft)
+        assertEquals(1, redone.cursor)
+        assertSame(entry, redone.timeline.single())
+        assertEquals(edited, redone)
+    }
+
+    @Test
+    fun `redo at the end of the draft history is rejected without changing the session`() {
+        val edited = changed(PaletteEditSession.begin(base, definition).edit(PaletteDraftOperation.AppendSlot(black)))
+
+        val rejection = rejection(edited.redo())
+
+        assertEquals(draftRejected(PaletteDraftRejection.NoRedoAvailable), rejection)
+        assertEquals(edited.timeline.size, edited.cursor)
+        assertSame(edited.timeline.single().after, edited.draft)
+    }
+
+    @Test
+    fun `an edit after undo discards the redo branch`() {
+        val first = changed(PaletteEditSession.begin(base, definition).edit(PaletteDraftOperation.AppendSlot(black)))
+        val second = changed(first.edit(PaletteDraftOperation.SetDefault(paletteIndex(2))))
+        val undone = changed(second.undo())
+
+        val branched = changed(undone.edit(PaletteDraftOperation.SetDefault(paletteIndex(1))))
+
+        assertEquals(2, branched.timeline.size)
+        assertEquals(2, branched.cursor)
+        assertSame(first.timeline.single(), branched.timeline[0])
+        assertSame(branched.timeline[0].after, branched.timeline[1].before)
+        assertEquals(paletteIndex(1), branched.draft.defaultIndex)
+        assertSame(branched.draft, branched.timeline[1].after)
+    }
+
+    @Test
+    fun `edits above the entry maximum evict the oldest entry first`() {
+        val sessions =
+            (0..PixelLimits.MAX_HISTORY_ENTRIES).runningFold(PaletteEditSession.begin(base, definition)) { session, _ ->
+                changed(session.edit(PaletteDraftOperation.AppendSlot(black)))
+            }
+        val last = sessions.last()
+
+        assertEquals(PixelLimits.MAX_HISTORY_ENTRIES + 1, sessions.size - 1)
+        assertEquals(PixelLimits.MAX_HISTORY_ENTRIES, last.timeline.size)
+        assertEquals(PixelLimits.MAX_HISTORY_ENTRIES, last.cursor)
+        assertSame(sessions[1].draft, last.timeline[0].before)
+        assertSame(sessions[2].draft, last.timeline[0].after)
+        val oldest = (1..PixelLimits.MAX_HISTORY_ENTRIES).fold(last) { session, _ -> changed(session.undo()) }
+        assertEquals(0, oldest.cursor)
+        assertSame(sessions[1].draft, oldest.draft)
+        assertEquals(draftRejected(PaletteDraftRejection.NoUndoAvailable), rejection(oldest.undo()))
+    }
+
+    @Test
+    fun `draft entry payload stays far below the retained payload budget`() {
+        val full = definitionOf((0 until PaletteLimits.MAX_ENTRY_COUNT).map { gray(it) })
+
+        assertEquals(36L, PaletteDraftPayload.bytes(definition, three))
+        assertEquals(3080L, PaletteDraftPayload.bytes(full, full))
+        assertTrue(PaletteDraftPayload.bytes(full, full) < PixelLimits.MAX_RETAINED_PAYLOAD_BYTES)
     }
 
     private fun changed(transition: PaletteDraftTransition): PaletteEditSession =
