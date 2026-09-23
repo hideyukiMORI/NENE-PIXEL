@@ -13,8 +13,13 @@ $ErrorActionPreference = 'Stop'
 # role clone's own build tree, so it holds that clone's measurement sources only - the P4 tooling
 # itself lives at newer commits and is bound through `tools.*`, not through measurement_files.
 $script:P4ProtocolId = 'nene-pixel-p4-indexed-cutover-verification-v7'
+# Lane 3 revision (still v7 identity) takes its Issue/protocol agreement from Issue #120;
+# Issue #106 carried the run5 agreement and is CLOSED.
+$script:P4AgreementIssue = 120
 $script:P4ManifestSchema = 'nene-pixel-p4-indexed-preflight-v7'
-$script:P4BaselineProduction = '2dd4e01e3bbe88967237cde4e28412d2962fd590'
+# Lane 3 revision (still v7 identity): baseline production is main at collection time (2f0b617, 2026-09-23).
+# Issue #106's accepted baseline 2dd4e01 stays bound only to the preserved run5 evidence.
+$script:P4BaselineProduction = '2f0b617e56f7bcf3d71b5a258a48e0edead354d9'
 
 # Exactly one contract record per lane boundary. Absent, duplicate or unknown scopes are refusals.
 $script:P4CollectorContractScopes = @(
@@ -834,7 +839,7 @@ function Assert-P4RoleSource {
     $status = @(& git -C $Role.worktree status --porcelain --untracked-files=normal)
     if ($LASTEXITCODE -ne 0 -or $status.Count -ne 0) { throw "Unclean build worktree: $Name" }
     if ($Name -eq 'baseline' -and ($Role.production_commit -cne $script:P4BaselineProduction -or
-        $Role.build_commit -ceq $Role.production_commit)) { throw 'Baseline must be an immutable test overlay atop 2dd4e01.' }
+        $Role.build_commit -ceq $Role.production_commit)) { throw 'Baseline must be an immutable test overlay atop the accepted baseline production commit.' }
     $sourceTree = Get-P4ProductionTreeHash $Role.worktree $Role.production_commit
     $buildTree = Get-P4ProductionTreeHash $Role.worktree $Role.build_commit
     if ($sourceTree -cne $buildTree -or $buildTree -cne $Role.production_tree_sha256) {
@@ -971,8 +976,10 @@ function Assert-P4ManifestArtifacts {
         Assert-P4FileRecord $record.log 'verification.log'
     }
     if ($Stage -ceq 'reservation') {
-        $issue = (& gh issue view 106 --repo hideyukiMORI/NENE-PIXEL --json body,state | ConvertFrom-Json)
-        if ($LASTEXITCODE -ne 0 -or $issue.state -cne 'OPEN' -or -not $issue.body.Contains($script:P4ProtocolId)) {
+        # The body is judged inside jq; pwsh receives only ASCII, so the result does not depend on the console encoding.
+        $agreementFilter = '[.state, (.body | contains("' + $script:P4ProtocolId + '"))] | @tsv'
+        $agreement = @(& gh issue view $script:P4AgreementIssue --repo hideyukiMORI/NENE-PIXEL --json body,state --jq $agreementFilter) -join "`n"
+        if ($LASTEXITCODE -ne 0 -or $agreement -cne "OPEN`ttrue") {
             throw 'Issue/protocol agreement is missing.'
         }
         Assert-P4LiveDeviceAdmission $Manifest $RepositoryRoot

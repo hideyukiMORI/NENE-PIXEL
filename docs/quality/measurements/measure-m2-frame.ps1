@@ -244,7 +244,7 @@ $physicalPresentSchema = "nene-pixel-m2-physical-present-v2"
 $frameSchema = "nene-pixel-p4-indexed-actual-app-frame-v8"
 $experimentSchema = "nene-pixel-p4-indexed-frame-experiment-v5"
 $noSampleInspectionSchema = "nene-pixel-p4-no-sample-inspection-v1"
-$baselineProductionCommitRequired = "2dd4e01e3bbe88967237cde4e28412d2962fd590"
+$baselineProductionCommitRequired = "2f0b617e56f7bcf3d71b5a258a48e0edead354d9"
 $workloadCatalog = @(
     [ordered]@{
         workload = "canvas16_tap"
@@ -300,7 +300,7 @@ if ($Attempt -ne 1) {
 }
 
 if ($BaselineProductionCommit -cne $baselineProductionCommitRequired) {
-    throw "The baseline production commit must be the fixed Issue #106 baseline."
+    throw "The baseline production commit must be the accepted Lane 3 baseline (main at collection time)."
 }
 if ($BaselineSourceCommit -ceq $BaselineProductionCommit) {
     throw "The baseline measurement build must be a distinct immutable collector overlay commit."

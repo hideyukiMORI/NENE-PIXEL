@@ -101,7 +101,8 @@ Device evidence combines old public-preview weak references with the fixed post-
 owning application correctness for the underlying snapshot. No reflection, extra collection-cycle
 GC, production observation API, threshold or sample-budget change is introduced.
 
-Fixed production roles:
+Fixed production roles for the Issue #106 lanes (Lane 3 under Issue #120 binds its roles in the
+Lane 3 section below):
 
 | Role | Production source | Measurement build source |
 | --- | --- | --- |
@@ -428,6 +429,12 @@ matches are zero. A `PERFORMANCE_FAIL` on slot 2 does not stop slots 3 and 4. To
 population is 260 operations (200 decision, 60 diagnostic); every associated preview and commit
 frame remains in the raw frame population. Baseline is the `main` production commit at collection
 time; candidate is that commit plus the change under judgment, named in the experiment manifest.
+For the collection under Issue #120 that baseline production commit is
+`2f0b617e56f7bcf3d71b5a258a48e0edead354d9` (main on 2026-09-23), and the preflight and the frame
+collector pin it as the accepted baseline production commit. Each role's measurement build is an
+immutable overlay commit whose production tree equals its production commit, so a build commit may
+carry the Lane 3 tooling and the accepted protocol bytes while the production tree stays the one
+under judgment. The preserved run5 evidence keeps Issue #106's baseline binding to `2dd4e01`.
 
 The verdict is computed by the analyzer only. The collector records completeness and gross
 regression and never a pass or fail. For the decision baseline slot, the analyzer records per family

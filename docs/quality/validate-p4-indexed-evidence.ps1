@@ -205,7 +205,8 @@ Assert-P4TestRejects {
 # ---------------------------------------------------------------------------
 # S7. Inventories are bound to the role clone's Git blobs and its real file system.
 # ---------------------------------------------------------------------------
-$candidateWorktree = 'C:/n106-candidate-build'
+$candidateWorktree = 'C:/n120-candidate'
+$baselineWorktree = 'C:/n120-baseline'
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 if (Test-Path -LiteralPath $candidateWorktree -PathType Container) {
     # The candidate measurement build commit is whatever the clean clone is checked out at; a literal
@@ -213,13 +214,16 @@ if (Test-Path -LiteralPath $candidateWorktree -PathType Container) {
     $candidateBuild = (& git -C $candidateWorktree rev-parse HEAD).Trim()
     if ($LASTEXITCODE -ne 0 -or $candidateBuild -cnotmatch '^[0-9a-f]{40}$') { throw 'Unable to read the candidate clone HEAD.' }
     if (@(& git -C $candidateWorktree status --porcelain).Count -ne 0) { throw 'The candidate clone must be clean for real-data inventory cases.' }
+    # The baseline build is also a tooling overlay commit, so it is read from its clean clone for the same reason.
+    $baselineBuild = (& git -C $baselineWorktree rev-parse HEAD).Trim()
+    if ($LASTEXITCODE -ne 0 -or $baselineBuild -cnotmatch '^[0-9a-f]{40}$') { throw 'Unable to read the baseline clone HEAD.' }
+    if (@(& git -C $baselineWorktree status --porcelain).Count -ne 0) { throw 'The baseline clone must be clean for real-data inventory cases.' }
     $expectedPaths = Get-P4ExpectedMeasurementPaths $candidateWorktree $candidateBuild 'candidate'
     if ($expectedPaths.Count -lt 20) { throw 'The fixed measurement pattern set collapsed.' }
     foreach ($required in @($script:P4SharedHostEvidenceSources) + @($script:P4CandidateHostEvidenceSources)) {
         if (-not $expectedPaths.Contains($required)) { throw "The expected set lost a host evidence source: $required" }
     }
-    $baselinePaths = Get-P4ExpectedMeasurementPaths 'C:/n106-baseline-build' `
-        '0b605481ad97ee3726864e556e6519f3a862271f' 'baseline'
+    $baselinePaths = Get-P4ExpectedMeasurementPaths $baselineWorktree $baselineBuild 'baseline'
     foreach ($candidateOnly in @($script:P4CandidateHostEvidenceSources)) {
         if ($baselinePaths.Contains($candidateOnly)) { throw 'The baseline must not claim the candidate-only lane.' }
     }
@@ -258,8 +262,8 @@ if (Test-Path -LiteralPath $candidateWorktree -PathType Container) {
         throw 'Ancestry must not be symmetric.'
     }
     $lineage = [ordered]@{ roles = [ordered]@{
-            baseline = [ordered]@{ worktree = 'C:/n106-baseline-build'
-                build_commit = '0b605481ad97ee3726864e556e6519f3a862271f'
+            baseline = [ordered]@{ worktree = $baselineWorktree
+                build_commit = $baselineBuild
                 production_commit = $script:P4BaselineProduction }
             candidate = [ordered]@{ worktree = $candidateWorktree; build_commit = $candidateBuild
                 production_commit = $script:P4BaselineProduction } } }
@@ -932,8 +936,8 @@ $silentAsserts = @(
     @{ name = 'Assert-P4GitLineage'
         action = {
             Assert-P4GitLineage ([ordered]@{ roles = [ordered]@{
-                        baseline = [ordered]@{ worktree = 'C:/n106-baseline-build'
-                            build_commit = '0b605481ad97ee3726864e556e6519f3a862271f'
+                        baseline = [ordered]@{ worktree = $baselineWorktree
+                            build_commit = $baselineBuild
                             production_commit = $script:P4BaselineProduction }
                         candidate = [ordered]@{ worktree = $candidateWorktree; build_commit = $candidateBuild
                             production_commit = $candidateBuild } } })
