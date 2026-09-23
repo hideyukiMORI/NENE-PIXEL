@@ -13,7 +13,7 @@ internal class FixedProjectPicker(
 ) : ProjectPickerAccess {
     override suspend fun createDocument(request: DocumentCreationRequest): InternalPickerResult = result
 
-    override suspend fun openDocument(): InternalPickerResult = result
+    override suspend fun openDocument(request: DocumentOpenRequest): InternalPickerResult = result
 }
 
 internal class MemoryProjectContent(

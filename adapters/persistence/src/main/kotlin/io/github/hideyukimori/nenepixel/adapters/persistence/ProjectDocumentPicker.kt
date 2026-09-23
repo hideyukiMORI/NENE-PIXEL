@@ -6,7 +6,7 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectStor
 public interface ProjectDocumentPicker {
     public suspend fun createDocument(request: DocumentCreationRequest): ProjectPickerResult
 
-    public suspend fun openDocument(): ProjectPickerResult
+    public suspend fun openDocument(request: DocumentOpenRequest): ProjectPickerResult
 }
 
 public sealed interface ProjectPickerResult {
@@ -24,7 +24,7 @@ public sealed interface ProjectPickerResult {
 internal interface ProjectPickerAccess {
     suspend fun createDocument(request: DocumentCreationRequest): InternalPickerResult
 
-    suspend fun openDocument(): InternalPickerResult
+    suspend fun openDocument(request: DocumentOpenRequest): InternalPickerResult
 }
 
 internal class AndroidProjectPickerAccess(
@@ -33,7 +33,8 @@ internal class AndroidProjectPickerAccess(
     override suspend fun createDocument(request: DocumentCreationRequest): InternalPickerResult =
         picker.createDocument(request).toInternal()
 
-    override suspend fun openDocument(): InternalPickerResult = picker.openDocument().toInternal()
+    override suspend fun openDocument(request: DocumentOpenRequest): InternalPickerResult =
+        picker.openDocument(request).toInternal()
 
     private fun ProjectPickerResult.toInternal(): InternalPickerResult =
         when (this) {

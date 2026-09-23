@@ -18,10 +18,10 @@ public object ProjectPickerIntents {
             .setType(request.format.mimeType())
             .putExtra(Intent.EXTRA_TITLE, request.filename())
 
-    public fun openDocument(): Intent =
+    public fun openDocument(request: DocumentOpenRequest): Intent =
         Intent(Intent.ACTION_OPEN_DOCUMENT)
             .addCategory(Intent.CATEGORY_OPENABLE)
-            .setType(PROJECT_MIME_TYPE)
+            .setType(request.format.mimeType())
 
     public fun parseResult(
         resultCode: Int,

@@ -77,7 +77,7 @@ public class AndroidProjectStorageAdapter private constructor(
         }
 
     override suspend fun load(): ProjectLoadOutcome =
-        when (val result = picker.openDocument()) {
+        when (val result = picker.openDocument(DocumentOpenRequest(DocumentOutputFormat.PROJECT))) {
             is InternalPickerResult.Selected -> loadSelected(result.location)
             InternalPickerResult.Cancelled -> ProjectLoadOutcome.Cancelled
             is InternalPickerResult.Failed -> ProjectLoadOutcome.Failed(result.failure)

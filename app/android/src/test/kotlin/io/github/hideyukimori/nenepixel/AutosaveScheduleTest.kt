@@ -333,6 +333,9 @@ private class AutosaveStateTokens {
                 io.github.hideyukimori.nenepixel.core.application.persistence.PaletteJsonExportPort {
                     io.github.hideyukimori.nenepixel.core.application.persistence.PaletteJsonExportOutcome.Cancelled
                 },
+                io.github.hideyukimori.nenepixel.core.application.persistence.PaletteJsonImportPort {
+                    io.github.hideyukimori.nenepixel.core.application.persistence.PaletteJsonImportOutcome.Cancelled
+                },
             ),
             Dispatchers.Unconfined,
         )

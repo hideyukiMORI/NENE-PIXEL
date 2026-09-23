@@ -1,6 +1,7 @@
 package io.github.hideyukimori.nenepixel
 
 import io.github.hideyukimori.nenepixel.adapters.persistence.DocumentCreationRequest
+import io.github.hideyukimori.nenepixel.adapters.persistence.DocumentOpenRequest
 import io.github.hideyukimori.nenepixel.adapters.persistence.ProjectDocumentPicker
 import io.github.hideyukimori.nenepixel.adapters.persistence.ProjectPickerResult
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectStorageFailure
@@ -23,7 +24,8 @@ internal class ProjectPickerBroker : ProjectDocumentPicker {
     override suspend fun createDocument(request: DocumentCreationRequest): ProjectPickerResult =
         awaitRequest { ProjectPickerRequest.Create(request) }
 
-    override suspend fun openDocument(): ProjectPickerResult = awaitRequest { ProjectPickerRequest.Open() }
+    override suspend fun openDocument(request: DocumentOpenRequest): ProjectPickerResult =
+        awaitRequest { ProjectPickerRequest.Open(request) }
 
     fun claim(request: ProjectPickerRequest): Boolean =
         synchronized(lock) {
@@ -143,7 +145,9 @@ internal sealed interface ProjectPickerRequest {
         override val kind: ProjectPickerKind = ProjectPickerKind.Create
     }
 
-    class Open : ProjectPickerRequest {
+    class Open(
+        val request: DocumentOpenRequest,
+    ) : ProjectPickerRequest {
         override val kind: ProjectPickerKind = ProjectPickerKind.Open
     }
 }

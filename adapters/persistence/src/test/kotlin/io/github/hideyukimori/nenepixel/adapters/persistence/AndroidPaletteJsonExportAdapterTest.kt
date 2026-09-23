@@ -46,7 +46,8 @@ internal class AndroidPaletteJsonExportAdapterTest {
                         return InternalPickerResult.Cancelled
                     }
 
-                    override suspend fun openDocument(): InternalPickerResult = error("Export must not open a source")
+                    override suspend fun openDocument(request: DocumentOpenRequest): InternalPickerResult =
+                        error("Export must not open a source")
                 }
             assertEquals(
                 PaletteJsonExportOutcome.Cancelled,

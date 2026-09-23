@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.activity.result.contract.ActivityResultContract
 import io.github.hideyukimori.nenepixel.adapters.persistence.DocumentCreationRequest
+import io.github.hideyukimori.nenepixel.adapters.persistence.DocumentOpenRequest
 import io.github.hideyukimori.nenepixel.adapters.persistence.ProjectPickerIntents
 import io.github.hideyukimori.nenepixel.adapters.persistence.ProjectPickerResult
 
@@ -19,11 +20,11 @@ internal class CreateProjectDocumentContract : ActivityResultContract<DocumentCr
     ): ProjectPickerResult = ProjectPickerIntents.parseResult(resultCode, intent)
 }
 
-internal class OpenProjectDocumentContract : ActivityResultContract<Unit, ProjectPickerResult>() {
+internal class OpenProjectDocumentContract : ActivityResultContract<DocumentOpenRequest, ProjectPickerResult>() {
     override fun createIntent(
         context: Context,
-        input: Unit,
-    ): Intent = ProjectPickerIntents.openDocument()
+        input: DocumentOpenRequest,
+    ): Intent = ProjectPickerIntents.openDocument(input)
 
     override fun parseResult(
         resultCode: Int,

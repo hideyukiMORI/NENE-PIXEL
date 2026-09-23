@@ -16,6 +16,8 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.LegacySourc
 import io.github.hideyukimori.nenepixel.core.application.persistence.LegacySourcePreview
 import io.github.hideyukimori.nenepixel.core.application.persistence.PaletteJsonExportOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.PaletteJsonExportPort
+import io.github.hideyukimori.nenepixel.core.application.persistence.PaletteJsonImportOutcome
+import io.github.hideyukimori.nenepixel.core.application.persistence.PaletteJsonImportPort
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationHandle
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationPhase
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistencePorts
@@ -202,6 +204,7 @@ private class P4LegacyImportRetentionWorkload {
                 P4MissingRecoveryRecord(),
                 P4CancelledPngExport(),
                 P4CancelledPaletteJsonExport(),
+                P4CancelledPaletteJsonImport(),
             ),
             Dispatchers.Unconfined,
         )
@@ -352,6 +355,10 @@ private class P4CancelledPngExport : PngExportPort {
 private class P4CancelledPaletteJsonExport : PaletteJsonExportPort {
     override suspend fun export(definition: PaletteDefinition): PaletteJsonExportOutcome =
         PaletteJsonExportOutcome.Cancelled
+}
+
+private class P4CancelledPaletteJsonImport : PaletteJsonImportPort {
+    override suspend fun import(): PaletteJsonImportOutcome = PaletteJsonImportOutcome.Cancelled
 }
 
 private class P4SequentialDocumentIdSource : DocumentIdSource {

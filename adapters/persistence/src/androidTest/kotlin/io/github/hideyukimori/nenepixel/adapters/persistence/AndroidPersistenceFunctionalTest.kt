@@ -383,7 +383,8 @@ private class FixedAndroidPicker(
     override suspend fun createDocument(request: DocumentCreationRequest): ProjectPickerResult =
         ProjectPickerResult.Selected(createUri)
 
-    override suspend fun openDocument(): ProjectPickerResult = ProjectPickerResult.Selected(openUri)
+    override suspend fun openDocument(request: DocumentOpenRequest): ProjectPickerResult =
+        ProjectPickerResult.Selected(openUri)
 }
 
 private class SingleProjectContentProvider(
