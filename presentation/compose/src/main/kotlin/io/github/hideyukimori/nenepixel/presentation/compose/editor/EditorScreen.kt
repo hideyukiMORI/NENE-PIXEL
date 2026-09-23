@@ -16,6 +16,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -73,9 +74,12 @@ internal fun EditorScreen(
             }
             panel?.let { current ->
                 EditorPanelSurface(EditorPanelPlacement(current, appearance.controlEdge), { panel = null }) {
-                    PanelContent(current, EditorPanelInputs(renderState, callbacks, storage, settings)) { panel = null }
+                    PanelContent(current, EditorPanelInputs(renderState, callbacks, storage, settings), openPanel) {
+                        panel = null
+                    }
                 }
             }
+            ClosePaletteEditorWithoutSession(renderState, panel) { panel = null }
             PersistenceConfirmation(persistenceOperation, persistenceCallbacks)
             LegacyConversionDialog(persistenceOperation, renderState.value.definition, persistenceCallbacks)
         }
@@ -183,12 +187,17 @@ private fun EditorStatus(
 private fun PanelContent(
     panel: EditorPanel,
     inputs: EditorPanelInputs,
+    openPanel: (EditorPanel) -> Unit,
     dismiss: () -> Unit,
 ) {
     val state = inputs.state.value
     when (panel) {
         EditorPanel.Palette -> {
-            PaletteControls(state.palette, state.activePaletteIndex, inputs.callbacks, dismiss)
+            PaletteControls(state, inputs.callbacks, dismiss) { openPanel(EditorPanel.PaletteEditor) }
+        }
+
+        EditorPanel.PaletteEditor -> {
+            state.paletteEditSession?.let { PaletteEditorControls(it, inputs.callbacks.palette) }
         }
 
         EditorPanel.Appearance -> {
@@ -206,6 +215,19 @@ private fun PanelContent(
                 MvpInformationControls()
             }
         }
+    }
+}
+
+/** The palette editor panel exists only while a draft session does; Apply and Cancel close it (design S6a 3). */
+@Composable
+private fun ClosePaletteEditorWithoutSession(
+    state: State<EditorRenderState>,
+    panel: EditorPanel?,
+    close: () -> Unit,
+) {
+    val editing by remember(state) { derivedStateOf { state.value.paletteEditSession != null } }
+    LaunchedEffect(panel, editing) {
+        if (panel == EditorPanel.PaletteEditor && !editing) close()
     }
 }
 

@@ -31,6 +31,14 @@ public class PaletteEditSession private constructor(
     internal val cursor: Int,
     public val pendingImport: PendingPaletteImport?,
 ) {
+    /** True when a draft-history entry before the cursor can be undone. */
+    public val canUndoDraft: Boolean
+        get() = cursor > 0
+
+    /** True when a draft-history entry after the cursor can be redone. */
+    public val canRedoDraft: Boolean
+        get() = cursor < timeline.size
+
     /** Plans one draft operation; a change appends one entry after the cursor and discards the redo branch. */
     internal fun edit(operation: PaletteDraftOperation): PaletteDraftTransition =
         if (pendingImport != null) {

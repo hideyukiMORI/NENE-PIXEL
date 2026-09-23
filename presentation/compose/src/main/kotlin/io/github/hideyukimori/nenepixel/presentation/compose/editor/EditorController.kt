@@ -44,6 +44,7 @@ public class EditorController private constructor(
             setActualSizeWindow = { window ->
                 publish(adapter.reduce(WorkspaceAction.SetActualSizeWindow(window)).renderState)
             },
+            palette = EditorPaletteCallbacks(runtime, adapter, ::publish),
         )
 
     public fun synchronizeWithRuntime() {

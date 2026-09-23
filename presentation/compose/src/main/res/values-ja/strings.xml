@@ -155,4 +155,22 @@
     <string name="app_version">バージョン %1$s (%2$d)</string>
     <string name="app_version_name">バージョン %1$s</string>
     <string name="app_version_unavailable">バージョンを取得できませんでした</string>
+    <string name="palette_editor">パレット編集</string>
+    <string name="edit_palette">パレットを編集</string>
+    <string name="palette_editor_slot">スロット %1$d</string>
+    <string name="palette_editor_hex">16進 (#RRGGBBAA)</string>
+    <string name="palette_editor_red">赤 (0–255)</string>
+    <string name="palette_editor_green">緑 (0–255)</string>
+    <string name="palette_editor_blue">青 (0–255)</string>
+    <string name="palette_editor_alpha">不透明度 (0–255)</string>
+    <string name="palette_editor_set_default">空白・消しゴムの色にする</string>
+    <string name="palette_editor_append">色を追加</string>
+    <string name="palette_editor_remove">色を削除</string>
+    <string name="palette_editor_move_up">上へ</string>
+    <string name="palette_editor_move_down">下へ</string>
+    <string name="palette_editor_undo">編集を元に戻す</string>
+    <string name="palette_editor_redo">編集をやり直す</string>
+    <string name="palette_editor_apply">適用</string>
+    <string name="palette_editor_cancel">編集を破棄</string>
+    <string name="palette_editor_replacement">代わりに空白・消しゴムの色にするスロットを選んでください</string>
 </resources>

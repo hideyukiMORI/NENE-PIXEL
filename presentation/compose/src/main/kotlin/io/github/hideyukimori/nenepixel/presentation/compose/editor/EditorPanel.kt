@@ -29,7 +29,7 @@ import androidx.compose.ui.window.DialogProperties
 import io.github.hideyukimori.nenepixel.core.application.workspace.EditorControlEdge
 import io.github.hideyukimori.nenepixel.presentation.compose.R
 
-internal enum class EditorPanel { Palette, File, Appearance }
+internal enum class EditorPanel { Palette, PaletteEditor, File, Appearance }
 
 internal data class EditorPanelPlacement(
     val panel: EditorPanel,
@@ -99,6 +99,7 @@ private fun EditorPanelPlacement.alignment(): Alignment =
 private fun EditorPanel.titleResource(): Int =
     when (this) {
         EditorPanel.Palette -> R.string.palette
+        EditorPanel.PaletteEditor -> R.string.palette_editor
         EditorPanel.File -> R.string.file
         EditorPanel.Appearance -> R.string.appearance
     }
