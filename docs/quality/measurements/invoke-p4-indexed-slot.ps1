@@ -437,6 +437,20 @@ function Assert-P4AnalysisSealAgreement {
     }
 }
 
+function Get-P4FrameContinuingVerdicts {
+    param($Slot)
+    if ($Slot.runner -ceq 'diagnostic') { return @('inconclusive') }
+    if ($Slot.role -ceq 'baseline') { return @('baseline-recorded') }
+    return @('pass', 'PERFORMANCE_FAIL')
+}
+
+function Get-P4FrameAnalyzerVerdicts {
+    param($Slot)
+    if ($Slot.runner -ceq 'diagnostic') { return @('inconclusive', 'PERFORMANCE_FAIL') }
+    if ($Slot.role -ceq 'baseline') { return @('baseline-recorded', 'baseline-invalid') }
+    return @('pass', 'PERFORMANCE_FAIL')
+}
+
 function Assert-P4CompletedChain {
     param([string]$Root, [object[]]$Catalog, [string]$SlotId, [string]$ManifestHash)
     foreach ($prior in $Catalog) {
@@ -447,8 +461,11 @@ function Assert-P4CompletedChain {
         $result = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json -AsHashtable
         # Lane 5 publication: a required constants revision stops the MERGE, not the collection, so both
         # valid publication verdicts keep the chain running.
+        # Lane 3 (#120): a frame slot starts only after the previous frame slot completed every family
+        # without stopping the experiment. baseline-invalid and gross regression stop it; a decision
+        # PERFORMANCE_FAIL does not stop the diagnostic slots.
         $expected = if ($prior.lane -ceq 'host') { @('valid-descriptive') }
-            elseif ($prior.lane -ceq 'frame' -and $prior.runner -ceq 'diagnostic') { @('inconclusive') }
+            elseif ($prior.lane -ceq 'frame') { Get-P4FrameContinuingVerdicts $prior }
             elseif ($prior.lane -ceq 'publication') { @('valid-constants-retained', 'valid-constants-revision-required') }
             else { @('pass') }
         if ([string]$result.slot_id -cne $prior.id -or [string]$result.verdict -cnotin $expected -or
@@ -456,6 +473,9 @@ function Assert-P4CompletedChain {
             [string]$result.preflight_sha256 -cne $ManifestHash -or
             (Test-Path -LiteralPath (Join-Path $priorDirectory 'invalid.json'))) {
             throw "Prior slot stopped the experiment: $($prior.id)"
+        }
+        if ($prior.lane -ceq 'frame' -and (-not $result.Contains('complete_run') -or $result.complete_run -ne $true)) {
+            throw "Prior frame slot is not a complete run: $($prior.id)"
         }
         Assert-P4RequiredKeys $result @('capture_seal_sha256', 'analysis_sha256', 'restoration_sha256',
             'worktree_after_sha256') "completed.$($prior.id)"
@@ -618,7 +638,7 @@ function Read-P4FreshAnalysis {
     $allowed = switch ($Slot.lane) {
         'host' { @('valid-descriptive') }
         'publication' { @('valid-constants-retained', 'valid-constants-revision-required') }
-        'frame' { if ($Slot.runner -eq 'diagnostic') { @('inconclusive', 'PERFORMANCE_FAIL') } else { @('pass', 'PERFORMANCE_FAIL') } }
+        'frame' { Get-P4FrameAnalyzerVerdicts $Slot }
         default { @('pass', 'PERFORMANCE_FAIL') }
     }
     if ($result.verdict -cnotin $allowed) { throw 'Analyzer verdict is incompatible with this lane.' }
@@ -638,7 +658,10 @@ function Invoke-P4IndexedSlot {
     # `-Stage slot` skips the reservation-only checks (live device admission and the Issue/protocol
     # agreement query): this wrapper performs its own live device admission per slot.
     Assert-P4ManifestArtifacts $manifest $manifest.roles.candidate.worktree -Stage 'slot'
-    $catalog = @(Get-P4SlotCatalog)
+    # Frame slots chain within Issue #120's own four-slot catalog, outside Issue #106's order.
+    $frameCatalog = @(Get-P4FrameSlotCatalog)
+    $catalog = if (@($frameCatalog | Where-Object { $_.id -ceq $SlotId }).Count -eq 1) { $frameCatalog }
+        else { @(Get-P4SlotCatalog) }
     $selected = @($catalog | Where-Object { $_.id -ceq $SlotId })
     if ($selected.Count -ne 1) { throw 'Unknown slot; no substitute or extra attempt is permitted.' }
     $slot = $selected[0]

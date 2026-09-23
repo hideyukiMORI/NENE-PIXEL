@@ -33,22 +33,25 @@ if ($catalog.Count -ne 29 -or $catalog[0].id -cne 'host-project-baseline' -or
     throw 'Fixed 29-slot operation catalog is incorrect.'
 }
 $frameCatalog = @(Get-P4FrameSlotCatalog)
-if ($frameCatalog.Count -ne 4 -or $frameCatalog[0].id -cne 'frame-1-baseline-diagnostic' -or
-    $frameCatalog[3].id -cne 'frame-4-baseline-decision' -or
+$frameCatalogIds = @('frame-1-baseline-decision', 'frame-2-candidate-decision',
+    'frame-3-baseline-diagnostic', 'frame-4-candidate-diagnostic')
+if ($frameCatalog.Count -ne 4 -or
+    (@($frameCatalog | ForEach-Object { $_.id }) -join ',') -cne ($frameCatalogIds -join ',') -or
     @($frameCatalog | Where-Object lane -cne 'frame').Count -ne 0) {
     throw 'Retained Lane 3 frame catalog is incorrect.'
 }
 # Protocol v7 finite budgets: 5 host slots at 180 s, 2 command at 600 s (Lane 1), and 20 memory plus
-# 2 publication at 300 s. The retained Lane 3 wrapper bound is still derived from the operation count,
-# 2 diagnostic at 750 s and 2 decision at 1950 s, and is checked against the retained catalog only.
+# 2 publication at 300 s. The Lane 3 wrapper bound (#120 revision) is derived from the operation count,
+# families x (warmups + samples): 2 decision slots measure 2 families at 1950 s and 2 diagnostic slots
+# measure 3 families at 975 s. It is checked against the retained frame catalog only.
 if (@($catalog | Where-Object lane -eq 'memory').Count -ne 20 -or
     @($catalog | Where-Object { $_.timeout_seconds -eq 180 }).Count -ne 5 -or
     @($catalog | Where-Object { $_.timeout_seconds -eq 600 }).Count -ne 2 -or
     @($catalog | Where-Object { $_.timeout_seconds -eq 300 }).Count -ne 22 -or
-    @($frameCatalog | Where-Object { $_.timeout_seconds -eq 750 }).Count -ne 2 -or
-    @($frameCatalog | Where-Object { $_.timeout_seconds -eq 1950 }).Count -ne 2 -or
-    (Get-P4FrameWrapperBound -Warmups 5 -Samples 10) -ne 750 -or
-    (Get-P4FrameWrapperBound -Warmups 5 -Samples 50) -ne 1950) { throw 'Finite lane budget drift.' }
+    @($frameCatalog | Where-Object { $_.runner -ceq 'decision' -and $_.timeout_seconds -eq 1950 }).Count -ne 2 -or
+    @($frameCatalog | Where-Object { $_.runner -ceq 'diagnostic' -and $_.timeout_seconds -eq 975 }).Count -ne 2 -or
+    (Get-P4FrameWrapperBound -Families 2 -Warmups 5 -Samples 50) -ne 1950 -or
+    (Get-P4FrameWrapperBound -Families 3 -Warmups 5 -Samples 10) -ne 975) { throw 'Finite lane budget drift.' }
 foreach ($runner in @('project', 'recovery', 'legacy')) {
     $roles = if ($runner -eq 'legacy') { @('candidate') } else { @('baseline', 'candidate') }
     foreach ($role in $roles) {
@@ -202,7 +205,8 @@ Assert-P4TestRejects {
 # ---------------------------------------------------------------------------
 # S7. Inventories are bound to the role clone's Git blobs and its real file system.
 # ---------------------------------------------------------------------------
-$candidateWorktree = 'C:/n106-candidate-build'
+$candidateWorktree = 'C:/n120-candidate'
+$baselineWorktree = 'C:/n120-baseline'
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 if (Test-Path -LiteralPath $candidateWorktree -PathType Container) {
     # The candidate measurement build commit is whatever the clean clone is checked out at; a literal
@@ -210,13 +214,16 @@ if (Test-Path -LiteralPath $candidateWorktree -PathType Container) {
     $candidateBuild = (& git -C $candidateWorktree rev-parse HEAD).Trim()
     if ($LASTEXITCODE -ne 0 -or $candidateBuild -cnotmatch '^[0-9a-f]{40}$') { throw 'Unable to read the candidate clone HEAD.' }
     if (@(& git -C $candidateWorktree status --porcelain).Count -ne 0) { throw 'The candidate clone must be clean for real-data inventory cases.' }
+    # The baseline build is also a tooling overlay commit, so it is read from its clean clone for the same reason.
+    $baselineBuild = (& git -C $baselineWorktree rev-parse HEAD).Trim()
+    if ($LASTEXITCODE -ne 0 -or $baselineBuild -cnotmatch '^[0-9a-f]{40}$') { throw 'Unable to read the baseline clone HEAD.' }
+    if (@(& git -C $baselineWorktree status --porcelain).Count -ne 0) { throw 'The baseline clone must be clean for real-data inventory cases.' }
     $expectedPaths = Get-P4ExpectedMeasurementPaths $candidateWorktree $candidateBuild 'candidate'
     if ($expectedPaths.Count -lt 20) { throw 'The fixed measurement pattern set collapsed.' }
     foreach ($required in @($script:P4SharedHostEvidenceSources) + @($script:P4CandidateHostEvidenceSources)) {
         if (-not $expectedPaths.Contains($required)) { throw "The expected set lost a host evidence source: $required" }
     }
-    $baselinePaths = Get-P4ExpectedMeasurementPaths 'C:/n106-baseline-build' `
-        '0b605481ad97ee3726864e556e6519f3a862271f' 'baseline'
+    $baselinePaths = Get-P4ExpectedMeasurementPaths $baselineWorktree $baselineBuild 'baseline'
     foreach ($candidateOnly in @($script:P4CandidateHostEvidenceSources)) {
         if ($baselinePaths.Contains($candidateOnly)) { throw 'The baseline must not claim the candidate-only lane.' }
     }
@@ -255,8 +262,8 @@ if (Test-Path -LiteralPath $candidateWorktree -PathType Container) {
         throw 'Ancestry must not be symmetric.'
     }
     $lineage = [ordered]@{ roles = [ordered]@{
-            baseline = [ordered]@{ worktree = 'C:/n106-baseline-build'
-                build_commit = '0b605481ad97ee3726864e556e6519f3a862271f'
+            baseline = [ordered]@{ worktree = $baselineWorktree
+                build_commit = $baselineBuild
                 production_commit = $script:P4BaselineProduction }
             candidate = [ordered]@{ worktree = $candidateWorktree; build_commit = $candidateBuild
                 production_commit = $script:P4BaselineProduction } } }
@@ -929,8 +936,8 @@ $silentAsserts = @(
     @{ name = 'Assert-P4GitLineage'
         action = {
             Assert-P4GitLineage ([ordered]@{ roles = [ordered]@{
-                        baseline = [ordered]@{ worktree = 'C:/n106-baseline-build'
-                            build_commit = '0b605481ad97ee3726864e556e6519f3a862271f'
+                        baseline = [ordered]@{ worktree = $baselineWorktree
+                            build_commit = $baselineBuild
                             production_commit = $script:P4BaselineProduction }
                         candidate = [ordered]@{ worktree = $candidateWorktree; build_commit = $candidateBuild
                             production_commit = $candidateBuild } } })

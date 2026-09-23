@@ -1,3 +1,4 @@
+# Lane 3 revision 2026-09-23 (#120): order, no fail-fast, verdict by analyzer only, experiment schema v5, window_x2 diagnostic family
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
@@ -241,9 +242,9 @@ $resolvedExperiment =
 $physicalPresentEnabled = $PSBoundParameters.ContainsKey("PhysicalPresentTraceProcessorPath")
 $physicalPresentSchema = "nene-pixel-m2-physical-present-v2"
 $frameSchema = "nene-pixel-p4-indexed-actual-app-frame-v8"
-$experimentSchema = "nene-pixel-p4-indexed-frame-experiment-v4"
+$experimentSchema = "nene-pixel-p4-indexed-frame-experiment-v5"
 $noSampleInspectionSchema = "nene-pixel-p4-no-sample-inspection-v1"
-$baselineProductionCommitRequired = "2dd4e01e3bbe88967237cde4e28412d2962fd590"
+$baselineProductionCommitRequired = "2f0b617e56f7bcf3d71b5a258a48e0edead354d9"
 $workloadCatalog = @(
     [ordered]@{
         workload = "canvas16_tap"
@@ -269,6 +270,20 @@ $workloadCatalog = @(
     }
 )
 $workloadOrder = @($workloadCatalog | ForEach-Object { $_.workload })
+# Diagnostic slots only (Lane 3 family 3): the exact event, dwell, reset and warmup sequence of
+# canvas256_repeated_diagonal on the same clean document, with the actual-size window shown at X2.
+# Only the family name and the window preparation/teardown differ; it is never a decision input.
+$windowDiagnosticWorkload = "canvas256_repeated_diagonal_window_x2"
+$windowDiagnosticScale = "x2"
+$windowDiagnosticSpec = [ordered]@{}
+foreach ($entry in $workloadCatalog[1].GetEnumerator()) {
+    $windowDiagnosticSpec[$entry.Key] = $entry.Value
+}
+$windowDiagnosticSpec.workload = $windowDiagnosticWorkload
+$diagnosticWorkloadCatalog = @($workloadCatalog) + @($windowDiagnosticSpec)
+$diagnosticWorkloadOrder = @($diagnosticWorkloadCatalog | ForEach-Object { $_.workload })
+$slotWorkloadCatalog = if ($RunKind -eq "diagnostic") { $diagnosticWorkloadCatalog } else { $workloadCatalog }
+$slotWorkloadOrder = @($slotWorkloadCatalog | ForEach-Object { $_.workload })
 $physicalPresentAnalyzer = Join-Path $PSScriptRoot "analyze-m2-physical-present.ps1"
 $physicalTraceState = $null
 $physicalAnalysis = $null
@@ -276,6 +291,7 @@ $physicalAnalysis = $null
 if ($physicalPresentEnabled) {
     throw "$physicalPresentSchema collection is exhausted and retained for historical analysis only."
 }
+# -Variant is a declaration, not evidence; the evidence is the installed APK SHA-256 (Assert-M2InstalledApkIdentity).
 if ($Variant -ne "release-like" -or $CompilationMode -ne "speed-profile") {
     throw "The v4 comparison requires release-like and speed-profile for every slot."
 }
@@ -284,7 +300,7 @@ if ($Attempt -ne 1) {
 }
 
 if ($BaselineProductionCommit -cne $baselineProductionCommitRequired) {
-    throw "The baseline production commit must be the fixed Issue #106 baseline."
+    throw "The baseline production commit must be the accepted Lane 3 baseline (main at collection time)."
 }
 if ($BaselineSourceCommit -ceq $BaselineProductionCommit) {
     throw "The baseline measurement build must be a distinct immutable collector overlay commit."
@@ -441,10 +457,10 @@ if ($SampleCount -ne $expectedSampleCount) {
     throw "$RunKind collection requires exactly $expectedSampleCount operation samples."
 }
 $comparisonOrder = @(
-    "diagnostic:baseline",
-    "diagnostic:candidate",
+    "decision:baseline",
     "decision:candidate",
-    "decision:baseline"
+    "diagnostic:baseline",
+    "diagnostic:candidate"
 )
 $comparisonIdentity = "$RunKind`:$CandidateRole"
 if ($comparisonOrder[$ComparisonSequenceIndex - 1] -ne $comparisonIdentity) {
@@ -464,11 +480,13 @@ $expectedSurfaceBoundsByWorkload =
         [ordered]@{
             canvas16_tap = $BaselineCanvas16SurfaceBounds
             canvas256_repeated_diagonal = $BaselineCanvas256SurfaceBounds
+            canvas256_repeated_diagonal_window_x2 = $BaselineCanvas256SurfaceBounds
         }
     } else {
         [ordered]@{
             canvas16_tap = $CandidateCanvas16SurfaceBounds
             canvas256_repeated_diagonal = $CandidateCanvas256SurfaceBounds
+            canvas256_repeated_diagonal_window_x2 = $CandidateCanvas256SurfaceBounds
         }
     }
 if ($SourceCommit -ne $expectedSourceCommit) {
@@ -575,6 +593,13 @@ $experimentManifest =
         comparison_order = $comparisonOrder
         workload_order = $workloadOrder
         workload_catalog = $workloadCatalog
+        diagnostic_workload_order = $diagnosticWorkloadOrder
+        diagnostic_window_family = [ordered]@{
+            workload = $windowDiagnosticWorkload
+            event_sequence_of = $workloadCatalog[1].workload
+            window_scale = $windowDiagnosticScale
+            window_anchor = "default"
+        }
         geometry = [ordered]@{
             id = $geometryId
             baseline = [ordered]@{
@@ -653,8 +678,13 @@ function Test-RunStateIdentity {
         [Parameter(Mandatory = $true)][int]$ExpectedAttempt
     )
 
-    $expectedCount = if ($SequenceIndex -le 2) { 10 } else { 50 }
+    $expectedCount = if ($SequenceIndex -le 2) { 50 } else { 10 }
+    $expectedOrder = if ($SequenceIndex -le 2) { $workloadOrder } else { $diagnosticWorkloadOrder }
     $propertyNames = if ($null -eq $State) { @() } else { @($State.PSObject.Properties.Name) }
+    $countsMatch =
+        $null -ne $State -and
+        "measured_workload_counts" -in $propertyNames -and
+        @($expectedOrder | Where-Object { [int]$State.measured_workload_counts.$_ -ne $expectedCount }).Count -eq 0
     return (
         $null -ne $State -and
         $State.schema -eq $experimentSchema -and
@@ -664,10 +694,9 @@ function Test-RunStateIdentity {
         "workload_order" -in $propertyNames -and
         "measured_workload_counts" -in $propertyNames -and
         "measured_operation_count" -in $propertyNames -and
-        (@($State.workload_order) -join "|") -ceq ($workloadOrder -join "|") -and
-        [int]$State.measured_workload_counts.canvas16_tap -eq $expectedCount -and
-        [int]$State.measured_workload_counts.canvas256_repeated_diagonal -eq $expectedCount -and
-        [int]$State.measured_operation_count -eq ($expectedCount * $workloadCatalog.Count)
+        (@($State.workload_order) -join "|") -ceq ($expectedOrder -join "|") -and
+        $countsMatch -and
+        [int]$State.measured_operation_count -eq ($expectedCount * $expectedOrder.Count)
     )
 }
 
@@ -773,15 +802,16 @@ if ($ComparisonSequenceIndex -gt 1 -and -not $InspectGeometryOnly) {
     $previousSlot = "slot-{0:D2}-{1}-{2}" -f ($ComparisonSequenceIndex - 1), $previousIdentity[0], $previousIdentity[1]
     $previousAttempt = 1
     $previousState = Get-RunState -Directory (Join-Path $resolvedExperiment "$previousSlot-attempt-1")
-    $requiredPreviousVerdict = if ($ComparisonSequenceIndex -eq 4) { "pass" } else { "inconclusive" }
     if (
         -not (Test-RunStateIdentity -State $previousState -SequenceIndex ($ComparisonSequenceIndex - 1) -ExpectedAttempt $previousAttempt) -or
         $previousState.status -ne "completed" -or
-        $previousState.verdict -ne $requiredPreviousVerdict
+        $previousState.complete_run -ne $true -or
+        $previousState.verdict -eq "gross-regression"
     ) {
-        throw "Sequence slot $ComparisonSequenceIndex requires completed slot $($ComparisonSequenceIndex - 1) verdict '$requiredPreviousVerdict'."
+        throw "Sequence slot $ComparisonSequenceIndex requires complete slot $($ComparisonSequenceIndex - 1) that did not stop the experiment."
     }
 }
+# -Variant is a declaration, not evidence; the evidence is the installed APK SHA-256 (Assert-M2InstalledApkIdentity).
 if ($RunKind -eq "decision" -and ($Variant -ne "release-like" -or $CompilationMode -ne "speed-profile")) {
     throw "Decision collection requires release-like and speed-profile."
 }
@@ -840,9 +870,12 @@ if ($InspectGeometryOnly) {
 New-Item -ItemType Directory -Path $resolvedOutput | Out-Null
 New-Item -ItemType Directory -Path (Join-Path $resolvedOutput "raw") | Out-Null
 $runStatePath = Join-Path $resolvedOutput "run-state.json"
-$script:measuredWorkloadCounts = [ordered]@{
-    canvas16_tap = 0
-    canvas256_repeated_diagonal = 0
+$script:measuredWorkloadCounts = [ordered]@{}
+foreach ($slotWorkload in $slotWorkloadOrder) {
+    $script:measuredWorkloadCounts[$slotWorkload] = 0
+}
+function Get-MeasuredOperationCount {
+    return [int](($script:measuredWorkloadCounts.Values | Measure-Object -Sum).Sum)
 }
 function Write-RunState {
     param(
@@ -850,7 +883,9 @@ function Write-RunState {
         [string]$Status,
 
         [Parameter(Mandatory = $true)]
-        [string]$Verdict
+        [string]$Verdict,
+
+        [bool]$CompleteRun = $false
     )
 
     $state =
@@ -861,11 +896,10 @@ function Write-RunState {
             attempt = $Attempt
             status = $Status
             verdict = $Verdict
-            workload_order = $workloadOrder
+            complete_run = $CompleteRun
+            workload_order = $slotWorkloadOrder
             measured_workload_counts = $script:measuredWorkloadCounts
-            measured_operation_count =
-                [int]$script:measuredWorkloadCounts.canvas16_tap +
-                [int]$script:measuredWorkloadCounts.canvas256_repeated_diagonal
+            measured_operation_count = Get-MeasuredOperationCount
         }
     [System.IO.File]::WriteAllText(
         $runStatePath,
@@ -888,6 +922,44 @@ function Invoke-TargetAdb {
         throw "adb failed ($LASTEXITCODE): adb -s <physical-device> $($AdbArguments -join ' ')`n$($commandOutput -join "`n")"
     }
     return $commandOutput | ForEach-Object { $_.ToString() }
+}
+
+function Assert-M2InstalledApkIdentity {
+    <#
+        Protocol Lane 3: the evidence of the installed variant is the installed package itself, never
+        the host file or the declared -Variant string. Reads the package's base APK from the device
+        (`pm path` + `sha256sum`) and requires its SHA-256 to equal the role's app_release_like identity.
+        A mismatch throws before any warmup, so the slot is INVALID before samples.
+    #>
+    param(
+        [Parameter(Mandatory = $true)][string]$ExpectedApkSha256,
+        [Parameter(Mandatory = $true)][string]$Role
+    )
+    if ($ExpectedApkSha256 -cnotmatch '^[0-9a-f]{64}$') {
+        throw "INVALID: the $Role release-like APK has no fixed SHA-256 identity."
+    }
+    $pathLines = @(Invoke-TargetAdb -AdbArguments @("shell", "pm", "path", $packageName) |
+            ForEach-Object { $_.Trim() } | Where-Object { $_ -cmatch '^package:/' })
+    $basePaths = @($pathLines | ForEach-Object { $_.Substring("package:".Length) } |
+            Where-Object { $_.EndsWith("/base.apk") })
+    if ($basePaths.Count -ne 1) {
+        throw "INVALID: $packageName does not expose exactly one installed base APK."
+    }
+    $digests = @(Invoke-TargetAdb -AdbArguments @("shell", "sha256sum", $basePaths[0]) | ForEach-Object {
+            $match = [regex]::Match($_, '^([0-9a-f]{64})\s')
+            if ($match.Success) { $match.Groups[1].Value }
+        })
+    if ($digests.Count -ne 1) {
+        throw "INVALID: the installed base APK of $packageName did not report exactly one digest."
+    }
+    if ($digests[0] -cne $ExpectedApkSha256) {
+        throw "INVALID: the installed $packageName base APK is not the $Role release-like artifact."
+    }
+    return [pscustomobject]@{
+        expected_apk_sha256 = $ExpectedApkSha256
+        installed_apk_path = $basePaths[0]
+        installed_apk_sha256 = $digests[0]
+    }
 }
 
 function Get-TargetProperty {
@@ -1135,7 +1207,7 @@ function Assert-LandscapeRootUi {
 function Get-WorkloadSpec {
     param([Parameter(Mandatory = $true)][string]$Workload)
 
-    $matches = @($workloadCatalog | Where-Object { $_.workload -ceq $Workload })
+    $matches = @($slotWorkloadCatalog | Where-Object { $_.workload -ceq $Workload })
     if ($matches.Count -ne 1) {
         throw "Unknown or ambiguous frame workload '$Workload'."
     }
@@ -1777,6 +1849,114 @@ function Invoke-CommitEventSequence {
     Start-Sleep -Milliseconds $drawWaitMilliseconds
 }
 
+function Add-ActualSizeWindowLog {
+    param(
+        [Parameter(Mandatory = $true)][string]$Workload,
+        [Parameter(Mandatory = $true)][string]$Line
+    )
+
+    [System.IO.File]::AppendAllText(
+        (Join-Path $resolvedOutput "window-$Workload.log"),
+        "$([datetime]::UtcNow.ToString('o')) $Line`n",
+        [System.Text.UTF8Encoding]::new($false)
+    )
+}
+
+function Get-ActualSizeWindowUiStep {
+    param(
+        [Parameter(Mandatory = $true)][string]$Workload,
+        [Parameter(Mandatory = $true)][string]$Step
+    )
+
+    Start-Sleep -Milliseconds $drawWaitMilliseconds
+    $ui = Get-CurrentEditorUi
+    [System.IO.File]::WriteAllText(
+        (Join-Path $resolvedOutput ("raw/{0}-window-{1}.xml" -f $Workload, $Step)),
+        $ui.OuterXml,
+        [System.Text.UTF8Encoding]::new($false)
+    )
+    Add-ActualSizeWindowLog -Workload $Workload -Line ("dump step=$Step")
+    return $ui
+}
+
+function Get-ActualSizeWindowNodes {
+    param([Parameter(Mandatory = $true)][xml]$Ui)
+
+    return @(
+        $Ui.SelectNodes("//*[@resource-id]") |
+            Where-Object { $_.GetAttribute("resource-id") -like "*editor_actual_size_window*" -and
+                $_.GetAttribute("resource-id") -notlike "*editor_actual_size_window_toggle" }
+    )
+}
+
+function Show-ActualSizeWindowAtScale {
+    # Lane 3 family 3 preparation: show the window through the dock control, cycle the chip until the
+    # window node describes the required scale (at most six taps, each verified through a dump), and
+    # require every family input point to lie outside the window bounds. Any failure is INVALID.
+    param(
+        [Parameter(Mandatory = $true)][string]$Workload,
+        [Parameter(Mandatory = $true)][object]$Geometry
+    )
+
+    $ui = Get-CurrentEditorUi
+    Add-ActualSizeWindowLog -Workload $Workload -Line ("tap editor_actual_size_window_toggle (show)")
+    Invoke-NodeTap -Node (Get-ResourceControlNode -Node (Get-ResourceNode -Ui $ui -Identity "editor_actual_size_window_toggle"))
+    $ui = Get-ActualSizeWindowUiStep -Workload $Workload -Step "shown"
+    $chipTaps = 0
+    while ($true) {
+        $windowNode = Get-ResourceNode -Ui $ui -Identity "editor_actual_size_window"
+        $description = $windowNode.GetAttribute("content-desc")
+        $scaleMatch = [regex]::Match($description, "x(\d+)$")
+        $scale = if ($scaleMatch.Success) { "x$($scaleMatch.Groups[1].Value)" } else { "" }
+        Add-ActualSizeWindowLog -Workload $Workload -Line ("window scale=$scale chip_taps=$chipTaps")
+        if ($scale -ceq $windowDiagnosticScale) {
+            break
+        }
+        if ($chipTaps -ge 6) {
+            throw "INVALID: the actual-size window did not describe $windowDiagnosticScale within six chip taps."
+        }
+        Add-ActualSizeWindowLog -Workload $Workload -Line ("tap editor_actual_size_window_chip")
+        Invoke-NodeTap -Node (Get-ResourceControlNode -Node (Get-ResourceNode -Ui $ui -Identity "editor_actual_size_window_chip"))
+        $chipTaps += 1
+        $ui = Get-ActualSizeWindowUiStep -Workload $Workload -Step "chip-$chipTaps"
+    }
+    $windowBoundsText = $windowNode.GetAttribute("bounds")
+    $windowBounds = Get-Bounds -Node $windowNode
+    Add-ActualSizeWindowLog -Workload $Workload -Line ("window bounds=$windowBoundsText")
+    foreach ($point in @(
+            @($Geometry.FirstX, $Geometry.FirstY),
+            @($Geometry.LastX, $Geometry.LastY)
+        )) {
+        if (
+            $point[0] -ge $windowBounds.Left -and $point[0] -le $windowBounds.Right -and
+            $point[1] -ge $windowBounds.Top -and $point[1] -le $windowBounds.Bottom
+        ) {
+            throw "INVALID: the $Workload input point ($($point[0]),$($point[1])) lies inside the actual-size window $windowBoundsText."
+        }
+    }
+    return [pscustomobject]@{
+        Scale = $scale
+        Bounds = $windowBoundsText
+        ChipTaps = $chipTaps
+    }
+}
+
+function Hide-ActualSizeWindow {
+    param(
+        [Parameter(Mandatory = $true)][string]$Workload
+    )
+
+    $ui = Get-CurrentEditorUi
+    Add-ActualSizeWindowLog -Workload $Workload -Line ("tap editor_actual_size_window_toggle (hide)")
+    Invoke-NodeTap -Node (Get-ResourceControlNode -Node (Get-ResourceNode -Ui $ui -Identity "editor_actual_size_window_toggle"))
+    $ui = Get-ActualSizeWindowUiStep -Workload $Workload -Step "hidden"
+    $remaining = @(Get-ActualSizeWindowNodes -Ui $ui)
+    Add-ActualSizeWindowLog -Workload $Workload -Line ("window nodes after hide=$($remaining.Count)")
+    if ($remaining.Count -ne 0) {
+        throw "INVALID: the actual-size window remained visible after $Workload."
+    }
+}
+
 function Write-RotationStateArtifact {
     param(
         [Parameter(Mandatory = $true)][string]$Name,
@@ -2304,6 +2484,7 @@ if ($InspectGeometryOnly) {
 }
 
 $deviceIdentity = $null
+$installedApkIdentity = $null
 $originalStayAwake = $null
 $environmentRows = [System.Collections.Generic.List[object]]::new()
 $environmentPath = Join-Path $resolvedOutput "environment.csv"
@@ -2344,6 +2525,8 @@ try {
     Invoke-TargetAdb -AdbArguments @("shell", "cmd", "input", "keyevent", "WAKEUP") | Out-Null
     Start-Sleep -Milliseconds 250
     Invoke-TargetAdb -AdbArguments @("install", "-r", "-d", $artifactIdentity.resolved_apk_path) | Out-Null
+    # Slot admission: the installed package, not the host file, must be the role's release-like artifact.
+    $installedApkIdentity = Assert-M2InstalledApkIdentity -ExpectedApkSha256 $expectedApkSha256 -Role $CandidateRole
     Invoke-TargetAdb -AdbArguments @("shell", "cmd", "package", "compile", "--reset", $packageName) | Out-Null
     $profileInstallResult = "not-requested"
     if ($CompilationMode -eq "speed-profile") {
@@ -2407,10 +2590,19 @@ try {
         $physicalTraceState = Start-PhysicalPresentTrace
     }
     $operationOrdinal = 0
-    foreach ($spec in $workloadCatalog) {
+    $windowRecords = [ordered]@{}
+    foreach ($spec in $slotWorkloadCatalog) {
         $workload = $spec.workload
-        if ($workload -ne $workloadCatalog[0].workload) {
+        $isWindowFamily = $workload -ceq $windowDiagnosticWorkload
+        # The window family reuses the clean 256 by 256 document left by canvas256_repeated_diagonal.
+        if ($workload -ne $workloadCatalog[0].workload -and -not $isWindowFamily) {
             New-DocumentThroughUi -Spec $spec | Out-Null
+        }
+        if ($isWindowFamily) {
+            $windowRecords[$workload] =
+                Show-ActualSizeWindowAtScale `
+                    -Workload $workload `
+                    -Geometry (Assert-CleanWorkloadReady -Ui (Get-CurrentEditorUi) -Workload $workload)
         }
         foreach ($warmupIndex in 1..$warmupCount) {
             $geometry = Assert-CleanWorkloadReady -Ui (Get-CurrentEditorUi) -Workload $workload
@@ -2510,6 +2702,9 @@ try {
                 -JourneyIndex $sampleIndex `
                 -Workload $workload
         }
+        if ($isWindowFamily) {
+            Hide-ActualSizeWindow -Workload $workload
+        }
         $familySummaries = @($sampleSummaries | Where-Object { $_.workload -ceq $workload })
         $familyFrames = @($frameRows | Where-Object { $_.workload -ceq $workload })
         $familyResult =
@@ -2526,10 +2721,6 @@ try {
         [System.IO.File]::WriteAllLines((Join-Path $resolvedOutput "logcat-after-$workload.txt"), $familyLogcat)
         if (@($familyLogcat | Select-String -Pattern "FATAL EXCEPTION|ANR in|Fatal signal|Process .* has died").Count -gt 0) {
             throw "Fatal, ANR, signal, or process-death evidence was observed after $workload."
-        }
-        if ($isDecisionLane -and -not $familyResult.Passed) {
-            $earlyStopStatus = "fail"
-            break
         }
         if ($RunKind -eq "diagnostic" -and $familyResult.GrossRegression) {
             $earlyStopStatus = "gross-regression"
@@ -2590,7 +2781,7 @@ try {
         throw "Aggregate frame counts must retain every preview and committed-result frame."
     }
     $summaryCursor = 0
-    foreach ($spec in @($workloadCatalog | Select-Object -First $familyResults.Count)) {
+    foreach ($spec in @($slotWorkloadCatalog | Select-Object -First $familyResults.Count)) {
         foreach ($sampleIndex in 1..$sampleCount) {
             $expectedOrdinal = $summaryCursor + 1
             $summary = $sampleSummaries[$summaryCursor]
@@ -2614,9 +2805,8 @@ try {
             $summaryCursor += 1
         }
     }
-    $passed =
-        $familyResults.Count -eq $workloadCatalog.Count -and
-        @($familyResults | Where-Object { -not $_.Passed }).Count -eq 0 -and
+    $completeRun =
+        $familyResults.Count -eq $slotWorkloadCatalog.Count -and
         $fatalCount -eq 0
     $grossRegression = @($familyResults | Where-Object { $_.GrossRegression }).Count -gt 0
     $acceptanceLane =
@@ -2628,10 +2818,7 @@ try {
         elseif ($physicalPresentEnabled) {
             $physicalAnalysis.Status
         }
-        elseif ($isDecisionLane) {
-            if ($passed) { "pass" } else { "fail" }
-        }
-        elseif ($grossRegression) {
+        elseif (-not $isDecisionLane -and $grossRegression) {
             "gross-regression"
         }
         else {
@@ -2644,13 +2831,14 @@ try {
         "experiment_id=$ExperimentId",
         "status=$status",
         "acceptance_lane=$acceptanceLane",
-        "threshold_status=$(if ($null -ne $earlyStopStatus) { $earlyStopStatus } elseif ($isDecisionLane) { if ($passed) { 'pass' } else { 'fail' } } elseif ($grossRegression) { 'gross-regression' } else { 'inconclusive' })",
+        "complete_run=$(if ($completeRun) { 'true' } else { 'false' })",
+        "threshold_status=$(if ($null -ne $earlyStopStatus) { $earlyStopStatus } elseif (-not $isDecisionLane -and $grossRegression) { 'gross-regression' } else { 'inconclusive' })",
         "variant=$Variant",
         "run_kind=$RunKind",
         "candidate_role=$CandidateRole",
         "comparison_sequence_index=$ComparisonSequenceIndex",
         "comparison_order=$($comparisonOrder -join '|')",
-        "workload_order=$($workloadOrder -join '|')",
+        "workload_order=$($slotWorkloadOrder -join '|')",
         "input_injection=$inputInjection",
         "source_commit=$SourceCommit",
         "production_commit=$expectedProductionCommit",
@@ -2667,6 +2855,8 @@ try {
         "apk_embedded_source_commit=$($artifactIdentity.embedded_source_commit)",
         "apk_bytes=$($artifactIdentity.apk_byte_count)",
         "apk_sha256=$($artifactIdentity.apk_sha256)",
+        "installed_apk_path=$($installedApkIdentity.installed_apk_path)",
+        "installed_apk_sha256=$($installedApkIdentity.installed_apk_sha256)",
         "profile_acceptance_reader_sha256=$profileAcceptanceReaderSha256",
         "profile_generation_source_commit=$(if ($CandidateRole -eq 'baseline') { $BaselineProfileGenerationSourceCommit } else { $CandidateProfileGenerationSourceCommit })",
         "profile_generation_app_apk_sha256=$(if ($CandidateRole -eq 'baseline') { $BaselineProfileGenerationAppApkSha256 } else { $CandidateProfileGenerationAppApkSha256 })",
@@ -2699,15 +2889,25 @@ try {
         "display_present_time_available=$(@($validFrames | Where-Object { $_.display_present_time_nanos -gt 0 }).Count -gt 0)",
         "boundary=DOWN preview plus UP commit; every phase frame retained; acceptance latency starts at earliest UP HandleInputStart and completes at latest UP-associated FrameCompleted after committed UI verification; DOWN-to-commit including the intentional preview dwell is diagnostic only"
     ) | ForEach-Object { $metadata.Add($_) }
+    if ($slotWorkloadOrder -ccontains $windowDiagnosticWorkload) {
+        $metadata.Add("measured_$windowDiagnosticWorkload=$($script:measuredWorkloadCounts[$windowDiagnosticWorkload])")
+    }
     foreach ($family in $familyResults) {
         $prefix = $family.Workload
+        if ($windowRecords.Contains($prefix)) {
+            $metadata.Add("${prefix}_window_scale=$($windowRecords[$prefix].Scale)")
+            $metadata.Add("${prefix}_window_bounds=$($windowRecords[$prefix].Bounds)")
+        }
+        else {
+            $metadata.Add("${prefix}_window_scale=none")
+        }
         $metadata.Add("${prefix}_frame_count=$($family.FrameCount)")
         $metadata.Add("${prefix}_frame_overrun_p95_ms=$('{0:F6}' -f $family.OverrunP95)")
         $metadata.Add("${prefix}_frame_overrun_p99_ms=$('{0:F6}' -f $family.OverrunP99)")
         $metadata.Add("${prefix}_input_to_committed_result_p95_ms=$('{0:F6}' -f $family.InputP95)")
         $metadata.Add("${prefix}_maximum_frame_overrun_ms=$('{0:F6}' -f $family.MaximumFrameOverrun)")
         $metadata.Add("${prefix}_maximum_input_to_committed_result_ms=$('{0:F6}' -f $family.MaximumInputToCommitted)")
-        $metadata.Add("${prefix}_threshold_status=$(if ($family.Passed) { 'pass' } else { 'fail' })")
+        $metadata.Add("${prefix}_threshold_status=measured")
         $metadata.Add("${prefix}_diagnostic_gross_regression=$(if ($family.GrossRegression) { 'true' } else { 'false' })")
     }
     if ($physicalPresentEnabled) {
@@ -2733,7 +2933,7 @@ try {
         $metadata.Add("limitation=$limitation")
     }
     [System.IO.File]::WriteAllLines((Join-Path $resolvedOutput "metadata.txt"), $metadata)
-    Write-RunState -Status "completed" -Verdict $status
+    Write-RunState -Status "completed" -Verdict $status -CompleteRun $completeRun
 
     $successfulMetadata = @($metadata)
 }
@@ -2744,9 +2944,7 @@ catch {
         -SourceError $sourceError
     $currentState = Get-RunState -Directory $resolvedOutput
     if ($null -eq $currentState -or $currentState.status -ne "completed") {
-        $measuredOperationCount =
-            [int]$script:measuredWorkloadCounts.canvas16_tap +
-            [int]$script:measuredWorkloadCounts.canvas256_repeated_diagonal
+        $measuredOperationCount = Get-MeasuredOperationCount
         $invalidStatus = if ($measuredOperationCount -eq 0) { "invalid-before-samples" } else { "invalid-after-samples" }
         Write-RunState -Status $invalidStatus -Verdict "invalid"
     }

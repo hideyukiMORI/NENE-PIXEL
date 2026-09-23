@@ -8,7 +8,7 @@ $collector = Join-Path $PSScriptRoot "measurements/measure-m2-frame.ps1"
 $temporaryRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("nene-frame-protocol-" + [guid]::NewGuid().ToString("N"))
 $baselineCommit = "1" * 40
 $candidateCommit = "2" * 40
-$baselineProductionCommit = "2dd4e01e3bbe88967237cde4e28412d2962fd590"
+$baselineProductionCommit = "2f0b617e56f7bcf3d71b5a258a48e0edead354d9"
 $baselineProductionTreeHash = "5" * 64
 $candidateProductionTreeHash = "6" * 64
 $baselineHash = "a" * 64
@@ -24,6 +24,11 @@ $candidateProfHash = "a" * 64
 $baselineProfmHash = "b" * 64
 $candidateProfmHash = "c" * 64
 $frameFixtureGlobalsOwned = $false
+$frameExperimentSchema = "nene-pixel-p4-indexed-frame-experiment-v5"
+$decisionWorkloadOrder = @("canvas16_tap", "canvas256_repeated_diagonal")
+$windowWorkload = "canvas256_repeated_diagonal_window_x2"
+$diagnosticWorkloadOrder = @($decisionWorkloadOrder + $windowWorkload)
+$comparisonOrderText = "decision:baseline|decision:candidate|diagnostic:baseline|diagnostic:candidate"
 
 New-Item -ItemType Directory -Path $temporaryRoot | Out-Null
 $experimentRoot = Join-Path $temporaryRoot "experiment"
@@ -292,25 +297,62 @@ function Write-State {
         [Parameter(Mandatory = $true)][int]$Attempt,
         [Parameter(Mandatory = $true)][string]$Status,
         [Parameter(Mandatory = $true)][string]$Verdict,
-        [Parameter(Mandatory = $true)][int]$MeasuredDownCount
+        [Parameter(Mandatory = $true)][int]$MeasuredDownCount,
+        [string]$Root = $experimentRoot,
+        [string]$ExperimentId = "offline-protocol-validation",
+        # The v5 collector writes complete_run=true only when every declared family was measured.
+        [bool]$CompleteRun = $true
     )
 
-    $directory = Join-Path $experimentRoot "$Slot-attempt-$Attempt"
+    # Experiment schema v5 (Lane 3, #120): slots 1-2 are decision slots over families 1-2 and slots 3-4
+    # are diagnostic slots over families 1-3 (the third is the x2 actual-size window family).
+    $sequence = [int]$Slot.Substring(5, 2)
+    $order = if ($sequence -le 2) { $decisionWorkloadOrder } else { $diagnosticWorkloadOrder }
+    $counts = [ordered]@{}
+    foreach ($workload in $order) { $counts[$workload] = $MeasuredDownCount }
+    $directory = Join-Path $Root "$Slot-attempt-$Attempt"
     New-Item -ItemType Directory -Path $directory -Force | Out-Null
     [ordered]@{
-        schema = "nene-pixel-p4-indexed-frame-experiment-v4"
-        experiment_id = "offline-protocol-validation"
-        comparison_sequence_index = [int]$Slot.Substring(5, 2)
+        schema = $frameExperimentSchema
+        experiment_id = $ExperimentId
+        comparison_sequence_index = $sequence
         attempt = $Attempt
         status = $Status
         verdict = $Verdict
-        workload_order = @("canvas16_tap", "canvas256_repeated_diagonal")
-        measured_workload_counts = [ordered]@{
-            canvas16_tap = $MeasuredDownCount
-            canvas256_repeated_diagonal = $MeasuredDownCount
-        }
-        measured_operation_count = $MeasuredDownCount * 2
+        complete_run = $CompleteRun
+        workload_order = $order
+        measured_workload_counts = $counts
+        measured_operation_count = $MeasuredDownCount * $order.Count
     } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $directory "run-state.json") -Encoding utf8NoBOM
+}
+
+function Initialize-FrameExperimentPrefix {
+    <#
+        The v5 fixed order runs the two decision slots before any diagnostic slot. A sampled diagnostic
+        fixture at sequence 3 therefore needs the experiment manifest (reserved by slot 1) and complete
+        run states for slots 1-2; this writes exactly those, without a device.
+    #>
+    param([Parameter(Mandatory = $true)][hashtable]$Arguments)
+
+    if ($null -ne (Get-Variable -Name neneFrameFixtureState -Scope Global -ErrorAction SilentlyContinue)) {
+        $global:neneFrameFixtureState.WindowShown = $false
+        $global:neneFrameFixtureState.WindowScale = 1
+    }
+    $reservation = $Arguments.Clone()
+    foreach ($key in @('InspectGeometryOnly', 'InspectionDirectory', 'ValidateArtifactOnly')) {
+        if ($reservation.ContainsKey($key)) { $reservation.Remove($key) }
+    }
+    $reservation.RunKind = 'decision'
+    $reservation.CandidateRole = 'baseline'
+    $reservation.ComparisonSequenceIndex = 1
+    $reservation.SampleCount = 50
+    $reservation.SourceCommit = $reservation.BaselineSourceCommit
+    $reservation.ValidateExperimentOnly = $true
+    & $collector @reservation | Out-Null
+    Write-State -Root $Arguments.ExperimentDirectory -ExperimentId $Arguments.ExperimentId `
+        -Slot 'slot-01-decision-baseline' -Attempt 1 -Status 'completed' -Verdict 'inconclusive' -MeasuredDownCount 50
+    Write-State -Root $Arguments.ExperimentDirectory -ExperimentId $Arguments.ExperimentId `
+        -Slot 'slot-02-decision-candidate' -Attempt 1 -Status 'completed' -Verdict 'inconclusive' -MeasuredDownCount 50
 }
 
 try {
@@ -350,10 +392,10 @@ try {
         Variant = "release-like"
         CompilationMode = "speed-profile"
         SourceCommit = $baselineCommit
-        RunKind = "diagnostic"
+        RunKind = "decision"
         CandidateRole = "baseline"
         ComparisonSequenceIndex = 1
-        SampleCount = 10
+        SampleCount = 50
     }
     Invoke-ExpectedFailure -Arguments $legacyInvocation
 
@@ -364,10 +406,10 @@ try {
         Variant = "release-like"
         CompilationMode = "speed-profile"
         SourceCommit = $baselineCommit
-        RunKind = "diagnostic"
+        RunKind = "decision"
         CandidateRole = "baseline"
         ComparisonSequenceIndex = 1
-        SampleCount = 10
+        SampleCount = 50
     }
     Invoke-ExpectedFailure -Arguments $missingAcceptance
 
@@ -386,10 +428,10 @@ try {
         Variant = "release-like"
         CompilationMode = "speed-profile"
         SourceCommit = $baselineCommit
-        RunKind = "diagnostic"
+        RunKind = "decision"
         CandidateRole = "baseline"
         ComparisonSequenceIndex = 1
-        SampleCount = 10
+        SampleCount = 50
     }
     Invoke-ExpectedFailure -Arguments $falseAcceptance
 
@@ -398,10 +440,10 @@ try {
         Variant = "release-like"
         CompilationMode = "speed-profile"
         SourceCommit = $baselineCommit
-        RunKind = "diagnostic"
+        RunKind = "decision"
         CandidateRole = "baseline"
         ComparisonSequenceIndex = 1
-        SampleCount = 10
+        SampleCount = 50
     }
     $modelValidation = @(& $collector @slot1)
     if (
@@ -415,16 +457,21 @@ try {
     $freshManifestPath = Join-Path $experimentRoot "experiment.json"
     $freshManifest = Get-Content -Raw -LiteralPath $freshManifestPath | ConvertFrom-Json
     if (
-        $freshManifest.schema -cne "nene-pixel-p4-indexed-frame-experiment-v4" -or
+        $freshManifest.schema -cne $frameExperimentSchema -or
         [int]$freshManifest.maximum_attempts_per_slot -ne 1 -or
         $freshManifest.replacement_rule -cne "none" -or
-        (@($freshManifest.workload_order) -join "|") -cne "canvas16_tap|canvas256_repeated_diagonal" -or
+        (@($freshManifest.comparison_order) -join "|") -cne $comparisonOrderText -or
+        (@($freshManifest.workload_order) -join "|") -cne ($decisionWorkloadOrder -join "|") -or
+        (@($freshManifest.diagnostic_workload_order) -join "|") -cne ($diagnosticWorkloadOrder -join "|") -or
+        $freshManifest.diagnostic_window_family.workload -cne $windowWorkload -or
+        $freshManifest.diagnostic_window_family.event_sequence_of -cne "canvas256_repeated_diagonal" -or
+        $freshManifest.diagnostic_window_family.window_scale -cne "x2" -or
         $freshManifest.geometry.id -cne "initial-fit-centered-v1" -or
         $freshManifest.baseline_production_commit -cne $baselineProductionCommit -or
         $freshManifest.candidate_production_commit -cne $candidateCommit -or
         $freshManifest.candidate_measurement_build_commit -cne $candidateCommit
     ) {
-        throw "A new v4 experiment did not publish its fixed attempts, workloads, geometry, and production/build identities."
+        throw "A new v5 experiment did not publish its fixed order, attempts, workloads, window family, geometry, and production/build identities."
     }
 
     $separateBaseline = $slot1.Clone()
@@ -432,21 +479,8 @@ try {
     $separateBaseline.ExperimentDirectory = Join-Path $temporaryRoot "separate-candidate-build"
     $separateBaseline.ExperimentId = "separate-candidate-build"
     Invoke-ExpectedPass -Arguments $separateBaseline
-    $separateStateDirectory = Join-Path $separateBaseline.ExperimentDirectory "slot-01-diagnostic-baseline-attempt-1"
-    New-Item -ItemType Directory -Path $separateStateDirectory -Force | Out-Null
-    Write-FixtureJson `
-        -Path (Join-Path $separateStateDirectory "run-state.json") `
-        -Value ([ordered]@{
-            schema = "nene-pixel-p4-indexed-frame-experiment-v4"
-            experiment_id = $separateBaseline.ExperimentId
-            comparison_sequence_index = 1
-            attempt = 1
-            status = "completed"
-            verdict = "inconclusive"
-            workload_order = @("canvas16_tap", "canvas256_repeated_diagonal")
-            measured_workload_counts = [ordered]@{ canvas16_tap = 10; canvas256_repeated_diagonal = 10 }
-            measured_operation_count = 20
-        })
+    Write-State -Root $separateBaseline.ExperimentDirectory -ExperimentId $separateBaseline.ExperimentId `
+        -Slot "slot-01-decision-baseline" -Attempt 1 -Status "completed" -Verdict "inconclusive" -MeasuredDownCount 50
     $separateCandidateBuild = $separateBaseline.Clone()
     $separateCandidateBuild.SourceCommit = $separateCandidateBuild.CandidateSourceCommit
     $separateCandidateBuild.CandidateRole = "candidate"
@@ -467,7 +501,7 @@ try {
     Invoke-ExpectedPass -Arguments $wrongGeometry
     $wrongGeometryManifest = Get-Content -Raw -LiteralPath (Join-Path $wrongGeometry.ExperimentDirectory "experiment.json") | ConvertFrom-Json
     if ($wrongGeometryManifest.geometry.baseline.canvas256_repeated_diagonal -cne "[0,0][1,1]") {
-        throw "The v4 manifest did not bind the supplied per-role/per-family surface geometry."
+        throw "The v5 manifest did not bind the supplied per-role/per-family surface geometry."
     }
 
     $historicalRoot = Join-Path $temporaryRoot "historical-v3-max-two"
@@ -548,7 +582,7 @@ try {
     $artifact.ExperimentId = "artifact-pass-validation"
     $artifact.RunKind = "diagnostic"
     $artifact.CandidateRole = "candidate"
-    $artifact.ComparisonSequenceIndex = 2
+    $artifact.ComparisonSequenceIndex = 4
     $artifact.SampleCount = 10
     $artifact.ValidateArtifactOnly = $true
     Invoke-ExpectedPass -Arguments $artifact
@@ -576,7 +610,7 @@ try {
     $preDeviceApkBytes = (Get-Item -LiteralPath $preDeviceApk).Length
     $preDevice.ExperimentDirectory = Join-Path $temporaryRoot 'pre-device-experiment'
     $preDevice.ExperimentId = 'pre-device-validation'
-    $preDevice.ComparisonSequenceIndex = 1
+    $preDevice.ComparisonSequenceIndex = 3
     $preDevice.CandidateRole = 'baseline'
     $preDevice.BaselineSourceCommit = $preDeviceSource
     $preDevice.BaselineApkSha256 = $preDeviceApkSha256
@@ -607,6 +641,8 @@ try {
         Commands = [System.Collections.Generic.List[string]]::new()
         CollisionPath = $null
         StayAwake = '0'
+        WindowShown = $false
+        WindowScale = 1
     }
     function global:Start-Sleep {
         param([int]$Milliseconds, [int]$Seconds)
@@ -642,6 +678,15 @@ try {
 <node resource-id="editor_create" bounds="[550,450][650,510]" />
 "@
             } else { '' }
+        # The x2 window family: the dock toggle is always present; the window and its scale chip exist only
+        # while the window is shown. The window stays clear of both repeated-diagonal input points.
+        $actualSizeWindow =
+            if ($global:neneFrameFixtureState.WindowShown) {
+                @"
+<node resource-id="editor_actual_size_window" content-desc="actual size x$($global:neneFrameFixtureState.WindowScale)" bounds="[1300,300][1800,800]" />
+<node resource-id="editor_actual_size_window_chip" bounds="[1600,820][1680,880]" />
+"@
+            } else { '' }
         return @"
 <hierarchy rotation="$rotation"><node bounds="[0,0][1920,1200]">
 <node resource-id="$dirtyIdentity" content-desc="文書の状態" text="$dirty" />
@@ -649,6 +694,8 @@ try {
 <node enabled="$redo"><node resource-id="editor_redo" text="やり直す" /></node>
 <node checked="true"><node resource-id="editor_pencil_tool" content-desc="鉛筆" /></node>
 <node resource-id="editor_file" bounds="[80,80][160,140]" />
+<node resource-id="editor_actual_size_window_toggle" bounds="[1700,80][1780,140]" />
+$actualSizeWindow
 $fileMenu
 $dialog
 <node resource-id="editor_canvas_${edge}_${edge}" content-desc="$edge by $edge pixel canvas" bounds="$canvasBounds" />
@@ -728,6 +775,17 @@ $dialog
                 $global:neneFrameFixtureState.InstallSeen = $true
                 return 'Success'
             }
+            # d14d78d: the collector reads the installed base APK back and compares its SHA-256.
+            '^shell pm path io\.github\.hideyukimori\.nenepixel$' {
+                'package:/data/app/~~fixture/io.github.hideyukimori.nenepixel-1/base.apk'
+                return
+            }
+            '^shell sha256sum /data/app/~~fixture/io\.github\.hideyukimori\.nenepixel-1/base\.apk$' {
+                $installedHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $global:neneFrameFixtureState.ExpectedApk).Hash.ToLowerInvariant()
+                if ($global:neneFrameFixtureState.Mode -eq 'installed-apk-mismatch') { $installedHash = 'e' * 64 }
+                "$installedHash  /data/app/~~fixture/io.github.hideyukimori.nenepixel-1/base.apk"
+                return
+            }
             '^shell am broadcast ' { 'Broadcast completed: result=1'; return }
             '^shell cmd package compile ' { 'Success'; return }
             '^shell dumpsys package dexopt$' {
@@ -769,6 +827,13 @@ $dialog
                 elseif ($x -eq 888) {
                     $global:neneFrameFixtureState.Committed = $false
                     $global:neneFrameFixtureState.RedoAvailable = $true
+                }
+                elseif ($x -eq 1740) {
+                    $global:neneFrameFixtureState.WindowShown = -not $global:neneFrameFixtureState.WindowShown
+                    $global:neneFrameFixtureState.WindowScale = 1
+                }
+                elseif ($x -eq 1640 -and $global:neneFrameFixtureState.WindowShown) {
+                    $global:neneFrameFixtureState.WindowScale += 1
                 }
                 else {
                     throw "The end-to-end fixture received an unexpected tap: $command"
@@ -885,7 +950,11 @@ $dialog
                     $(if (
                             $global:neneFrameFixtureState.Mode -eq 'first-family-gross' -and
                             $global:neneFrameFixtureState.CanvasEdge -eq 16
-                        ) { $base + 60000000L } else { $base + 10000000L }),
+                        ) { $base + 60000000L }
+                        elseif (
+                            $global:neneFrameFixtureState.Mode -eq 'first-family-slow' -and
+                            $global:neneFrameFixtureState.CanvasEdge -eq 16
+                        ) { $base + 20000000L } else { $base + 10000000L }),
                     ($base + 12000000L)
                 ) -join ','
                 $reportedTotal = if ($global:neneFrameFixtureState.Mode -eq 'ring-loss') { 2 } else { 1 }
@@ -955,6 +1024,7 @@ $dialog
         }
     }
     $endToEndOutput = @()
+    Initialize-FrameExperimentPrefix -Arguments $preDevice
     Push-Location $preDeviceRepository
     try {
         $endToEndOutput = @(& $collector @preDevice)
@@ -964,11 +1034,12 @@ $dialog
     }
     if (
         -not $global:neneFrameFixtureState.InstallSeen -or
-        $global:neneFrameFixtureState.Frame -ne 40 -or
-        $global:neneFrameFixtureState.FrameCaptureCount -ne 60 -or
-        $global:neneFrameFixtureState.MotionCount -ne 300
+        $global:neneFrameFixtureState.Frame -ne 60 -or
+        $global:neneFrameFixtureState.FrameCaptureCount -ne 90 -or
+        $global:neneFrameFixtureState.MotionCount -ne 570 -or
+        $global:neneFrameFixtureState.WindowShown
     ) {
-        throw 'The end-to-end path did not install the exact verified APK or retain the fixed two-family event and phase populations.'
+        throw 'The end-to-end path did not install the exact verified APK or retain the fixed three-family diagnostic event and phase populations.'
     }
     $successCommands = @($global:neneFrameFixtureState.Commands)
     if (@($successCommands | Where-Object { $_ -like 'shell pm clear *' }).Count -ne 0) {
@@ -980,7 +1051,8 @@ $dialog
         $expectedMotionCommands.Add('shell cmd input motionevent DOWN 705 632')
         $expectedMotionCommands.Add('shell cmd input motionevent UP 705 632')
     }
-    foreach ($operation in 1..15) {
+    # Family 3 (x2 window) repeats the exact repeated-diagonal sequence on the same 256 by 256 document.
+    foreach ($operation in 1..30) {
         $expectedMotionCommands.Add('shell cmd input motionevent DOWN 689.0625 616.0625')
         foreach ($move in 1..16) {
             if ($move % 2 -eq 1) {
@@ -1017,44 +1089,68 @@ $dialog
     ) {
         throw 'The end-to-end path changed the bounded clear-and-type dimension entry sequence.'
     }
+    if (
+        @($successCommands | Where-Object { $_ -ceq 'shell cmd input tap 1740 110' }).Count -ne 2 -or
+        @($successCommands | Where-Object { $_ -ceq 'shell cmd input tap 1640 850' }).Count -ne 1
+    ) {
+        throw 'The end-to-end path did not show the actual-size window, step it to x2, and hide it exactly once.'
+    }
     $preDeviceState = Get-Content -Raw -LiteralPath (
-        Join-Path $preDevice.ExperimentDirectory 'slot-01-diagnostic-baseline-attempt-1/run-state.json'
+        Join-Path $preDevice.ExperimentDirectory 'slot-03-diagnostic-baseline-attempt-1/run-state.json'
     ) | ConvertFrom-Json
     $preDeviceMetadata = Get-Content -LiteralPath (
-        Join-Path $preDevice.ExperimentDirectory 'slot-01-diagnostic-baseline-attempt-1/metadata.txt'
+        Join-Path $preDevice.ExperimentDirectory 'slot-03-diagnostic-baseline-attempt-1/metadata.txt'
     )
     $preDeviceFrames = @(Import-Csv -LiteralPath (
-        Join-Path $preDevice.ExperimentDirectory 'slot-01-diagnostic-baseline-attempt-1/frames.csv'
+        Join-Path $preDevice.ExperimentDirectory 'slot-03-diagnostic-baseline-attempt-1/frames.csv'
     ))
     $preDeviceSamples = @(Import-Csv -LiteralPath (
-        Join-Path $preDevice.ExperimentDirectory 'slot-01-diagnostic-baseline-attempt-1/samples.csv'
+        Join-Path $preDevice.ExperimentDirectory 'slot-03-diagnostic-baseline-attempt-1/samples.csv'
     ))
     if (
+        $preDeviceState.schema -cne $frameExperimentSchema -or
         $preDeviceState.status -ne 'completed' -or
         $preDeviceState.verdict -ne 'inconclusive' -or
-        (@($preDeviceState.workload_order) -join '|') -cne 'canvas16_tap|canvas256_repeated_diagonal' -or
+        $preDeviceState.complete_run -ne $true -or
+        (@($preDeviceState.workload_order) -join '|') -cne ($diagnosticWorkloadOrder -join '|') -or
         [int]$preDeviceState.measured_workload_counts.canvas16_tap -ne 10 -or
         [int]$preDeviceState.measured_workload_counts.canvas256_repeated_diagonal -ne 10 -or
-        [int]$preDeviceState.measured_operation_count -ne 20 -or
+        [int]$preDeviceState.measured_workload_counts.$windowWorkload -ne 10 -or
+        [int]$preDeviceState.measured_operation_count -ne 30 -or
+        "experiment_schema=$frameExperimentSchema" -notin $preDeviceMetadata -or
+        "comparison_order=$comparisonOrderText" -notin $preDeviceMetadata -or
+        'comparison_sequence_index=3' -notin $preDeviceMetadata -or
+        "workload_order=$($diagnosticWorkloadOrder -join '|')" -notin $preDeviceMetadata -or
+        'complete_run=true' -notin $preDeviceMetadata -or
+        'status=inconclusive' -notin $preDeviceMetadata -or
+        'threshold_status=inconclusive' -notin $preDeviceMetadata -or
+        "measured_$windowWorkload=10" -notin $preDeviceMetadata -or
+        'canvas16_tap_window_scale=none' -notin $preDeviceMetadata -or
+        'canvas256_repeated_diagonal_window_scale=none' -notin $preDeviceMetadata -or
+        "${windowWorkload}_window_scale=x2" -notin $preDeviceMetadata -or
+        "${windowWorkload}_window_bounds=[1300,300][1800,800]" -notin $preDeviceMetadata -or
+        @($diagnosticWorkloadOrder | Where-Object { "$($_)_threshold_status=measured" -notin $preDeviceMetadata }).Count -ne 0 -or
+        @($preDeviceMetadata | Where-Object { $_ -cmatch '_threshold_status=(pass|fail)$' }).Count -ne 0 -or
+        "installed_apk_sha256=$preDeviceApkSha256" -notin $preDeviceMetadata -or
         "apk_embedded_source_commit=$preDeviceSource" -notin $preDeviceMetadata -or
         "apk_bytes=$preDeviceApkBytes" -notin $preDeviceMetadata -or
         "apk_sha256=$preDeviceApkSha256" -notin $preDeviceMetadata -or
         "packaged_prof_sha256=$($preDevice.BaselinePackagedProfSha256)" -notin $preDeviceMetadata -or
         "packaged_profm_sha256=$($preDevice.BaselinePackagedProfmSha256)" -notin $preDeviceMetadata -or
         'samples_per_workload=10' -notin $preDeviceMetadata -or
-        'measured_operation_count=20' -notin $preDeviceMetadata -or
+        'measured_operation_count=30' -notin $preDeviceMetadata -or
         'measured_canvas16_tap=10' -notin $preDeviceMetadata -or
         'measured_canvas256_repeated_diagonal=10' -notin $preDeviceMetadata -or
         'geometry_id=initial-fit-centered-v1' -notin $preDeviceMetadata -or
-        'raw_frame_rows=40' -notin $preDeviceMetadata -or
+        'raw_frame_rows=60' -notin $preDeviceMetadata -or
         'limitation=app-issued gfxinfo framestats rows only; no strict SurfaceFlinger physical-present correlation; diagnostic results are never acceptance PASS' -notin $preDeviceMetadata -or
-        $preDeviceFrames.Count -ne 40 -or
-        $preDeviceSamples.Count -ne 20 -or
+        $preDeviceFrames.Count -ne 60 -or
+        $preDeviceSamples.Count -ne 30 -or
         'status=inconclusive' -notin $endToEndOutput
     ) {
         throw 'The host end-to-end fixture did not publish the typed artifact identity and final diagnostic verdict.'
     }
-    foreach ($workload in @('canvas16_tap', 'canvas256_repeated_diagonal')) {
+    foreach ($workload in $diagnosticWorkloadOrder) {
         $workloadFrames = @($preDeviceFrames | Where-Object { $_.workload -ceq $workload })
         $workloadSamples = @($preDeviceSamples | Where-Object { $_.workload -ceq $workload })
         if (
@@ -1072,8 +1168,8 @@ $dialog
             throw "The host end-to-end fixture did not retain the exact $workload row population and order."
         }
     }
-    $initialRotation = Get-Content -LiteralPath (Join-Path $preDevice.ExperimentDirectory 'slot-01-diagnostic-baseline-attempt-1/rotation-original.txt')
-    $restoredRotation = Get-Content -LiteralPath (Join-Path $preDevice.ExperimentDirectory 'slot-01-diagnostic-baseline-attempt-1/rotation-restore.txt')
+    $initialRotation = Get-Content -LiteralPath (Join-Path $preDevice.ExperimentDirectory 'slot-03-diagnostic-baseline-attempt-1/rotation-original.txt')
+    $restoredRotation = Get-Content -LiteralPath (Join-Path $preDevice.ExperimentDirectory 'slot-03-diagnostic-baseline-attempt-1/rotation-restore.txt')
     if (
         'mode=free' -notin $initialRotation -or
         'numeric_user_rotation=0' -notin $initialRotation -or
@@ -1107,6 +1203,7 @@ $dialog
     $global:neneFrameFixtureState.CurrentRotation = 0
     $global:neneFrameFixtureState.Commands = [System.Collections.Generic.List[string]]::new()
     $wrongDeviceGeometryError = $null
+    Initialize-FrameExperimentPrefix -Arguments $wrongDeviceGeometry
     Push-Location $preDeviceRepository
     try {
         & $collector @wrongDeviceGeometry | Out-Null
@@ -1118,7 +1215,7 @@ $dialog
         Pop-Location
     }
     $wrongDeviceGeometryState = Get-Content -Raw -LiteralPath (
-        Join-Path $wrongDeviceGeometry.ExperimentDirectory 'slot-01-diagnostic-baseline-attempt-1/run-state.json'
+        Join-Path $wrongDeviceGeometry.ExperimentDirectory 'slot-03-diagnostic-baseline-attempt-1/run-state.json'
     ) | ConvertFrom-Json
     if (
         $null -eq $wrongDeviceGeometryError -or
@@ -1181,7 +1278,7 @@ $dialog
         $failure = $preDevice.Clone()
         $failure.ExperimentDirectory = Join-Path $temporaryRoot "failure-evidence-$($failureCase.Name)"
         $failure.ExperimentId = "failure-evidence-$($failureCase.Name)"
-        $slotDirectory = Join-Path $failure.ExperimentDirectory 'slot-01-diagnostic-baseline-attempt-1'
+        $slotDirectory = Join-Path $failure.ExperimentDirectory 'slot-03-diagnostic-baseline-attempt-1'
         $global:neneFrameFixtureState.InstallSeen = $false
         $global:neneFrameFixtureState.Committed = $false
         $global:neneFrameFixtureState.Frame = 0
@@ -1198,6 +1295,7 @@ $dialog
         $global:neneFrameFixtureState.CollisionPath =
             Join-Path $slotDirectory 'raw/failure-latest-committed-result.xml'
         $failureError = $null
+        Initialize-FrameExperimentPrefix -Arguments $failure
         Push-Location $preDeviceRepository
         try {
             & $collector @failure | Out-Null
@@ -1320,6 +1418,7 @@ $dialog
         $global:neneFrameFixtureState.CurrentRotation = 0
         $global:neneFrameFixtureState.Commands = [System.Collections.Generic.List[string]]::new()
         $frameFailureError = $null
+        Initialize-FrameExperimentPrefix -Arguments $frameFailure
         Push-Location $preDeviceRepository
         try {
             & $collector @frameFailure | Out-Null
@@ -1331,7 +1430,7 @@ $dialog
             Pop-Location
         }
         $frameFailureState = Get-Content -Raw -LiteralPath (
-            Join-Path $frameFailure.ExperimentDirectory 'slot-01-diagnostic-baseline-attempt-1/run-state.json'
+            Join-Path $frameFailure.ExperimentDirectory 'slot-03-diagnostic-baseline-attempt-1/run-state.json'
         ) | ConvertFrom-Json
         if (
             $null -eq $frameFailureError -or
@@ -1361,7 +1460,7 @@ $dialog
         $earlyStop = $preDevice.Clone()
         $earlyStop.ExperimentDirectory = Join-Path $temporaryRoot "early-stop-$($earlyStopCase.Name)"
         $earlyStop.ExperimentId = "early-stop-$($earlyStopCase.Name)"
-        $slotDirectory = Join-Path $earlyStop.ExperimentDirectory 'slot-01-diagnostic-baseline-attempt-1'
+        $slotDirectory = Join-Path $earlyStop.ExperimentDirectory 'slot-03-diagnostic-baseline-attempt-1'
         $global:neneFrameFixtureState.InstallSeen = $false
         $global:neneFrameFixtureState.Committed = $false
         $global:neneFrameFixtureState.RedoAvailable = $false
@@ -1378,6 +1477,7 @@ $dialog
         $global:neneFrameFixtureState.Commands = [System.Collections.Generic.List[string]]::new()
         $earlyStopError = $null
         $earlyStopOutput = @()
+        Initialize-FrameExperimentPrefix -Arguments $earlyStop
         Push-Location $preDeviceRepository
         try {
             $earlyStopOutput = @(& $collector @earlyStop)
@@ -1404,6 +1504,8 @@ $dialog
             $earlyStopState.verdict -cne $earlyStopCase.ExpectedVerdict -or
             [int]$earlyStopState.measured_workload_counts.canvas16_tap -ne 10 -or
             [int]$earlyStopState.measured_workload_counts.canvas256_repeated_diagonal -ne 0 -or
+            [int]$earlyStopState.measured_workload_counts.$windowWorkload -ne 0 -or
+            $earlyStopState.complete_run -ne $false -or
             [int]$earlyStopState.measured_operation_count -ne 10 -or
             $earlyStopFrames.Count -ne 20 -or
             $earlyStopSamples.Count -ne 10 -or
@@ -1423,6 +1525,113 @@ $dialog
         }
     }
 
+    # Lane 3 revision: a decision slot has no fail-fast and no collector verdict. A first family whose
+    # overrun p95 would have failed the retired absolute gate (p95 <= 0 ms) is still followed by the
+    # second family, and the slot completes as `inconclusive` with complete_run; only the analyzer,
+    # against the decision baseline's analysis, turns the published statistics into pass/fail.
+    $decisionRun = $preDevice.Clone()
+    $decisionRun.ExperimentDirectory = Join-Path $temporaryRoot 'decision-no-fail-fast'
+    $decisionRun.ExperimentId = 'decision-no-fail-fast'
+    $decisionRun.RunKind = 'decision'
+    $decisionRun.CandidateRole = 'baseline'
+    $decisionRun.ComparisonSequenceIndex = 1
+    $decisionRun.SampleCount = 50
+    $global:neneFrameFixtureState.InstallSeen = $false
+    $global:neneFrameFixtureState.Committed = $false
+    $global:neneFrameFixtureState.RedoAvailable = $false
+    $global:neneFrameFixtureState.Frame = 0
+    $global:neneFrameFixtureState.FrameCaptureCount = 0
+    $global:neneFrameFixtureState.CurrentPhaseFrame = 0
+    $global:neneFrameFixtureState.MotionCount = 0
+    $global:neneFrameFixtureState.MeasuredStarted = $false
+    $global:neneFrameFixtureState.Mode = 'first-family-slow'
+    $global:neneFrameFixtureState.RotationMode = 'free'
+    $global:neneFrameFixtureState.NumericRotation = 0
+    $global:neneFrameFixtureState.CurrentRotation = 0
+    $global:neneFrameFixtureState.PinSeen = $false
+    $global:neneFrameFixtureState.WindowShown = $false
+    $global:neneFrameFixtureState.WindowScale = 1
+    $global:neneFrameFixtureState.Commands = [System.Collections.Generic.List[string]]::new()
+    $decisionOutput = @()
+    Push-Location $preDeviceRepository
+    try {
+        $decisionOutput = @(& $collector @decisionRun)
+    }
+    finally {
+        Pop-Location
+    }
+    $decisionSlot = Join-Path $decisionRun.ExperimentDirectory 'slot-01-decision-baseline-attempt-1'
+    $decisionState = Get-Content -Raw -LiteralPath (Join-Path $decisionSlot 'run-state.json') | ConvertFrom-Json
+    $decisionMetadata = Get-Content -LiteralPath (Join-Path $decisionSlot 'metadata.txt')
+    $decisionCommands = @($global:neneFrameFixtureState.Commands)
+    if (
+        $decisionState.schema -cne $frameExperimentSchema -or
+        $decisionState.status -cne 'completed' -or
+        $decisionState.verdict -cne 'inconclusive' -or
+        $decisionState.complete_run -ne $true -or
+        (@($decisionState.workload_order) -join '|') -cne ($decisionWorkloadOrder -join '|') -or
+        [int]$decisionState.measured_workload_counts.canvas16_tap -ne 50 -or
+        [int]$decisionState.measured_workload_counts.canvas256_repeated_diagonal -ne 50 -or
+        [int]$decisionState.measured_operation_count -ne 100 -or
+        $global:neneFrameFixtureState.Frame -ne 200 -or
+        'status=inconclusive' -notin $decisionOutput -or
+        'status=inconclusive' -notin $decisionMetadata -or
+        'threshold_status=inconclusive' -notin $decisionMetadata -or
+        'acceptance_lane=decision' -notin $decisionMetadata -or
+        'complete_run=true' -notin $decisionMetadata -or
+        'canvas16_tap_frame_overrun_p95_ms=3.333333' -notin $decisionMetadata -or
+        'canvas16_tap_threshold_status=measured' -notin $decisionMetadata -or
+        'canvas256_repeated_diagonal_threshold_status=measured' -notin $decisionMetadata -or
+        @($decisionMetadata | Where-Object { $_ -cmatch '^status=(pass|fail)$' -or $_ -cmatch '_threshold_status=(pass|fail)$' }).Count -ne 0 -or
+        @($decisionMetadata | Where-Object { $_.StartsWith($windowWorkload, [StringComparison]::Ordinal) -or
+                $_ -ceq "measured_$windowWorkload=0" }).Count -ne 0 -or
+        @($decisionCommands | Where-Object { $_ -ceq 'shell cmd input tap 1740 110' }).Count -ne 0
+    ) {
+        throw 'A decision slot stopped early, judged its own families, or measured the diagnostic window family.'
+    }
+
+    # The installed package, not the host file or -Variant, is the variant evidence (d14d78d).
+    $installedMismatch = $preDevice.Clone()
+    $installedMismatch.ExperimentDirectory = Join-Path $temporaryRoot 'installed-apk-mismatch'
+    $installedMismatch.ExperimentId = 'installed-apk-mismatch'
+    $global:neneFrameFixtureState.Committed = $false
+    $global:neneFrameFixtureState.RedoAvailable = $false
+    $global:neneFrameFixtureState.Frame = 0
+    $global:neneFrameFixtureState.FrameCaptureCount = 0
+    $global:neneFrameFixtureState.CurrentPhaseFrame = 0
+    $global:neneFrameFixtureState.MotionCount = 0
+    $global:neneFrameFixtureState.MeasuredStarted = $false
+    $global:neneFrameFixtureState.Mode = 'installed-apk-mismatch'
+    $global:neneFrameFixtureState.RotationMode = 'free'
+    $global:neneFrameFixtureState.NumericRotation = 0
+    $global:neneFrameFixtureState.CurrentRotation = 0
+    $global:neneFrameFixtureState.Commands = [System.Collections.Generic.List[string]]::new()
+    $installedMismatchError = $null
+    Initialize-FrameExperimentPrefix -Arguments $installedMismatch
+    Push-Location $preDeviceRepository
+    try {
+        & $collector @installedMismatch | Out-Null
+    }
+    catch {
+        $installedMismatchError = $_
+    }
+    finally {
+        Pop-Location
+    }
+    $installedMismatchState = Get-Content -Raw -LiteralPath (
+        Join-Path $installedMismatch.ExperimentDirectory 'slot-03-diagnostic-baseline-attempt-1/run-state.json'
+    ) | ConvertFrom-Json
+    if (
+        $null -eq $installedMismatchError -or
+        $installedMismatchError.Exception.Message -cne
+            'INVALID: the installed io.github.hideyukimori.nenepixel base APK is not the baseline release-like artifact.' -or
+        $installedMismatchState.status -notlike 'invalid*' -or
+        [int]$installedMismatchState.measured_operation_count -ne 0 -or
+        $global:neneFrameFixtureState.MotionCount -ne 0
+    ) {
+        throw 'A slot whose installed base APK differs from the release-like artifact was not refused before warmup.'
+    }
+
     $restoreFailure = $preDevice.Clone()
     $restoreFailure.ExperimentDirectory = Join-Path $temporaryRoot 'normal-restore-failure'
     $restoreFailure.ExperimentId = 'normal-restore-failure'
@@ -1440,6 +1649,7 @@ $dialog
     $global:neneFrameFixtureState.PinSeen = $false
     $global:neneFrameFixtureState.Commands = [System.Collections.Generic.List[string]]::new()
     $restoreFailureError = $null
+    Initialize-FrameExperimentPrefix -Arguments $restoreFailure
     Push-Location $preDeviceRepository
     try {
         & $collector @restoreFailure | Out-Null
@@ -1450,7 +1660,7 @@ $dialog
     finally {
         Pop-Location
     }
-    $restoreFailureSlot = Join-Path $restoreFailure.ExperimentDirectory 'slot-01-diagnostic-baseline-attempt-1'
+    $restoreFailureSlot = Join-Path $restoreFailure.ExperimentDirectory 'slot-03-diagnostic-baseline-attempt-1'
     $restoreFailureState = Get-Content -Raw -LiteralPath (Join-Path $restoreFailureSlot 'run-state.json') | ConvertFrom-Json
     if (
         $null -eq $restoreFailureError -or
@@ -1478,6 +1688,7 @@ $dialog
     $global:neneFrameFixtureState.CurrentRotation = 2
     $global:neneFrameFixtureState.PinSeen = $false
     $global:neneFrameFixtureState.Commands = [System.Collections.Generic.List[string]]::new()
+    Initialize-FrameExperimentPrefix -Arguments $lockedRestore
     Push-Location $preDeviceRepository
     try {
         $lockedOutput = @(& $collector @lockedRestore)
@@ -1485,7 +1696,7 @@ $dialog
     finally {
         Pop-Location
     }
-    $lockedRestoreLines = Get-Content -LiteralPath (Join-Path $lockedRestore.ExperimentDirectory 'slot-01-diagnostic-baseline-attempt-1/rotation-restore.txt')
+    $lockedRestoreLines = Get-Content -LiteralPath (Join-Path $lockedRestore.ExperimentDirectory 'slot-03-diagnostic-baseline-attempt-1/rotation-restore.txt')
     if (
         'status=inconclusive' -notin $lockedOutput -or
         'mode=locked' -notin $lockedRestoreLines -or
@@ -1732,6 +1943,7 @@ $dialog
     $sampledStayAwake.ExperimentId = 'unset-stay-awake-samples'
     Reset-NeneFrameFixtureForInspection
     $global:neneFrameFixtureState.StayAwake = 'null'
+    Initialize-FrameExperimentPrefix -Arguments $sampledStayAwake
     Push-Location $preDeviceRepository
     try {
         & $collector @sampledStayAwake | Out-Null
@@ -1783,22 +1995,28 @@ $dialog
         throw 'Rejected artifact-only validation must not create an experiment directory.'
     }
 
+    # Decision slots take 50 samples per family; a diagnostic sample count is refused at slot 1.
     $wrongCount = $slot1.Clone()
-    $wrongCount.SampleCount = 50
+    $wrongCount.SampleCount = 10
     Invoke-ExpectedFailure -Arguments $wrongCount
+    $diagnosticFirst = $slot1.Clone()
+    $diagnosticFirst.RunKind = "diagnostic"
+    $diagnosticFirst.SampleCount = 10
+    Invoke-ExpectedFailure -Arguments $diagnosticFirst
 
+    # v5 fixed order: decision:baseline, decision:candidate, diagnostic:baseline, diagnostic:candidate.
     $slot2 = $common.Clone()
     $slot2 += @{
         Variant = "release-like"
         CompilationMode = "speed-profile"
         SourceCommit = $candidateCommit
-        RunKind = "diagnostic"
+        RunKind = "decision"
         CandidateRole = "candidate"
         ComparisonSequenceIndex = 2
-        SampleCount = 10
+        SampleCount = 50
     }
     Invoke-ExpectedFailure -Arguments $slot2
-    $oldTapStateDirectory = Join-Path $experimentRoot 'slot-01-diagnostic-baseline-attempt-1'
+    $oldTapStateDirectory = Join-Path $experimentRoot 'slot-01-decision-baseline-attempt-1'
     New-Item -ItemType Directory -Path $oldTapStateDirectory -Force | Out-Null
     $oldTapStatePath = Join-Path $oldTapStateDirectory 'run-state.json'
     Write-FixtureJson `
@@ -1810,22 +2028,27 @@ $dialog
             attempt = 1
             status = 'completed'
             verdict = 'inconclusive'
-            measured_down_count = 10
+            measured_down_count = 50
         })
     $oldTapStateHash = (Get-FileHash -LiteralPath $oldTapStatePath -Algorithm SHA256).Hash.ToLowerInvariant()
     Invoke-ExpectedFailure -Arguments $slot2
     if ((Get-FileHash -LiteralPath $oldTapStatePath -Algorithm SHA256).Hash.ToLowerInvariant() -cne $oldTapStateHash) {
-        throw 'The rejected old tap-only run state was modified.'
+        throw 'The rejected old v4 run state was modified.'
     }
-    Write-State -Slot "slot-01-diagnostic-baseline" -Attempt 1 -Status "completed" -Verdict "inconclusive" -MeasuredDownCount 10
+    # The collector never judges a decision slot: slot 1 completes as inconclusive with complete_run,
+    # and that alone admits slot 2 (the analyzer owns baseline-recorded / pass / PERFORMANCE_FAIL).
+    Write-State -Slot "slot-01-decision-baseline" -Attempt 1 -Status "completed" -Verdict "inconclusive" `
+        -MeasuredDownCount 50 -CompleteRun $false
+    Invoke-ExpectedFailure -Arguments $slot2
+    Write-State -Slot "slot-01-decision-baseline" -Attempt 1 -Status "completed" -Verdict "inconclusive" -MeasuredDownCount 50
     Invoke-ExpectedPass -Arguments $slot2
 
-    $slot1StatePath = Join-Path $experimentRoot "slot-01-diagnostic-baseline-attempt-1/run-state.json"
+    $slot1StatePath = Join-Path $experimentRoot "slot-01-decision-baseline-attempt-1/run-state.json"
     $foreignState = Get-Content -Raw -LiteralPath $slot1StatePath | ConvertFrom-Json
     $foreignState.experiment_id = "foreign-experiment"
     $foreignState | ConvertTo-Json | Set-Content -LiteralPath $slot1StatePath -Encoding utf8NoBOM
     Invoke-ExpectedFailure -Arguments $slot2
-    Write-State -Slot "slot-01-diagnostic-baseline" -Attempt 1 -Status "completed" -Verdict "inconclusive" -MeasuredDownCount 10
+    Write-State -Slot "slot-01-decision-baseline" -Attempt 1 -Status "completed" -Verdict "inconclusive" -MeasuredDownCount 50
 
     $changedPair = $slot2.Clone()
     $changedPair.CandidateApkSha256 = "c" * 64
@@ -1834,39 +2057,49 @@ $dialog
     $slot2Attempt2 = $slot2.Clone()
     $slot2Attempt2.Attempt = 2
     Invoke-ExpectedFailure -Arguments $slot2Attempt2
-    Write-State -Slot "slot-02-diagnostic-candidate" -Attempt 1 -Status "invalid-before-samples" -Verdict "invalid" -MeasuredDownCount 0
+    Write-State -Slot "slot-02-decision-candidate" -Attempt 1 -Status "invalid-before-samples" -Verdict "invalid" `
+        -MeasuredDownCount 0 -CompleteRun $false
     Invoke-ExpectedFailure -Arguments $slot2Attempt2
-    if (Test-Path -LiteralPath (Join-Path $experimentRoot "slot-02-diagnostic-candidate-attempt-2")) {
+    if (Test-Path -LiteralPath (Join-Path $experimentRoot "slot-02-decision-candidate-attempt-2")) {
         throw "The max-one writer created attempt 2 output after rejecting the invocation."
     }
-    Write-State -Slot "slot-02-diagnostic-candidate" -Attempt 1 -Status "completed" -Verdict "inconclusive" -MeasuredDownCount 10
 
     $slot3 = $common.Clone()
     $slot3 += @{
         Variant = "release-like"
         CompilationMode = "speed-profile"
-        SourceCommit = $candidateCommit
-        RunKind = "decision"
-        CandidateRole = "candidate"
+        SourceCommit = $baselineCommit
+        RunKind = "diagnostic"
+        CandidateRole = "baseline"
         ComparisonSequenceIndex = 3
-        SampleCount = 50
+        SampleCount = 10
     }
+    # An invalid decision candidate stops the sequence; a completed one admits the diagnostic slots
+    # whatever the analyzer later decides (no collector pass gate, no fail-fast).
+    Invoke-ExpectedFailure -Arguments $slot3
+    Write-State -Slot "slot-02-decision-candidate" -Attempt 1 -Status "completed" -Verdict "inconclusive" -MeasuredDownCount 50
     Invoke-ExpectedPass -Arguments $slot3
-    Write-State -Slot "slot-03-decision-candidate" -Attempt 1 -Status "completed" -Verdict "fail" -MeasuredDownCount 50
 
     $slot4 = $common.Clone()
     $slot4 += @{
         Variant = "release-like"
         CompilationMode = "speed-profile"
-        SourceCommit = $baselineCommit
-        RunKind = "decision"
-        CandidateRole = "baseline"
+        SourceCommit = $candidateCommit
+        RunKind = "diagnostic"
+        CandidateRole = "candidate"
         ComparisonSequenceIndex = 4
-        SampleCount = 50
+        SampleCount = 10
     }
     Invoke-ExpectedFailure -Arguments $slot4
-    Write-State -Slot "slot-03-decision-candidate" -Attempt 1 -Status "completed" -Verdict "pass" -MeasuredDownCount 50
+    Write-State -Slot "slot-03-diagnostic-baseline" -Attempt 1 -Status "completed" -Verdict "gross-regression" `
+        -MeasuredDownCount 10 -CompleteRun $false
+    Invoke-ExpectedFailure -Arguments $slot4
+    Write-State -Slot "slot-03-diagnostic-baseline" -Attempt 1 -Status "completed" -Verdict "inconclusive" -MeasuredDownCount 10
     Invoke-ExpectedPass -Arguments $slot4
+    $slot4Decision = $slot4.Clone()
+    $slot4Decision.RunKind = "decision"
+    $slot4Decision.SampleCount = 50
+    Invoke-ExpectedFailure -Arguments $slot4Decision
 
     Write-Output "P4 indexed frame protocol state validation: PASS"
 }

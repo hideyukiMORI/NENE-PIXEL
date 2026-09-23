@@ -20,7 +20,14 @@ $candidateApk = 'b' * 64
 $fixtureExperimentId = 'offline-frame-analysis'
 $canvas16Bounds = '[688,615][1232,1159]'
 $canvas256Bounds = '[688,615][1232,1159]'
+# Lane 3 revision (#120, frame experiment schema v5): decision slots declare families 1-2 and diagnostic
+# slots declare families 1-3; the third family draws a x2 window on the canvas256 surface.
 $workloadOrder = @('canvas16_tap', 'canvas256_repeated_diagonal')
+$windowFamily = 'canvas256_repeated_diagonal_window_x2'
+$diagnosticOrder = @($workloadOrder + $windowFamily)
+$windowBounds = '[744,671][1176,1103]'
+$comparisonOrder = 'decision:baseline|decision:candidate|diagnostic:baseline|diagnostic:candidate'
+$experimentSchema = 'nene-pixel-p4-indexed-frame-experiment-v5'
 $applicationPackage = 'io.github.hideyukimori.nenepixel'
 $applicationTestPackage = 'io.github.hideyukimori.nenepixel.test'
 $publicationTestPackage = 'io.github.hideyukimori.nenepixel.adapters.persistence.test'
@@ -54,9 +61,14 @@ function New-P4FrameSlotFixture {
         [double]$InputMs = 20.0,
         [int]$ElevatedCommitCount = 0,
         [double]$ElevatedOverrunMs = 5.0,
-        [string]$StatusOverride = ''
+        [string]$StatusOverride = '',
+        # The declared slot order; by default decision declares families 1-2 and diagnostic families 1-3.
+        [string[]]$DeclaredOrder = @()
     )
 
+    if ($DeclaredOrder.Count -eq 0) {
+        $DeclaredOrder = if ($Runner -eq 'diagnostic') { $diagnosticOrder } else { $workloadOrder }
+    }
     $samplesPerFamily = if ($Runner -eq 'diagnostic') { 10 } else { 50 }
     $buildCommit = if ($Role -eq 'baseline') { $baselineCommit } else { $candidateCommit }
     $productionCommit = if ($Role -eq 'baseline') { $baselineProduction } else { $candidateProduction }
@@ -150,8 +162,10 @@ function New-P4FrameSlotFixture {
     $frames | Export-Csv -NoTypeInformation -Encoding utf8 -LiteralPath (Join-Path $slotDirectory 'frames.csv')
     $samples | Export-Csv -NoTypeInformation -Encoding utf8 -LiteralPath (Join-Path $slotDirectory 'samples.csv')
 
+    # The v5 collector never judges: it records every measured family's statistics with
+    # `threshold_status=measured`, its gross-regression flag, and the window scale (x2 plus the window
+    # bounds for the window family, `none` otherwise). Only the analyzer turns them into pass/fail.
     $familyMetadata = [Collections.Generic.List[string]]::new()
-    $allPassed = $Families.Count -eq $workloadOrder.Count
     $anyGross = $false
     foreach ($family in $Families) {
         $familyFrames = @($frames | Where-Object { $_.workload -ceq $family })
@@ -163,39 +177,45 @@ function New-P4FrameSlotFixture {
         $inputP95 = Get-P4FrameNearestRank -Values $inputs -Percentile 0.95
         $maximumOverrun = ($overruns | Measure-Object -Maximum).Maximum
         $maximumInput = ($inputs | Measure-Object -Maximum).Maximum
-        $passed = $p95 -le 0.0 -and $p99 -le 16.67 -and $inputP95 -le 33.33
         $gross = $maximumOverrun -gt 33.34 -or $maximumInput -gt 100.0
-        if (-not $passed) { $allPassed = $false }
         if ($gross) { $anyGross = $true }
+        if ($family -ceq $windowFamily) {
+            $familyMetadata.Add("${family}_window_scale=x2")
+            $familyMetadata.Add("${family}_window_bounds=$windowBounds")
+        }
+        else { $familyMetadata.Add("${family}_window_scale=none") }
         $familyMetadata.Add("${family}_frame_count=$($familyFrames.Count)")
         $familyMetadata.Add("${family}_frame_overrun_p95_ms=$(Format-P4FrameMetric $p95)")
         $familyMetadata.Add("${family}_frame_overrun_p99_ms=$(Format-P4FrameMetric $p99)")
         $familyMetadata.Add("${family}_input_to_committed_result_p95_ms=$(Format-P4FrameMetric $inputP95)")
         $familyMetadata.Add("${family}_maximum_frame_overrun_ms=$(Format-P4FrameMetric $maximumOverrun)")
         $familyMetadata.Add("${family}_maximum_input_to_committed_result_ms=$(Format-P4FrameMetric $maximumInput)")
-        $familyMetadata.Add("${family}_threshold_status=$(if ($passed) { 'pass' } else { 'fail' })")
+        $familyMetadata.Add("${family}_threshold_status=measured")
         $familyMetadata.Add("${family}_diagnostic_gross_regression=$(if ($gross) { 'true' } else { 'false' })")
     }
+    # The v5 collector writes `inconclusive` for every slot it completes; only a diagnostic gross
+    # regression is its own early stop. A decision family never stops the slot (no fail-fast).
     $status =
         if (-not [string]::IsNullOrEmpty($StatusOverride)) { $StatusOverride }
-        elseif ($Runner -eq 'decision') { if ($allPassed) { 'pass' } else { 'fail' } }
-        elseif ($anyGross) { 'gross-regression' }
+        elseif ($Runner -eq 'diagnostic' -and $anyGross) { 'gross-regression' }
         else { 'inconclusive' }
+    $completeRun = $Families.Count -eq $DeclaredOrder.Count
 
     $metadata = [Collections.Generic.List[string]]::new()
     @(
         "schema=nene-pixel-p4-indexed-actual-app-frame-v8",
-        "experiment_schema=nene-pixel-p4-indexed-frame-experiment-v4",
+        "experiment_schema=$experimentSchema",
         "experiment_id=$fixtureExperimentId",
         "status=$status",
         "acceptance_lane=$Runner",
+        "complete_run=$(if ($completeRun) { 'true' } else { 'false' })",
         "threshold_status=$status",
         "variant=release-like",
         "run_kind=$Runner",
         "candidate_role=$Role",
         "comparison_sequence_index=$SequenceIndex",
-        "comparison_order=diagnostic:baseline|diagnostic:candidate|decision:candidate|decision:baseline",
-        "workload_order=$($workloadOrder -join '|')",
+        "comparison_order=$comparisonOrder",
+        "workload_order=$($DeclaredOrder -join '|')",
         "input_injection=cmd-input-service-direct",
         "source_commit=$buildCommit",
         "production_commit=$productionCommit",
@@ -218,21 +238,25 @@ function New-P4FrameSlotFixture {
         "canvas16_tap_surface_bounds=$canvas16Bounds",
         "canvas256_repeated_diagonal_surface_bounds=$canvas256Bounds"
     ) | ForEach-Object { $metadata.Add($_) }
+    if ($DeclaredOrder -ccontains $windowFamily) {
+        $metadata.Add("measured_$windowFamily=$(@($samples | Where-Object { $_.workload -ceq $windowFamily }).Count)")
+    }
     $familyMetadata | ForEach-Object { $metadata.Add($_) }
     [IO.File]::WriteAllLines((Join-Path $slotDirectory 'metadata.txt'), $metadata)
 
     $measuredCounts = [ordered]@{}
-    foreach ($family in $workloadOrder) {
+    foreach ($family in $DeclaredOrder) {
         $measuredCounts[$family] = @($samples | Where-Object { $_.workload -ceq $family }).Count
     }
     [ordered]@{
-        schema = 'nene-pixel-p4-indexed-frame-experiment-v4'
+        schema = $experimentSchema
         experiment_id = $fixtureExperimentId
         comparison_sequence_index = $SequenceIndex
         attempt = 1
         status = 'completed'
         verdict = $status
-        workload_order = $workloadOrder
+        complete_run = $completeRun
+        workload_order = $DeclaredOrder
         measured_workload_counts = $measuredCounts
         measured_operation_count = $samples.Count
     } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $slotDirectory 'run-state.json') -Encoding utf8NoBOM
@@ -247,7 +271,10 @@ function Invoke-P4FrameFixtureAnalysis {
         [Parameter(Mandatory = $true)][int]$SequenceIndex,
         [string]$BuildCommit = '',
         [string]$ApkSha256 = '',
-        [string]$ExperimentId = ''
+        [string]$ExperimentId = '',
+        [string]$WindowSurfaceBounds = $canvas256Bounds,
+        # Decision candidate only (the analyzer exits 2 when it is missing or misplaced).
+        [string]$BaselineAnalysisPath = ''
     )
     if ([string]::IsNullOrEmpty($BuildCommit)) {
         $BuildCommit = if ($Role -eq 'baseline') { $baselineCommit } else { $candidateCommit }
@@ -258,8 +285,48 @@ function Invoke-P4FrameFixtureAnalysis {
     if ([string]::IsNullOrEmpty($ExperimentId)) { $ExperimentId = $fixtureExperimentId }
     return Test-P4FrameCapture -SlotDirectory $SlotDirectory -Role $Role -Runner $Runner `
         -SequenceIndex $SequenceIndex -BuildCommit $BuildCommit -ExpectedApkSha256 $ApkSha256 `
-        -ExpectedBounds ([ordered]@{ canvas16_tap = $canvas16Bounds; canvas256_repeated_diagonal = $canvas256Bounds }) `
-        -ExperimentId $ExperimentId
+        -ExpectedBounds ([ordered]@{ canvas16_tap = $canvas16Bounds; canvas256_repeated_diagonal = $canvas256Bounds
+            $windowFamily = $WindowSurfaceBounds }) `
+        -ExperimentId $ExperimentId -BaselineAnalysisPath $BaselineAnalysisPath
+}
+
+function Save-P4FrameAnalysis {
+    param(
+        [Parameter(Mandatory = $true)][System.Collections.IDictionary]$Analysis,
+        [Parameter(Mandatory = $true)][string]$Path
+    )
+    $Analysis | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $Path -Encoding utf8NoBOM
+    return $Path
+}
+
+function Invoke-P4FrameAnalyzerProcess {
+    <#
+        Runs Test-P4FrameCapture in a child pwsh so that the analyzer's `exit 2` (a decision candidate
+        without its baseline analysis, or a baseline path handed to any other slot) is observable.
+    #>
+    param(
+        [Parameter(Mandatory = $true)][string]$SlotDirectory,
+        [Parameter(Mandatory = $true)][string]$Role,
+        [Parameter(Mandatory = $true)][string]$Runner,
+        [Parameter(Mandatory = $true)][int]$SequenceIndex,
+        [string]$BaselineAnalysisPath = ''
+    )
+    $commit = if ($Role -eq 'baseline') { $baselineCommit } else { $candidateCommit }
+    $apk = if ($Role -eq 'baseline') { $baselineApk } else { $candidateApk }
+    $script = @"
+Set-StrictMode -Version Latest
+`$ErrorActionPreference = 'Stop'
+. '$((Join-Path $PSScriptRoot 'measurements/p4-indexed-frame-analysis.ps1') -replace "'", "''")'
+`$bounds = [ordered]@{ canvas16_tap = '$canvas16Bounds'; canvas256_repeated_diagonal = '$canvas256Bounds'; $windowFamily = '$canvas256Bounds' }
+Test-P4FrameCapture -SlotDirectory '$($SlotDirectory -replace "'", "''")' -Role '$Role' -Runner '$Runner' ``
+    -SequenceIndex $SequenceIndex -BuildCommit '$commit' -ExpectedApkSha256 '$apk' -ExpectedBounds `$bounds ``
+    -ExperimentId '$fixtureExperimentId' -BaselineAnalysisPath '$($BaselineAnalysisPath -replace "'", "''")' | Out-Null
+exit 0
+"@
+    $scriptPath = Join-Path $temporaryRoot ("analyzer-process-" + [guid]::NewGuid().ToString('N') + '.ps1')
+    Set-Content -LiteralPath $scriptPath -Value $script -Encoding utf8NoBOM
+    & (Get-Process -Id $PID).Path -NoProfile -NonInteractive -File $scriptPath 2>&1 | Out-Null
+    return $LASTEXITCODE
 }
 
 function Set-P4FrameMetadataLine {
@@ -353,18 +420,26 @@ function Get-P4CatalogSlot {
 
 try {
     # --- S6 frame analyzer -------------------------------------------------------------------------
+    # Fixed v5 order: 1 decision baseline, 2 decision candidate, 3 diagnostic baseline, 4 diagnostic candidate.
     $diagnosticPass = New-P4FrameSlotFixture -Name 'diagnostic-pass' -Role 'baseline' -Runner 'diagnostic' `
-        -SequenceIndex 1 -Families $workloadOrder
+        -SequenceIndex 3 -Families $diagnosticOrder
     $diagnosticResult = Invoke-P4FrameFixtureAnalysis -SlotDirectory $diagnosticPass -Role 'baseline' `
-        -Runner 'diagnostic' -SequenceIndex 1
+        -Runner 'diagnostic' -SequenceIndex 3
     if (
         $diagnosticResult.verdict -cne 'inconclusive' -or
+        $diagnosticResult.collector_status -cne 'inconclusive' -or
         $diagnosticResult.role -cne 'baseline' -or
         $diagnosticResult.schema -cne 'nene-pixel-p4-indexed-actual-app-frame-v8' -or
+        $diagnosticResult.experiment_schema -cne $experimentSchema -or
+        $diagnosticResult.verdict_rule -cne 'lane3-2026-09-23-relative' -or
         [int]$diagnosticResult.samples_per_workload -ne 10 -or
-        [int]$diagnosticResult.raw_frame_rows -ne 40 -or
-        $diagnosticResult.families.Count -ne 2 -or
+        [int]$diagnosticResult.raw_frame_rows -ne 60 -or
+        (@($diagnosticResult.families.Keys) -join '|') -cne ($diagnosticOrder -join '|') -or
+        -not $diagnosticResult.complete_run -or
         $diagnosticResult.families.canvas16_tap.threshold_status -cne 'pass' -or
+        $null -ne $diagnosticResult.families.$windowFamily.relative_status -or
+        $null -ne $diagnosticResult.baseline_analysis_path -or
+        $null -ne $diagnosticResult.failed_families -or
         @($diagnosticResult.frame_files).Count -lt 4
     ) {
         throw 'The diagnostic pass fixture did not produce the expected inconclusive frame analysis.'
@@ -375,42 +450,173 @@ try {
         }
     }
 
+    # Decision baseline (slot 1): the analyzer records the reference; there is no pass/fail yet.
+    $decisionBaseline = New-P4FrameSlotFixture -Name 'decision-baseline' -Role 'baseline' -Runner 'decision' `
+        -SequenceIndex 1 -Families $workloadOrder
+    $decisionBaselineResult = Invoke-P4FrameFixtureAnalysis -SlotDirectory $decisionBaseline -Role 'baseline' `
+        -Runner 'decision' -SequenceIndex 1
+    if (
+        $decisionBaselineResult.verdict -cne 'baseline-recorded' -or
+        $decisionBaselineResult.collector_status -cne 'inconclusive' -or
+        -not $decisionBaselineResult.complete_run -or
+        [int]$decisionBaselineResult.samples_per_workload -ne 50 -or
+        [int]$decisionBaselineResult.measured_operation_count -ne 100 -or
+        (@($decisionBaselineResult.families.Keys) -join '|') -cne ($workloadOrder -join '|') -or
+        $null -ne $decisionBaselineResult.failed_families -or
+        $null -ne $decisionBaselineResult.families.canvas16_tap.baseline_p95_ms
+    ) {
+        throw 'The decision baseline fixture did not record a baseline-recorded reference.'
+    }
+    $baselineAnalysisPath = Save-P4FrameAnalysis $decisionBaselineResult (Join-Path $temporaryRoot 'baseline-analysis.json')
+
+    $slowBaseline = New-P4FrameSlotFixture -Name 'decision-baseline-slow-input' -Role 'baseline' -Runner 'decision' `
+        -SequenceIndex 1 -Families $workloadOrder -InputMs 40.0
+    $slowBaselineResult = Invoke-P4FrameFixtureAnalysis -SlotDirectory $slowBaseline -Role 'baseline' `
+        -Runner 'decision' -SequenceIndex 1
+    if ($slowBaselineResult.verdict -cne 'baseline-invalid') {
+        throw 'A decision baseline over the input p95 gate did not become baseline-invalid.'
+    }
+    $invalidBaselinePath = Save-P4FrameAnalysis $slowBaselineResult (Join-Path $temporaryRoot 'baseline-invalid.json')
+
+    # Decision candidate (slot 2): pass/fail is relative to the slot-1 analysis, and only the analyzer owns it.
     $decisionPass = New-P4FrameSlotFixture -Name 'decision-pass' -Role 'candidate' -Runner 'decision' `
-        -SequenceIndex 3 -Families $workloadOrder
+        -SequenceIndex 2 -Families $workloadOrder
     $decisionResult = Invoke-P4FrameFixtureAnalysis -SlotDirectory $decisionPass -Role 'candidate' `
-        -Runner 'decision' -SequenceIndex 3
+        -Runner 'decision' -SequenceIndex 2 -BaselineAnalysisPath $baselineAnalysisPath
     if (
         $decisionResult.verdict -cne 'pass' -or
+        $decisionResult.collector_status -cne 'inconclusive' -or
         [int]$decisionResult.samples_per_workload -ne 50 -or
-        [int]$decisionResult.measured_operation_count -ne 100
+        [int]$decisionResult.measured_operation_count -ne 100 -or
+        $decisionResult.baseline_analysis_path -cne [IO.Path]::GetFullPath($baselineAnalysisPath) -or
+        @($decisionResult.failed_families).Count -ne 0 -or
+        $decisionResult.families.canvas16_tap.baseline_p95_ms -cne '-1.000000' -or
+        $decisionResult.families.canvas16_tap.p95_margin_ms -cne '0.000000' -or
+        $decisionResult.families.canvas256_repeated_diagonal.relative_status -cne 'pass'
     ) {
-        throw 'The decision pass fixture did not produce the expected passing frame analysis.'
+        throw 'The decision candidate fixture did not pass against an identical baseline.'
+    }
+
+    # The tolerance boundary is inclusive: p95 + 1.0 ms and p99 + 1.0 ms (<= 2.0 ms) still pass.
+    $decisionBoundary = New-P4FrameSlotFixture -Name 'decision-boundary' -Role 'candidate' -Runner 'decision' `
+        -SequenceIndex 2 -Families $workloadOrder -ElevatedCommitCount 100 -ElevatedOverrunMs 0.0
+    $decisionBoundaryResult = Invoke-P4FrameFixtureAnalysis -SlotDirectory $decisionBoundary -Role 'candidate' `
+        -Runner 'decision' -SequenceIndex 2 -BaselineAnalysisPath $baselineAnalysisPath
+    if (
+        $decisionBoundaryResult.verdict -cne 'pass' -or
+        $decisionBoundaryResult.families.canvas16_tap.p95_margin_ms -cne '1.000000'
+    ) {
+        throw 'A decision candidate exactly at the relative p95 tolerance did not pass.'
     }
 
     $decisionFail = New-P4FrameSlotFixture -Name 'decision-fail-p95' -Role 'candidate' -Runner 'decision' `
-        -SequenceIndex 3 -Families $workloadOrder -ElevatedCommitCount 20
+        -SequenceIndex 2 -Families $workloadOrder -ElevatedCommitCount 20
     $decisionFailResult = Invoke-P4FrameFixtureAnalysis -SlotDirectory $decisionFail -Role 'candidate' `
-        -Runner 'decision' -SequenceIndex 3
+        -Runner 'decision' -SequenceIndex 2 -BaselineAnalysisPath $baselineAnalysisPath
     if (
         $decisionFailResult.verdict -cne 'PERFORMANCE_FAIL' -or
+        $decisionFailResult.collector_status -cne 'inconclusive' -or
+        (@($decisionFailResult.failed_families) -join '|') -cne 'canvas16_tap' -or
+        $decisionFailResult.families.canvas16_tap.relative_status -cne 'fail' -or
         $decisionFailResult.families.canvas16_tap.threshold_status -cne 'fail' -or
+        $decisionFailResult.families.canvas256_repeated_diagonal.relative_status -cne 'pass' -or
         $decisionFailResult.families.canvas16_tap.gross_regression
     ) {
-        throw 'A decision p95 overrun miss did not become PERFORMANCE_FAIL.'
+        throw 'A decision p95 regression beyond the baseline tolerance did not become PERFORMANCE_FAIL.'
     }
 
+    # Every family is judged before the verdict: both regressions are listed.
+    $decisionFailBoth = New-P4FrameSlotFixture -Name 'decision-fail-both' -Role 'candidate' -Runner 'decision' `
+        -SequenceIndex 2 -Families $workloadOrder -ElevatedCommitCount 100
+    $decisionFailBothResult = Invoke-P4FrameFixtureAnalysis -SlotDirectory $decisionFailBoth -Role 'candidate' `
+        -Runner 'decision' -SequenceIndex 2 -BaselineAnalysisPath $baselineAnalysisPath
+    if ((@($decisionFailBothResult.failed_families) -join '|') -cne ($workloadOrder -join '|')) {
+        throw 'A decision candidate did not list every failed family.'
+    }
+
+    # The decision candidate requires a complete baseline-recorded analysis of the same experiment.
+    Assert-P4FrameRejects {
+        Invoke-P4FrameFixtureAnalysis -SlotDirectory $decisionPass -Role 'candidate' -Runner 'decision' `
+            -SequenceIndex 2 -BaselineAnalysisPath $invalidBaselinePath
+    } 'a baseline-invalid reference'
+    Assert-P4FrameRejects {
+        Invoke-P4FrameFixtureAnalysis -SlotDirectory $decisionPass -Role 'candidate' -Runner 'decision' `
+            -SequenceIndex 2 -BaselineAnalysisPath (Join-Path $temporaryRoot 'absent-baseline.json')
+    } 'an absent baseline analysis'
+    $foreignBaseline = Get-Content -Raw -LiteralPath $baselineAnalysisPath | ConvertFrom-Json -AsHashtable
+    $foreignBaseline.experiment_id = 'other-experiment'
+    $foreignBaselinePath = Save-P4FrameAnalysis $foreignBaseline (Join-Path $temporaryRoot 'baseline-foreign.json')
+    Assert-P4FrameRejects {
+        Invoke-P4FrameFixtureAnalysis -SlotDirectory $decisionPass -Role 'candidate' -Runner 'decision' `
+            -SequenceIndex 2 -BaselineAnalysisPath $foreignBaselinePath
+    } 'a baseline analysis from another experiment'
+    $diagnosticAsBaselinePath = Save-P4FrameAnalysis $diagnosticResult (Join-Path $temporaryRoot 'baseline-diagnostic.json')
+    Assert-P4FrameRejects {
+        Invoke-P4FrameFixtureAnalysis -SlotDirectory $decisionPass -Role 'candidate' -Runner 'decision' `
+            -SequenceIndex 2 -BaselineAnalysisPath $diagnosticAsBaselinePath
+    } 'a diagnostic analysis used as the decision baseline'
+    $missingBaselineExit = Invoke-P4FrameAnalyzerProcess -SlotDirectory $decisionPass -Role 'candidate' `
+        -Runner 'decision' -SequenceIndex 2
+    if ($missingBaselineExit -ne 2) {
+        throw "A decision candidate without its baseline analysis exited $missingBaselineExit instead of 2."
+    }
+    $misplacedBaselineExit = Invoke-P4FrameAnalyzerProcess -SlotDirectory $decisionBaseline -Role 'baseline' `
+        -Runner 'decision' -SequenceIndex 1 -BaselineAnalysisPath $baselineAnalysisPath
+    if ($misplacedBaselineExit -ne 2) {
+        throw "A decision baseline given a baseline analysis exited $misplacedBaselineExit instead of 2."
+    }
+    $acceptedProcessExit = Invoke-P4FrameAnalyzerProcess -SlotDirectory $decisionPass -Role 'candidate' `
+        -Runner 'decision' -SequenceIndex 2 -BaselineAnalysisPath $baselineAnalysisPath
+    if ($acceptedProcessExit -ne 0) {
+        throw "The child analyzer process rejected a valid decision candidate (exit $acceptedProcessExit)."
+    }
+
+    # The collector never judges: a per-family pass/fail it wrote would be refused.
+    $collectorJudged = New-P4FrameSlotFixture -Name 'collector-judged' -Role 'candidate' -Runner 'decision' `
+        -SequenceIndex 2 -Families $workloadOrder
+    Set-P4FrameMetadataLine -SlotDirectory $collectorJudged -Key 'canvas16_tap_threshold_status' -Value 'pass'
+    Assert-P4FrameRejects {
+        Invoke-P4FrameFixtureAnalysis -SlotDirectory $collectorJudged -Role 'candidate' -Runner 'decision' `
+            -SequenceIndex 2 -BaselineAnalysisPath $baselineAnalysisPath
+    } 'a collector-written per-family threshold verdict'
+
+    # A decision slot has no fail-fast: every decision family must be measured before the verdict.
+    $decisionShort = New-P4FrameSlotFixture -Name 'decision-short' -Role 'candidate' -Runner 'decision' `
+        -SequenceIndex 2 -Families @('canvas16_tap') -StatusOverride 'fail'
+    Assert-P4FrameRejects {
+        Invoke-P4FrameFixtureAnalysis -SlotDirectory $decisionShort -Role 'candidate' -Runner 'decision' `
+            -SequenceIndex 2 -BaselineAnalysisPath $baselineAnalysisPath
+    } 'a decision slot that stopped before its second family'
+
+    # v5 diagnostic slots declare all three families; the window family shares the canvas256 surface.
+    $twoFamilyDiagnostic = New-P4FrameSlotFixture -Name 'diagnostic-two-family' -Role 'candidate' `
+        -Runner 'diagnostic' -SequenceIndex 4 -Families $workloadOrder -DeclaredOrder $workloadOrder
+    Assert-P4FrameRejects {
+        Invoke-P4FrameFixtureAnalysis -SlotDirectory $twoFamilyDiagnostic -Role 'candidate' -Runner 'diagnostic' -SequenceIndex 4
+    } 'a diagnostic slot that declares only the decision families'
+    $windowBoundsDrift = New-P4FrameSlotFixture -Name 'window-bounds-drift' -Role 'candidate' `
+        -Runner 'diagnostic' -SequenceIndex 4 -Families $diagnosticOrder
+    Assert-P4FrameRejects {
+        Invoke-P4FrameFixtureAnalysis -SlotDirectory $windowBoundsDrift -Role 'candidate' -Runner 'diagnostic' `
+            -SequenceIndex 4 -WindowSurfaceBounds $windowBounds
+    } 'window family bounds other than the canvas256 surface'
+    Set-P4FrameMetadataLine -SlotDirectory $windowBoundsDrift -Key "${windowFamily}_threshold_status" -Value 'pass'
+    Assert-P4FrameRejects {
+        Invoke-P4FrameFixtureAnalysis -SlotDirectory $windowBoundsDrift -Role 'candidate' -Runner 'diagnostic' -SequenceIndex 4
+    } 'a collector-written window family verdict'
+
     $diagnosticFailP95 = New-P4FrameSlotFixture -Name 'diagnostic-fail-p95' -Role 'baseline' `
-        -Runner 'diagnostic' -SequenceIndex 1 -Families $workloadOrder -ElevatedCommitCount 5
+        -Runner 'diagnostic' -SequenceIndex 3 -Families $diagnosticOrder -ElevatedCommitCount 5
     $diagnosticFailP95Result = Invoke-P4FrameFixtureAnalysis -SlotDirectory $diagnosticFailP95 `
-        -Role 'baseline' -Runner 'diagnostic' -SequenceIndex 1
+        -Role 'baseline' -Runner 'diagnostic' -SequenceIndex 3
     if ($diagnosticFailP95Result.verdict -cne 'inconclusive') {
         throw 'A diagnostic slot without a gross regression must stay inconclusive.'
     }
 
     $grossDiagnostic = New-P4FrameSlotFixture -Name 'diagnostic-gross' -Role 'baseline' -Runner 'diagnostic' `
-        -SequenceIndex 1 -Families @('canvas16_tap') -ElevatedCommitCount 1 -ElevatedOverrunMs 40.0
+        -SequenceIndex 3 -Families @('canvas16_tap') -ElevatedCommitCount 1 -ElevatedOverrunMs 40.0
     $grossResult = Invoke-P4FrameFixtureAnalysis -SlotDirectory $grossDiagnostic -Role 'baseline' `
-        -Runner 'diagnostic' -SequenceIndex 1
+        -Runner 'diagnostic' -SequenceIndex 3
     if (
         $grossResult.verdict -cne 'PERFORMANCE_FAIL' -or
         $grossResult.complete_run -or
@@ -420,122 +626,122 @@ try {
     }
 
     $wrongRole = New-P4FrameSlotFixture -Name 'wrong-role' -Role 'candidate' -Runner 'diagnostic' `
-        -SequenceIndex 2 -Families $workloadOrder
+        -SequenceIndex 4 -Families $diagnosticOrder
     Set-P4FrameMetadataLine -SlotDirectory $wrongRole -Key 'candidate_role' -Value 'baseline'
     Assert-P4FrameRejects {
-        Invoke-P4FrameFixtureAnalysis -SlotDirectory $wrongRole -Role 'candidate' -Runner 'diagnostic' -SequenceIndex 2
+        Invoke-P4FrameFixtureAnalysis -SlotDirectory $wrongRole -Role 'candidate' -Runner 'diagnostic' -SequenceIndex 4
     } 'metadata role drift'
 
     $foreignDirectory = New-P4FrameSlotFixture -Name 'foreign-slot' -Role 'baseline' -Runner 'diagnostic' `
-        -SequenceIndex 1 -Families $workloadOrder
+        -SequenceIndex 3 -Families $diagnosticOrder
     Assert-P4FrameRejects {
-        Invoke-P4FrameFixtureAnalysis -SlotDirectory $foreignDirectory -Role 'candidate' -Runner 'diagnostic' -SequenceIndex 1
+        Invoke-P4FrameFixtureAnalysis -SlotDirectory $foreignDirectory -Role 'candidate' -Runner 'diagnostic' -SequenceIndex 3
     } 'foreign slot directory for the requested role'
 
     $missingFamily = New-P4FrameSlotFixture -Name 'missing-family' -Role 'baseline' -Runner 'diagnostic' `
-        -SequenceIndex 1 -Families @('canvas16_tap')
+        -SequenceIndex 3 -Families @('canvas16_tap')
     Assert-P4FrameRejects {
-        Invoke-P4FrameFixtureAnalysis -SlotDirectory $missingFamily -Role 'baseline' -Runner 'diagnostic' -SequenceIndex 1
+        Invoke-P4FrameFixtureAnalysis -SlotDirectory $missingFamily -Role 'baseline' -Runner 'diagnostic' -SequenceIndex 3
     } 'missing family without an early stop'
 
     $wrongOrderFamily = New-P4FrameSlotFixture -Name 'suffix-family' -Role 'baseline' -Runner 'diagnostic' `
-        -SequenceIndex 1 -Families @('canvas256_repeated_diagonal') -StatusOverride 'gross-regression'
+        -SequenceIndex 3 -Families @('canvas256_repeated_diagonal') -StatusOverride 'gross-regression'
     Assert-P4FrameRejects {
-        Invoke-P4FrameFixtureAnalysis -SlotDirectory $wrongOrderFamily -Role 'baseline' -Runner 'diagnostic' -SequenceIndex 1
+        Invoke-P4FrameFixtureAnalysis -SlotDirectory $wrongOrderFamily -Role 'baseline' -Runner 'diagnostic' -SequenceIndex 3
     } 'measured families outside the fixed workload prefix'
 
     $pooled = New-P4FrameSlotFixture -Name 'pooled-counts' -Role 'baseline' -Runner 'diagnostic' `
-        -SequenceIndex 1 -Families $workloadOrder
+        -SequenceIndex 3 -Families $diagnosticOrder
     $pooledFramesPath = Join-Path $pooled 'frames.csv'
     $pooledFrames = @(Import-Csv -LiteralPath $pooledFramesPath)
     $pooledFrames[20].workload = 'canvas16_tap'
     $pooledFrames | Export-Csv -NoTypeInformation -Encoding utf8 -LiteralPath $pooledFramesPath
     Assert-P4FrameRejects {
-        Invoke-P4FrameFixtureAnalysis -SlotDirectory $pooled -Role 'baseline' -Runner 'diagnostic' -SequenceIndex 1
+        Invoke-P4FrameFixtureAnalysis -SlotDirectory $pooled -Role 'baseline' -Runner 'diagnostic' -SequenceIndex 3
     } 'pooled frame rows across families'
 
     $shortFamily = New-P4FrameSlotFixture -Name 'short-family' -Role 'baseline' -Runner 'diagnostic' `
-        -SequenceIndex 1 -Families $workloadOrder
+        -SequenceIndex 3 -Families $diagnosticOrder
     Set-P4FrameMetadataLine -SlotDirectory $shortFamily -Key 'measured_canvas16_tap' -Value '9'
     Assert-P4FrameRejects {
-        Invoke-P4FrameFixtureAnalysis -SlotDirectory $shortFamily -Role 'baseline' -Runner 'diagnostic' -SequenceIndex 1
+        Invoke-P4FrameFixtureAnalysis -SlotDirectory $shortFamily -Role 'baseline' -Runner 'diagnostic' -SequenceIndex 3
     } 'measured family count drift'
 
     $disagreement = New-P4FrameSlotFixture -Name 'metadata-disagreement' -Role 'baseline' -Runner 'diagnostic' `
-        -SequenceIndex 1 -Families $workloadOrder
+        -SequenceIndex 3 -Families $diagnosticOrder
     Set-P4FrameMetadataLine -SlotDirectory $disagreement -Key 'canvas16_tap_frame_overrun_p95_ms' -Value '0.000000'
     Assert-P4FrameRejects {
-        Invoke-P4FrameFixtureAnalysis -SlotDirectory $disagreement -Role 'baseline' -Runner 'diagnostic' -SequenceIndex 1
+        Invoke-P4FrameFixtureAnalysis -SlotDirectory $disagreement -Role 'baseline' -Runner 'diagnostic' -SequenceIndex 3
     } 'metadata percentile disagreeing with the raw rows'
 
     $inputDisagreement = New-P4FrameSlotFixture -Name 'input-disagreement' -Role 'baseline' -Runner 'diagnostic' `
-        -SequenceIndex 1 -Families $workloadOrder
+        -SequenceIndex 3 -Families $diagnosticOrder
     $inputSamplesPath = Join-Path $inputDisagreement 'samples.csv'
     $inputSamples = @(Import-Csv -LiteralPath $inputSamplesPath)
     $inputSamples[0].input_to_committed_result_ms = '19'
     $inputSamples | Export-Csv -NoTypeInformation -Encoding utf8 -LiteralPath $inputSamplesPath
     Assert-P4FrameRejects {
-        Invoke-P4FrameFixtureAnalysis -SlotDirectory $inputDisagreement -Role 'baseline' -Runner 'diagnostic' -SequenceIndex 1
+        Invoke-P4FrameFixtureAnalysis -SlotDirectory $inputDisagreement -Role 'baseline' -Runner 'diagnostic' -SequenceIndex 3
     } 'published committed-result latency disagreeing with the raw commit frames'
 
     $fatal = New-P4FrameSlotFixture -Name 'fatal-match' -Role 'baseline' -Runner 'diagnostic' `
-        -SequenceIndex 1 -Families $workloadOrder
+        -SequenceIndex 3 -Families $diagnosticOrder
     Set-P4FrameMetadataLine -SlotDirectory $fatal -Key 'fatal_anr_matches' -Value '1'
     Assert-P4FrameRejects {
-        Invoke-P4FrameFixtureAnalysis -SlotDirectory $fatal -Role 'baseline' -Runner 'diagnostic' -SequenceIndex 1
+        Invoke-P4FrameFixtureAnalysis -SlotDirectory $fatal -Role 'baseline' -Runner 'diagnostic' -SequenceIndex 3
     } 'fatal or ANR evidence'
 
     $wrongApk = New-P4FrameSlotFixture -Name 'wrong-apk' -Role 'baseline' -Runner 'diagnostic' `
-        -SequenceIndex 1 -Families $workloadOrder
+        -SequenceIndex 3 -Families $diagnosticOrder
     Assert-P4FrameRejects {
         Invoke-P4FrameFixtureAnalysis -SlotDirectory $wrongApk -Role 'baseline' -Runner 'diagnostic' `
-            -SequenceIndex 1 -ApkSha256 ('9' * 64)
+            -SequenceIndex 3 -ApkSha256 ('9' * 64)
     } 'APK identity drift'
     Assert-P4FrameRejects {
         Invoke-P4FrameFixtureAnalysis -SlotDirectory $wrongApk -Role 'baseline' -Runner 'diagnostic' `
-            -SequenceIndex 1 -BuildCommit ('4' * 40)
+            -SequenceIndex 3 -BuildCommit ('4' * 40)
     } 'measurement build commit drift'
     Assert-P4FrameRejects {
         Invoke-P4FrameFixtureAnalysis -SlotDirectory $wrongApk -Role 'baseline' -Runner 'diagnostic' `
-            -SequenceIndex 1 -ExperimentId 'other-experiment'
+            -SequenceIndex 3 -ExperimentId 'other-experiment'
     } 'experiment identity drift'
 
     $incomplete = New-P4FrameSlotFixture -Name 'incomplete-run-state' -Role 'baseline' -Runner 'diagnostic' `
-        -SequenceIndex 1 -Families $workloadOrder
+        -SequenceIndex 3 -Families $diagnosticOrder
     $incompleteStatePath = Join-Path $incomplete 'run-state.json'
     $incompleteState = Get-Content -Raw -LiteralPath $incompleteStatePath | ConvertFrom-Json
     $incompleteState.status = 'invalid-after-samples'
     $incompleteState | ConvertTo-Json | Set-Content -LiteralPath $incompleteStatePath -Encoding utf8NoBOM
     Assert-P4FrameRejects {
-        Invoke-P4FrameFixtureAnalysis -SlotDirectory $incomplete -Role 'baseline' -Runner 'diagnostic' -SequenceIndex 1
+        Invoke-P4FrameFixtureAnalysis -SlotDirectory $incomplete -Role 'baseline' -Runner 'diagnostic' -SequenceIndex 3
     } 'run state that never completed'
 
     $wrongBounds = New-P4FrameSlotFixture -Name 'wrong-bounds' -Role 'baseline' -Runner 'diagnostic' `
-        -SequenceIndex 1 -Families $workloadOrder
+        -SequenceIndex 3 -Families $diagnosticOrder
     Set-P4FrameMetadataLine -SlotDirectory $wrongBounds -Key 'canvas256_repeated_diagonal_surface_bounds' `
         -Value '[689,615][1232,1159]'
     Assert-P4FrameRejects {
-        Invoke-P4FrameFixtureAnalysis -SlotDirectory $wrongBounds -Role 'baseline' -Runner 'diagnostic' -SequenceIndex 1
+        Invoke-P4FrameFixtureAnalysis -SlotDirectory $wrongBounds -Role 'baseline' -Runner 'diagnostic' -SequenceIndex 3
     } 'pinned surface geometry drift'
 
     $flagged = New-P4FrameSlotFixture -Name 'flagged-row' -Role 'baseline' -Runner 'diagnostic' `
-        -SequenceIndex 1 -Families $workloadOrder
+        -SequenceIndex 3 -Families $diagnosticOrder
     $flaggedPath = Join-Path $flagged 'frames.csv'
     $flaggedRows = @(Import-Csv -LiteralPath $flaggedPath)
     $flaggedRows[0].flags = '1'
     $flaggedRows | Export-Csv -NoTypeInformation -Encoding utf8 -LiteralPath $flaggedPath
     Assert-P4FrameRejects {
-        Invoke-P4FrameFixtureAnalysis -SlotDirectory $flagged -Role 'baseline' -Runner 'diagnostic' -SequenceIndex 1
+        Invoke-P4FrameFixtureAnalysis -SlotDirectory $flagged -Role 'baseline' -Runner 'diagnostic' -SequenceIndex 3
     } 'a flagged frame row'
 
     $duplicateVsync = New-P4FrameSlotFixture -Name 'duplicate-vsync' -Role 'baseline' -Runner 'diagnostic' `
-        -SequenceIndex 1 -Families $workloadOrder
+        -SequenceIndex 3 -Families $diagnosticOrder
     $duplicatePath = Join-Path $duplicateVsync 'frames.csv'
     $duplicateRows = @(Import-Csv -LiteralPath $duplicatePath)
     $duplicateRows[1].frame_timeline_vsync_id = $duplicateRows[0].frame_timeline_vsync_id
     $duplicateRows | Export-Csv -NoTypeInformation -Encoding utf8 -LiteralPath $duplicatePath
     Assert-P4FrameRejects {
-        Invoke-P4FrameFixtureAnalysis -SlotDirectory $duplicateVsync -Role 'baseline' -Runner 'diagnostic' -SequenceIndex 1
+        Invoke-P4FrameFixtureAnalysis -SlotDirectory $duplicateVsync -Role 'baseline' -Runner 'diagnostic' -SequenceIndex 3
     } 'a repeated FrameTimeline vsync identity'
 
     # --- S5 device-lane argument assembly (dry run, no device) --------------------------------------
@@ -719,14 +925,14 @@ try {
         throw 'A publication APK that targets the application did not also install the application.'
     }
 
-    $framePlan = Get-P4DeviceLanePlan -Manifest $laneManifest -Slot (Get-P4CatalogSlot 'frame-3-candidate-decision')
+    $framePlan = Get-P4DeviceLanePlan -Manifest $laneManifest -Slot (Get-P4CatalogSlot 'frame-2-candidate-decision')
     $frameParameters = $framePlan.frame_parameters
     if (
         $frameParameters.Variant -cne 'release-like' -or
         $frameParameters.CompilationMode -cne 'speed-profile' -or
         $frameParameters.RunKind -cne 'decision' -or
         $frameParameters.CandidateRole -cne 'candidate' -or
-        [int]$frameParameters.ComparisonSequenceIndex -ne 3 -or
+        [int]$frameParameters.ComparisonSequenceIndex -ne 2 -or
         [int]$frameParameters.Attempt -ne 1 -or
         [int]$frameParameters.SampleCount -ne 50 -or
         $frameParameters.ExperimentId -cne $fixtureExperimentId -or
@@ -735,20 +941,23 @@ try {
         $frameParameters.CandidateApkSha256 -cne $candidateApk -or
         $frameParameters.BaselineCanvas16SurfaceBounds -cne $canvas16Bounds -or
         $frameParameters.DeviceSerial -cne 'FIXTURESERIAL' -or
-        (Split-Path -Leaf $framePlan.frame_slot_directory) -cne 'slot-03-decision-candidate-attempt-1' -or
-        @($framePlan.install_kinds).Count -ne 0
+        (Split-Path -Leaf $framePlan.frame_slot_directory) -cne 'slot-02-decision-candidate-attempt-1' -or
+        # d14d78d: the frame slot measures only the role's release-like artifact.
+        (@($framePlan.install_kinds) -join '|') -cne 'app_release_like'
     ) {
         throw 'The frame lane assembled a different measure-m2-frame.ps1 invocation than the manifest declares.'
     }
     # protocol:362-374 - the frame collector derives no budget of its own: it keeps `timeout_seconds`
-    # as the wrapper bound. Under v5 that `timeout_seconds` is itself derived from the operation count
-    # by Get-P4FrameWrapperBound, so a decision slot is 300 + 15 * (2 * (5 + 50)) = 1950 s. The literal
-    # is deliberate: a change to the setup or per-operation allowance has to be made here too.
+    # as the wrapper bound. Under the Lane 3 revision (#120) that `timeout_seconds` is itself derived
+    # from the operation count by Get-P4FrameWrapperBound: a decision slot measures 2 families, so
+    # 300 + 15 * (2 * (5 + 50)) = 1950 s, and a diagnostic slot measures 3 families, so
+    # 300 + 15 * (3 * (5 + 10)) = 975 s. The literals are deliberate: a change to the setup or
+    # per-operation allowance has to be made here too.
     if (
         [bool]$framePlan.collector_budget.derived -or
         [int]$framePlan.collector_timeout_seconds -ne 1950 -or
         [int]$framePlan.timeout_seconds -ne 1950 -or
-        [int]$framePlan.timeout_seconds -ne (Get-P4FrameWrapperBound -Warmups 5 -Samples 50) -or
+        [int]$framePlan.timeout_seconds -ne (Get-P4FrameWrapperBound -Families 2 -Warmups 5 -Samples 50) -or
         [int]$framePlan.collector_budget.collector_timeout_seconds -ne [int]$framePlan.timeout_seconds -or
         # Declared on every lane skeleton (StrictMode reads it unconditionally) but never filled in here.
         -not $framePlan.Contains('private_file_quarantine') -or
@@ -756,6 +965,20 @@ try {
         [int]$framePlan.collector_budget.cap_seconds -ne 3600
     ) {
         throw 'The frame lane must keep its protocol slot timeout as the wrapper bound.'
+    }
+    $diagnosticFramePlan =
+        Get-P4DeviceLanePlan -Manifest $laneManifest -Slot (Get-P4CatalogSlot 'frame-4-candidate-diagnostic')
+    if (
+        $diagnosticFramePlan.frame_parameters.RunKind -cne 'diagnostic' -or
+        $diagnosticFramePlan.frame_parameters.CandidateRole -cne 'candidate' -or
+        [int]$diagnosticFramePlan.frame_parameters.ComparisonSequenceIndex -ne 4 -or
+        [int]$diagnosticFramePlan.frame_parameters.SampleCount -ne 10 -or
+        (Split-Path -Leaf $diagnosticFramePlan.frame_slot_directory) -cne 'slot-04-diagnostic-candidate-attempt-1' -or
+        [int]$diagnosticFramePlan.timeout_seconds -ne 975 -or
+        [int]$diagnosticFramePlan.collector_timeout_seconds -ne 975 -or
+        [int]$diagnosticFramePlan.timeout_seconds -ne (Get-P4FrameWrapperBound -Families 3 -Warmups 5 -Samples 10)
+    ) {
+        throw 'The diagnostic frame lane must measure three families under its 975 s wrapper bound.'
     }
     $collectorParameters = @((Get-Command (Join-Path $PSScriptRoot 'measurements/measure-m2-frame.ps1')).Parameters.Keys)
     foreach ($name in $frameParameters.Keys) {
@@ -782,16 +1005,16 @@ try {
         $candidateQuarantine.source_directory -cne 'no_backup' -or
         (@($candidateQuarantine.live_names) -join '|') -cne $expectedLiveNames -or
         $candidateQuarantine.quarantine_path -cne
-            "no_backup/p4-quarantine/$fixtureExperimentId/frame-3-candidate-decision"
+            "no_backup/p4-quarantine/$fixtureExperimentId/frame-2-candidate-decision"
     ) {
         throw 'The frame lane did not plan the fixed per-slot recovery quarantine.'
     }
-    $baselineFramePlan = Get-P4DeviceLanePlan -Manifest $laneManifest -Slot (Get-P4CatalogSlot 'frame-4-baseline-decision')
+    $baselineFramePlan = Get-P4DeviceLanePlan -Manifest $laneManifest -Slot (Get-P4CatalogSlot 'frame-1-baseline-decision')
     $baselineQuarantine = $baselineFramePlan.recovery_quarantine
     if (
         $baselineQuarantine.package -cne $applicationPackage -or
         $baselineQuarantine.quarantine_path -cne
-            "no_backup/p4-quarantine/$fixtureExperimentId/frame-4-baseline-decision" -or
+            "no_backup/p4-quarantine/$fixtureExperimentId/frame-1-baseline-decision" -or
         $baselineQuarantine.quarantine_path -ceq $candidateQuarantine.quarantine_path
     ) {
         throw 'Each frame slot must quarantine into its own directory under the experiment.'
@@ -811,7 +1034,7 @@ try {
     $badExperiment = New-P4LaneManifest
     $badExperiment.experiment_id = 'Not A Valid Id'
     Assert-P4FrameRejects {
-        Get-P4RecoveryQuarantinePlan -Manifest $badExperiment -Role 'baseline' -SlotId 'frame-4-baseline-decision'
+        Get-P4RecoveryQuarantinePlan -Manifest $badExperiment -Role 'baseline' -SlotId 'frame-1-baseline-decision'
     } 'a quarantine path built from an unconstrained experiment identity'
     Assert-P4FrameRejects {
         Get-P4RecoveryQuarantinePlan -Manifest $laneManifest -Role 'baseline' -SlotId '../escape'
@@ -870,7 +1093,7 @@ try {
     $missingExperiment = New-P4LaneManifest
     $missingExperiment.frame_experiment.stop_conditions = ''
     Assert-P4FrameRejects {
-        Get-P4DeviceLanePlan -Manifest $missingExperiment -Slot (Get-P4CatalogSlot 'frame-1-baseline-diagnostic')
+        Get-P4DeviceLanePlan -Manifest $missingExperiment -Slot (Get-P4CatalogSlot 'frame-3-baseline-diagnostic')
     } 'an incomplete frame experiment declaration'
 
     Assert-P4FrameRejects {
