@@ -7,12 +7,12 @@ import io.github.hideyukimori.nenepixel.core.application.document.command.Docume
 import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryPosition
 import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveProjection
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationProjection
-import io.github.hideyukimori.nenepixel.core.application.workspace.BeginPaletteEdit
 import io.github.hideyukimori.nenepixel.core.application.workspace.ReconcileDocumentPalette
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceAction
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceActionRejection
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReducer
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReductionResult
+import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceState
 import io.github.hideyukimori.nenepixel.core.application.workspace.isAllowedDuringPaletteSession
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentId
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
@@ -41,6 +41,7 @@ public class EditorRuntime private constructor(
     internal val switchOperations: RuntimeSwitchOperations = RuntimeSwitchOperations(this)
     internal val autosaveOperations: RuntimeAutosaveOperations = RuntimeAutosaveOperations(this)
     internal val recoveryOperations: RuntimeRecoveryOperations = RuntimeRecoveryOperations(this)
+    public val paletteOperations: RuntimePaletteOperations = RuntimePaletteOperations(this)
 
     public val state: EditorRuntimeState
         get() = synchronized(runtimeLock) { owners.toState() }
@@ -78,24 +79,6 @@ public class EditorRuntime private constructor(
                 )
             } else {
                 reduceWorkspaceLocked(action)
-            }
-        }
-
-    /** Opens a palette draft from the runtime's own source token and document definition (ADR 0022). */
-    public fun beginPaletteEdit(): WorkspaceReductionResult =
-        synchronized(runtimeLock) {
-            if (coordination.activeOperation.isSwitching()) {
-                WorkspaceReductionResult.Rejected(
-                    owners.workspaceState,
-                    WorkspaceActionRejection.PersistenceBusy,
-                )
-            } else {
-                reduceWorkspaceLocked(
-                    BeginPaletteEdit(
-                        owners.sourceToken(coordination.runtimeGeneration),
-                        owners.commandGateway.runtimeState.documentState.definition,
-                    ),
-                )
             }
         }
 
@@ -196,6 +179,14 @@ public class EditorRuntime private constructor(
         fun documentId(): DocumentId = owners.documentId()
 
         fun paletteSessionActive(): Boolean = owners.workspaceState.paletteEditSession != null
+
+        fun workspaceState(): WorkspaceState = owners.workspaceState
+
+        /** Reduces inside the lock without the `reduce` gate; callers own the admission decision. */
+        fun reduceWorkspace(action: WorkspaceAction): WorkspaceReductionResult = reduceWorkspaceLocked(action)
+
+        /** Executes inside the lock without the `execute` gate; callers own the admission decision. */
+        fun executeCommand(command: DocumentCommand): CommandResult = executeLocked(command)
 
         fun switchContext(): SwitchContext {
             val definition = documentState().definition

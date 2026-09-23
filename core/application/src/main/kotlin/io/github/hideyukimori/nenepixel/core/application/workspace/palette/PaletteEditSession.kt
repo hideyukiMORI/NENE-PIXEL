@@ -7,6 +7,7 @@ import io.github.hideyukimori.nenepixel.core.application.editor.RuntimeSourceTok
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceActionRejection
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteRemap
+import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 
 /**
  * The ephemeral palette draft and its draft-only history (ADR 0022). It owns no document state and no document history;
@@ -41,6 +42,40 @@ public class PaletteEditSession private constructor(
         } else {
             draftRejected(PaletteDraftRejection.NoRedoAvailable)
         }
+
+    /**
+     * The single remap from the oldest retained definition to the current draft: each source index is sent through
+     * every entry before the cursor in order. With no timeline the source is the draft itself.
+     */
+    internal fun composedRemap(): PaletteRemap {
+        val source = timeline.firstOrNull()?.before ?: draft
+        val applied = timeline.take(cursor)
+        val destinations =
+            source.palette.entries().map { entry ->
+                applied.fold(entry.index) { index, step ->
+                    when (val destination = step.remap.destinationAt(index)) {
+                        is DomainValueResult.Created -> destination.value
+                        is DomainValueResult.Rejected -> error("Draft remap chain is broken: ${destination.rejection}")
+                    }
+                }
+            }
+        return when (val composed = PaletteRemap.create(source, draft, destinations)) {
+            is DomainValueResult.Created -> composed.value
+            is DomainValueResult.Rejected -> error("Composed draft remap is invalid: ${composed.rejection}")
+        }
+    }
+
+    /**
+     * True when applying the draft would change nothing: the draft equals the source and every index maps to itself.
+     */
+    internal fun isIdentity(): Boolean {
+        val remap = composedRemap()
+        val unchanged =
+            remap.source.palette
+                .entries()
+                .map { it.index }
+        return draft == remap.source && remap.destinations() == unchanged
+    }
 
     /** Appends after the cursor, then evicts oldest-first under the shared ADR 0022 retention budget. */
     private fun appended(remap: PaletteRemap): PaletteEditSession {

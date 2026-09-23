@@ -220,7 +220,11 @@ internal class EditorRuntimeTest {
         applyOnePixel(runtime)
         val expectedBase = runtime.read { transaction -> transaction.switchContext().source }
 
-        val result = assertInstanceOf(WorkspaceReductionResult.Reduced::class.java, runtime.beginPaletteEdit())
+        val result =
+            assertInstanceOf(
+                WorkspaceReductionResult.Reduced::class.java,
+                runtime.paletteOperations.beginPaletteEdit(),
+            )
 
         val session = result.nextState.paletteEditSession ?: fail("Palette session was not opened")
         assertEquals(expectedBase, session.base)
@@ -231,10 +235,14 @@ internal class EditorRuntimeTest {
     @Test
     fun `second begin palette edit is rejected and keeps the first session`() {
         val runtime = EditorRuntime.create(canvas(2, 2), toolDefinition, SequentialDocumentIdSource())
-        runtime.beginPaletteEdit()
+        runtime.paletteOperations.beginPaletteEdit()
         val opened = runtime.state.workspaceState
 
-        val result = assertInstanceOf(WorkspaceReductionResult.Rejected::class.java, runtime.beginPaletteEdit())
+        val result =
+            assertInstanceOf(
+                WorkspaceReductionResult.Rejected::class.java,
+                runtime.paletteOperations.beginPaletteEdit(),
+            )
 
         assertEquals(WorkspaceActionRejection.PaletteSessionAlreadyActive, result.rejection)
         assertSame(opened, runtime.state.workspaceState)
@@ -338,7 +346,7 @@ internal class EditorRuntimeTest {
 
     private fun openedPaletteSession(): EditorRuntime {
         val runtime = EditorRuntime.create(canvas(2, 2), toolDefinition, SequentialDocumentIdSource())
-        assertInstanceOf(WorkspaceReductionResult.Reduced::class.java, runtime.beginPaletteEdit())
+        assertInstanceOf(WorkspaceReductionResult.Reduced::class.java, runtime.paletteOperations.beginPaletteEdit())
         return runtime
     }
 

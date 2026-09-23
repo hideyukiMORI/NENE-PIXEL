@@ -20,6 +20,7 @@ import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelLimits
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueRejection
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -360,6 +361,77 @@ internal class PaletteEditSessionTest {
         assertEquals(36L, PaletteDraftPayload.bytes(definition, three))
         assertEquals(3080L, PaletteDraftPayload.bytes(full, full))
         assertTrue(PaletteDraftPayload.bytes(full, full) < PixelLimits.MAX_RETAINED_PAYLOAD_BYTES)
+    }
+
+    @Test
+    fun `composed remap without draft history is the identity on the draft`() {
+        val session = PaletteEditSession.begin(base, definition)
+
+        val remap = session.composedRemap()
+
+        assertSame(session.draft, remap.source)
+        assertSame(session.draft, remap.target)
+        assertEquals(indices(0, 1), remap.destinations())
+        assertTrue(session.isIdentity())
+    }
+
+    @Test
+    fun `composed remap after one reorder is that reorder from the begin definition`() {
+        val session = PaletteEditSession.begin(base, definition)
+
+        val changed = changed(session.edit(PaletteDraftOperation.Reorder(indices(1, 0))))
+        val remap = changed.composedRemap()
+
+        assertSame(definition, remap.source)
+        assertEquals(changed.draft, remap.target)
+        assertEquals(indices(1, 0), remap.destinations())
+        assertFalse(changed.isIdentity())
+    }
+
+    @Test
+    fun `composed remap chains a reorder and a remove slot in order`() {
+        val session = PaletteEditSession.begin(base, three)
+
+        val reordered = changed(session.edit(PaletteDraftOperation.Reorder(indices(2, 0, 1))))
+        val removed = changed(reordered.edit(PaletteDraftOperation.RemoveSlot(paletteIndex(0), paletteIndex(1))))
+        val remap = removed.composedRemap()
+
+        // Reorder [2, 0, 1]: old 0 -> 1, old 1 -> 2, old 2 -> 0.
+        // RemoveSlot(removed = 0, replacement = 1) on the reordered draft: new 0 -> 0 (replacement 1 shifted down),
+        // new 1 -> 0, new 2 -> 1.
+        // Composed: old 0 -> 1 -> 0, old 1 -> 2 -> 1, old 2 -> 0 -> 0.
+        assertSame(three, remap.source)
+        assertEquals(removed.draft, remap.target)
+        assertEquals(listOf(black, red), colors(remap.target))
+        assertEquals(indices(0, 1, 0), remap.destinations())
+        assertFalse(removed.isIdentity())
+    }
+
+    @Test
+    fun `composed remap after undo to the start keeps the first before as source and is the identity`() {
+        val session = PaletteEditSession.begin(base, definition)
+        val edited = changed(session.edit(PaletteDraftOperation.Reorder(indices(1, 0))))
+
+        val undone = changed(edited.undo())
+        val remap = undone.composedRemap()
+
+        assertEquals(0, undone.cursor)
+        assertSame(undone.timeline[0].before, remap.source)
+        assertSame(definition, remap.source)
+        assertEquals(indices(0, 1), remap.destinations())
+        assertTrue(undone.isIdentity())
+    }
+
+    @Test
+    fun `composed remap after set slot color keeps every index but is not the identity`() {
+        val session = PaletteEditSession.begin(base, definition)
+
+        val changed = changed(session.edit(PaletteDraftOperation.SetSlotColor(paletteIndex(1), black)))
+        val remap = changed.composedRemap()
+
+        assertSame(definition, remap.source)
+        assertEquals(indices(0, 1), remap.destinations())
+        assertFalse(changed.isIdentity())
     }
 
     private fun changed(transition: PaletteDraftTransition): PaletteEditSession =

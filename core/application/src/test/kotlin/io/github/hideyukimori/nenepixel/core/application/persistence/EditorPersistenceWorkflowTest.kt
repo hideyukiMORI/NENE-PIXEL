@@ -479,7 +479,10 @@ internal class EditorPersistenceWorkflowTest {
         }
 
     private fun openPaletteSession(fixture: Fixture) {
-        assertInstanceOf(WorkspaceReductionResult.Reduced::class.java, fixture.runtime.beginPaletteEdit())
+        assertInstanceOf(
+            WorkspaceReductionResult.Reduced::class.java,
+            fixture.runtime.paletteOperations.beginPaletteEdit(),
+        )
     }
 
     private fun prepareDirtyRuntimeWithPreview(fixture: Fixture): EditorRuntimeState {
@@ -515,7 +518,10 @@ internal class EditorPersistenceWorkflowTest {
         val rejected = assertInstanceOf(WorkspaceReductionResult.Rejected::class.java, reduction)
         assertEquals(WorkspaceActionRejection.PersistenceBusy, rejected.rejection)
         val paletteBegin =
-            assertInstanceOf(WorkspaceReductionResult.Rejected::class.java, fixture.runtime.beginPaletteEdit())
+            assertInstanceOf(
+                WorkspaceReductionResult.Rejected::class.java,
+                fixture.runtime.paletteOperations.beginPaletteEdit(),
+            )
         assertEquals(WorkspaceActionRejection.PersistenceBusy, paletteBegin.rejection)
         assertNull(fixture.runtime.state.workspaceState.paletteEditSession)
         assertEquals(PersistenceCancellationResult.TooLate, fixture.workflow.cancel(handle))
