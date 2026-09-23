@@ -238,6 +238,7 @@ private fun FollowPaletteEditSession(
     val importing by remember(state) { derivedStateOf { state.value.paletteEditSession?.pendingImport != null } }
     LaunchedEffect(panel, editing, importing) {
         if (panel == EditorPanel.PaletteEditor && !editing) show(null)
+        if (editing && panel == null) show(EditorPanel.PaletteEditor)
         if (panel == EditorPanel.Palette && importing) show(EditorPanel.PaletteEditor)
     }
 }
