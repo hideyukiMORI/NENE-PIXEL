@@ -25,19 +25,22 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
-import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteEntry
-import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 import io.github.hideyukimori.nenepixel.presentation.compose.R
 
 @Composable
 internal fun PaletteControls(
-    palette: Palette,
-    activePaletteIndex: PaletteIndex,
+    state: EditorRenderState,
     callbacks: EditorCallbacks,
     dismiss: () -> Unit,
+    openEditor: () -> Unit,
 ) {
+    val palette = state.palette
+    val activePaletteIndex = state.activePaletteIndex
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        PaletteEditorButton(R.string.edit_palette, identity = "editor_palette_editor_open") {
+            if (callbacks.palette.onBegin().paletteEditSession != null) openEditor()
+        }
         Text(
             pluralStringResource(R.plurals.palette_count, palette.entryCount, palette.entryCount),
             style = MaterialTheme.typography.bodySmall,

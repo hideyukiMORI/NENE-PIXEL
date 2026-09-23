@@ -148,6 +148,14 @@ private fun PersistenceOperationProjection.idleStatusResource(autosave: Autosave
             R.string.png_export_failed
         }
 
+        (lastOutcome as? PersistenceLastOutcome.Failed)?.failure is PersistenceFailure.PaletteJsonExport -> {
+            R.string.palette_json_export_failed
+        }
+
+        (lastOutcome as? PersistenceLastOutcome.Failed)?.failure is PersistenceFailure.PaletteJsonImport -> {
+            R.string.palette_json_import_failed
+        }
+
         recoveryStatus is RecoveryStatus.Unknown -> {
             R.string.recovery_unavailable
         }
@@ -172,6 +180,10 @@ private fun PersistenceOperationProjection.idleStatusResource(autosave: Autosave
 private fun PersistenceLastOutcome.completedStatusResource(): Int =
     when (this) {
         PersistenceLastOutcome.PngExported -> R.string.png_exported
+
+        PersistenceLastOutcome.PaletteJsonExported -> R.string.palette_json_exported
+
+        PersistenceLastOutcome.PaletteJsonImported -> R.string.palette_json_imported
 
         is PersistenceLastOutcome.Saved -> R.string.project_saved
 

@@ -12,6 +12,8 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceActi
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceActionRejection
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReducer
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReductionResult
+import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceState
+import io.github.hideyukimori.nenepixel.core.application.workspace.isAllowedDuringPaletteSession
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentId
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
@@ -34,11 +36,13 @@ public class EditorRuntime private constructor(
         MutableStateFlow(PersistenceProjectionMapper.projectAutosave(coordination))
 
     internal val pngExportOperations: RuntimePngExportOperations = RuntimePngExportOperations(this)
+    internal val paletteJsonOperations: RuntimePaletteJsonOperations = RuntimePaletteJsonOperations(this)
 
     internal val saveOperations: RuntimeSaveOperations = RuntimeSaveOperations(this)
     internal val switchOperations: RuntimeSwitchOperations = RuntimeSwitchOperations(this)
     internal val autosaveOperations: RuntimeAutosaveOperations = RuntimeAutosaveOperations(this)
     internal val recoveryOperations: RuntimeRecoveryOperations = RuntimeRecoveryOperations(this)
+    public val paletteOperations: RuntimePaletteOperations = RuntimePaletteOperations(this)
 
     public val state: EditorRuntimeState
         get() = synchronized(runtimeLock) { owners.toState() }
@@ -55,6 +59,8 @@ public class EditorRuntime private constructor(
         synchronized(runtimeLock) {
             if (coordination.activeOperation.isSwitching()) {
                 CommandResult.Failed(CommandFailure.PersistenceBusy)
+            } else if (owners.workspaceState.paletteEditSession != null) {
+                CommandResult.Failed(CommandFailure.PaletteSessionActive)
             } else {
                 executeLocked(command)
             }
@@ -66,6 +72,11 @@ public class EditorRuntime private constructor(
                 WorkspaceReductionResult.Rejected(
                     owners.workspaceState,
                     WorkspaceActionRejection.PersistenceBusy,
+                )
+            } else if (owners.workspaceState.paletteEditSession != null && !action.isAllowedDuringPaletteSession()) {
+                WorkspaceReductionResult.Rejected(
+                    owners.workspaceState,
+                    WorkspaceActionRejection.PaletteSessionActive,
                 )
             } else {
                 reduceWorkspaceLocked(action)
@@ -132,7 +143,9 @@ public class EditorRuntime private constructor(
             RuntimeOwnerEffect.None -> { }
 
             RuntimeOwnerEffect.CancelPreview -> {
-                cancelPreviewLocked()
+                if (owners.workspaceState.preview != null) {
+                    reduceWorkspaceLocked(WorkspaceAction.CancelGesturePreview)
+                }
             }
 
             is RuntimeOwnerEffect.InstallCleanCheckpoint -> {
@@ -156,21 +169,27 @@ public class EditorRuntime private constructor(
         }
     }
 
-    private fun cancelPreviewLocked() {
-        if (owners.workspaceState.preview != null) {
-            reduceWorkspaceLocked(WorkspaceAction.CancelGesturePreview)
-        }
-    }
-
     internal inner class RuntimeTransaction {
         val coordination: PersistenceCoordination
             get() = this@EditorRuntime.coordination
 
         fun documentState(): DocumentState = owners.commandGateway.runtimeState.documentState
 
+        fun captureSource(): CommandSourceAdmission = owners.commandGateway.captureSource()
+
         fun historyPosition(): HistoryPosition = owners.commandGateway.runtimeState.historyPosition
 
         fun documentId(): DocumentId = owners.documentId()
+
+        fun paletteSessionActive(): Boolean = owners.workspaceState.paletteEditSession != null
+
+        fun workspaceState(): WorkspaceState = owners.workspaceState
+
+        /** Reduces inside the lock without the `reduce` gate; callers own the admission decision. */
+        fun reduceWorkspace(action: WorkspaceAction): WorkspaceReductionResult = reduceWorkspaceLocked(action)
+
+        /** Executes inside the lock without the `execute` gate; callers own the admission decision. */
+        fun executeCommand(command: DocumentCommand): CommandResult = executeLocked(command)
 
         fun switchContext(): SwitchContext {
             val definition = documentState().definition

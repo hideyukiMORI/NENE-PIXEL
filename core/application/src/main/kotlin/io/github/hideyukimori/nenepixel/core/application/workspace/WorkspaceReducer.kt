@@ -1,6 +1,8 @@
 package io.github.hideyukimori.nenepixel.core.application.workspace
 
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandSourceAdmission
+import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteDraftTransition
+import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteEditSession
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
 import io.github.hideyukimori.nenepixel.core.domain.drawing.StrokeEffect
 import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
@@ -24,11 +26,7 @@ public class WorkspaceReducer private constructor() {
             }
 
             is WorkspaceAction.SelectPaletteEntry -> {
-                selectPaletteEntry(
-                    state,
-                    action,
-                    source.document.definition.palette,
-                )
+                selectPaletteEntry(state, action, source.document.definition.palette)
             }
 
             is WorkspaceAction.SelectTool -> {
@@ -53,6 +51,10 @@ public class WorkspaceReducer private constructor() {
 
             is WorkspaceAction.SetViewport -> {
                 setViewport(state, action)
+            }
+
+            is WorkspaceAction.PaletteSessionAction -> {
+                reducePaletteSession(state, action)
             }
 
             is ReconcileDocumentPalette -> {
@@ -258,3 +260,73 @@ private fun setActualSizeWindow(
     } else {
         WorkspaceReductionResult.Reduced(state.withActualSizeWindow(window))
     }
+
+private fun reducePaletteSession(
+    state: WorkspaceState,
+    action: WorkspaceAction.PaletteSessionAction,
+): WorkspaceReductionResult =
+    when (action) {
+        is BeginPaletteEdit -> beginPaletteEdit(state, action)
+
+        WorkspaceAction.CancelPaletteEdit -> cancelPaletteEdit(state)
+
+        is WorkspaceAction.EditPaletteDraft -> editPaletteDraft(state, action)
+
+        WorkspaceAction.UndoPaletteDraft -> transitionPaletteDraft(state, PaletteEditSession::undo)
+
+        WorkspaceAction.RedoPaletteDraft -> transitionPaletteDraft(state, PaletteEditSession::redo)
+
+        is WorkspaceAction.ImportPaletteDraft,
+        is WorkspaceAction.SetPaletteImportMode,
+        is WorkspaceAction.AssignPaletteImportSlot,
+        WorkspaceAction.ConfirmPaletteImport,
+        WorkspaceAction.CancelPaletteImport,
+        -> reducePaletteImport(state, action)
+    }
+
+private fun beginPaletteEdit(
+    state: WorkspaceState,
+    action: BeginPaletteEdit,
+): WorkspaceReductionResult =
+    if (state.paletteEditSession != null) {
+        WorkspaceReductionResult.Rejected(state, WorkspaceActionRejection.PaletteSessionAlreadyActive)
+    } else {
+        WorkspaceReductionResult.Reduced(
+            state.withPaletteEditSession(PaletteEditSession.begin(action.base, action.definition)),
+        )
+    }
+
+private fun cancelPaletteEdit(state: WorkspaceState): WorkspaceReductionResult =
+    if (state.paletteEditSession == null) {
+        WorkspaceReductionResult.Rejected(state, WorkspaceActionRejection.NoPaletteSession)
+    } else {
+        WorkspaceReductionResult.Reduced(state.withPaletteEditSession(null))
+    }
+
+private fun editPaletteDraft(
+    state: WorkspaceState,
+    action: WorkspaceAction.EditPaletteDraft,
+): WorkspaceReductionResult = transitionPaletteDraft(state) { session -> session.edit(action.operation) }
+
+/** The one mapping from a draft transition to a workspace reduction; only the palette session slot changes. */
+internal fun transitionPaletteDraft(
+    state: WorkspaceState,
+    step: (PaletteEditSession) -> PaletteDraftTransition,
+): WorkspaceReductionResult {
+    val session =
+        state.paletteEditSession
+            ?: return WorkspaceReductionResult.Rejected(state, WorkspaceActionRejection.NoPaletteSession)
+    return when (val transition = step(session)) {
+        is PaletteDraftTransition.Changed -> {
+            WorkspaceReductionResult.Reduced(state.withPaletteEditSession(transition.session))
+        }
+
+        PaletteDraftTransition.Unchanged -> {
+            WorkspaceReductionResult.Unchanged(state, WorkspaceNoChangeReason.PaletteDraftUnchanged)
+        }
+
+        is PaletteDraftTransition.Rejected -> {
+            WorkspaceReductionResult.Rejected(state, transition.rejection)
+        }
+    }
+}

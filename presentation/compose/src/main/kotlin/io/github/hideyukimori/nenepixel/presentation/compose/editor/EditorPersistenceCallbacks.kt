@@ -12,7 +12,15 @@ public class EditorPersistenceCallbacks private constructor(
     internal val presets: LegacyPalettePresets,
 ) {
     internal fun onExportPng() {
-        files.exportPng()
+        files.exchange.exportPng()
+    }
+
+    internal fun onExportPaletteJson() {
+        files.exchange.exportPaletteJson()
+    }
+
+    internal fun onImportPaletteJson() {
+        files.exchange.importPaletteJson()
     }
 
     internal fun onSaveAs() {

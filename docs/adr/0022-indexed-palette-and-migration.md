@@ -243,3 +243,24 @@ images retain outcome-level requirements; palette completion alone cannot close 
 - Issue #101; M3 completion #89 / PR #104
 - Refines ADR 0005/0007/0008/0009/0014/0015/0016/0018/0019 at the stated cutover boundary
 - [Palette JSON v1](../PALETTE_JSON_V1.md)
+
+## Implementation notes (2026-09-23, #107)
+
+These notes record facts fixed by the P4-03 implementation. They do not amend the Decision.
+
+- (a) While a palette session is open, `EditorRuntime` admits only these `WorkspaceAction`s:
+  appearance, actual-size window, viewport, palette selection, gesture-preview cancellation,
+  `PaletteSessionAction` and the runtime-internal begin/reconcile actions. Tool selection and
+  gesture begin/extend/commit are rejected with `WorkspaceActionRejection.PaletteSessionActive`.
+  Every `DocumentCommand` fails with `CommandFailure.PaletteSessionActive`. Load, new document and
+  switch commit return `PersistenceRequestResult.PaletteSessionActive`.
+- (b) The draft timeline reuses `HistoryRetentionPolicy`. An evicted entry's remap folds into the
+  accumulated remap from the session `origin`, so the composed remap always starts at `origin`.
+- (c) Palette JSON export and import take the same physical output lease as PNG export
+  (`DocumentOutputTransitions`) and share the `Exporting` projection phase. A distinct phase is
+  recorded debt.
+- (d) Recovery adoption discards an open palette session through `ReplaceOwners`.
+- (e) After a stale-base rejection, Cancel is the only exit from the session.
+- (f) Import stages with the number mode by default. Unresolved sources stay in the session's
+  `pendingImport`, and Apply is rejected with `ImportPending` until the import is confirmed or
+  cancelled.

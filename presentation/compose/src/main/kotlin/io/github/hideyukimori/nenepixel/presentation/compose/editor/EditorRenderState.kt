@@ -4,6 +4,7 @@ import io.github.hideyukimori.nenepixel.core.application.editor.DocumentDirtySta
 import io.github.hideyukimori.nenepixel.core.application.workspace.ActualSizeWindow
 import io.github.hideyukimori.nenepixel.core.application.workspace.EditorAppearance
 import io.github.hideyukimori.nenepixel.core.application.workspace.ToolGesture
+import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteEditSession
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportState
 import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
@@ -25,6 +26,8 @@ public class EditorRenderState internal constructor(
     public val dirtyState: DocumentDirtyState,
     public val appearance: EditorAppearance,
     public val actualSizeWindow: ActualSizeWindow,
+    public val paletteEditSession: PaletteEditSession?,
+    public val paletteNotice: PaletteEditorNotice?,
 ) {
     public val palette: Palette
         get() = definition.palette
@@ -37,23 +40,13 @@ public class EditorRenderState internal constructor(
             }
 
     override fun equals(other: Any?): Boolean =
-        this === other ||
-            (
-                other is EditorRenderState &&
-                    snapshot == other.snapshot &&
-                    definition == other.definition &&
-                    activePaletteIndex == other.activePaletteIndex &&
-                    activeTool == other.activeTool &&
-                    preview == other.preview &&
-                    viewport == other.viewport &&
-                    canUndo == other.canUndo &&
-                    canRedo == other.canRedo &&
-                    dirtyState == other.dirtyState &&
-                    appearance == other.appearance &&
-                    actualSizeWindow == other.actualSizeWindow
-            )
+        this === other || (other is EditorRenderState && fields() == other.fields())
 
     override fun hashCode(): Int =
+        fields().fold(INITIAL_HASH) { hash, value -> hash * HASH_MULTIPLIER + (value?.hashCode() ?: 0) }
+
+    /** Every constructor value, in declaration order; equality and hashing compare exactly these. */
+    private fun fields(): List<Any?> =
         listOf(
             snapshot,
             definition,
@@ -66,14 +59,17 @@ public class EditorRenderState internal constructor(
             dirtyState,
             appearance,
             actualSizeWindow,
-        ).fold(INITIAL_HASH) { hash, value -> hash * HASH_MULTIPLIER + (value?.hashCode() ?: 0) }
+            paletteEditSession,
+            paletteNotice,
+        )
 
     override fun toString(): String =
         "EditorRenderState(" +
             "snapshot=$snapshot, palette=$palette, activePaletteIndex=$activePaletteIndex, activeTool=$activeTool, " +
             "preview=$preview, viewport=$viewport, " +
             "canUndo=$canUndo, canRedo=$canRedo, dirtyState=$dirtyState, appearance=$appearance, " +
-            "actualSizeWindow=$actualSizeWindow)"
+            "actualSizeWindow=$actualSizeWindow, paletteEditSession=$paletteEditSession, " +
+            "paletteNotice=$paletteNotice)"
 
     private companion object {
         const val INITIAL_HASH: Int = 1

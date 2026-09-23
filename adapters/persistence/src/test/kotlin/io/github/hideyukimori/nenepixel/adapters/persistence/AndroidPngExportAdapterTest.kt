@@ -38,7 +38,8 @@ internal class AndroidPngExportAdapterTest {
                         return InternalPickerResult.Cancelled
                     }
 
-                    override suspend fun openDocument(): InternalPickerResult = error("PNG must not open a source")
+                    override suspend fun openDocument(request: DocumentOpenRequest): InternalPickerResult =
+                        error("PNG must not open a source")
                 }
             assertEquals(
                 PngExportOutcome.Cancelled,

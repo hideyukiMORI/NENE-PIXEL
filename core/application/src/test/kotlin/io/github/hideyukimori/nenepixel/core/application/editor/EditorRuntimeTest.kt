@@ -1,6 +1,7 @@
 package io.github.hideyukimori.nenepixel.core.application.editor
 
 import io.github.hideyukimori.nenepixel.core.application.document.command.ApplyStrokeCommand
+import io.github.hideyukimori.nenepixel.core.application.document.command.CommandFailure
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandResult
 import io.github.hideyukimori.nenepixel.core.application.document.command.RedoCommand
 import io.github.hideyukimori.nenepixel.core.application.document.command.RejectionReason
@@ -21,6 +22,9 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.App
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.redIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.stroke
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceAction
+import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceActionRejection
+import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReductionResult
+import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteDraftOperation
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportState
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentId
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
@@ -208,6 +212,162 @@ internal class EditorRuntimeTest {
         assertEquals(before.historyAvailability, after.historyAvailability)
         assertEquals(before.dirtyState, after.dirtyState)
         assertEquals(paletteIndex(1), after.workspaceState.activePaletteIndex)
+    }
+
+    @Test
+    fun `begin palette edit captures the runtime source token and document definition`() {
+        val runtime = EditorRuntime.create(canvas(2, 2), toolDefinition, SequentialDocumentIdSource())
+        applyOnePixel(runtime)
+        val expectedBase = runtime.read { transaction -> transaction.switchContext().source }
+
+        val result =
+            assertInstanceOf(
+                WorkspaceReductionResult.Reduced::class.java,
+                runtime.paletteOperations.beginPaletteEdit(),
+            )
+
+        val session = result.nextState.paletteEditSession ?: fail("Palette session was not opened")
+        assertEquals(expectedBase, session.base)
+        assertSame(runtime.state.documentState.definition, session.draft)
+        assertSame(result.nextState, runtime.state.workspaceState)
+    }
+
+    @Test
+    fun `second begin palette edit is rejected and keeps the first session`() {
+        val runtime = EditorRuntime.create(canvas(2, 2), toolDefinition, SequentialDocumentIdSource())
+        runtime.paletteOperations.beginPaletteEdit()
+        val opened = runtime.state.workspaceState
+
+        val result =
+            assertInstanceOf(
+                WorkspaceReductionResult.Rejected::class.java,
+                runtime.paletteOperations.beginPaletteEdit(),
+            )
+
+        assertEquals(WorkspaceActionRejection.PaletteSessionAlreadyActive, result.rejection)
+        assertSame(opened, runtime.state.workspaceState)
+    }
+
+    @Test
+    fun `palette session rejects document commands without moving document or history`() {
+        val runtime = openedPaletteSession()
+        val before = runtime.state
+        val beforePosition = runtime.read { transaction -> transaction.historyPosition() }
+
+        val result = assertInstanceOf(CommandResult.Failed::class.java, runtime.execute(paletteOnlyCommand(runtime)))
+
+        assertEquals(CommandFailure.PaletteSessionActive, result.failure)
+        assertSame(before.documentState, runtime.state.documentState)
+        assertEquals(beforePosition, runtime.read { transaction -> transaction.historyPosition() })
+    }
+
+    @Test
+    fun `palette session rejects gesture preview begin`() {
+        val runtime = openedPaletteSession()
+        val action = WorkspaceAction.BeginGesturePreview(runtime.state.documentState.size, position(0, 0))
+
+        val result = assertInstanceOf(WorkspaceReductionResult.Rejected::class.java, runtime.reduce(action))
+
+        assertEquals(WorkspaceActionRejection.PaletteSessionActive, result.rejection)
+        assertNull(runtime.state.workspaceState.preview)
+    }
+
+    @Test
+    fun `palette session rejects tool selection`() {
+        val runtime = openedPaletteSession()
+        val before = runtime.state.workspaceState
+
+        val result =
+            assertInstanceOf(
+                WorkspaceReductionResult.Rejected::class.java,
+                runtime.reduce(WorkspaceAction.SelectTool(DrawingTool.Eraser)),
+            )
+
+        assertEquals(WorkspaceActionRejection.PaletteSessionActive, result.rejection)
+        assertSame(before, runtime.state.workspaceState)
+    }
+
+    @Test
+    fun `palette session keeps viewport selection and preview cancellation available`() {
+        val runtime = openedPaletteSession()
+        val viewport = runtime.state.workspaceState.viewport
+        val actions =
+            listOf(
+                WorkspaceAction.SetViewport(viewport),
+                WorkspaceAction.SelectPaletteEntry(redIndex),
+                WorkspaceAction.CancelGesturePreview,
+            )
+
+        actions.forEach { action ->
+            val result = runtime.reduce(action)
+            if (result is WorkspaceReductionResult.Rejected) {
+                assertNotEquals(WorkspaceActionRejection.PaletteSessionActive, result.rejection)
+            }
+        }
+        assertEquals(redIndex, runtime.state.workspaceState.activePaletteIndex)
+    }
+
+    @Test
+    fun `palette session accepts draft edit and draft undo`() {
+        val runtime = openedPaletteSession()
+        val edit = WorkspaceAction.EditPaletteDraft(PaletteDraftOperation.SetDefault(redIndex))
+
+        assertInstanceOf(WorkspaceReductionResult.Reduced::class.java, runtime.reduce(edit))
+        assertInstanceOf(WorkspaceReductionResult.Reduced::class.java, runtime.reduce(WorkspaceAction.UndoPaletteDraft))
+
+        val session = runtime.state.workspaceState.paletteEditSession ?: fail("Palette session was closed")
+        assertEquals(toolDefinition, session.draft)
+    }
+
+    @Test
+    fun `cancel palette edit restores document command execution`() {
+        val runtime = openedPaletteSession()
+        val cancelled = runtime.reduce(WorkspaceAction.CancelPaletteEdit)
+
+        assertInstanceOf(WorkspaceReductionResult.Reduced::class.java, cancelled)
+        assertInstanceOf(CommandResult.Applied::class.java, runtime.execute(paletteOnlyCommand(runtime)))
+    }
+
+    @Test
+    fun `switching is reported before an open palette session`() {
+        val runtime = openedPaletteSession()
+        forceSwitching(runtime)
+
+        val command = assertInstanceOf(CommandResult.Failed::class.java, runtime.execute(paletteOnlyCommand(runtime)))
+        val action =
+            assertInstanceOf(
+                WorkspaceReductionResult.Rejected::class.java,
+                runtime.reduce(WorkspaceAction.SelectTool(DrawingTool.Eraser)),
+            )
+
+        assertEquals(CommandFailure.PersistenceBusy, command.failure)
+        assertEquals(WorkspaceActionRejection.PersistenceBusy, action.rejection)
+    }
+
+    private fun openedPaletteSession(): EditorRuntime {
+        val runtime = EditorRuntime.create(canvas(2, 2), toolDefinition, SequentialDocumentIdSource())
+        assertInstanceOf(WorkspaceReductionResult.Reduced::class.java, runtime.paletteOperations.beginPaletteEdit())
+        return runtime
+    }
+
+    private fun paletteOnlyCommand(runtime: EditorRuntime): ReplacePaletteCommand {
+        val target = definition(blackIndex, black, red, black)
+        val remap = PaletteRemap.create(toolDefinition, target, listOf(blackIndex, redIndex, greenIndex)).value()
+        return ReplacePaletteCommand.create(runtime.captureSource(), remap)
+    }
+
+    private fun forceSwitching(runtime: EditorRuntime) {
+        runtime.transact { transaction ->
+            val creation =
+                assertInstanceOf(
+                    OperationHandleCreation.Created::class.java,
+                    transaction.coordination.nextOperationHandle(),
+                )
+            val candidate = RuntimeOwners.create(canvas(2, 2), toolDefinition, SequentialDocumentIdSource())
+            val switching =
+                ActivePersistenceOperation.Switch.Switching(creation.handle, candidate, SwitchKind.NewDocument)
+            PersistenceTransition(creation.next.withActive(switching), Unit)
+        }
     }
 
     private fun applyOnePixel(runtime: EditorRuntime) {

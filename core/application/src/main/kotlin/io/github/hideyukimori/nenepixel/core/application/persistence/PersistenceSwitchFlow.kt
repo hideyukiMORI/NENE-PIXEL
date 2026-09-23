@@ -39,6 +39,7 @@ internal class PersistenceSwitchFlow(
             SwitchStart.Busy -> PersistenceRequestResult.Busy
             SwitchStart.RecoveryUnavailable -> PersistenceRequestResult.RecoveryUnavailable
             SwitchStart.IdentityExhausted -> identityExhaustedResult()
+            SwitchStart.PaletteSessionActive -> PersistenceRequestResult.PaletteSessionActive
         }
 
     private suspend fun applyContinuation(continuation: SwitchContinuation): PersistenceRequestResult =

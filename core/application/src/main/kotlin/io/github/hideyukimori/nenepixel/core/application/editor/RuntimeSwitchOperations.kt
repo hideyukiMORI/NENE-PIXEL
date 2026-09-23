@@ -14,16 +14,24 @@ internal class RuntimeSwitchOperations(
 
     fun beginLoad(): SwitchStart =
         runtime.transact { transaction ->
-            SwitchStartTransitions.beginLoad(transaction.coordination, transaction.switchContext())
+            if (transaction.paletteSessionActive()) {
+                PersistenceTransition(transaction.coordination, SwitchStart.PaletteSessionActive)
+            } else {
+                SwitchStartTransitions.beginLoad(transaction.coordination, transaction.switchContext())
+            }
         }
 
     fun beginNewDocument(request: NewDocumentRequestResult): SwitchStart =
         runtime.transact { transaction ->
-            SwitchStartTransitions.beginNewDocument(
-                transaction.coordination,
-                request,
-                transaction.switchContext(),
-            )
+            if (transaction.paletteSessionActive()) {
+                PersistenceTransition(transaction.coordination, SwitchStart.PaletteSessionActive)
+            } else {
+                SwitchStartTransitions.beginNewDocument(
+                    transaction.coordination,
+                    request,
+                    transaction.switchContext(),
+                )
+            }
         }
 
     fun completeLoadTransport(
@@ -50,7 +58,14 @@ internal class RuntimeSwitchOperations(
 
     fun beginSwitch(handle: PersistenceOperationHandle): SwitchBegin =
         runtime.transact { transaction ->
-            SwitchCommitTransitions.begin(transaction.coordination, handle, transaction.switchContext())
+            if (transaction.paletteSessionActive()) {
+                PersistenceTransition(
+                    transaction.coordination,
+                    SwitchBegin.Result(PersistenceRequestResult.PaletteSessionActive),
+                )
+            } else {
+                SwitchCommitTransitions.begin(transaction.coordination, handle, transaction.switchContext())
+            }
         }
 
     fun completeSwitch(

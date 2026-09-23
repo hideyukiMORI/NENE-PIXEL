@@ -16,6 +16,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -73,9 +74,12 @@ internal fun EditorScreen(
             }
             panel?.let { current ->
                 EditorPanelSurface(EditorPanelPlacement(current, appearance.controlEdge), { panel = null }) {
-                    PanelContent(current, EditorPanelInputs(renderState, callbacks, storage, settings)) { panel = null }
+                    PanelContent(current, EditorPanelInputs(renderState, callbacks, storage, settings), openPanel) {
+                        panel = null
+                    }
                 }
             }
+            FollowPaletteEditSession(renderState, panel) { panel = it }
             PersistenceConfirmation(persistenceOperation, persistenceCallbacks)
             LegacyConversionDialog(persistenceOperation, renderState.value.definition, persistenceCallbacks)
         }
@@ -183,12 +187,23 @@ private fun EditorStatus(
 private fun PanelContent(
     panel: EditorPanel,
     inputs: EditorPanelInputs,
+    openPanel: (EditorPanel) -> Unit,
     dismiss: () -> Unit,
 ) {
     val state = inputs.state.value
+    val json = PaletteJsonActions(inputs.storage.callbacks, inputs.storage.operation)
     when (panel) {
         EditorPanel.Palette -> {
-            PaletteControls(state.palette, state.activePaletteIndex, inputs.callbacks, dismiss)
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                PaletteEditorButton(R.string.import_palette_json, json.idle, onClick = json::import)
+                PaletteControls(state, inputs.callbacks, dismiss) { openPanel(EditorPanel.PaletteEditor) }
+            }
+        }
+
+        EditorPanel.PaletteEditor -> {
+            state.paletteEditSession?.let { session ->
+                PaletteEditorControls(session, state.paletteNotice, inputs.callbacks.palette, json)
+            }
         }
 
         EditorPanel.Appearance -> {
@@ -206,6 +221,25 @@ private fun PanelContent(
                 MvpInformationControls()
             }
         }
+    }
+}
+
+/**
+ * The palette editor panel exists only while a draft session does; Apply and Cancel close it (design S6a 3). A palette
+ * JSON import started from the Palette panel moves to the editor once its mapping is pending (S6b 2).
+ */
+@Composable
+private fun FollowPaletteEditSession(
+    state: State<EditorRenderState>,
+    panel: EditorPanel?,
+    show: (EditorPanel?) -> Unit,
+) {
+    val editing by remember(state) { derivedStateOf { state.value.paletteEditSession != null } }
+    val importing by remember(state) { derivedStateOf { state.value.paletteEditSession?.pendingImport != null } }
+    LaunchedEffect(panel, editing, importing) {
+        if (panel == EditorPanel.PaletteEditor && !editing) show(null)
+        if (editing && panel == null) show(EditorPanel.PaletteEditor)
+        if (panel == EditorPanel.Palette && importing) show(EditorPanel.PaletteEditor)
     }
 }
 

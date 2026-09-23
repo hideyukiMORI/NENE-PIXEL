@@ -39,11 +39,38 @@ public class ProjectPickerIntentsAndroidTest {
     }
 
     @Test
+    public fun paletteJsonIntentHasJsonMimeAndDoesNotDuplicateCompoundExtension() {
+        val named =
+            ProjectPickerIntents.createDocument(
+                DocumentCreationRequest("nene-pixel.nenepalette.json", DocumentOutputFormat.PALETTE_JSON),
+            )
+        val bare =
+            ProjectPickerIntents.createDocument(
+                DocumentCreationRequest("drawing", DocumentOutputFormat.PALETTE_JSON),
+            )
+
+        assertEquals(Intent.ACTION_CREATE_DOCUMENT, named.action)
+        assertEquals("application/json", named.type)
+        assertEquals("nene-pixel.nenepalette.json", named.getStringExtra(Intent.EXTRA_TITLE))
+        assertEquals("drawing.nenepalette.json", bare.getStringExtra(Intent.EXTRA_TITLE))
+        assertTrue(named.categories?.contains(Intent.CATEGORY_OPENABLE) == true)
+    }
+
+    @Test
     public fun openIntentHasCanonicalActionMimeAndCategory() {
-        val intent = ProjectPickerIntents.openDocument()
+        val intent = ProjectPickerIntents.openDocument(DocumentOpenRequest(DocumentOutputFormat.PROJECT))
 
         assertEquals(Intent.ACTION_OPEN_DOCUMENT, intent.action)
         assertEquals("application/octet-stream", intent.type)
+        assertTrue(intent.categories?.contains(Intent.CATEGORY_OPENABLE) == true)
+    }
+
+    @Test
+    public fun paletteJsonOpenIntentHasJsonMime() {
+        val intent = ProjectPickerIntents.openDocument(DocumentOpenRequest(DocumentOutputFormat.PALETTE_JSON))
+
+        assertEquals(Intent.ACTION_OPEN_DOCUMENT, intent.action)
+        assertEquals("application/json", intent.type)
         assertTrue(intent.categories?.contains(Intent.CATEGORY_OPENABLE) == true)
     }
 

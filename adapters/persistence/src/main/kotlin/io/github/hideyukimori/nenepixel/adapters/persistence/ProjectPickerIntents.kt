@@ -18,10 +18,10 @@ public object ProjectPickerIntents {
             .setType(request.format.mimeType())
             .putExtra(Intent.EXTRA_TITLE, request.filename())
 
-    public fun openDocument(): Intent =
+    public fun openDocument(request: DocumentOpenRequest): Intent =
         Intent(Intent.ACTION_OPEN_DOCUMENT)
             .addCategory(Intent.CATEGORY_OPENABLE)
-            .setType(PROJECT_MIME_TYPE)
+            .setType(request.format.mimeType())
 
     public fun parseResult(
         resultCode: Int,
@@ -45,6 +45,7 @@ public object ProjectPickerIntents {
             when (format) {
                 DocumentOutputFormat.PROJECT -> ".nenepixel"
                 DocumentOutputFormat.PNG -> ".png"
+                DocumentOutputFormat.PALETTE_JSON -> ".nenepalette.json"
             }
         return if (suggestedName.endsWith(extension, ignoreCase = true)) suggestedName else suggestedName + extension
     }
@@ -53,6 +54,7 @@ public object ProjectPickerIntents {
         when (this) {
             DocumentOutputFormat.PROJECT -> PROJECT_MIME_TYPE
             DocumentOutputFormat.PNG -> "image/png"
+            DocumentOutputFormat.PALETTE_JSON -> "application/json"
         }
 
     private const val PROJECT_MIME_TYPE: String = "application/octet-stream"

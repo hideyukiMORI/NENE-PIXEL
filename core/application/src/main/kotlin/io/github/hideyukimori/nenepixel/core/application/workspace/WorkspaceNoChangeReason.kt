@@ -12,4 +12,6 @@ public sealed interface WorkspaceNoChangeReason {
     public data object DuplicatePreviewSample : WorkspaceNoChangeReason
 
     public data object ViewportAlreadySet : WorkspaceNoChangeReason
+
+    public data object PaletteDraftUnchanged : WorkspaceNoChangeReason
 }

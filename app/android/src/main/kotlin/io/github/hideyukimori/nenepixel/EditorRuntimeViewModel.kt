@@ -7,6 +7,8 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import io.github.hideyukimori.nenepixel.adapters.persistence.AndroidPaletteJsonExportAdapter
+import io.github.hideyukimori.nenepixel.adapters.persistence.AndroidPaletteJsonImportAdapter
 import io.github.hideyukimori.nenepixel.adapters.persistence.AndroidPngExportAdapter
 import io.github.hideyukimori.nenepixel.adapters.persistence.AndroidProjectStorageAdapter
 import io.github.hideyukimori.nenepixel.adapters.persistence.AndroidRecoveryRecordAdapter
@@ -19,6 +21,7 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.Persistence
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistencePorts
 import io.github.hideyukimori.nenepixel.presentation.compose.editor.EditorController
 import io.github.hideyukimori.nenepixel.presentation.compose.editor.EditorPersistenceCallbacks
+import io.github.hideyukimori.nenepixel.presentation.compose.editor.FileExchangeCallbacks
 import io.github.hideyukimori.nenepixel.presentation.compose.editor.LegacyConversionCallbacks
 import io.github.hideyukimori.nenepixel.presentation.compose.editor.PersistenceDecisionCallbacks
 import io.github.hideyukimori.nenepixel.presentation.compose.editor.ProjectFileCallbacks
@@ -42,7 +45,12 @@ internal class EditorRuntimeViewModel private constructor(
     val persistenceCallbacks: EditorPersistenceCallbacks =
         EditorPersistenceCallbacks.create(
             ProjectFileCallbacks(
-                exportPng = { launchOperation(persistence::exportPng) },
+                exchange =
+                    FileExchangeCallbacks(
+                        exportPng = { launchOperation(persistence::exportPng) },
+                        exportPaletteJson = { launchOperation { persistence.paletteJson.export() } },
+                        importPaletteJson = { launchOperation { persistence.paletteJson.import() } },
+                    ),
                 saveAs = { launchOperation(persistence::saveAs) },
                 load = { launchOperation(persistence::load) },
                 createNewDocument = { request -> launchOperation { persistence.createNewDocument(request) } },
@@ -136,6 +144,8 @@ internal class EditorRuntimeViewModel private constructor(
                         projectStorage,
                         recoveryRecord,
                         AndroidPngExportAdapter.create(application.contentResolver, pickerBroker, ioDispatcher),
+                        AndroidPaletteJsonExportAdapter.create(application.contentResolver, pickerBroker, ioDispatcher),
+                        AndroidPaletteJsonImportAdapter.create(application.contentResolver, pickerBroker, ioDispatcher),
                     ),
                     Dispatchers.Default,
                 )

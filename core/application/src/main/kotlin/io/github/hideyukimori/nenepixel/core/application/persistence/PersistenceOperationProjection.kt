@@ -107,6 +107,10 @@ public sealed interface PersistenceLastOutcome {
 
     public data object PngExported : PersistenceLastOutcome
 
+    public data object PaletteJsonExported : PersistenceLastOutcome
+
+    public data object PaletteJsonImported : PersistenceLastOutcome
+
     public data object Loaded : PersistenceLastOutcome
 
     public data object NewDocumentCreated : PersistenceLastOutcome
@@ -184,6 +188,15 @@ public sealed interface PersistenceFailure {
     public data class PngExport internal constructor(
         public val failure: ProjectStorageFailure,
         public val cleanup: PartialOutputCleanup,
+    ) : PersistenceFailure
+
+    public data class PaletteJsonExport internal constructor(
+        public val failure: ProjectStorageFailure,
+        public val cleanup: PartialOutputCleanup,
+    ) : PersistenceFailure
+
+    public data class PaletteJsonImport internal constructor(
+        public val failure: ProjectStorageFailure,
     ) : PersistenceFailure
 
     public data class Storage internal constructor(

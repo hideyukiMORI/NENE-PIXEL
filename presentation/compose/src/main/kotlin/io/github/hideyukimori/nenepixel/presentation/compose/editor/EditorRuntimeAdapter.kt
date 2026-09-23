@@ -15,6 +15,9 @@ internal class EditorRuntimeAdapter(
     val renderState: EditorRenderState
         get() = createRenderState()
 
+    /** The latest palette-editor notice; the palette route clears it on its next success (S6a, S6b). */
+    var paletteNotice: PaletteEditorNotice? = null
+
     fun reduce(action: WorkspaceAction): PointerInputAcknowledgement {
         val hadPreview = runtime.state.workspaceState.preview != null
         val reduction = runtime.reduce(action)
@@ -107,6 +110,8 @@ internal class EditorRuntimeAdapter(
             dirtyState = state.dirtyState,
             appearance = state.workspaceState.appearance,
             actualSizeWindow = state.workspaceState.actualSizeWindow,
+            paletteEditSession = state.workspaceState.paletteEditSession,
+            paletteNotice = paletteNotice,
         )
     }
 

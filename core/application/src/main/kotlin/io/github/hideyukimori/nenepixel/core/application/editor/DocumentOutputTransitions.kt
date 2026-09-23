@@ -1,38 +1,29 @@
 package io.github.hideyukimori.nenepixel.core.application.editor
 
-import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceFailure
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceLastOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationHandle
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceRequestResult
-import io.github.hideyukimori.nenepixel.core.application.persistence.PngExportOutcome
-import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 
-internal object PngExportTransitions {
-    fun begin(
-        coordination: PersistenceCoordination,
-        document: DocumentState,
-    ): PersistenceTransition<DocumentOutputStart> =
+internal object DocumentOutputTransitions {
+    fun begin(coordination: PersistenceCoordination): PersistenceTransition<DocumentOutputLease> =
         when {
             coordination.activeOperation != null || coordination.inspectionInFlight -> {
-                PersistenceTransition(coordination, DocumentOutputStart.Busy)
+                PersistenceTransition(coordination, DocumentOutputLease.Busy)
             }
 
             coordination.recoveryState is RuntimeRecoveryState.Initializing -> {
-                PersistenceTransition(coordination, DocumentOutputStart.RecoveryUnavailable)
+                PersistenceTransition(coordination, DocumentOutputLease.RecoveryUnavailable)
             }
 
             else -> {
-                start(coordination, document)
+                start(coordination)
             }
         }
 
-    private fun start(
-        coordination: PersistenceCoordination,
-        document: DocumentState,
-    ): PersistenceTransition<DocumentOutputStart> =
+    private fun start(coordination: PersistenceCoordination): PersistenceTransition<DocumentOutputLease> =
         when (val creation = coordination.nextOperationHandle()) {
             OperationHandleCreation.Exhausted -> {
-                PersistenceTransition(coordination.identityExhausted(), DocumentOutputStart.IdentityExhausted)
+                PersistenceTransition(coordination.identityExhausted(), DocumentOutputLease.IdentityExhausted)
             }
 
             is OperationHandleCreation.Created -> {
@@ -44,7 +35,7 @@ internal object PngExportTransitions {
                     )
                 PersistenceTransition(
                     creation.next.withActive(operation),
-                    DocumentOutputStart.Started(creation.handle, document),
+                    DocumentOutputLease.Started(creation.handle),
                 )
             }
         }
@@ -52,7 +43,7 @@ internal object PngExportTransitions {
     fun complete(
         coordination: PersistenceCoordination,
         handle: PersistenceOperationHandle,
-        outcome: PngExportOutcome,
+        last: PersistenceLastOutcome,
     ): PersistenceTransition<PersistenceRequestResult> {
         val active = coordination.activeOperation as? ActivePersistenceOperation.Export
         return when {
@@ -69,16 +60,8 @@ internal object PngExportTransitions {
             }
 
             else -> {
-                val last = outcome.toLastOutcome()
                 PersistenceTransition(coordination.finished(last), PersistenceRequestResult.Completed(last))
             }
         }
     }
-
-    private fun PngExportOutcome.toLastOutcome(): PersistenceLastOutcome =
-        when (this) {
-            PngExportOutcome.Exported -> PersistenceLastOutcome.PngExported
-            PngExportOutcome.Cancelled -> PersistenceLastOutcome.Cancelled
-            is PngExportOutcome.Failed -> PersistenceLastOutcome.Failed(PersistenceFailure.PngExport(failure, cleanup))
-        }
 }

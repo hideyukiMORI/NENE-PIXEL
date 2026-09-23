@@ -30,6 +30,7 @@ The MVP proves the canonical architecture with a product that is small enough to
 - validated document creation
 - pencil and eraser
 - palette selection needed by the drawing workflow
+- document palette editing with draft undo/redo, and palette JSON export/import
 - touch input; stylus behavior where it maps to the same canonical gesture contract
 - zoom, pan, and optional grid presentation
 - gesture-level undo and redo

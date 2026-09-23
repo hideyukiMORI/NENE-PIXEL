@@ -26,6 +26,8 @@ internal sealed interface SwitchStart {
     data object RecoveryUnavailable : SwitchStart
 
     data object IdentityExhausted : SwitchStart
+
+    data object PaletteSessionActive : SwitchStart
 }
 
 internal data class SwitchConfirmationStart(
