@@ -211,6 +211,54 @@ the absolute gate, belong to
 [Issue #120](https://github.com/hideyukiMORI/NENE-PIXEL/issues/120). The verdict is not converted,
 softened or recollected here.
 
+### Lane 3 revision: collection `p4-indexed-v7-20260923-frame1` under Issue #120
+
+Collected on 2026-09-23 between 06:04 and 06:57 UTC on the same iPlay80miniPro (API 36, 90 Hz,
+1920x1200, rotation pinned to 1 during capture), release-like `benchmarkRelease` artifacts with the
+accepted packaged profile compiled `speed-profile`, preflight manifest `108d6132...`, protocol
+identity v7 with the Lane 3 revision of 2026-09-23. Baseline: production `2f0b617` (main at
+collection time), measurement build `96fb058` (the Lane 3 tooling overlay), APK `3dacd8e9...`.
+Candidate: production `b6c4cd9` (Issue #124 preview raster), measurement build `ce46ec7`
+(`b6c4cd9` plus the same tooling), APK `6c825355...`. Every slot completed (`complete_run=true`,
+attempt 1), fatal, ANR and process-death matches are zero, no family reached the gross-regression
+boundary, and the installed package sha was read back on the device against the role's release-like
+artifact before every slot. Decision slots measured 5 warmups and 50 samples per family
+(100 operations, 1,000 frame rows each); diagnostic slots 5 and 10 (30 operations, 380 rows each).
+
+| Decision slot | Family | Overrun p95 | Overrun p99 | UP-to-committed p95 | Relative margin p95 / p99 | Verdict |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| `frame-1-baseline-decision` | `canvas16_tap` | 1.272 ms | 2.504 ms | 11.195 ms | reference | `baseline-recorded` |
+| `frame-1-baseline-decision` | `canvas256_repeated_diagonal` | 9.026 ms | 10.063 ms | 11.058 ms | reference | `baseline-recorded` |
+| `frame-2-candidate-decision` | `canvas16_tap` | 1.178 ms | 2.582 ms | 10.343 ms | -0.094 / +0.078 ms | `pass` |
+| `frame-2-candidate-decision` | `canvas256_repeated_diagonal` | 1.258 ms | 1.803 ms | 10.881 ms | -7.768 / -8.260 ms | `pass` |
+
+| Diagnostic slot | Family | Overrun p95 | Overrun p99 | UP-to-committed p95 | Verdict |
+| --- | --- | ---: | ---: | ---: | --- |
+| `frame-3-baseline-diagnostic` | `canvas16_tap` | 1.364 ms | 2.144 ms | 10.722 ms | `inconclusive` |
+| `frame-3-baseline-diagnostic` | `canvas256_repeated_diagonal` | 9.541 ms | 10.049 ms | 10.993 ms | `inconclusive` |
+| `frame-3-baseline-diagnostic` | `canvas256_repeated_diagonal_window_x2` | 9.202 ms | 10.168 ms | 14.183 ms | `inconclusive` |
+| `frame-4-candidate-diagnostic` | `canvas16_tap` | 1.269 ms | 3.219 ms | 12.185 ms | `inconclusive` |
+| `frame-4-candidate-diagnostic` | `canvas256_repeated_diagonal` | 1.168 ms | 1.630 ms | 10.739 ms | `inconclusive` |
+| `frame-4-candidate-diagnostic` | `canvas256_repeated_diagonal_window_x2` | 2.067 ms | 2.664 ms | 11.508 ms | `inconclusive` |
+
+The candidate decision verdict is `pass` under rule `lane3-2026-09-23-relative`: every family's
+all-frame overrun p95 is within +1.0 ms and p99 within +2.0 ms of the baseline decision reference,
+the UP-to-committed p95 stays under 33.33 ms, and no fatal or gross-regression condition occurred.
+Diagnostic slots are `inconclusive` by definition and judge nothing.
+
+Deadline definition and attribution (Issue #120 acceptance): the frame deadline on this device is
+the `WorkloadTarget` of vsync + 10.0 ms at 90 Hz (period 11.11 ms), neither 11.11 nor 16.67 ms.
+Main's `canvas256_repeated_diagonal` overrun p95 of 9.03 ms is a measurement. The candidate differs
+from main only by Issue #124's preview drawing path (a `PreviewRaster` drawn with one `drawBitmap`
+in place of per-pixel `drawPixel` calls), and the same workload on the candidate measures 1.26 ms,
+so 7.8 ms of the baseline overrun p95 is attributed to per-pixel preview drawing by measurement, not
+by inference. `canvas16_tap` is unchanged within 0.1 ms at p95. The actual-size window at x2
+(diagnostic only, 10 operations) adds about 0.9 ms of overrun p95 on the candidate over the same
+stroke without the window; on main it is hidden under the per-pixel cost. The relative tolerance of
++1.0 / +2.0 ms remains the provisional value fixed before collection. The run5 v6 records above are
+unchanged. Evidence: `build/reports/issue-120/p4-experiment-v7-frame1/` (captures `599e826c...`,
+`49926e58...`, `4414eaba...`, `e2f7f00b...`).
+
 ## Lane 6: correctness, UI, lifecycle and bounded ownership
 
 This lane has no sample population and no performance verdict. The physical functional checkpoint
