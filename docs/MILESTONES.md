@@ -161,7 +161,7 @@ Harden the app for sustained real-world use.
 
 - no open critical data-loss or deterministic-replay defect
 - supported device/API matrix is documented and tested
-- performance budgets pass on the named minimum profile
+- performance budgets pass on the named minimum profile (drawing latency: `docs/quality/M2_FRAME_FOLLOW_UP.md`, "M5 drawing-latency budget — fixed 2026-09-23")
 - release artifact is built only from a tagged, checked `main` commit
 
 ## M6 — Automation Boundary
