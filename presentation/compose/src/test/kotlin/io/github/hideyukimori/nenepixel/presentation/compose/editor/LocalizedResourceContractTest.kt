@@ -12,11 +12,15 @@ internal class LocalizedResourceContractTest {
     fun shippedTranslationsHaveEveryKeyAndMatchingPositionalArguments() {
         val english = resources("values")
         assertFalse(english.isEmpty())
-        assertEquals(
-            arguments(english.getValue("palette_count/one")),
-            arguments(english.getValue("palette_count/other")),
-        )
-        val cjkKeys = english.keys - "palette_count/one"
+        val englishOnlyQuantities = listOf("palette_count/one", "palette_import_unresolved/one")
+        englishOnlyQuantities.forEach { key ->
+            assertEquals(
+                arguments(english.getValue(key)),
+                arguments(english.getValue(key.replaceAfterLast('/', "other"))),
+                key,
+            )
+        }
+        val cjkKeys = english.keys - englishOnlyQuantities.toSet()
         listOf("values-ja", "values-b+zh+Hans").forEach { directory ->
             val translated = resources(directory)
             assertEquals(cjkKeys, translated.keys, directory)

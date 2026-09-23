@@ -179,7 +179,9 @@
     <string name="palette_import_mode_number">保持槽位编号</string>
     <string name="palette_import_mode_nearest">匹配最接近的颜色</string>
     <string name="palette_import_mode_explicit">逐个选择槽位</string>
-    <string name="palette_import_unresolved">还有%1$d个槽位需要选择目标</string>
+    <plurals name="palette_import_unresolved">
+        <item quantity="other">还有%1$d个槽位需要选择目标</item>
+    </plurals>
     <string name="palette_import_confirm">使用导入的调色板</string>
     <string name="palette_import_cancel">放弃导入</string>
     <string name="palette_editor_rejected">调色板编辑无法执行该操作</string>

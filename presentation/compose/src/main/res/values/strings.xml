@@ -180,7 +180,10 @@
     <string name="palette_import_mode_number">Keep slot numbers</string>
     <string name="palette_import_mode_nearest">Nearest colors</string>
     <string name="palette_import_mode_explicit">Choose each slot</string>
-    <string name="palette_import_unresolved">%1$d slots need a target</string>
+    <plurals name="palette_import_unresolved">
+        <item quantity="one">%1$d slot needs a target</item>
+        <item quantity="other">%1$d slots need a target</item>
+    </plurals>
     <string name="palette_import_confirm">Use imported palette</string>
     <string name="palette_import_cancel">Discard import</string>
     <string name="palette_editor_rejected">The palette editor could not do that</string>

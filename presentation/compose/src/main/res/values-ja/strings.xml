@@ -179,7 +179,9 @@
     <string name="palette_import_mode_number">スロット番号を保つ</string>
     <string name="palette_import_mode_nearest">近い色に合わせる</string>
     <string name="palette_import_mode_explicit">スロットごとに選ぶ</string>
-    <string name="palette_import_unresolved">%1$d個のスロットの行き先が未定です</string>
+    <plurals name="palette_import_unresolved">
+        <item quantity="other">%1$d個のスロットの行き先が未定です</item>
+    </plurals>
     <string name="palette_import_confirm">読み込んだパレットを使う</string>
     <string name="palette_import_cancel">読み込みを破棄</string>
     <string name="palette_editor_rejected">パレット編集でその操作はできません</string>

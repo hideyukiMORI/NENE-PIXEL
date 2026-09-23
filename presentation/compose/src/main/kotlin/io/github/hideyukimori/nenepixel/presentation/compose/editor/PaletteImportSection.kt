@@ -20,8 +20,12 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteImportMode
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PendingPaletteImport
@@ -57,10 +61,14 @@ internal fun PaletteImportSection(
             picked = NO_SOURCE
         }
         if (unresolved > 0) {
+            val unresolvedText = pluralStringResource(R.plurals.palette_import_unresolved, unresolved, unresolved)
             Text(
-                stringResource(R.string.palette_import_unresolved, unresolved),
+                unresolvedText,
                 style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.editorDescription(R.string.palette_import_unresolved, unresolved),
+                modifier =
+                    Modifier
+                        .testTag("editor_palette_import_unresolved")
+                        .semantics { contentDescription = unresolvedText },
             )
         }
         PaletteImportSources(draft, sources, pickedState)
