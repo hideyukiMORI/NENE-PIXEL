@@ -6,15 +6,22 @@ import io.github.hideyukimori.nenepixel.core.application.document.history.Histor
 import io.github.hideyukimori.nenepixel.core.application.editor.RuntimeSourceToken
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceActionRejection
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteRemap
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 
 /**
  * The ephemeral palette draft and its draft-only history (ADR 0022). It owns no document state and no document history;
  * only an applied `ReplacePaletteCommand` changes the document palette.
+ *
+ * `origin` is the definition the session began from and never changes. `evicted` is the accumulated remap from
+ * `origin` to the `before` of the oldest retained entry (to the draft when the timeline is empty); it absorbs every
+ * entry the retention budget drops, so the composed remap always starts at `origin`.
  */
 public class PaletteEditSession private constructor(
     internal val base: RuntimeSourceToken,
+    internal val origin: PaletteDefinition,
+    internal val evicted: PaletteRemap,
     public val draft: PaletteDefinition,
     internal val timeline: List<PaletteDraftEntry>,
     internal val cursor: Int,
@@ -30,7 +37,7 @@ public class PaletteEditSession private constructor(
     /** Moves the cursor back one entry and restores that entry's `before`; the timeline is unchanged. */
     internal fun undo(): PaletteDraftTransition =
         if (cursor > 0) {
-            PaletteDraftTransition.Changed(PaletteEditSession(base, timeline[cursor - 1].before, timeline, cursor - 1))
+            PaletteDraftTransition.Changed(moved(timeline[cursor - 1].before, cursor - 1))
         } else {
             draftRejected(PaletteDraftRejection.NoUndoAvailable)
         }
@@ -38,63 +45,47 @@ public class PaletteEditSession private constructor(
     /** Moves the cursor forward one entry and restores that entry's `after`; the timeline is unchanged. */
     internal fun redo(): PaletteDraftTransition =
         if (cursor < timeline.size) {
-            PaletteDraftTransition.Changed(PaletteEditSession(base, timeline[cursor].after, timeline, cursor + 1))
+            PaletteDraftTransition.Changed(moved(timeline[cursor].after, cursor + 1))
         } else {
             draftRejected(PaletteDraftRejection.NoRedoAvailable)
         }
 
     /**
-     * The single remap from the oldest retained definition to the current draft: each source index is sent through
-     * every entry before the cursor in order. With no timeline the source is the draft itself.
+     * The single remap from `origin` to the current draft: `evicted` followed by every retained entry before the
+     * cursor, in order. Its source is always `origin`.
      */
-    internal fun composedRemap(): PaletteRemap {
-        val source = timeline.firstOrNull()?.before ?: draft
-        val applied = timeline.take(cursor)
-        val destinations =
-            source.palette.entries().map { entry ->
-                applied.fold(entry.index) { index, step ->
-                    when (val destination = step.remap.destinationAt(index)) {
-                        is DomainValueResult.Created -> destination.value
-                        is DomainValueResult.Rejected -> error("Draft remap chain is broken: ${destination.rejection}")
-                    }
-                }
-            }
-        return when (val composed = PaletteRemap.create(source, draft, destinations)) {
-            is DomainValueResult.Created -> composed.value
-            is DomainValueResult.Rejected -> error("Composed draft remap is invalid: ${composed.rejection}")
-        }
+    internal fun composedRemap(): PaletteRemap = compose(evicted, timeline.take(cursor).map { it.remap }, draft)
+
+    /** True when applying the draft would change nothing: the draft equals `origin` and every index maps to itself. */
+    internal fun isIdentity(): Boolean {
+        val unchanged = origin.palette.entries().map { it.index }
+        return draft == origin && composedRemap().destinations() == unchanged
     }
 
     /**
-     * True when applying the draft would change nothing: the draft equals the source and every index maps to itself.
+     * Appends after the cursor, then evicts oldest-first under the shared ADR 0022 retention budget; the remap of
+     * every evicted entry is folded into `evicted`.
      */
-    internal fun isIdentity(): Boolean {
-        val remap = composedRemap()
-        val unchanged =
-            remap.source.palette
-                .entries()
-                .map { it.index }
-        return draft == remap.source && remap.destinations() == unchanged
-    }
-
-    /** Appends after the cursor, then evicts oldest-first under the shared ADR 0022 retention budget. */
     private fun appended(remap: PaletteRemap): PaletteEditSession {
         val after = remap.target
         val entry = PaletteDraftEntry(draft, after, remap, PaletteDraftPayload.bytes(draft, after))
         val candidates = timeline.take(cursor) + entry
-        val payloads = candidates.map { HistoryPayload(changeCount = 0, byteCount = it.payloadBytes) }
-        val retained =
-            when (val retention = HistoryRetentionPolicy.retain(payloads)) {
-                is HistoryRetentionResult.Retained -> {
-                    candidates.drop(retention.evictedEntryCount)
-                }
-
-                is HistoryRetentionResult.Rejected -> {
-                    error("Palette draft entry cannot exceed the retained payload budget: ${retention.rejection}")
-                }
+        val evictedCount = evictedEntryCount(candidates)
+        val retained = candidates.drop(evictedCount)
+        val folded =
+            if (evictedCount > 0) {
+                val oldestBefore = retained.firstOrNull()?.before ?: after
+                compose(evicted, candidates.take(evictedCount).map { it.remap }, oldestBefore)
+            } else {
+                evicted
             }
-        return PaletteEditSession(base, after, retained, retained.size)
+        return PaletteEditSession(base, origin, folded, after, retained, retained.size)
     }
+
+    private fun moved(
+        restored: PaletteDefinition,
+        movedCursor: Int,
+    ): PaletteEditSession = PaletteEditSession(base, origin, evicted, restored, timeline, movedCursor)
 
     private fun draftRejected(reason: PaletteDraftRejection): PaletteDraftTransition =
         PaletteDraftTransition.Rejected(WorkspaceActionRejection.PaletteDraftRejected(reason))
@@ -104,17 +95,20 @@ public class PaletteEditSession private constructor(
             (
                 other is PaletteEditSession &&
                     base == other.base &&
+                    origin == other.origin &&
+                    evicted == other.evicted &&
                     draft == other.draft &&
                     timeline == other.timeline &&
                     cursor == other.cursor
             )
 
     override fun hashCode(): Int =
-        listOf(base, draft, timeline, cursor)
+        listOf(base, origin, evicted, draft, timeline, cursor)
             .fold(INITIAL_HASH) { hash, value -> hash * HASH_MULTIPLIER + value.hashCode() }
 
     override fun toString(): String =
-        "PaletteEditSession(base=$base, draft=$draft, timelineSize=${timeline.size}, cursor=$cursor)"
+        "PaletteEditSession(base=$base, origin=$origin, evicted=$evicted, draft=$draft, " +
+            "timelineSize=${timeline.size}, cursor=$cursor)"
 
     internal companion object {
         private const val INITIAL_HASH: Int = 1
@@ -123,7 +117,55 @@ public class PaletteEditSession private constructor(
         fun begin(
             base: RuntimeSourceToken,
             definition: PaletteDefinition,
-        ): PaletteEditSession = PaletteEditSession(base, definition, emptyList(), 0)
+        ): PaletteEditSession {
+            val identity = remapOf(definition, definition, definition.palette.entries().map { it.index })
+            return PaletteEditSession(base, definition, identity, definition, emptyList(), 0)
+        }
+
+        private fun evictedEntryCount(candidates: List<PaletteDraftEntry>): Int {
+            val payloads = candidates.map { HistoryPayload(changeCount = 0, byteCount = it.payloadBytes) }
+            return when (val retention = HistoryRetentionPolicy.retain(payloads)) {
+                is HistoryRetentionResult.Retained -> {
+                    retention.evictedEntryCount
+                }
+
+                is HistoryRetentionResult.Rejected -> {
+                    error("Palette draft entry cannot exceed the retained payload budget: ${retention.rejection}")
+                }
+            }
+        }
+
+        /**
+         * The one draft remap composition: sends each destination of `base` through every step in order, producing a
+         * single remap from `base.source` to `target`.
+         */
+        private fun compose(
+            base: PaletteRemap,
+            steps: List<PaletteRemap>,
+            target: PaletteDefinition,
+        ): PaletteRemap {
+            val destinations = base.destinations().map { start -> steps.fold(start, ::stepped) }
+            return remapOf(base.source, target, destinations)
+        }
+
+        private fun stepped(
+            index: PaletteIndex,
+            step: PaletteRemap,
+        ): PaletteIndex =
+            when (val destination = step.destinationAt(index)) {
+                is DomainValueResult.Created -> destination.value
+                is DomainValueResult.Rejected -> error("Draft remap chain is broken: ${destination.rejection}")
+            }
+
+        private fun remapOf(
+            source: PaletteDefinition,
+            target: PaletteDefinition,
+            destinations: List<PaletteIndex>,
+        ): PaletteRemap =
+            when (val remap = PaletteRemap.create(source, target, destinations)) {
+                is DomainValueResult.Created -> remap.value
+                is DomainValueResult.Rejected -> error("Draft remap is invalid: ${remap.rejection}")
+            }
     }
 }
 

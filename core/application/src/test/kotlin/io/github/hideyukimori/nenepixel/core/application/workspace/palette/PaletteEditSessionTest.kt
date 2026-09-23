@@ -369,7 +369,7 @@ internal class PaletteEditSessionTest {
 
         val remap = session.composedRemap()
 
-        assertSame(session.draft, remap.source)
+        assertSame(session.origin, remap.source)
         assertSame(session.draft, remap.target)
         assertEquals(indices(0, 1), remap.destinations())
         assertTrue(session.isIdentity())
@@ -382,6 +382,7 @@ internal class PaletteEditSessionTest {
         val changed = changed(session.edit(PaletteDraftOperation.Reorder(indices(1, 0))))
         val remap = changed.composedRemap()
 
+        assertSame(changed.origin, remap.source)
         assertSame(definition, remap.source)
         assertEquals(changed.draft, remap.target)
         assertEquals(indices(1, 0), remap.destinations())
@@ -400,6 +401,7 @@ internal class PaletteEditSessionTest {
         // RemoveSlot(removed = 0, replacement = 1) on the reordered draft: new 0 -> 0 (replacement 1 shifted down),
         // new 1 -> 0, new 2 -> 1.
         // Composed: old 0 -> 1 -> 0, old 1 -> 2 -> 1, old 2 -> 0 -> 0.
+        assertSame(removed.origin, remap.source)
         assertSame(three, remap.source)
         assertEquals(removed.draft, remap.target)
         assertEquals(listOf(black, red), colors(remap.target))
@@ -408,7 +410,7 @@ internal class PaletteEditSessionTest {
     }
 
     @Test
-    fun `composed remap after undo to the start keeps the first before as source and is the identity`() {
+    fun `composed remap after undo to the start keeps the origin as source and is the identity`() {
         val session = PaletteEditSession.begin(base, definition)
         val edited = changed(session.edit(PaletteDraftOperation.Reorder(indices(1, 0))))
 
@@ -416,7 +418,7 @@ internal class PaletteEditSessionTest {
         val remap = undone.composedRemap()
 
         assertEquals(0, undone.cursor)
-        assertSame(undone.timeline[0].before, remap.source)
+        assertSame(undone.origin, remap.source)
         assertSame(definition, remap.source)
         assertEquals(indices(0, 1), remap.destinations())
         assertTrue(undone.isIdentity())
@@ -429,10 +431,53 @@ internal class PaletteEditSessionTest {
         val changed = changed(session.edit(PaletteDraftOperation.SetSlotColor(paletteIndex(1), black)))
         val remap = changed.composedRemap()
 
+        assertSame(changed.origin, remap.source)
         assertSame(definition, remap.source)
         assertEquals(indices(0, 1), remap.destinations())
         assertFalse(changed.isIdentity())
     }
+
+    @Test
+    fun `composed remap after one eviction folds the evicted reorder and keeps the origin as source`() {
+        val session = PaletteEditSession.begin(base, definition)
+
+        val swapped = swappedTimes(session, PixelLimits.MAX_HISTORY_ENTRIES + 1)
+        val remap = swapped.composedRemap()
+
+        assertEquals(PixelLimits.MAX_HISTORY_ENTRIES, swapped.timeline.size)
+        assertSame(definition, swapped.origin)
+        assertSame(definition, swapped.evicted.source)
+        assertEquals(indices(1, 0), swapped.evicted.destinations())
+        assertSame(swapped.timeline[0].before, swapped.evicted.target)
+        assertSame(swapped.origin, remap.source)
+        assertEquals(indices(1, 0), remap.destinations())
+        assertSame(swapped.draft, remap.target)
+        assertEquals(listOf(green, red), colors(remap.target))
+        assertFalse(swapped.isIdentity())
+    }
+
+    @Test
+    fun `composed remap after two evictions returns to the origin order and is the identity`() {
+        val session = PaletteEditSession.begin(base, definition)
+
+        val swapped = swappedTimes(session, PixelLimits.MAX_HISTORY_ENTRIES + 2)
+        val remap = swapped.composedRemap()
+
+        assertEquals(PixelLimits.MAX_HISTORY_ENTRIES, swapped.timeline.size)
+        assertEquals(indices(0, 1), swapped.evicted.destinations())
+        assertSame(swapped.origin, remap.source)
+        assertEquals(indices(0, 1), remap.destinations())
+        assertEquals(swapped.origin, swapped.draft)
+        assertTrue(swapped.isIdentity())
+    }
+
+    private fun swappedTimes(
+        session: PaletteEditSession,
+        times: Int,
+    ): PaletteEditSession =
+        (1..times).fold(session) { current, _ ->
+            changed(current.edit(PaletteDraftOperation.Reorder(indices(1, 0))))
+        }
 
     private fun changed(transition: PaletteDraftTransition): PaletteEditSession =
         when (transition) {
