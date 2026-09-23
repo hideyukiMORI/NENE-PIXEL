@@ -2611,3 +2611,30 @@ relative rule as the regression guard, or fixes another number is a product deci
 frame budget is not made by measurement alone. That decision, the budget's single documented home,
 and the promotion of the provisional +1.0 / +2.0 ms tolerance to a fixed value are Issue #135. No
 production edit or device collection is authorized by this section.
+
+## M5 drawing-latency budget — fixed 2026-09-23 (Issue #135)
+
+Product decision by the repository owner on 2026-09-23 (Issue #135, option (b)). This section is
+the single documented home of the M5 drawing-latency budget that `docs/MILESTONES.md` M5 exit
+"performance budgets pass on the named minimum profile" refers to.
+
+Budget, on profile `NENE-P2-ALLDOCUBE-IPL80MP-A16-API36`, measured by the P4 Lane 3 frame collector
+on release-like `benchmarkRelease` artifacts compiled `speed-profile` with the accepted packaged
+profile, with the deadline vsync + 10.0 ms at 90 Hz:
+
+1. UP-to-committed nearest-rank p95 of at most 16.67 ms (1.5 periods at 90 Hz) for every decision
+   family (50 samples each).
+2. Zero fatal, ANR or process-death matches during the decision slots.
+3. No gross regression as defined by the Lane 3 protocol.
+4. All-frame overrun is guarded by the Lane 3 relative rule against the accepted baseline: p95 within
+   +1.0 ms and p99 within +2.0 ms. These tolerances are fixed by this decision, no longer provisional.
+   Overrun nearest-rank p95 of at most 0.0 ms (the M2-exit absolute gate) remains a target and is not
+   an M5 gate.
+
+State of main against this budget (production tree since Issue #124, collection
+`p4-indexed-v7-20260923-frame1`, table in the section above): `canvas16_tap` 10.343 ms and
+`canvas256_repeated_diagonal` 10.881 ms UP-to-committed p95, zero fatal matches, no gross regression,
+and the candidate decision verdict `pass` under the relative rule. Main **passes** the M5
+drawing-latency budget on this evidence. A later collection that fails any of the four items is a
+failed exit criterion, not a reason to change the budget; changing the budget is again a product
+decision recorded here. No production edit or device collection is authorized by this section.
