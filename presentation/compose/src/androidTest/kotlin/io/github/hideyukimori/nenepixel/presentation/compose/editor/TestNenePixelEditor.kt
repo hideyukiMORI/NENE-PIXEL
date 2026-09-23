@@ -100,7 +100,7 @@ private class TestPersistenceHost(
     val callbacks =
         EditorPersistenceCallbacks.create(
             ProjectFileCallbacks(
-                exportPng = {},
+                exchange = FileExchangeCallbacks(exportPng = {}, exportPaletteJson = {}, importPaletteJson = {}),
                 saveAs = { complete { workflow.saveAs() } },
                 load = { complete { workflow.load() } },
                 createNewDocument = { request -> complete { workflow.createNewDocument(request) } },

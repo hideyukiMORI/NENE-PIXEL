@@ -31,19 +31,23 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationPhase
+import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationProjection
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteEditSession
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteEntry
 import io.github.hideyukimori.nenepixel.presentation.compose.R
 
 /**
  * The palette editor panel (design ruling 6): draft slots, the RGBA editor for the selected slot, slot operations and
- * the draft history, Apply and Cancel. Every change goes through [EditorPaletteCallbacks]; a pending import disables
- * editing until the mapping section (S6b) resolves it.
+ * the draft history, Apply and Cancel, the palette JSON buttons and the latest notice. Every change goes through
+ * [EditorPaletteCallbacks]; a pending import disables editing until its mapping section (S6b) confirms or cancels it.
  */
 @Composable
 internal fun PaletteEditorControls(
     session: PaletteEditSession,
+    notice: PaletteEditorNotice?,
     callbacks: EditorPaletteCallbacks,
+    json: PaletteJsonActions,
 ) {
     val selectedState = rememberSaveable { mutableIntStateOf(0) }
     val choosingState = rememberSaveable { mutableStateOf(false) }
@@ -56,6 +60,7 @@ internal fun PaletteEditorControls(
             modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            session.pendingImport?.let { PaletteImportSection(session.draft, it, callbacks) }
             if (choice.choosingReplacement) {
                 Text(
                     stringResource(R.string.palette_editor_replacement),
@@ -66,6 +71,11 @@ internal fun PaletteEditorControls(
             PaletteColorEditor(selection.selectedEntry.color, selection.editable, actions::setColor)
             PaletteEditorSlotActions(selection, actions)
             PaletteEditorSessionActions(session, callbacks)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PaletteEditorButton(R.string.export_palette_json, json.idle, onClick = json::export)
+                PaletteEditorButton(R.string.import_palette_json, json.idle, onClick = json::import)
+            }
+            notice?.let { PaletteEditorNoticeText(it) }
         }
     }
 }
@@ -155,6 +165,32 @@ private fun PaletteEditorSessionActions(
         PaletteEditorButton(R.string.palette_editor_redo, editable && session.canRedoDraft) { callbacks.onRedo() }
         PaletteEditorButton(R.string.palette_editor_apply, editable) { callbacks.onApply() }
         PaletteEditorButton(R.string.palette_editor_cancel) { callbacks.onCancel() }
+    }
+}
+
+@Composable
+private fun PaletteEditorNoticeText(notice: PaletteEditorNotice) {
+    Text(
+        stringResource(notice.noticeResource()),
+        color = MaterialTheme.colorScheme.error,
+        style = MaterialTheme.typography.bodySmall,
+        modifier = Modifier.editorDescription(notice.noticeResource(), identity = "editor_palette_editor_notice"),
+    )
+}
+
+/** The palette JSON buttons' route; they follow the File panel's rule and wait while a file operation runs. */
+internal class PaletteJsonActions(
+    private val callbacks: EditorPersistenceCallbacks,
+    operation: PersistenceOperationProjection,
+) {
+    val idle: Boolean = operation.phase is PersistenceOperationPhase.Idle
+
+    fun export() {
+        callbacks.onExportPaletteJson()
+    }
+
+    fun import() {
+        callbacks.onImportPaletteJson()
     }
 }
 

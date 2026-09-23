@@ -79,7 +79,7 @@ internal fun EditorScreen(
                     }
                 }
             }
-            ClosePaletteEditorWithoutSession(renderState, panel) { panel = null }
+            FollowPaletteEditSession(renderState, panel) { panel = it }
             PersistenceConfirmation(persistenceOperation, persistenceCallbacks)
             LegacyConversionDialog(persistenceOperation, renderState.value.definition, persistenceCallbacks)
         }
@@ -191,13 +191,19 @@ private fun PanelContent(
     dismiss: () -> Unit,
 ) {
     val state = inputs.state.value
+    val json = PaletteJsonActions(inputs.storage.callbacks, inputs.storage.operation)
     when (panel) {
         EditorPanel.Palette -> {
-            PaletteControls(state, inputs.callbacks, dismiss) { openPanel(EditorPanel.PaletteEditor) }
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                PaletteEditorButton(R.string.import_palette_json, json.idle, onClick = json::import)
+                PaletteControls(state, inputs.callbacks, dismiss) { openPanel(EditorPanel.PaletteEditor) }
+            }
         }
 
         EditorPanel.PaletteEditor -> {
-            state.paletteEditSession?.let { PaletteEditorControls(it, inputs.callbacks.palette) }
+            state.paletteEditSession?.let { session ->
+                PaletteEditorControls(session, state.paletteNotice, inputs.callbacks.palette, json)
+            }
         }
 
         EditorPanel.Appearance -> {
@@ -218,16 +224,21 @@ private fun PanelContent(
     }
 }
 
-/** The palette editor panel exists only while a draft session does; Apply and Cancel close it (design S6a 3). */
+/**
+ * The palette editor panel exists only while a draft session does; Apply and Cancel close it (design S6a 3). A palette
+ * JSON import started from the Palette panel moves to the editor once its mapping is pending (S6b 2).
+ */
 @Composable
-private fun ClosePaletteEditorWithoutSession(
+private fun FollowPaletteEditSession(
     state: State<EditorRenderState>,
     panel: EditorPanel?,
-    close: () -> Unit,
+    show: (EditorPanel?) -> Unit,
 ) {
     val editing by remember(state) { derivedStateOf { state.value.paletteEditSession != null } }
-    LaunchedEffect(panel, editing) {
-        if (panel == EditorPanel.PaletteEditor && !editing) close()
+    val importing by remember(state) { derivedStateOf { state.value.paletteEditSession?.pendingImport != null } }
+    LaunchedEffect(panel, editing, importing) {
+        if (panel == EditorPanel.PaletteEditor && !editing) show(null)
+        if (panel == EditorPanel.Palette && importing) show(EditorPanel.PaletteEditor)
     }
 }
 

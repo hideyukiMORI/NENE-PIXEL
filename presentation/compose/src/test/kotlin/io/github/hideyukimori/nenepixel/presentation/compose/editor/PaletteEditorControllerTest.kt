@@ -1,12 +1,19 @@
 package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
+import io.github.hideyukimori.nenepixel.core.application.document.command.CommandFailure
+import io.github.hideyukimori.nenepixel.core.application.document.command.RejectionReason
+import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceAction
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceActionRejection
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteDraftOperation
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteDraftRejection
+import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteImportMode
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
+import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestValues.definition
 import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestValues.fixture
 import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestValues.green
 import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestValues.red
+import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestValues.transparent
+import io.github.hideyukimori.nenepixel.presentation.compose.R
 import io.github.hideyukimori.nenepixel.presentation.compose.requiredValue
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -36,7 +43,7 @@ internal class PaletteEditorControllerTest {
         assertEquals(fixture.initialDocument.definition, edited.definition)
         val applied = palette.onApply()
         assertNull(applied.paletteEditSession)
-        assertNull(applied.lastPaletteRejection)
+        assertNull(applied.paletteNotice)
         assertEquals(
             green,
             applied.palette
@@ -70,14 +77,14 @@ internal class PaletteEditorControllerTest {
         val palette = fixture().controller.callbacks.palette
         val opened = palette.onBegin()
         assertFalse(opened.paletteEditSession?.canUndoDraft ?: true)
-        val refused = palette.onUndo().lastPaletteRejection
+        val refused = palette.onUndo().rejection()
         assertTrue(refused is WorkspaceActionRejection.PaletteDraftRejected)
         assertEquals(
             PaletteDraftRejection.NoUndoAvailable,
             (refused as WorkspaceActionRejection.PaletteDraftRejected).reason,
         )
         val edited = palette.onEdit(PaletteDraftOperation.SetDefault(slot(1)))
-        assertNull(edited.lastPaletteRejection)
+        assertNull(edited.paletteNotice)
         assertTrue(edited.paletteEditSession?.canUndoDraft ?: false)
         val undone = palette.onUndo()
         assertTrue(undone.paletteEditSession?.canRedoDraft ?: false)
@@ -87,8 +94,8 @@ internal class PaletteEditorControllerTest {
     @Test
     fun `draft actions without a session are refused as no palette session`() {
         val palette = fixture().controller.callbacks.palette
-        assertEquals(WorkspaceActionRejection.NoPaletteSession, palette.onUndo().lastPaletteRejection)
-        assertEquals(WorkspaceActionRejection.NoPaletteSession, palette.onApply().lastPaletteRejection)
+        assertEquals(WorkspaceActionRejection.NoPaletteSession, palette.onUndo().rejection())
+        assertEquals(WorkspaceActionRejection.NoPaletteSession, palette.onApply().rejection())
         assertNull(palette.onApply().paletteEditSession)
     }
 
@@ -97,7 +104,7 @@ internal class PaletteEditorControllerTest {
         val palette = fixture().controller.callbacks.palette
         val session = palette.onBegin().paletteEditSession
         val again = palette.onBegin()
-        assertEquals(WorkspaceActionRejection.PaletteSessionAlreadyActive, again.lastPaletteRejection)
+        assertEquals(WorkspaceActionRejection.PaletteSessionAlreadyActive, again.rejection())
         assertEquals(session, again.paletteEditSession)
     }
 
@@ -118,6 +125,50 @@ internal class PaletteEditorControllerTest {
         }
         assertEquals(255, PaletteHexColor.parseChannel("255")?.value?.toInt())
     }
+
+    @Test
+    fun `a pending import resolves by nearest color and replaces the draft`() {
+        val fixture = fixture()
+        val palette = fixture.controller.callbacks.palette
+        val target = definition(listOf(red, green, transparent), defaultIndex = 2)
+        fixture.runtime.paletteOperations.beginPaletteEdit()
+        fixture.runtime.reduce(WorkspaceAction.ImportPaletteDraft(target))
+        val source = fixture.initialDocument.definition
+        val session = fixture.runtime.state.workspaceState.paletteEditSession
+        val byNumber = requireNotNull(session?.pendingImport)
+        assertEquals((3..8).map(::slot), byNumber.assignableSources(source))
+        val staged = palette.onImportMode(PaletteImportMode.Nearest)
+        val nearest = requireNotNull(staged.paletteEditSession?.pendingImport)
+        assertEquals(PaletteImportMode.Nearest, nearest.mode)
+        assertTrue(nearest.assignableSources(source).isEmpty())
+        val confirmed = palette.onConfirmImport()
+        assertNull(confirmed.paletteNotice)
+        assertNull(confirmed.paletteEditSession?.pendingImport)
+        assertEquals(target, confirmed.paletteEditSession?.draft)
+        assertEquals(fixture.initialDocument.definition, confirmed.definition)
+    }
+
+    @Test
+    fun `notices map to their localized messages`() {
+        assertEquals(
+            R.string.palette_notice_no_session,
+            PaletteEditorNotice.Rejected(WorkspaceActionRejection.NoPaletteSession).noticeResource(),
+        )
+        assertEquals(
+            R.string.palette_notice_no_change,
+            PaletteEditorNotice.ApplyRejected(RejectionReason.NoEffectiveChange).noticeResource(),
+        )
+        assertEquals(
+            R.string.palette_notice_persistence_busy,
+            PaletteEditorNotice.ApplyFailed(CommandFailure.PersistenceBusy).noticeResource(),
+        )
+        val palette = fixture().controller.callbacks.palette
+        palette.onBegin()
+        assertEquals(R.string.palette_notice_no_undo, palette.onUndo().paletteNotice?.noticeResource())
+    }
+
+    private fun EditorRenderState.rejection(): WorkspaceActionRejection? =
+        (paletteNotice as? PaletteEditorNotice.Rejected)?.rejection
 
     private fun slot(value: Int): PaletteIndex = PaletteIndex.create(value).requiredValue()
 }

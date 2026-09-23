@@ -4,7 +4,6 @@ import io.github.hideyukimori.nenepixel.core.application.editor.DocumentDirtySta
 import io.github.hideyukimori.nenepixel.core.application.workspace.ActualSizeWindow
 import io.github.hideyukimori.nenepixel.core.application.workspace.EditorAppearance
 import io.github.hideyukimori.nenepixel.core.application.workspace.ToolGesture
-import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceActionRejection
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteEditSession
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportState
 import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
@@ -28,7 +27,7 @@ public class EditorRenderState internal constructor(
     public val appearance: EditorAppearance,
     public val actualSizeWindow: ActualSizeWindow,
     public val paletteEditSession: PaletteEditSession?,
-    public val lastPaletteRejection: WorkspaceActionRejection?,
+    public val paletteNotice: PaletteEditorNotice?,
 ) {
     public val palette: Palette
         get() = definition.palette
@@ -61,7 +60,7 @@ public class EditorRenderState internal constructor(
             appearance,
             actualSizeWindow,
             paletteEditSession,
-            lastPaletteRejection,
+            paletteNotice,
         )
 
     override fun toString(): String =
@@ -70,7 +69,7 @@ public class EditorRenderState internal constructor(
             "preview=$preview, viewport=$viewport, " +
             "canUndo=$canUndo, canRedo=$canRedo, dirtyState=$dirtyState, appearance=$appearance, " +
             "actualSizeWindow=$actualSizeWindow, paletteEditSession=$paletteEditSession, " +
-            "lastPaletteRejection=$lastPaletteRejection)"
+            "paletteNotice=$paletteNotice)"
 
     private companion object {
         const val INITIAL_HASH: Int = 1

@@ -110,6 +110,6 @@ internal class PaletteEditorActions(
         operation: PaletteDraftOperation,
         succeeded: () -> Unit,
     ) {
-        if (callbacks.onEdit(operation).lastPaletteRejection == null) succeeded()
+        if (callbacks.onEdit(operation).paletteNotice == null) succeeded()
     }
 }

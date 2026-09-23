@@ -6,7 +6,6 @@ import io.github.hideyukimori.nenepixel.core.application.document.command.RedoCo
 import io.github.hideyukimori.nenepixel.core.application.document.command.UndoCommand
 import io.github.hideyukimori.nenepixel.core.application.editor.EditorRuntime
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceAction
-import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceActionRejection
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReductionResult
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 
@@ -16,8 +15,8 @@ internal class EditorRuntimeAdapter(
     val renderState: EditorRenderState
         get() = createRenderState()
 
-    /** The latest palette-draft refusal; the palette route clears it on its next success (S6a). */
-    var lastPaletteRejection: WorkspaceActionRejection? = null
+    /** The latest palette-editor notice; the palette route clears it on its next success (S6a, S6b). */
+    var paletteNotice: PaletteEditorNotice? = null
 
     fun reduce(action: WorkspaceAction): PointerInputAcknowledgement {
         val hadPreview = runtime.state.workspaceState.preview != null
@@ -112,7 +111,7 @@ internal class EditorRuntimeAdapter(
             appearance = state.workspaceState.appearance,
             actualSizeWindow = state.workspaceState.actualSizeWindow,
             paletteEditSession = state.workspaceState.paletteEditSession,
-            lastPaletteRejection = lastPaletteRejection,
+            paletteNotice = paletteNotice,
         )
     }
 
