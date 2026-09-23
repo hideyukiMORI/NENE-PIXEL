@@ -27,7 +27,7 @@ internal class PaletteJsonExportWorkflowTest {
             apply(fixture.runtime, position(0, 0), red)
             val before = fixture.runtime.state
             val autosave = fixture.workflow.autosave.value
-            assertCompleted(PersistenceLastOutcome.PaletteJsonExported, fixture.workflow.exportPaletteJson())
+            assertCompleted(PersistenceLastOutcome.PaletteJsonExported, fixture.workflow.paletteJson.export())
             assertEquals(listOf(before.documentState.definition), fixture.paletteExporter.definitions)
             assertEquals(before, fixture.runtime.state)
             assertEquals(autosave, fixture.workflow.autosave.value)
@@ -53,7 +53,7 @@ internal class PaletteJsonExportWorkflowTest {
             val before = fixture.runtime.state
             val draft = before.workspaceState.paletteEditSession?.draft ?: fail("Palette session was closed")
             assertNotEquals(before.documentState.definition, draft)
-            assertCompleted(PersistenceLastOutcome.PaletteJsonExported, fixture.workflow.exportPaletteJson())
+            assertCompleted(PersistenceLastOutcome.PaletteJsonExported, fixture.workflow.paletteJson.export())
             assertEquals(listOf(draft), fixture.paletteExporter.definitions)
             assertEquals(before, fixture.runtime.state)
         }
@@ -63,7 +63,7 @@ internal class PaletteJsonExportWorkflowTest {
         runBlocking {
             val fixture = initializedFixture()
             fixture.paletteExporter.handler = { PaletteJsonExportOutcome.Cancelled }
-            assertCompleted(PersistenceLastOutcome.Cancelled, fixture.workflow.exportPaletteJson())
+            assertCompleted(PersistenceLastOutcome.Cancelled, fixture.workflow.paletteJson.export())
             assertEquals(PersistenceOperationPhase.Idle, fixture.workflow.operation.value.phase)
         }
 
@@ -81,7 +81,7 @@ internal class PaletteJsonExportWorkflowTest {
             val failure =
                 assertInstanceOf(
                     PersistenceFailure.PaletteJsonExport::class.java,
-                    assertFailed(fixture.workflow.exportPaletteJson()),
+                    assertFailed(fixture.workflow.paletteJson.export()),
                 )
             assertEquals(ProjectStorageFailure.ReadBackMismatch, failure.failure)
             assertEquals(PartialOutputCleanup.DELETE_FAILED, failure.cleanup)
@@ -97,12 +97,12 @@ internal class PaletteJsonExportWorkflowTest {
                 gate.await()
                 PaletteJsonExportOutcome.Exported
             }
-            val pending = async(start = CoroutineStart.UNDISPATCHED) { fixture.workflow.exportPaletteJson() }
+            val pending = async(start = CoroutineStart.UNDISPATCHED) { fixture.workflow.paletteJson.export() }
             assertInstanceOf(PersistenceOperationPhase.Exporting::class.java, fixture.workflow.operation.value.phase)
             assertEquals(PersistenceRequestResult.Busy, fixture.workflow.saveAs())
             assertEquals(PersistenceRequestResult.Busy, fixture.workflow.load())
             assertEquals(PersistenceRequestResult.Busy, fixture.workflow.exportPng())
-            assertEquals(PersistenceRequestResult.Busy, fixture.workflow.exportPaletteJson())
+            assertEquals(PersistenceRequestResult.Busy, fixture.workflow.paletteJson.export())
             gate.complete(Unit)
             assertCompleted(PersistenceLastOutcome.PaletteJsonExported, pending.await())
             assertEquals(1, fixture.paletteExporter.definitions.size)

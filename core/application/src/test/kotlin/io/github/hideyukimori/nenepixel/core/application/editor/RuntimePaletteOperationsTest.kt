@@ -7,6 +7,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.App
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.blackIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.canvas
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.defaultDefinition
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.definition
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.green
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.greenIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.indexAt
@@ -105,6 +106,28 @@ internal class RuntimePaletteOperationsTest {
         )
 
         assertSame(document, runtime.state.documentState)
+        assertSame(session, runtime.state.workspaceState.paletteEditSession)
+    }
+
+    @Test
+    fun `apply with a pending import is rejected and keeps the session`() {
+        val runtime = openedPaletteSession()
+        edit(runtime, PaletteDraftOperation.SetSlotColor(redIndex, green))
+        assertInstanceOf(
+            WorkspaceReductionResult.Reduced::class.java,
+            runtime.reduce(WorkspaceAction.ImportPaletteDraft(definition(blackIndex, black, red))),
+        )
+        val session = runtime.state.workspaceState.paletteEditSession
+        assertNotNull(session?.pendingImport)
+
+        assertEquals(
+            PaletteApplyResult.Rejected(
+                WorkspaceActionRejection.PaletteDraftRejected(PaletteDraftRejection.ImportPending),
+            ),
+            runtime.paletteOperations.applyPaletteDraft(),
+        )
+
+        assertEquals(defaultDefinition, runtime.state.documentState.definition)
         assertSame(session, runtime.state.workspaceState.paletteEditSession)
     }
 

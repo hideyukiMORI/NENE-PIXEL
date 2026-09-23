@@ -92,6 +92,10 @@ public sealed interface ProjectStorageFailure {
     public data object InvalidProject : ProjectStorageFailure
 
     public data object ReadBackMismatch : ProjectStorageFailure
+
+    public data object InvalidPaletteJson : ProjectStorageFailure
+
+    public data object UnsupportedPaletteJsonVersion : ProjectStorageFailure
 }
 
 public enum class PartialOutputCleanup {

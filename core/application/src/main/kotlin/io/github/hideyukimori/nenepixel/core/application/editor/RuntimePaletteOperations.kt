@@ -56,6 +56,12 @@ public class RuntimePaletteOperations internal constructor(
                         )
                     }
 
+                    session.pendingImport != null -> {
+                        PaletteApplyResult.Rejected(
+                            WorkspaceActionRejection.PaletteDraftRejected(PaletteDraftRejection.ImportPending),
+                        )
+                    }
+
                     else -> {
                         applySession(transaction, session)
                     }

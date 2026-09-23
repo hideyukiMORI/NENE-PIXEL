@@ -60,10 +60,11 @@ internal class Fixture(
     val recovery = FakeRecoveryRecordPort(inspection)
     val exporter = FakePngExportPort()
     val paletteExporter = FakePaletteJsonExportPort()
+    val paletteImporter = FakePaletteJsonImportPort()
     val workflow =
         EditorPersistenceWorkflow.create(
             runtime,
-            PersistencePorts(storage, recovery, exporter, paletteExporter),
+            PersistencePorts(storage, recovery, exporter, paletteExporter, paletteImporter),
             Dispatchers.Unconfined,
         )
 

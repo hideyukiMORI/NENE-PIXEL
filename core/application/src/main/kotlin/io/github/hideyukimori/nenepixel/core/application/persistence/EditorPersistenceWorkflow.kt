@@ -9,7 +9,7 @@ public class EditorPersistenceWorkflow private constructor(
     private val runtime: EditorRuntime,
     private val flows: PersistenceFlows,
     private val pngExport: PersistencePngExportFlow,
-    private val paletteJsonExport: PersistencePaletteJsonFlow,
+    paletteJsonFlow: PersistencePaletteJsonFlow,
 ) {
     public val operation: StateFlow<PersistenceOperationProjection>
         get() = runtime.persistenceOperation
@@ -19,13 +19,13 @@ public class EditorPersistenceWorkflow private constructor(
 
     public val legacyImport: LegacyImportWorkflow = LegacyImportWorkflow(flows.switch, flows.recovery)
 
+    public val paletteJson: PaletteJsonWorkflow = PaletteJsonWorkflow(paletteJsonFlow)
+
     public suspend fun initializeRecovery(): RecoveryInitializationResult = flows.save.initializeRecovery()
 
     public suspend fun saveAs(): PersistenceRequestResult = flows.save.saveAs()
 
     public suspend fun exportPng(): PersistenceRequestResult = pngExport.exportPng()
-
-    public suspend fun exportPaletteJson(): PersistenceRequestResult = paletteJsonExport.export()
 
     public suspend fun load(): PersistenceRequestResult = flows.switch.load()
 
@@ -70,7 +70,12 @@ public class EditorPersistenceWorkflow private constructor(
                     PersistenceRecoveryFlow(runtime.recoveryOperations, ports.recoveryRecord),
                 ),
                 PersistencePngExportFlow(runtime.pngExportOperations, ports.pngExport, autosave),
-                PersistencePaletteJsonFlow(runtime.paletteJsonOperations, ports.paletteJsonExport, autosave),
+                PersistencePaletteJsonFlow(
+                    runtime.paletteJsonOperations,
+                    ports.paletteJsonExport,
+                    ports.paletteJsonImport,
+                    autosave,
+                ),
             )
         }
     }
