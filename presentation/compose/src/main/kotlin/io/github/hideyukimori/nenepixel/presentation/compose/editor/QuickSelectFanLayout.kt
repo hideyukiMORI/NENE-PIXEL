@@ -12,9 +12,10 @@ import kotlin.math.sin
  *
  * Every length is in pixels; the caller converts dp to px. Angles are screen angles (y grows downward):
  * a control in the bottom-right corner fans from 180° (left) to 270° (up), a control in the bottom-left
- * corner from 270° (up) to 360° (right). Up to [SINGLE_RING_CAPACITY] items share one ring; more items put
- * the first [SINGLE_RING_CAPACITY] on the inner ring and the rest on the outer ring. A ring larger than
- * [maxRadius] only shrinks its radius; angles never change.
+ * corner from 360° (right) to 270° (up). The two corners are mirror images: the same index lands at the
+ * same y and at an x reflected about the vertical line through the control. Up to [SINGLE_RING_CAPACITY]
+ * items share one ring; more items put the first [SINGLE_RING_CAPACITY] on the inner ring and the rest on
+ * the outer ring. A ring larger than [maxRadius] only shrinks its radius; angles never change.
  */
 internal data class QuickSelectFanLayout(
     val singleRingRadius: Float,
@@ -66,21 +67,21 @@ internal data class QuickSelectFanLayout(
         edge: EditorControlEdge,
     ): List<QuickSelectFanPoint> {
         val effectiveRadius = min(radius, maxRadius).toDouble()
-        val start =
+        val horizontal =
             when (edge) {
-                EditorControlEdge.Right -> RIGHT_CORNER_START_DEGREES
-                EditorControlEdge.Left -> LEFT_CORNER_START_DEGREES
+                EditorControlEdge.Right -> 1.0
+                EditorControlEdge.Left -> -1.0
             }
         return List(count) { index ->
             val degrees =
                 if (count == 1) {
-                    start + QUARTER_DEGREES / 2
+                    RIGHT_CORNER_START_DEGREES + QUARTER_DEGREES / 2
                 } else {
-                    start + QUARTER_DEGREES * index / (count - 1)
+                    RIGHT_CORNER_START_DEGREES + QUARTER_DEGREES * index / (count - 1)
                 }
             val radians = degrees * PI / HALF_TURN_DEGREES
             QuickSelectFanPoint(
-                x = (control.x + effectiveRadius * cos(radians)).toFloat(),
+                x = (control.x + horizontal * effectiveRadius * cos(radians)).toFloat(),
                 y = (control.y + effectiveRadius * sin(radians)).toFloat(),
             )
         }
@@ -97,6 +98,5 @@ internal data class QuickSelectFanLayout(
         private const val QUARTER_DEGREES = 90.0
         private const val HALF_TURN_DEGREES = 180.0
         private const val RIGHT_CORNER_START_DEGREES = 180.0
-        private const val LEFT_CORNER_START_DEGREES = 270.0
     }
 }

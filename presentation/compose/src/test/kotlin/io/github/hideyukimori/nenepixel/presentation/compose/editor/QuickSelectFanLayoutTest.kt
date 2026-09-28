@@ -50,20 +50,18 @@ internal class QuickSelectFanLayoutTest {
     }
 
     @Test
-    fun `the left corner mirrors the right corner and runs from up to right`() {
-        (1..9).forEach { count ->
+    fun `the left corner mirrors the right corner index by index and runs from right to up`() {
+        listOf(1, 4, 5, 9).forEach { count ->
             val right = layout().itemCenters(CONTROL, count, EditorControlEdge.Right)
             val left = layout().itemCenters(CONTROL, count, EditorControlEdge.Left)
-            ringsOf(count).forEach { ring ->
-                ring.forEachIndexed { position, index ->
-                    val mirrored = right[ring[ring.size - 1 - position]]
-                    assertPoint(2.0 * CONTROL.x - mirrored.x, mirrored.y.toDouble(), left[index])
-                }
+            assertEquals(count, left.size)
+            right.indices.forEach { index ->
+                assertPoint(2.0 * CONTROL.x - right[index].x, right[index].y.toDouble(), left[index])
             }
         }
         val left = layout().itemCenters(CONTROL, 4, EditorControlEdge.Left)
-        assertPoint(CONTROL.x.toDouble(), CONTROL.y - SINGLE, left.first())
-        assertPoint(CONTROL.x + SINGLE, CONTROL.y.toDouble(), left.last())
+        assertPoint(CONTROL.x + SINGLE, CONTROL.y.toDouble(), left.first())
+        assertPoint(CONTROL.x.toDouble(), CONTROL.y - SINGLE, left.last())
     }
 
     @Test
@@ -91,13 +89,6 @@ internal class QuickSelectFanLayoutTest {
         val away = QuickSelectFanPoint(CONTROL.x - 300f * DENSITY.toFloat(), CONTROL.y - 300f * DENSITY.toFloat())
         assertNull(fan.hitTest(away, centers, CONTROL))
     }
-
-    private fun ringsOf(count: Int): List<List<Int>> =
-        if (count <= QuickSelectFanLayout.SINGLE_RING_CAPACITY) {
-            listOf((0 until count).toList())
-        } else {
-            listOf((0 until 4).toList(), (4 until count).toList())
-        }
 
     private fun layout(maxRadius: Double = 1_000.0 * DENSITY): QuickSelectFanLayout =
         QuickSelectFanLayout(
