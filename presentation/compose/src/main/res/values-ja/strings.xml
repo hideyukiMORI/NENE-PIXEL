@@ -204,4 +204,9 @@
     <string name="palette_notice_unresolved_import">表示されたすべてのスロットの行き先を選んでください</string>
     <string name="palette_notice_source_mismatch">作品のパレットが変わりました。このパレット編集を破棄してやり直してください</string>
     <string name="palette_notice_no_change">適用するパレットの変更がありません</string>
+    <string name="quick_select">クイック選択</string>
+    <string name="quick_select_state_slot">パレットの色%1$d</string>
+    <string name="quick_select_state_eyedropper">スポイト待ち</string>
+    <string name="quick_select_slot">パレットの色%1$d</string>
+    <string name="quick_select_eyedropper">スポイト</string>
 </resources>

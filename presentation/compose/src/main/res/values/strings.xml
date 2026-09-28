@@ -206,4 +206,9 @@
     <string name="palette_notice_unresolved_import">Choose a target for every listed slot</string>
     <string name="palette_notice_source_mismatch">The artwork palette changed; discard this palette edit and start again</string>
     <string name="palette_notice_no_change">The palette has no changes to apply</string>
+    <string name="quick_select">Quick select</string>
+    <string name="quick_select_state_slot">Palette color %1$d</string>
+    <string name="quick_select_state_eyedropper">Eyedropper ready</string>
+    <string name="quick_select_slot">Palette color %1$d</string>
+    <string name="quick_select_eyedropper">Eyedropper</string>
 </resources>

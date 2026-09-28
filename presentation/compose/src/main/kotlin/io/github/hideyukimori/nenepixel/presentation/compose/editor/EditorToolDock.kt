@@ -170,10 +170,20 @@ private data class DockControl(
     fun descriptionResource(): Int =
         when (icon) {
             EditorIcon.Pencil -> R.string.pencil_tool
+
             EditorIcon.Eraser -> R.string.eraser_tool
+
             EditorIcon.Palette -> R.string.open_palette
+
             EditorIcon.ActualSize -> R.string.actual_size_window_toggle
-            EditorIcon.Undo, EditorIcon.Redo, EditorIcon.File, EditorIcon.Settings, EditorIcon.Close -> label
+
+            EditorIcon.Undo,
+            EditorIcon.Redo,
+            EditorIcon.File,
+            EditorIcon.Settings,
+            EditorIcon.Close,
+            EditorIcon.Eyedropper,
+            -> label
         }
 }
 

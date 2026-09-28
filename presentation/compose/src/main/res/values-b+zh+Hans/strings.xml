@@ -204,4 +204,9 @@
     <string name="palette_notice_unresolved_import">请为列出的每个槽位选择目标</string>
     <string name="palette_notice_source_mismatch">作品的调色板已更改，请放弃此调色板编辑后重新开始</string>
     <string name="palette_notice_no_change">没有要应用的调色板更改</string>
+    <string name="quick_select">快速选择</string>
+    <string name="quick_select_state_slot">调色板颜色%1$d</string>
+    <string name="quick_select_state_eyedropper">吸管已就绪</string>
+    <string name="quick_select_slot">调色板颜色%1$d</string>
+    <string name="quick_select_eyedropper">吸管</string>
 </resources>
