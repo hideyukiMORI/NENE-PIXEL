@@ -131,9 +131,6 @@
     <string name="legacy_dusk_palette">夕暮れ · 16 色</string>
     <string name="legacy_grayscale_palette">グレー · 32 色</string>
     <string name="legacy_swatches_palette">色見本 · 256 色</string>
-    <string name="legacy_default_opaque">空白・消しゴムの色は不透明です。</string>
-    <string name="legacy_default_translucent">空白・消しゴムの色は半透明です。</string>
-    <string name="legacy_default_transparent">空白・消しゴムの色は透明です。</string>
     <string name="legacy_preserve_title">2. 原本を残す</string>
     <string name="legacy_copy_optional">元の色を残すため、原本のコピーを保存できます。</string>
     <string name="legacy_copy_required">この復元データの原本を残すため、変換や破棄の前にコピーの保存・確認が必要です。</string>

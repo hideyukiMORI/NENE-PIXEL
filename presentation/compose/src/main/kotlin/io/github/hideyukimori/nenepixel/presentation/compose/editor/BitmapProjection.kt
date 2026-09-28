@@ -1,26 +1,18 @@
 package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
 import android.graphics.Bitmap
-import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
-import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
+import io.github.hideyukimori.nenepixel.core.application.render.DocumentCompositeImage
 
-internal fun PixelSnapshot.toRenderedBitmap(definition: PaletteDefinition): Bitmap {
-    val width = size.width.value
-    val indices = copyPackedIndices()
-    val palette = definition.palette.entries().map { it.color.toPackedRgba8888().rgbaToArgb8888() }
-    val colors = IntArray(indices.size) { index -> palette[indices[index].toInt() and CHANNEL_MASK] }
-    return Bitmap.createBitmap(colors, width, size.height.value, Bitmap.Config.ARGB_8888)
+internal fun DocumentCompositeImage.toRenderedBitmap(): Bitmap {
+    val rgba = copyPackedRgba8888()
+    val colors = IntArray(rgba.size) { index -> rgba[index].rgbaToArgb8888() }
+    return Bitmap.createBitmap(colors, size.width.value, size.height.value, Bitmap.Config.ARGB_8888)
 }
 
-internal fun PixelSnapshot.toOpaqueRenderedBitmap(
-    definition: PaletteDefinition,
-    backgroundArgb: Int,
-): Bitmap {
-    val width = size.width.value
-    val indices = copyPackedIndices()
-    val palette = definition.palette.entries().map { it.color.toPackedRgba8888().rgbaOverOpaqueArgb(backgroundArgb) }
-    val colors = IntArray(indices.size) { index -> palette[indices[index].toInt() and CHANNEL_MASK] }
-    return Bitmap.createBitmap(colors, width, size.height.value, Bitmap.Config.ARGB_8888)
+internal fun DocumentCompositeImage.toOpaqueRenderedBitmap(backgroundArgb: Int): Bitmap {
+    val rgba = copyPackedRgba8888()
+    val colors = IntArray(rgba.size) { index -> rgba[index].rgbaOverOpaqueArgb(backgroundArgb) }
+    return Bitmap.createBitmap(colors, size.width.value, size.height.value, Bitmap.Config.ARGB_8888)
 }
 
 private fun Int.rgbaToArgb8888(): Int = ((this and CHANNEL_MASK) shl ALPHA_SHIFT) or (this ushr CHANNEL_SHIFT)

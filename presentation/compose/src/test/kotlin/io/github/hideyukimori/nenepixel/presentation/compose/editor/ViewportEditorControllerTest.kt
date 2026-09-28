@@ -58,12 +58,12 @@ internal class ViewportEditorControllerTest {
         assertEquals(red, colorAt(fixture.controller.documentState, position(2, 0)))
 
         val undone = fixture.controller.callbacks.onUndo()
-        assertEquals(initial.snapshot, undone.snapshot)
+        assertEquals(initial.document.snapshot, undone.document.snapshot)
         assertFalse(undone.canUndo)
         assertTrue(undone.canRedo)
 
         val redone = fixture.controller.callbacks.onRedo()
-        assertEquals(accepted.renderState.snapshot, redone.snapshot)
+        assertEquals(accepted.renderState.document.snapshot, redone.document.snapshot)
         assertTrue(redone.canUndo)
         assertFalse(redone.canRedo)
     }

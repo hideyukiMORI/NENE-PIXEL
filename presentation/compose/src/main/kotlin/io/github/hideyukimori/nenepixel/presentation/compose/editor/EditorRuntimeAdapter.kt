@@ -99,7 +99,7 @@ internal class EditorRuntimeAdapter(
     private fun createRenderState(): EditorRenderState {
         val state = runtime.state
         return EditorRenderState(
-            snapshot = state.documentState.snapshot,
+            document = state.documentState,
             definition = state.documentState.definition,
             activePaletteIndex = state.workspaceState.activePaletteIndex,
             activeTool = state.workspaceState.activeTool,

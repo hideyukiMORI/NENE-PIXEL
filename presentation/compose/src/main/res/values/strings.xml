@@ -132,9 +132,6 @@
     <string name="legacy_dusk_palette">Dusk · 16 colors</string>
     <string name="legacy_grayscale_palette">Grayscale · 32 colors</string>
     <string name="legacy_swatches_palette">Swatches · 256 colors</string>
-    <string name="legacy_default_opaque">The blank / eraser color is opaque.</string>
-    <string name="legacy_default_translucent">The blank / eraser color is translucent.</string>
-    <string name="legacy_default_transparent">The blank / eraser color is transparent.</string>
     <string name="legacy_preserve_title">2. Keep the original</string>
     <string name="legacy_copy_optional">Save an original copy to keep every color for later.</string>
     <string name="legacy_copy_required">This recovery is the only original available here. Save and verify a copy before replacing or discarding it.</string>

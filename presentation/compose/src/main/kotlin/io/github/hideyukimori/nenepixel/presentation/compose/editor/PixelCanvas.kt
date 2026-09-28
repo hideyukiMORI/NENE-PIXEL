@@ -53,13 +53,13 @@ internal fun PixelCanvas(
                 ).viewportPointerInput(callbacks),
     ) {
         val current = renderState.value
-        val canvas = current.snapshot.size
+        val canvas = current.document.size
         val surface = createViewportSurface() ?: return@Canvas
         val geometry = geometries.resolve(canvas, surface, current.viewport) ?: return@Canvas
         drawCanvasMargins(geometry.destination, PresentationPalette.canvasSurround(current.appearance.theme))
         drawPixels(
             geometry.destination,
-            committed.render(current.snapshot, current.definition, background),
+            committed.render(current.document, current.definition, background),
             committed.paint,
         )
         previews.renderPreview(current)?.let { preview -> drawPixels(geometry.destination, preview, committed.paint) }
@@ -212,8 +212,8 @@ private fun PreviewBitmapCache.renderPreview(state: EditorRenderState): Bitmap? 
     val preview = state.preview ?: return null
     return render(
         preview,
-        state.snapshot.size.width.value,
-        state.snapshot.size.height.value,
+        state.document.size.width.value,
+        state.document.size.height.value,
         preview.effect
             .previewColor(state.definition)
             .toArgb(),

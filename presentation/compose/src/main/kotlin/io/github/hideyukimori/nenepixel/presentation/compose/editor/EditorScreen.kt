@@ -91,7 +91,7 @@ private fun EditorHeader(
     state: State<EditorRenderState>,
     openPanel: (EditorPanel) -> Unit,
 ) {
-    val size by remember(state) { derivedStateOf { state.value.snapshot.size } }
+    val size by remember(state) { derivedStateOf { state.value.document.size } }
     Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(
             stringResource(R.string.app_title),
@@ -170,7 +170,7 @@ private fun EditorCanvas(
     callbacks: EditorCallbacks,
     committed: CommittedBitmapCache,
 ) {
-    val size by remember(state) { derivedStateOf { state.value.snapshot.size } }
+    val size by remember(state) { derivedStateOf { state.value.document.size } }
     PixelCanvas(state, size, callbacks, committed, Modifier.fillMaxSize())
     ActualSizeWindowOverlay(state, committed, callbacks)
     QuickSelectOverlay(state, callbacks)
@@ -216,7 +216,7 @@ private fun PanelContent(
 
         EditorPanel.File -> {
             Column(Modifier.verticalScroll(rememberScrollState())) {
-                PersistenceControls(inputs.storage.operation, state.snapshot.size, inputs.storage.callbacks, dismiss)
+                PersistenceControls(inputs.storage.operation, state.document.size, inputs.storage.callbacks, dismiss)
                 Text(
                     stringResource(inputs.storage.operation.statusResource(inputs.storage.autosave)),
                     style = MaterialTheme.typography.bodySmall,

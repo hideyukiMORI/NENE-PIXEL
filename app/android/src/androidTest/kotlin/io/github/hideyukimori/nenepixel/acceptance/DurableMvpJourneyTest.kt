@@ -246,7 +246,7 @@ internal class DurableMvpJourneyTest {
         val transform =
             (
                 ViewportTransform.create(
-                    current.snapshot.size,
+                    current.document.size,
                     surface,
                     current.viewport,
                 ) as ViewportValueResult.Created
