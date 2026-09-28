@@ -70,4 +70,14 @@ public sealed interface WorkspaceActionRejection {
     public data class ActiveLayerNotFound internal constructor(
         public val layerId: LayerId,
     ) : WorkspaceActionRejection
+
+    /** [WorkspaceAction.SelectLayer] named a layer that is not in the document (ADR 0030). */
+    public data class LayerNotFound internal constructor(
+        public val layerId: LayerId,
+    ) : WorkspaceActionRejection
+
+    /** The active layer is hidden; drawing and eyedropper picks wait until it is shown (ADR 0030). */
+    public data class ActiveLayerHidden internal constructor(
+        public val layerId: LayerId,
+    ) : WorkspaceActionRejection
 }

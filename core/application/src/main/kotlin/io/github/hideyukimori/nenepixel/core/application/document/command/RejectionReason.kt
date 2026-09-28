@@ -72,6 +72,11 @@ public sealed interface RejectionReason {
         public val layerId: LayerId,
     ) : RejectionReason
 
+    /** A stroke targeted a hidden layer (ADR 0030). */
+    public data class LayerHidden internal constructor(
+        public val layerId: LayerId,
+    ) : RejectionReason
+
     public data class LayerStructureMismatch internal constructor(
         public val layerId: LayerId,
     ) : RejectionReason

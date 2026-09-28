@@ -133,9 +133,22 @@ public class EditorRuntime private constructor(
                 )
             reduceWorkspaceLocked(ReconcileDocumentPalette(nextIndex, recent))
         }
+        reconcileLayerLocked(command, result)
+    }
+
+    /** Follows the active layer, then cancels a gesture whose captured layer is gone or hidden (ADR 0030). */
+    private fun reconcileLayerLocked(
+        command: DocumentCommand,
+        result: CommandResult.Applied,
+    ) {
         val document = owners.commandGateway.runtimeState.documentState
-        LayerSelectionPolicy.afterApplied(owners.workspaceState.activeLayerId, document)?.let { layerId ->
+        val current = owners.workspaceState.activeLayerId
+        LayerSelectionPolicy.afterApplied(current, document, command, result.changeSet.structure)?.let { layerId ->
             reduceWorkspaceLocked(ReconcileDocumentLayer(layerId))
+        }
+        val gesture = owners.workspaceState.preview
+        if (gesture != null && LayerSelectionPolicy.gestureTargetLost(gesture.layerId, document)) {
+            reduceWorkspaceLocked(WorkspaceAction.CancelGesturePreview)
         }
     }
 

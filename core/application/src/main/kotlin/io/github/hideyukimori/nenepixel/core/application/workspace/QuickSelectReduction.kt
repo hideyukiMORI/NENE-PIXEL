@@ -3,6 +3,8 @@ package io.github.hideyukimori.nenepixel.core.application.workspace
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandSourceAdmission
 import io.github.hideyukimori.nenepixel.core.application.workspace.quickselect.EyedropperState
 import io.github.hideyukimori.nenepixel.core.application.workspace.quickselect.QuickSelectItem
+import io.github.hideyukimori.nenepixel.core.domain.layer.Layer
+import io.github.hideyukimori.nenepixel.core.domain.layer.LayerVisibility
 import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelCell
@@ -120,23 +122,40 @@ private fun cancelQuickSelect(state: WorkspaceState): WorkspaceReductionResult =
 
 /**
  * Reads the slot index under [WorkspaceAction.PickPaletteEntryAt.position] on the active layer, never its colour
- * (ADR 0030); an empty cell is rejected without changing the selection.
+ * (ADR 0030); an empty cell or a hidden active layer is rejected without changing the selection.
  */
 private fun pickPaletteEntryAt(
     state: WorkspaceState,
     action: WorkspaceAction.PickPaletteEntryAt,
     source: CommandSourceAdmission,
 ): WorkspaceReductionResult {
-    if (state.quickSelection.eyedropper == EyedropperState.Idle) {
-        return WorkspaceReductionResult.Rejected(state, WorkspaceActionRejection.EyedropperNotArmed)
-    }
     val layer = source.document.layers.firstOrNull { it.id == state.activeLayerId }
-    val read = layer?.snapshot?.cellAt(action.position)
-    return when (read) {
-        null -> {
+    return when {
+        state.quickSelection.eyedropper == EyedropperState.Idle -> {
+            WorkspaceReductionResult.Rejected(state, WorkspaceActionRejection.EyedropperNotArmed)
+        }
+
+        layer == null -> {
             WorkspaceReductionResult.Rejected(state, WorkspaceActionRejection.ActiveLayerNotFound(state.activeLayerId))
         }
 
+        layer.visibility == LayerVisibility.Hidden -> {
+            WorkspaceReductionResult.Rejected(state, WorkspaceActionRejection.ActiveLayerHidden(layer.id))
+        }
+
+        else -> {
+            pickFromLayer(state, layer, action, source)
+        }
+    }
+}
+
+private fun pickFromLayer(
+    state: WorkspaceState,
+    layer: Layer,
+    action: WorkspaceAction.PickPaletteEntryAt,
+    source: CommandSourceAdmission,
+): WorkspaceReductionResult =
+    when (val read = layer.snapshot.cellAt(action.position)) {
         is DomainValueResult.Rejected -> {
             WorkspaceReductionResult.Rejected(
                 state,
@@ -148,7 +167,6 @@ private fun pickPaletteEntryAt(
             pickCell(state, read.value, action, source.document.definition.palette)
         }
     }
-}
 
 private fun pickCell(
     state: WorkspaceState,

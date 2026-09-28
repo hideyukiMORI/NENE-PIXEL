@@ -6,7 +6,6 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.palette.Palet
 import io.github.hideyukimori.nenepixel.core.application.workspace.quickselect.EyedropperState
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
 import io.github.hideyukimori.nenepixel.core.domain.drawing.StrokeEffect
-import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelLimits
 
 public class WorkspaceReducer private constructor() {
@@ -16,61 +15,27 @@ public class WorkspaceReducer private constructor() {
         source: CommandSourceAdmission,
     ): WorkspaceReductionResult =
         when (action) {
-            is WorkspaceAction.SetAppearance -> {
-                setAppearance(state, action.appearance)
-            }
-
-            is WorkspaceAction.SetActualSizeWindow -> {
-                setActualSizeWindow(state, action.window)
-            }
-
-            is WorkspaceAction.SelectPaletteEntry -> {
-                selectPaletteEntry(state, action, source.document.definition.palette)
-            }
-
-            is WorkspaceAction.SelectTool -> {
-                selectTool(state, action)
-            }
-
-            is WorkspaceAction.BeginGesturePreview -> {
-                beginGesturePreview(state, action, source)
-            }
-
-            is WorkspaceAction.ExtendGesturePreview -> {
-                extendGesturePreview(state, action)
-            }
-
-            WorkspaceAction.CancelGesturePreview -> {
-                cancelGesturePreview(state)
-            }
-
-            WorkspaceAction.PrepareGestureCommit -> {
-                prepareGestureCommit(state)
-            }
-
-            is WorkspaceAction.SetViewport -> {
-                setViewport(state, action)
-            }
-
-            is WorkspaceAction.PaletteSessionAction -> {
-                reducePaletteSession(state, action)
-            }
-
-            is WorkspaceAction.QuickSelectAction -> {
-                reduceQuickSelect(state, action, source)
-            }
-
-            is DocumentReconciliation -> {
-                reconcileDocument(state, action, source.document)
-            }
+            is WorkspaceAction.SetAppearance -> setAppearance(state, action.appearance)
+            is WorkspaceAction.SetActualSizeWindow -> setActualSizeWindow(state, action.window)
+            is WorkspaceAction.SelectPaletteEntry -> selectPaletteEntry(state, action, source)
+            is WorkspaceAction.SelectTool -> selectTool(state, action)
+            is WorkspaceAction.BeginGesturePreview -> beginGesturePreview(state, action, source)
+            is WorkspaceAction.ExtendGesturePreview -> extendGesturePreview(state, action)
+            WorkspaceAction.CancelGesturePreview -> cancelGesturePreview(state)
+            WorkspaceAction.PrepareGestureCommit -> prepareGestureCommit(state)
+            is WorkspaceAction.SetViewport -> setViewport(state, action)
+            is WorkspaceAction.PaletteSessionAction -> reducePaletteSession(state, action)
+            is WorkspaceAction.QuickSelectAction -> reduceQuickSelect(state, action, source)
+            is DocumentReconciliation -> reconcileDocument(state, action, source.document)
+            is WorkspaceAction.LayerAction -> reduceLayer(state, action, source.document)
         }
 
     private fun selectPaletteEntry(
         state: WorkspaceState,
         action: WorkspaceAction.SelectPaletteEntry,
-        palette: Palette,
+        source: CommandSourceAdmission,
     ): WorkspaceReductionResult =
-        selectingPaletteSlot(state, action.index, palette) {
+        selectingPaletteSlot(state, action.index, source.document.definition.palette) {
             if (action.index == state.activePaletteIndex) {
                 unchanged(state, WorkspaceNoChangeReason.ActivePaletteEntryAlreadySelected)
             } else {
@@ -94,6 +59,10 @@ public class WorkspaceReducer private constructor() {
 
             state.quickSelection.eyedropper == EyedropperState.Armed -> {
                 rejected(state, WorkspaceActionRejection.EyedropperArmed)
+            }
+
+            source.document.isLayerHidden(state.activeLayerId) -> {
+                rejected(state, WorkspaceActionRejection.ActiveLayerHidden(state.activeLayerId))
             }
 
             action.canvas != source.document.size -> {

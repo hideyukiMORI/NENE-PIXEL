@@ -8,6 +8,8 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.Lay
 import io.github.hideyukimori.nenepixel.core.application.document.transition.PaletteTransition
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.drawing.StrokeEffect
+import io.github.hideyukimori.nenepixel.core.domain.layer.Layer
+import io.github.hideyukimori.nenepixel.core.domain.layer.LayerVisibility
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import io.github.hideyukimori.nenepixel.core.pixelengine.StrokeRasterizationRejection
 import io.github.hideyukimori.nenepixel.core.pixelengine.StrokeRasterizationResult
@@ -38,7 +40,19 @@ internal class ApplyStrokeCommandHandler {
         val layer =
             currentState.layers.firstOrNull { it.id == command.layerId }
                 ?: return rejected(RejectionReason.LayerNotFound(command.layerId))
-        return when (val result = rasterizeStroke(layer.snapshot, command.stroke)) {
+        // A hidden layer refuses drawing (ADR 0030); the workspace refuses first, this is the command-side guard.
+        return when (layer.visibility) {
+            LayerVisibility.Hidden -> rejected(RejectionReason.LayerHidden(layer.id))
+            LayerVisibility.Visible -> rasterizeOn(currentState, layer, command)
+        }
+    }
+
+    private fun rasterizeOn(
+        currentState: DocumentState,
+        layer: Layer,
+        command: ApplyStrokeCommand,
+    ): DocumentTransitionResult =
+        when (val result = rasterizeStroke(layer.snapshot, command.stroke)) {
             is StrokeRasterizationResult.Rasterized -> {
                 val changes = LayerChange(layer.id, LayerIndexChanges.select(layer.snapshot, result.patch))
                 transition(currentState, changes)
@@ -52,7 +66,6 @@ internal class ApplyStrokeCommandHandler {
                 rejected(result.rejection.toReason())
             }
         }
-    }
 
     private fun transition(
         currentState: DocumentState,

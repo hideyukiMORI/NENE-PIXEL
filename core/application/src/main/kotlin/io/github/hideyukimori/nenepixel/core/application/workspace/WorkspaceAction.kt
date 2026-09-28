@@ -7,6 +7,7 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.View
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
+import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 
@@ -100,6 +101,14 @@ public sealed interface WorkspaceAction {
 
     /** Returns the armed eyedropper to idle. */
     public data object DisarmEyedropper : QuickSelectAction
+
+    /** Every active-layer action (ADR 0030); the reducer hands the whole family to one reduction. */
+    public sealed interface LayerAction : WorkspaceAction
+
+    /** Makes [layerId] the active layer; the only selection route (ADR 0030). */
+    public data class SelectLayer(
+        public val layerId: LayerId,
+    ) : LayerAction
 }
 
 /**
@@ -128,5 +137,6 @@ internal fun WorkspaceAction.isAllowedDuringPaletteSession(): Boolean =
         is WorkspaceAction.HighlightQuickSelectItem,
         WorkspaceAction.ConfirmQuickSelect,
         is WorkspaceAction.PickPaletteEntryAt,
+        is WorkspaceAction.LayerAction,
         -> false
     }

@@ -22,4 +22,6 @@ public sealed interface WorkspaceNoChangeReason {
     public data object QuickSelectHighlightUnchanged : WorkspaceNoChangeReason
 
     public data object EyedropperAlreadyIdle : WorkspaceNoChangeReason
+
+    public data object ActiveLayerAlreadySelected : WorkspaceNoChangeReason
 }
