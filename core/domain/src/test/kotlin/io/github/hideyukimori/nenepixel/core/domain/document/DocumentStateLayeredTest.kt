@@ -17,7 +17,6 @@ import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueReject
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertNotEquals
-import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Test
 
 internal class DocumentStateLayeredTest {
@@ -101,10 +100,10 @@ internal class DocumentStateLayeredTest {
     }
 
     @Test
-    fun `migration factory builds one visible unnamed first layer with the given document revision`() {
+    fun `single-layer factory builds one visible unnamed first layer with the given document revision`() {
         val pixels = snapshot(2, 1, listOf(0, 2))
         val revision = created(Revision.create(7))
-        val state = created(DocumentState.create(DOCUMENT_ID, revision, DEFINITION, pixels))
+        val state = created(DocumentState.createSingleLayer(DOCUMENT_ID, revision, DEFINITION, pixels))
 
         assertEquals(1, state.layers.size)
         val only = state.layers.single()
@@ -113,15 +112,6 @@ internal class DocumentStateLayeredTest {
         assertEquals(LayerVisibility.Visible, only.visibility)
         assertEquals(pixels, only.snapshot)
         assertEquals(revision, state.revision)
-    }
-
-    @Test
-    fun `migration snapshot reads the bottom layer`() {
-        val bottom = snapshot(2, 1, listOf(1, 1))
-        val layers = listOf(layer(1, bottom), layer(2, snapshot(2, 1, listOf(2, 2))))
-        val state = created(DocumentState.createLayered(DOCUMENT_ID, REVISION, DEFINITION, layers))
-
-        assertSame(bottom, state.snapshot)
     }
 
     @Test

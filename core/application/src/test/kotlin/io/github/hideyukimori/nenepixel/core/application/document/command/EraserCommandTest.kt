@@ -34,15 +34,15 @@ internal class EraserCommandTest {
         applied(gateway.execute(command(gateway, eraserStroke(initial.size, listOf(position(0, 0), position(1, 0))))))
         val erased = gateway.runtimeState.documentState
 
-        assertEquals(PixelCell.Empty, cellAt(erased.snapshot, position(0, 0)))
-        assertEquals(PixelCell.Empty, cellAt(erased.snapshot, position(1, 0)))
-        assertEquals(PixelCell.Covered(redIndex), cellAt(erased.snapshot, position(2, 0)))
+        assertEquals(PixelCell.Empty, cellAt(erased.layers.single().snapshot, position(0, 0)))
+        assertEquals(PixelCell.Empty, cellAt(erased.layers.single().snapshot, position(1, 0)))
+        assertEquals(PixelCell.Covered(redIndex), cellAt(erased.layers.single().snapshot, position(2, 0)))
 
         applied(gateway.execute(UndoCommand.create(erased.id, erased.revision)))
         val restored = gateway.runtimeState.documentState
 
-        assertEquals(PixelCell.Covered(redIndex), cellAt(restored.snapshot, position(0, 0)))
-        assertEquals(PixelCell.Covered(greenIndex), cellAt(restored.snapshot, position(1, 0)))
+        assertEquals(PixelCell.Covered(redIndex), cellAt(restored.layers.single().snapshot, position(0, 0)))
+        assertEquals(PixelCell.Covered(greenIndex), cellAt(restored.layers.single().snapshot, position(1, 0)))
         assertEquals(initial, restored)
     }
 
@@ -69,13 +69,21 @@ internal class EraserCommandTest {
         )
         applied(gateway.execute(command(gateway, eraserStroke(initial.size, listOf(position(0, 0))))))
 
-        assertEquals(PixelCell.Empty, cellAt(gateway.runtimeState.documentState.snapshot, position(0, 0)))
+        assertEquals(
+            PixelCell.Empty,
+            cellAt(
+                gateway.runtimeState.documentState.layers
+                    .single()
+                    .snapshot,
+                position(0, 0),
+            ),
+        )
     }
 
     private fun emptyState(): DocumentState =
         when (
             val result =
-                DocumentState.create(
+                DocumentState.createSingleLayer(
                     defaultDocumentId,
                     Revision.initial(),
                     defaultDefinition,

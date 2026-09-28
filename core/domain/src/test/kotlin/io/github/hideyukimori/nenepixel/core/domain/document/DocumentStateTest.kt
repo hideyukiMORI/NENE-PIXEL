@@ -23,22 +23,29 @@ internal class DocumentStateTest {
                 PixelSnapshot.create(canvasSize(2, 1), listOf(index(0), index(2))),
             )
         val revision = created(Revision.create(3))
-        val state = created(DocumentState.create(DOCUMENT_ID, revision, definition, snapshot))
+        val state = created(DocumentState.createSingleLayer(DOCUMENT_ID, revision, definition, snapshot))
 
         assertEquals(DOCUMENT_ID, state.id)
         assertEquals(definition, state.definition)
-        assertEquals(snapshot, state.snapshot)
+        assertEquals(snapshot, state.layers.single().snapshot)
         assertEquals(snapshot.size, state.size)
         assertEquals(revision, state.revision)
-        assertEquals(state, created(DocumentState.create(DOCUMENT_ID, revision, definition, snapshot)))
-        assertNotEquals(state, created(DocumentState.create(OTHER_DOCUMENT_ID, revision, definition, snapshot)))
-        assertNotEquals(state, created(DocumentState.create(DOCUMENT_ID, Revision.initial(), definition, snapshot)))
+        assertEquals(state, created(DocumentState.createSingleLayer(DOCUMENT_ID, revision, definition, snapshot)))
+        assertNotEquals(
+            state,
+            created(DocumentState.createSingleLayer(OTHER_DOCUMENT_ID, revision, definition, snapshot)),
+        )
+        assertNotEquals(
+            state,
+            created(DocumentState.createSingleLayer(DOCUMENT_ID, Revision.initial(), definition, snapshot)),
+        )
     }
 
     @Test
     fun `document factory rejects maximum used slot outside actual definition`() {
         val snapshot = created(PixelSnapshot.create(canvasSize(2, 1), listOf(index(0), index(2))))
-        val rejection = rejected(DocumentState.create(DOCUMENT_ID, Revision.initial(), definition(2), snapshot))
+        val rejection =
+            rejected(DocumentState.createSingleLayer(DOCUMENT_ID, Revision.initial(), definition(2), snapshot))
 
         val outside = assertInstanceOf(DomainValueRejection.PaletteIndexOutsidePalette::class.java, rejection)
         assertEquals(index(2), outside.attemptedIndex)

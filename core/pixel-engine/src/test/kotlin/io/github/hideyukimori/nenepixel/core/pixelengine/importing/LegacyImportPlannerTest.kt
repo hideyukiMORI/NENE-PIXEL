@@ -7,6 +7,7 @@ import io.github.hideyukimori.nenepixel.core.domain.document.Revision
 import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelCell
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.canvas
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.position
@@ -97,9 +98,9 @@ internal class LegacyImportPlannerTest {
         assertSame(target, preview.definition)
         assertEquals(candidate.source.size, preview.snapshot.size)
         assertEquals(
-            index(0),
+            PixelCell.Covered(index(0)),
             preview.snapshot
-                .indexAt(position(0, 0))
+                .cellAt(position(0, 0))
                 .value(),
         )
     }

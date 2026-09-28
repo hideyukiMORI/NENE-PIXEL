@@ -5,8 +5,8 @@ import io.github.hideyukimori.nenepixel.core.application.document.command.Comman
 import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryAvailability
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.blackIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.canvas
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.cellAt
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.greenIndex
-import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.indexAt
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.otherDocumentId
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.position
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.redIndex
@@ -18,6 +18,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.Lay
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelCell
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelLimits
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
@@ -200,8 +201,24 @@ internal class CommandGatewayHistoryTest {
                 ),
             ),
         )
-        assertEquals(blackIndex, indexAt(gateway.runtimeState.documentState.snapshot, position(0, 0)))
-        assertEquals(greenIndex, indexAt(gateway.runtimeState.documentState.snapshot, position(1, 0)))
+        assertEquals(
+            PixelCell.Covered(blackIndex),
+            cellAt(
+                gateway.runtimeState.documentState.layers
+                    .single()
+                    .snapshot,
+                position(0, 0),
+            ),
+        )
+        assertEquals(
+            PixelCell.Covered(greenIndex),
+            cellAt(
+                gateway.runtimeState.documentState.layers
+                    .single()
+                    .snapshot,
+                position(1, 0),
+            ),
+        )
     }
 
     @Test
@@ -218,7 +235,7 @@ internal class CommandGatewayHistoryTest {
         val branched = gateway.runtimeState.documentState
 
         assertEquals(abandoned.revision, branched.revision)
-        assertNotEquals(abandoned.snapshot, branched.snapshot)
+        assertNotEquals(abandoned.layers.single().snapshot, branched.layers.single().snapshot)
         assertEquals(HistoryAvailability.UndoAvailable, gateway.runtimeState.historyAvailability)
         assertEquals(
             RejectionReason.NoRedoAvailable,
@@ -249,7 +266,15 @@ internal class CommandGatewayHistoryTest {
             applied(gateway.execute(UndoCommand.create(current.id, current.revision)))
         }
         assertEquals(1L, gateway.runtimeState.documentState.revision.value)
-        assertEquals(redIndex, indexAt(gateway.runtimeState.documentState.snapshot, position(0, 0)))
+        assertEquals(
+            PixelCell.Covered(redIndex),
+            cellAt(
+                gateway.runtimeState.documentState.layers
+                    .single()
+                    .snapshot,
+                position(0, 0),
+            ),
+        )
         assertEquals(
             RejectionReason.NoUndoAvailable,
             rejected(
@@ -279,7 +304,15 @@ internal class CommandGatewayHistoryTest {
             applied(gateway.execute(UndoCommand.create(current.id, current.revision)))
         }
         assertEquals(1L, gateway.runtimeState.documentState.revision.value)
-        assertEquals(redIndex, indexAt(gateway.runtimeState.documentState.snapshot, position(0, 0)))
+        assertEquals(
+            PixelCell.Covered(redIndex),
+            cellAt(
+                gateway.runtimeState.documentState.layers
+                    .single()
+                    .snapshot,
+                position(0, 0),
+            ),
+        )
         val oldestRetained = gateway.runtimeState.documentState
         assertEquals(
             RejectionReason.NoUndoAvailable,
@@ -350,7 +383,15 @@ internal class CommandGatewayHistoryTest {
         )
         assertEquals(HistoryAvailability.RedoAvailable, gateway.runtimeState.historyAvailability)
         applied(gateway.execute(RedoCommand.create(afterUndo.id, afterUndo.revision)))
-        assertEquals(redIndex, indexAt(gateway.runtimeState.documentState.snapshot, position(0, 0)))
+        assertEquals(
+            PixelCell.Covered(redIndex),
+            cellAt(
+                gateway.runtimeState.documentState.layers
+                    .single()
+                    .snapshot,
+                position(0, 0),
+            ),
+        )
     }
 
     @Test

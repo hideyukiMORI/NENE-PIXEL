@@ -10,7 +10,11 @@ internal object ProjectFormatV2Encoder {
 
     private fun encodeBytes(document: DocumentState): ByteArray {
         val entries = document.definition.palette.entries()
-        val indices = document.snapshot.copyPackedIndices()
+        val indices =
+            document.layers
+                .single()
+                .snapshot
+                .copyPackedIndices()
         val byteCount = ProjectFormatV2Layout.expectedByteCount(indices.size.toLong(), entries.size).toInt()
         val encoded = ByteArray(byteCount)
         writeHeader(encoded, document, entries.size)

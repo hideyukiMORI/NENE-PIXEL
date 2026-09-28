@@ -195,7 +195,7 @@ private class AutosavePublicationEvidenceRun(
         val palette = created(Palette.create(colors.map(PixelColor::fromPackedRgba8888)))
         val definition = created(PaletteDefinition.create(palette, created(PaletteIndex.create(defaultIndex))))
         val snapshot = created(PixelSnapshot.createPackedIndices(size, indices))
-        return created(DocumentState.create(created(DocumentId.create(id)), revision, definition, snapshot))
+        return created(DocumentState.createSingleLayer(created(DocumentId.create(id)), revision, definition, snapshot))
     }
 }
 

@@ -4,9 +4,9 @@ import io.github.hideyukimori.nenepixel.core.application.document.command.Comman
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandResultAssertions.rejected
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.black
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.canvas
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.cellAt
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.definition
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.green
-import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.indexAt
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.paletteIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.position
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.red
@@ -22,6 +22,7 @@ import io.github.hideyukimori.nenepixel.core.domain.layer.LayerName
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerVisibility
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteRemap
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelCell
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelLimits
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -45,7 +46,15 @@ internal class ReplacePaletteCommandTest {
 
         assertInstanceOf(LayerIndexChanges.Sparse::class.java, result.layerChanges.single().changes)
         assertEquals(PaletteTransition.Unchanged, result.paletteTransition)
-        assertEquals(paletteIndex(2), indexAt(gateway.runtimeState.documentState.snapshot, position(0, 0)))
+        assertEquals(
+            PixelCell.Covered(paletteIndex(2)),
+            cellAt(
+                gateway.runtimeState.documentState.layers
+                    .single()
+                    .snapshot,
+                position(0, 0),
+            ),
+        )
     }
 
     @Test
@@ -62,8 +71,14 @@ internal class ReplacePaletteCommandTest {
         assertEquals(1L, gateway.runtimeState.documentState.revision.value)
         assertEquals(target, gateway.runtimeState.documentState.definition)
         assertEquals(
-            initial.snapshot.copyPackedIndices().toList(),
-            gateway.runtimeState.documentState.snapshot
+            initial.layers
+                .single()
+                .snapshot
+                .copyPackedIndices()
+                .toList(),
+            gateway.runtimeState.documentState.layers
+                .single()
+                .snapshot
                 .copyPackedIndices()
                 .toList(),
         )
@@ -77,7 +92,14 @@ internal class ReplacePaletteCommandTest {
         val gateway = CommandGateway.create(initial)
         applied(gateway.execute(command(gateway, remap(source, target, 0, 1, 1))))
         val changed = gateway.runtimeState.documentState
-        assertEquals(listOf(1, 1), changed.snapshot.copyPackedIndices().map { it.toInt() and 0xff })
+        assertEquals(
+            listOf(1, 1),
+            changed.layers
+                .single()
+                .snapshot
+                .copyPackedIndices()
+                .map { it.toInt() and 0xff },
+        )
 
         applied(gateway.execute(UndoCommand.create(changed.id, changed.revision)))
         assertEquals(initial, gateway.runtimeState.documentState)
@@ -100,7 +122,7 @@ internal class ReplacePaletteCommandTest {
         assertEquals(0, result.retainedChangeCount)
         assertEquals(32L + 147_456L + (4L * (2 + 2) + 8L), result.retainedByteCount)
         assertEquals(size, result.renderInvalidation.size)
-        assertEquals(paletteIndex(1), indexAt(changed.snapshot, position(255, 255)))
+        assertEquals(PixelCell.Covered(paletteIndex(1)), cellAt(changed.layers.single().snapshot, position(255, 255)))
         applied(gateway.execute(UndoCommand.create(changed.id, changed.revision)))
         assertEquals(initial, gateway.runtimeState.documentState)
         applied(gateway.execute(RedoCommand.create(initial.id, initial.revision)))

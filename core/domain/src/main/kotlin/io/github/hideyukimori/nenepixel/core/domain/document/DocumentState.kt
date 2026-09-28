@@ -20,10 +20,6 @@ public class DocumentState private constructor(
     public val size: CanvasSize
         get() = layers.first().snapshot.size
 
-    // Migration-only read of the bottom layer; removed once every consumer reads [layers] (Issue #142 S11).
-    public val snapshot: PixelSnapshot
-        get() = layers.first().snapshot
-
     override fun equals(other: Any?): Boolean =
         this === other ||
             (
@@ -53,8 +49,8 @@ public class DocumentState private constructor(
                     ?: created(DocumentState(id, revision, definition, owned))
             }
 
-        // Migration-only single-layer factory; removed once every consumer uses [createLayered] (Issue #142 S11).
-        public fun create(
+        /** Thin convenience over [createLayered] for a document holding exactly one visible, unnamed layer. */
+        public fun createSingleLayer(
             id: DocumentId,
             revision: Revision,
             definition: PaletteDefinition,
