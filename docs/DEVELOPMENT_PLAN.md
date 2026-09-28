@@ -82,6 +82,7 @@ animation, tile/map and reference-image features retain their separate contract 
 M3 entry evidence is [the durable MVP exit proof](quality/M3_EXIT_PROOF.md), #89 / PR #104.
 ADR 0022 / #101 accepts this first palette-oriented portion of M4 after that gate; it does not
 claim M4 layers/frames are already planned in implementation detail or complete.
+ADR 0030 / #140 adds the ordered-layer portion (P4-05); frames remain unplanned.
 
 | ID | Work package | Depends on | Required evidence |
 | --- | --- | --- | --- |
@@ -91,10 +92,16 @@ claim M4 layers/frames are already planned in implementation detail or complete.
 | P4-02 | Cut over document/engine/history/rendering/storage to indexed pixels (#106) | P4-02a | Exact v2 compatibility ADR first; shared inverse, palette-only invalidation, old-file/recovery preservation, functional and prospectively accepted affected performance evidence |
 | P4-03 | Add palette draft editor/history, remap preview and JSON SAF UI (#107) | P4-02 | Atomic apply/cancel/stale contracts, bounded transport, localized tablet/lifecycle verification |
 | P4-04 | Add exact-slot eyedropper and extensible long-press selection (#108) | P4-02, P4-03 integration | Typed workspace ownership, gesture arbitration, one-finger and accessible alternate selection evidence |
+| P4-05 | Accept ordered layers, `Empty` cells, composite and project v3 contract (#140) | P4-04 | Accepted ADR 0030, updated governing documents and focused Issues |
+| P4-05a | Cut over document/engine/history/rendering/storage to layered documents with `Empty` cells and v3 | P4-05 | Every consumer at once; composite golden vectors and single-layer byte equality with v2 export; v3/envelope 3 golden, round-trip and rejection tests; history accounting; affected single-layer latency evidence |
+| P4-05b | Add the five layer commands, active-layer selection and hidden-layer rules | P4-05a | Command/undo/reconcile contracts, typed rejections, `NoVisibleLayer` export |
+| P4-05c | Add the opening layer panel | P4-05b | UI spec first; localized tablet and accessibility verification |
+| P4-05d | Accept the 16-layer worst case | P4-05a, P4-05b | Protocol fixed before collection; M5 drawing latency, retained memory, autosave/save write time, full-remap history bytes |
 
 Preparation keeps the sole M3 editable path. P4-02 changes every live consumer together, with no
-parallel editable RGBA document or provisional indexed-to-v1 writer. Further M4 layer/frame work
-is refined after these contracts and interaction results; PNG import, animation, tiles/maps and
+parallel editable RGBA document or provisional indexed-to-v1 writer. P4-05a likewise moves every
+consumer to layered documents at once. Layer duplicate/merge, saved layer opacity (planned for v4)
+and frames are refined after the P4-05 results; PNG import, animation, tiles/maps and
 reference-image requirements remain recorded in ADR 0022 without unused APIs.
 
 ## Later work packages

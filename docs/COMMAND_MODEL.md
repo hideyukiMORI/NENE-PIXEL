@@ -17,8 +17,10 @@ Examples:
 - `ApplyStrokeCommand`
 - `ApplyPixelPatchCommand`
 - `AddLayerCommand`
+- `DeleteLayerCommand`
 - `RenameLayerCommand`
-- `ReorderLayerCommand`
+- `MoveLayerCommand`
+- `SetLayerVisibilityCommand`
 - `ReplacePaletteCommand`
 - `ReplaceDocumentCommand`
 
@@ -35,6 +37,7 @@ Examples:
 - `DismissDialogAction`
 - `SetAppearance`
 - `SetActualSizeWindow`
+- `SelectLayer`
 
 If an editor fact must survive project save/load or participate in undo, it belongs to `DocumentState`.
 Other editor/session facts belong to `WorkspaceState`. A fact must never exist authoritatively in both.
@@ -159,6 +162,9 @@ immutable document and retains the existing physical-operation lease through exp
 cleanup. Export permits editing and never modifies document, history, workspace, clean checkpoint,
 or recovery. Matching completion only projects the typed export outcome. The adapter uses the one
 fresh-destination writer and verifies exact PNG bytes before reporting success.
+Under ADR 0030 the exported image is the pixel-engine composite of the visible layers, the same
+function the canvas displays; a document with no visible layer returns the typed `NoVisibleLayer`
+outcome before any destination is written.
 
 ## Bounded autosave boundary
 
@@ -222,16 +228,19 @@ oversized change set before sorting or packed ownership.
 
 Pencil and Eraser are one closed `DrawingTool` selection vocabulary. `WorkspaceState` owns the
 active tool, and `WorkspaceAction.SelectTool` is its only mutation route. Beginning a `ToolGesture`
-captures either `StrokeEffect.Paint(activePaletteIndex)` or
-`StrokeEffect.Erase(document.paletteDefinition.defaultIndex)` plus a gateway-issued
-`CommandSourceAdmission`. Later tool or selection changes do not alter that gesture.
+captures either `StrokeEffect.Paint(activePaletteIndex)` or `StrokeEffect.Erase` (which writes the
+palette-independent `Empty` cell, ADR 0030), the target `WorkspaceState.activeLayerId`, and a
+gateway-issued `CommandSourceAdmission`. A hidden active layer rejects the gesture. Later tool,
+layer or selection changes do not alter that gesture.
 
-`DocumentState` owns one `PaletteDefinition` containing the ordered colors and default index.
+`DocumentState` owns one `PaletteDefinition` containing the ordered colors and default index, shared
+by every layer.
 `EditorRuntime` and `WorkspaceReducer` retain no independent palette configuration. `WorkspaceState`
 owns the typed `activePaletteIndex` and, in `QuickSelection`, only typed slot indices (ADR 0029). The
 reducer's one slot selection is the only mutation route of `activePaletteIndex`, reached from
 `WorkspaceAction.SelectPaletteEntry`, `ConfirmQuickSelect` and the eyedropper's `PickPaletteEntryAt`,
-which reads the exact slot index at a pixel and never matches by colour. The
+which reads the exact slot index at a pixel of the active visible layer, rejects an `Empty` cell,
+and never matches by colour. The
 reducer returns a typed rejection for an index outside the current document palette and a typed unchanged
 result for the current index. Selection emits no document command and changes no revision, history,
 or dirty state. Displayed active color is always derived from palette plus selection.
@@ -241,7 +250,7 @@ Accepted document-pixel samples are connected by the one endpoint-inclusive, dir
 limit before accepting each sample. One completed gesture produces exactly one
 `ApplyStrokeCommand.create(admission, stroke)`. BeginGesturePreview captures definition and admission
 under the same runtime lock; CommitPrepared retains both rather than rereading state at commit.
-Both effects enter the same handler, rasterizer, patch, and history path. The captured index must
+Both effects enter the same handler, rasterizer, patch, and history path. A captured paint index must
 name a current palette entry before rasterization. Painting or erasing to the same index shares
 `NoEffectiveChange` and change no revision, history, or dirty state.
 

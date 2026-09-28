@@ -5,6 +5,13 @@
 - Issue: #38
 - Affected rules: `ARC-001` through `ARC-005`, `ARC-007` through `ARC-012`, `CMD-005` through `CMD-010`, `KOT-001` through `KOT-003`, `KOT-005`, `KOT-007`, `KOT-008`, `KOT-013`, `KOT-016`, `KOT-020`, `QLT-006` through `QLT-010`
 
+## Layered refinement (2026-09-28, #140)
+
+[ADR 0030](0030-ordered-layers-and-empty-pixels.md) amends this decision in part.
+Eraser now writes the palette-independent `Empty` cell and new documents start `Empty`; each
+layer's `PixelSnapshot` adds a one-bit coverage mask; retained history accounting adds dense
+per-layer retention. The limits below otherwise remain in force.
+
 ## Indexed cutover refinement (2026-09-13, #106)
 
 [ADR 0022](0022-indexed-palette-and-migration.md) and accepted
@@ -319,4 +326,4 @@ and return this ADR to a new proposed decision rather than keeping both represen
 - Refines: ADR 0002 private snapshot storage/read boundary and ADR 0003 inverse physical storage
 - Distinct from: ADR 0004 viewport bounds and mapping safety
 - Supersedes: none
-- Superseded by: none
+- Superseded by: ADR 0030 (in part)
