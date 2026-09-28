@@ -126,4 +126,22 @@ public sealed interface DomainValueRejection {
     ) : DomainValueRejection
 
     public data object RevisionOverflow : DomainValueRejection
+
+    public data class InvalidLayerId internal constructor(
+        public val value: Int,
+    ) : DomainValueRejection
+
+    public data object LayerIdOverflow : DomainValueRejection
+
+    public data class LayerNameTooLong internal constructor(
+        public val codePointCount: Int,
+    ) : DomainValueRejection
+
+    public data class LayerNameControlCharacter internal constructor(
+        public val codePointIndex: Int,
+    ) : DomainValueRejection
+
+    public data class LayerNameInvalidSurrogate internal constructor(
+        public val charIndex: Int,
+    ) : DomainValueRejection
 }
