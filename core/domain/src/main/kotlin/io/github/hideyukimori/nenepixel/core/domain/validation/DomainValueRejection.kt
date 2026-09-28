@@ -144,4 +144,18 @@ public sealed interface DomainValueRejection {
     public data class LayerNameInvalidSurrogate internal constructor(
         public val charIndex: Int,
     ) : DomainValueRejection
+
+    public data class DocumentLayerCountOutOfRange internal constructor(
+        public val count: Int,
+    ) : DomainValueRejection
+
+    public data class DuplicateLayerId internal constructor(
+        public val layerId: Int,
+    ) : DomainValueRejection
+
+    public data class LayerSizeMismatch internal constructor(
+        public val layerId: Int,
+        public val expected: CanvasSize,
+        public val actual: CanvasSize,
+    ) : DomainValueRejection
 }
