@@ -5,6 +5,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.command.Comman
 import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryAvailability
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.blackIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.canvas
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.cellAt
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.eraserStroke
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.greenIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.indexAt
@@ -15,6 +16,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.App
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.stroke
 import io.github.hideyukimori.nenepixel.core.application.document.transition.IndexChanges
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelCell
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelPatch
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelPatchApplicationResult
@@ -76,7 +78,7 @@ internal class CommandGatewayTest {
     }
 
     @Test
-    fun `eraser applies captured default and undo redo replay the recorded transition`() {
+    fun `eraser writes Empty and undo redo replay the recorded transition`() {
         val initial = state(canvas(2, 1), indices = listOf(redIndex, greenIndex))
         val gateway = CommandGateway.create(initial)
         applied(
@@ -86,8 +88,8 @@ internal class CommandGatewayTest {
         )
         val erased = gateway.runtimeState.documentState
 
-        assertEquals(blackIndex, indexAt(erased.snapshot, position(0, 0)))
-        assertEquals(blackIndex, indexAt(erased.snapshot, position(1, 0)))
+        assertEquals(PixelCell.Empty, cellAt(erased.snapshot, position(0, 0)))
+        assertEquals(PixelCell.Empty, cellAt(erased.snapshot, position(1, 0)))
         assertEquals(HistoryAvailability.UndoAvailable, gateway.runtimeState.historyAvailability)
         applied(gateway.execute(UndoCommand.create(erased.id, erased.revision)))
         assertEquals(initial, gateway.runtimeState.documentState)

@@ -16,6 +16,7 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelY
 import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelCell
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelChange
@@ -77,8 +78,7 @@ internal object ApplicationTestValues {
     fun eraserStroke(
         canvas: CanvasSize,
         path: List<PixelPosition>,
-        targetIndex: PaletteIndex = blackIndex,
-    ): Stroke = Stroke.create(canvas, path, StrokeEffect.Erase(targetIndex)).value()
+    ): Stroke = Stroke.create(canvas, path, StrokeEffect.Erase).value()
 
     fun patch(
         canvas: CanvasSize,
@@ -100,6 +100,11 @@ internal object ApplicationTestValues {
         snapshot: PixelSnapshot,
         position: PixelPosition,
     ): PaletteIndex = snapshot.indexAt(position).value()
+
+    fun cellAt(
+        snapshot: PixelSnapshot,
+        position: PixelPosition,
+    ): PixelCell = snapshot.cellAt(position).value()
 
     private fun color(
         red: Int,

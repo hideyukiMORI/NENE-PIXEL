@@ -11,6 +11,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.history.Histor
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.black
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.blackIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.canvas
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.cellAt
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.defaultDefinition
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.definition
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.eraserStroke
@@ -27,10 +28,13 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceRedu
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteDraftOperation
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportState
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentId
+import io.github.hideyukimori.nenepixel.core.domain.document.Revision
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteRemap
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelCell
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelLimits
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
@@ -202,6 +206,19 @@ internal class EditorRuntimeTest {
         assertEquals(1L, runtime.state.documentState.revision.value)
         assertEquals(HistoryAvailability.RedoAvailable, runtime.state.historyAvailability)
         assertEquals(DocumentDirtyState.Dirty, runtime.state.dirtyState)
+    }
+
+    @Test
+    fun `new document starts with every pixel Empty`() {
+        val runtime = EditorRuntime.create(canvas(3, 2), toolDefinition, SequentialDocumentIdSource())
+        val snapshot = runtime.state.documentState.snapshot
+
+        assertEquals(PixelSnapshot.createEmpty(snapshot.size, Revision.initial()), snapshot)
+        for (y in 0 until 2) {
+            for (x in 0 until 3) {
+                assertEquals(PixelCell.Empty, cellAt(snapshot, position(x, y)))
+            }
+        }
     }
 
     @Test

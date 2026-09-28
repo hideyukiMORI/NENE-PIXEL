@@ -6,6 +6,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.history.Histor
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.black
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.blackIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.canvas
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.cellAt
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.defaultDefinition
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.definition
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.green
@@ -23,6 +24,7 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.palette.Palet
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteDraftRejection
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentId
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelCell
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
@@ -62,7 +64,7 @@ internal class RuntimePaletteOperationsTest {
 
         val document = runtime.state.documentState
         assertEquals(blackIndex, indexAt(document.snapshot, position(0, 0)))
-        assertEquals(redIndex, indexAt(document.snapshot, position(1, 1)))
+        assertEquals(PixelCell.Empty, cellAt(document.snapshot, position(1, 1)))
         val colors =
             document.definition.palette
                 .entries()

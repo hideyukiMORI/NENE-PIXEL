@@ -302,7 +302,7 @@ private object WorkloadFactory {
             expectedState =
                 if (correctness) {
                     P2CommandOraclePreparationTracker.recordEraserExpectedDocument()
-                    values.document(values.revision(1L), values.blankPixels())
+                    values.emptyDocument(values.revision(1L))
                 } else {
                     null
                 },
@@ -650,7 +650,6 @@ private class CoreMeasurementValues(
 
     fun redPixels(): List<PaletteIndex> = List(canvas.pixelCount.toInt()) { RED_INDEX }
 
-    fun blankPixels(): List<PaletteIndex> = List(canvas.pixelCount.toInt()) { DEFAULT_INDEX }
 
     fun diagonalRedPixels(): List<PaletteIndex> =
         List(canvas.pixelCount.toInt()) { index ->
@@ -676,6 +675,14 @@ private class CoreMeasurementValues(
                 PixelSnapshot.create(canvas, revision, pixels).requiredValue(),
             ).requiredValue()
 
+    fun emptyDocument(revision: Revision): DocumentState =
+        DocumentState
+            .create(
+                documentId,
+                definition,
+                PixelSnapshot.createEmpty(canvas, revision),
+            ).requiredValue()
+
     fun applyCommand(
         gateway: CommandGateway,
         path: List<PixelPosition>,
@@ -691,7 +698,7 @@ private class CoreMeasurementValues(
     ): ApplyStrokeCommand =
         ApplyStrokeCommand.create(
             gateway.captureSource(),
-            Stroke.create(canvas, path, StrokeEffect.Erase(DEFAULT_INDEX)).requiredValue(),
+            Stroke.create(canvas, path, StrokeEffect.Erase).requiredValue(),
         )
 
     fun revision(value: Long): Revision = Revision.create(value).requiredValue()

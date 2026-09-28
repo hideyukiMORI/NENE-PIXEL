@@ -4,6 +4,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.Cha
 import io.github.hideyukimori.nenepixel.core.application.document.transition.DocumentTransition
 import io.github.hideyukimori.nenepixel.core.application.document.transition.DocumentTransitionResult
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
+import io.github.hideyukimori.nenepixel.core.domain.drawing.StrokeEffect
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import io.github.hideyukimori.nenepixel.core.pixelengine.StrokeRasterizationRejection
 import io.github.hideyukimori.nenepixel.core.pixelengine.StrokeRasterizationResult
@@ -14,9 +15,17 @@ internal class ApplyStrokeCommandHandler {
         currentState: DocumentState,
         command: ApplyStrokeCommand,
     ): DocumentTransitionResult =
-        when (val entry = currentState.definition.palette.entryAt(command.stroke.effect.targetIndex)) {
-            is DomainValueResult.Created -> rasterize(currentState, command)
-            is DomainValueResult.Rejected -> rejected(RejectionReason.InvalidIndexedValue(entry.rejection))
+        when (val effect = command.stroke.effect) {
+            is StrokeEffect.Paint -> {
+                when (val entry = currentState.definition.palette.entryAt(effect.targetIndex)) {
+                    is DomainValueResult.Created -> rasterize(currentState, command)
+                    is DomainValueResult.Rejected -> rejected(RejectionReason.InvalidIndexedValue(entry.rejection))
+                }
+            }
+
+            StrokeEffect.Erase -> {
+                rasterize(currentState, command)
+            }
         }
 
     private fun rasterize(

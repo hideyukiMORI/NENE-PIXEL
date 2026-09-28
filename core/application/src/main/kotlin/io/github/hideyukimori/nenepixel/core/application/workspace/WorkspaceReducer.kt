@@ -7,7 +7,6 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.quickselect.E
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
 import io.github.hideyukimori.nenepixel.core.domain.drawing.StrokeEffect
 import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
-import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelLimits
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 
@@ -111,7 +110,7 @@ public class WorkspaceReducer private constructor() {
                     ToolGesture.begin(
                         action.canvas,
                         action.position,
-                        state.strokeEffect(source.document.definition),
+                        state.strokeEffect(),
                         source,
                     )
                 WorkspaceReductionResult.Reduced(state.withPreview(preview))
@@ -225,17 +224,17 @@ private fun selectTool(
         )
     }
 
-private fun WorkspaceState.strokeEffect(definition: PaletteDefinition): StrokeEffect =
+private fun WorkspaceState.strokeEffect(): StrokeEffect =
     when (activeTool) {
         DrawingTool.Pencil -> StrokeEffect.Paint(activePaletteIndex)
-        DrawingTool.Eraser -> StrokeEffect.Erase(definition.defaultIndex)
+        DrawingTool.Eraser -> StrokeEffect.Erase
     }
 
 /** A committed paint stroke records its slot as recently used; erase does not (ADR 0029). */
 private fun WorkspaceState.recordingStroke(effect: StrokeEffect): WorkspaceState =
     when (effect) {
         is StrokeEffect.Paint -> withQuickSelection(quickSelection.recordPainted(effect.targetIndex))
-        is StrokeEffect.Erase -> this
+        StrokeEffect.Erase -> this
     }
 
 /**

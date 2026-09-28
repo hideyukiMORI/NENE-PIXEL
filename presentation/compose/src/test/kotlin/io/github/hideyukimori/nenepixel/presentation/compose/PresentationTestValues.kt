@@ -16,6 +16,7 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelY
 import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelCell
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import io.github.hideyukimori.nenepixel.presentation.compose.editor.EditorController
@@ -58,6 +59,11 @@ internal object PresentationTestValues {
             controller = EditorController.create(runtime),
         )
     }
+
+    fun cellAt(
+        state: DocumentState,
+        position: PixelPosition,
+    ): PixelCell = state.snapshot.cellAt(position).requiredValue()
 
     fun colorAt(
         state: DocumentState,

@@ -221,18 +221,23 @@ private fun PreviewBitmapCache.renderPreview(state: EditorRenderState): Bitmap? 
 }
 
 private fun StrokeEffect.previewColor(definition: PaletteDefinition): Color =
-    when (val entry = definition.palette.entryAt(targetIndex)) {
-        is DomainValueResult.Created -> {
-            val color = entry.value.color
-            if (this is StrokeEffect.Erase && color.alpha.value.toInt() == 0) {
-                PresentationPalette.eraserPreview
-            } else {
-                color.toComposeColor().copy(alpha = PREVIEW_ALPHA)
+    when (this) {
+        is StrokeEffect.Paint -> {
+            when (val entry = definition.palette.entryAt(targetIndex)) {
+                is DomainValueResult.Created -> {
+                    entry.value.color
+                        .toComposeColor()
+                        .copy(alpha = PREVIEW_ALPHA)
+                }
+
+                is DomainValueResult.Rejected -> {
+                    error("Render preview target is invalid: ${entry.rejection}")
+                }
             }
         }
 
-        is DomainValueResult.Rejected -> {
-            error("Render preview target is invalid: ${entry.rejection}")
+        StrokeEffect.Erase -> {
+            PresentationPalette.eraserPreview
         }
     }
 
