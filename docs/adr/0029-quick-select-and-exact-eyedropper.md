@@ -183,7 +183,10 @@ stream, so the canvas recognizer needs no menu knowledge.
 - Runtime tests pick an exact duplicate-RGBA slot and reject outside the canvas through
   `EditorRuntime`.
 - Compose instrumented tests cover press-drag-release, cancel by returning to the control, tap mode,
-  Back, disarm, both control edges, and zero overlay recompositions during a stroke.
+  Back, disarm, both control edges, and zero overlay recompositions during a stroke. The
+  recomposition count uses `Composer.setTracer` under a file-level `@OptIn(InternalComposeTracingApi)`
+  in that one androidTest file only; no production hook exists. A Compose update that changes the
+  tracer API is repaired in the test, never by dropping the guard.
 - Functional device inspection on the supported tablet covers both layouts and both control edges.
 - No new frame collection is required: the changed hot-path work is constant and bounded, and the
   overlay isolation is verified by the recomposition test. A later frame-budget failure is judged by
