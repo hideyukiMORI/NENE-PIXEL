@@ -43,8 +43,12 @@ internal data class RuntimeOwners(
             definition: PaletteDefinition,
             documentIdSource: DocumentIdSource,
         ): RuntimeOwners {
-            val snapshot = PixelSnapshot.createEmpty(canvas, Revision.initial())
-            return create(required(DocumentState.create(documentIdSource.nextDocumentId(), definition, snapshot)))
+            val snapshot = PixelSnapshot.createEmpty(canvas)
+            return create(
+                required(
+                    DocumentState.create(documentIdSource.nextDocumentId(), Revision.initial(), definition, snapshot),
+                ),
+            )
         }
 
         fun create(document: DocumentState): RuntimeOwners {
@@ -64,6 +68,7 @@ internal data class RuntimeOwners(
                 required(
                     DocumentState.create(
                         documentIdSource.nextDocumentId(),
+                        Revision.initial(),
                         preview.definition,
                         preview.snapshot,
                     ),

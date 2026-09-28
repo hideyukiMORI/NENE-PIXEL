@@ -28,7 +28,6 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceRedu
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteDraftOperation
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportState
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentId
-import io.github.hideyukimori.nenepixel.core.domain.document.Revision
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteRemap
@@ -213,7 +212,7 @@ internal class EditorRuntimeTest {
         val runtime = EditorRuntime.create(canvas(3, 2), toolDefinition, SequentialDocumentIdSource())
         val snapshot = runtime.state.documentState.snapshot
 
-        assertEquals(PixelSnapshot.createEmpty(snapshot.size, Revision.initial()), snapshot)
+        assertEquals(PixelSnapshot.createEmpty(snapshot.size), snapshot)
         for (y in 0 until 2) {
             for (x in 0 until 3) {
                 assertEquals(PixelCell.Empty, cellAt(snapshot, position(x, y)))

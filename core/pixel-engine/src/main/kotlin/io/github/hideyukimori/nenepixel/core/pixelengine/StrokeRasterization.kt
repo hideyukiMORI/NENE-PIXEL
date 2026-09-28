@@ -86,7 +86,6 @@ private fun rasterizeMatchingCanvas(
         PixelPatch
             .createFromValidatedPackedIndices(
                 snapshot.size,
-                snapshot.revision,
                 packedPositions,
                 before,
                 ByteArray(positions.size) { target.packedIndex },
@@ -151,10 +150,6 @@ private fun PixelPatchCreationResult.toRasterizationResult(): StrokeRasterizatio
 
 private fun PixelPatchCreationRejection.toRasterizationResult(): StrokeRasterizationResult =
     when (this) {
-        PixelPatchCreationRejection.RevisionOverflow -> {
-            rejected(StrokeRasterizationRejection.RevisionOverflow)
-        }
-
         PixelPatchCreationRejection.EmptyPatch -> {
             unexpectedPatchRejection(this)
         }

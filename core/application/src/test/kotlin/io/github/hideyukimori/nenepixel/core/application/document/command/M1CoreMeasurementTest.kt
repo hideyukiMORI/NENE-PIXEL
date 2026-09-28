@@ -58,7 +58,7 @@ internal class M1CoreMeasurementTest {
             boundary = "PixelSnapshot.create defensive row-major ownership",
         ) {
             MeasuredOperation(
-                execute = { PixelSnapshot.create(size, revision(0L), indices) },
+                execute = { PixelSnapshot.create(size, indices) },
                 verify = { result -> assertEquals(expected, result.requiredValue()) },
             )
         }

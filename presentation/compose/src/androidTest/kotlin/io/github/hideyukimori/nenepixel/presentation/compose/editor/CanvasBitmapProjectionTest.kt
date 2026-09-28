@@ -3,7 +3,6 @@ package io.github.hideyukimori.nenepixel.presentation.compose.editor
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.github.hideyukimori.nenepixel.core.domain.color.ColorChannel
 import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
-import io.github.hideyukimori.nenepixel.core.domain.document.Revision
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasHeight
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasWidth
@@ -31,7 +30,6 @@ internal class CanvasBitmapProjectionTest {
         val actual = IntArray(expected.size)
         rendered.getPixels(actual, 0, CANVAS_WIDTH, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT)
         assertArrayEquals(expected, actual)
-        assertEquals(Revision.initial(), source.revision)
         assertArrayEquals(intArrayOf(0, 1, 2, 3), source.indices())
     }
 
@@ -79,7 +77,7 @@ internal class CanvasBitmapProjectionTest {
                     CanvasHeight.create(edge).requiredValue(),
                 )
         return PixelSnapshot
-            .create(size, Revision.initial(), indices.map { PaletteIndex.create(it).requiredValue() })
+            .create(size, indices.map { PaletteIndex.create(it).requiredValue() })
             .requiredValue()
     }
 

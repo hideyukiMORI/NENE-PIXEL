@@ -2,7 +2,6 @@ package io.github.hideyukimori.nenepixel.core.domain.layer
 
 import io.github.hideyukimori.nenepixel.core.domain.DomainValueAssertions.created
 import io.github.hideyukimori.nenepixel.core.domain.DomainValueTestValues.canvasSize
-import io.github.hideyukimori.nenepixel.core.domain.document.Revision
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -57,7 +56,6 @@ internal class LayerTest {
         created(
             PixelSnapshot.create(
                 canvasSize(1, 1),
-                Revision.initial(),
                 listOf(created(PaletteIndex.create(index))),
             ),
         )

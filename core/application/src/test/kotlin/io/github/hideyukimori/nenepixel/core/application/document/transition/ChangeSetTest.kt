@@ -29,7 +29,7 @@ internal class ChangeSetTest {
                 PixelChange.create(position(3, 2), PixelCell.Covered(blackIndex), PixelCell.Covered(redIndex)),
                 PixelChange.create(position(1, 0), PixelCell.Covered(blackIndex), PixelCell.Covered(redIndex)),
             )
-        val patch = patch(canvas, original.revision, input)
+        val patch = patch(canvas, input)
         val changeSet = created(DocumentTransition.create(original, sparseChangeSet(original, patch))).changeSet
 
         input.clear()
@@ -39,8 +39,8 @@ internal class ChangeSetTest {
         assertEquals(region(canvas, position(1, 0), canvas(3, 3)), changeSet.renderInvalidation)
         val forward = sparsePatch(changeSet)
         val inverse = sparsePatch(changeSet.inverse())
-        assertEquals(revision(5L), inverse.beforeRevision)
-        assertEquals(revision(4L), inverse.afterRevision)
+        assertEquals(revision(5L), changeSet.inverse().beforeRevision)
+        assertEquals(revision(4L), changeSet.inverse().afterRevision)
         assertEquals(changeSet.renderInvalidation, inverse.affectedRegion)
 
         val changed = appliedSnapshot(forward.applyTo(original.snapshot))
@@ -53,8 +53,8 @@ internal class ChangeSetTest {
         val canvas = canvas(1, 1)
         val original = state(canvas)
         val change = PixelChange.create(position(0, 0), PixelCell.Covered(blackIndex), PixelCell.Covered(redIndex))
-        val firstPatch = patch(canvas, original.revision, listOf(change))
-        val secondPatch = patch(canvas, original.revision, listOf(change))
+        val firstPatch = patch(canvas, listOf(change))
+        val secondPatch = patch(canvas, listOf(change))
         val first = created(DocumentTransition.create(original, sparseChangeSet(original, firstPatch))).changeSet
         val second = created(DocumentTransition.create(original, sparseChangeSet(original, secondPatch))).changeSet
 

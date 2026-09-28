@@ -83,8 +83,6 @@ internal object PresentationTestValues {
         PixelSnapshot
             .create(
                 canvas,
-                io.github.hideyukimori.nenepixel.core.domain.document.Revision
-                    .initial(),
                 indices.map(::paletteIndex),
             ).requiredValue()
 

@@ -69,7 +69,7 @@ internal class UndoRedoEditorTest {
         composeRule.waitForIdle()
 
         val drawn = controller.renderState
-        assertEquals(1L, drawn.snapshot.revision.value)
+        assertEquals(1L, controller.documentState.revision.value)
         assertTrue(drawn.canUndo)
         assertFalse(drawn.canRedo)
         composeRule.onNodeWithTag("editor_dirty_document").assertExists()
@@ -78,7 +78,7 @@ internal class UndoRedoEditorTest {
 
         val undone = controller.renderState
         assertEquals(initial.snapshot, undone.snapshot)
-        assertEquals(0L, undone.snapshot.revision.value)
+        assertEquals(0L, controller.documentState.revision.value)
         assertFalse(undone.canUndo)
         assertTrue(undone.canRedo)
         composeRule.onNodeWithTag("editor_clean_document").assertExists()
@@ -87,7 +87,7 @@ internal class UndoRedoEditorTest {
 
         val redone = controller.renderState
         assertEquals(drawn.snapshot, redone.snapshot)
-        assertEquals(1L, redone.snapshot.revision.value)
+        assertEquals(1L, controller.documentState.revision.value)
         assertTrue(redone.canUndo)
         assertFalse(redone.canRedo)
         composeRule.onNodeWithTag("editor_dirty_document").assertExists()
@@ -105,7 +105,7 @@ internal class UndoRedoEditorTest {
         touchPixel(SECOND_PIXEL_PERCENT)
         composeRule.waitForIdle()
 
-        assertEquals(2L, controller.renderState.snapshot.revision.value)
+        assertEquals(2L, controller.documentState.revision.value)
         composeRule.onNodeWithTag("editor_undo").assertIsEnabled().performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("editor_undo").assertIsEnabled()
@@ -149,7 +149,7 @@ internal class UndoRedoEditorTest {
         val transformed = controller.renderState
         assertNotEquals(initial.viewport, transformed.viewport)
         assertEquals(initial.snapshot, transformed.snapshot)
-        assertEquals(0L, transformed.snapshot.revision.value)
+        assertEquals(0L, controller.documentState.revision.value)
         assertFalse(transformed.canUndo)
         assertFalse(transformed.canRedo)
 
@@ -164,7 +164,7 @@ internal class UndoRedoEditorTest {
             }
         composeRule.waitForIdle()
 
-        assertEquals(1L, controller.renderState.snapshot.revision.value)
+        assertEquals(1L, controller.documentState.revision.value)
     }
 
     @Test
@@ -180,7 +180,7 @@ internal class UndoRedoEditorTest {
         composeRule.waitForIdle()
 
         val drawn = controller.renderState
-        assertEquals(1L, drawn.snapshot.revision.value)
+        assertEquals(1L, controller.documentState.revision.value)
         assertTrue(drawn.snapshot.copyPackedIndices().any { index -> index.toInt() and UBYTE_MASK != DEFAULT_INDEX })
 
         composeRule.onNodeWithTag("editor_eraser_tool").performClick()
@@ -192,7 +192,7 @@ internal class UndoRedoEditorTest {
         touchFirstPixel()
         composeRule.waitForIdle()
 
-        assertEquals(2L, controller.renderState.snapshot.revision.value)
+        assertEquals(2L, controller.documentState.revision.value)
         assertTrue(
             controller.renderState.snapshot
                 .copyPackedIndices()
@@ -211,7 +211,7 @@ internal class UndoRedoEditorTest {
         touchFirstPixel()
         composeRule.waitForIdle()
 
-        assertEquals(0L, controller.renderState.snapshot.revision.value)
+        assertEquals(0L, controller.documentState.revision.value)
         assertFalse(controller.renderState.canUndo)
         assertFalse(controller.renderState.canRedo)
         composeRule.onNodeWithTag("editor_undo").assertIsNotEnabled()
@@ -251,7 +251,7 @@ internal class UndoRedoEditorTest {
                 .first()
                 .toInt() and UBYTE_MASK,
         )
-        assertEquals(1L, controller.renderState.snapshot.revision.value)
+        assertEquals(1L, controller.documentState.revision.value)
     }
 
     @Test
@@ -277,7 +277,7 @@ internal class UndoRedoEditorTest {
         assertEquals(2, ids.callCount)
         assertEquals(3, controller.renderState.snapshot.size.width.value)
         assertEquals(2, controller.renderState.snapshot.size.height.value)
-        assertEquals(0L, controller.renderState.snapshot.revision.value)
+        assertEquals(0L, controller.documentState.revision.value)
         assertFalse(controller.renderState.canUndo)
         assertFalse(controller.renderState.canRedo)
     }

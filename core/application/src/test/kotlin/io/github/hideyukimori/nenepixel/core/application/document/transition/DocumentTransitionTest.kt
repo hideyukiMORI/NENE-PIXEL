@@ -26,7 +26,6 @@ internal class DocumentTransitionTest {
         val patch =
             patch(
                 current.size,
-                current.revision,
                 listOf(PixelChange.create(position(1, 0), PixelCell.Covered(blackIndex), PixelCell.Covered(redIndex))),
             )
 
@@ -49,7 +48,6 @@ internal class DocumentTransitionTest {
         val patch =
             patch(
                 smallerCanvas,
-                current.revision,
                 listOf(PixelChange.create(position(0, 0), PixelCell.Covered(blackIndex), PixelCell.Covered(redIndex))),
             )
 
@@ -69,7 +67,6 @@ internal class DocumentTransitionTest {
         val patch =
             patch(
                 current.size,
-                revision(1L),
                 listOf(PixelChange.create(position(0, 0), PixelCell.Covered(blackIndex), PixelCell.Covered(redIndex))),
             )
 
@@ -89,7 +86,6 @@ internal class DocumentTransitionTest {
         val patch =
             patch(
                 current.size,
-                current.revision,
                 listOf(PixelChange.create(position(0, 0), PixelCell.Covered(blackIndex), PixelCell.Covered(redIndex))),
             )
 

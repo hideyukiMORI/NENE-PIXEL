@@ -77,10 +77,6 @@ internal class ReplacePaletteCommandHandler {
 
 private fun PaletteRemapApplicationRejection.toReason(): RejectionReason =
     when (this) {
-        PaletteRemapApplicationRejection.RevisionOverflow -> {
-            RejectionReason.RevisionOverflow
-        }
-
         is PaletteRemapApplicationRejection.SourceIndexOutsidePalette -> {
             error("An admitted document index was outside its remap source: $this")
         }

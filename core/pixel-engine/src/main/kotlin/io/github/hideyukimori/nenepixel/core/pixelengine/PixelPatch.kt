@@ -1,6 +1,5 @@
 package io.github.hideyukimori.nenepixel.core.pixelengine
 
-import io.github.hideyukimori.nenepixel.core.domain.document.Revision
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasHeight
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasWidth
@@ -22,12 +21,6 @@ public class PixelPatch private constructor(
 ) {
     private val changes: PixelPatchChanges = PixelPatchChanges(storage, direction)
 
-    public val beforeRevision: Revision
-        get() = if (direction == PixelPatchDirection.Forward) storage.beforeRevision else storage.afterRevision
-
-    public val afterRevision: Revision
-        get() = if (direction == PixelPatchDirection.Forward) storage.afterRevision else storage.beforeRevision
-
     public val changeCount: Int
         get() = storage.positions.size
 
@@ -35,10 +28,6 @@ public class PixelPatch private constructor(
         when {
             snapshot.size != canvas -> {
                 rejected(PixelPatchApplicationRejection.CanvasMismatch(canvas, snapshot.size))
-            }
-
-            snapshot.revision != beforeRevision -> {
-                rejected(PixelPatchApplicationRejection.RevisionMismatch(beforeRevision, snapshot.revision))
             }
 
             else -> {
@@ -63,7 +52,7 @@ public class PixelPatch private constructor(
             }
             surface.writePackedCell(positionIndex, changes.afterCoveredAt(index), changes.afterAt(index))
         }
-        return PixelPatchApplicationResult.Applied(surface.snapshot(afterRevision))
+        return PixelPatchApplicationResult.Applied(surface.snapshot())
     }
 
     public fun inverse(): PixelPatch =
@@ -79,8 +68,6 @@ public class PixelPatch private constructor(
             (
                 other is PixelPatch &&
                     canvas == other.canvas &&
-                    beforeRevision == other.beforeRevision &&
-                    afterRevision == other.afterRevision &&
                     affectedRegion == other.affectedRegion &&
                     changesEqual(other)
             )
@@ -97,8 +84,6 @@ public class PixelPatch private constructor(
 
     override fun hashCode(): Int {
         var result = canvas.hashCode()
-        result = HASH_MULTIPLIER * result + beforeRevision.hashCode()
-        result = HASH_MULTIPLIER * result + afterRevision.hashCode()
         result = HASH_MULTIPLIER * result + affectedRegion.hashCode()
         repeat(changeCount) { index ->
             result = HASH_MULTIPLIER * result + changes.positionAt(index)
@@ -110,24 +95,16 @@ public class PixelPatch private constructor(
         return result
     }
 
-    override fun toString(): String =
-        "PixelPatch(canvas=$canvas, beforeRevision=$beforeRevision, " +
-            "afterRevision=$afterRevision, changeCount=$changeCount)"
+    override fun toString(): String = "PixelPatch(canvas=$canvas, changeCount=$changeCount)"
 
     public companion object {
         private const val HASH_MULTIPLIER: Int = 31
 
         public fun create(
             canvas: CanvasSize,
-            beforeRevision: Revision,
             changes: List<PixelChange>,
-        ): PixelPatchCreationResult {
-            val afterRevision = beforeRevision.nextOrNull()
-            return when {
-                afterRevision == null -> {
-                    creationRejected(PixelPatchCreationRejection.RevisionOverflow)
-                }
-
+        ): PixelPatchCreationResult =
+            when {
                 changes.size > PixelLimits.MAX_PATCH_CHANGES -> {
                     creationRejected(
                         PixelPatchCreationRejection.ChangeCountAboveSupportedMaximum(
@@ -141,28 +118,21 @@ public class PixelPatch private constructor(
                     val canonicalChanges = changes.sortedWith(ROW_MAJOR_ORDER)
                     val rejection = validateChanges(canvas, canonicalChanges)
                     if (rejection == null) {
-                        createdPatch(canvas, beforeRevision, afterRevision, canonicalChanges)
+                        createdPatch(canvas, canonicalChanges)
                     } else {
                         creationRejected(rejection)
                     }
                 }
             }
-        }
 
         internal fun createFromValidatedPackedIndices(
             canvas: CanvasSize,
-            beforeRevision: Revision,
             positions: IntArray,
             before: ByteArray,
             after: ByteArray,
             positionsAreContiguous: Boolean,
-        ): PixelPatchCreationResult {
-            val afterRevision = beforeRevision.nextOrNull()
-            return when {
-                afterRevision == null -> {
-                    creationRejected(PixelPatchCreationRejection.RevisionOverflow)
-                }
-
+        ): PixelPatchCreationResult =
+            when {
                 positions.size > PixelLimits.MAX_PATCH_CHANGES -> {
                     creationRejected(
                         PixelPatchCreationRejection.ChangeCountAboveSupportedMaximum(
@@ -184,8 +154,6 @@ public class PixelPatch private constructor(
                             affectedRegion = affectedRegion(canvas, positions, positionsAreContiguous),
                             storage =
                                 PixelPatchStorage(
-                                    beforeRevision,
-                                    afterRevision,
                                     positions,
                                     before,
                                     after,
@@ -195,12 +163,9 @@ public class PixelPatch private constructor(
                     )
                 }
             }
-        }
 
         private fun createdPatch(
             canvas: CanvasSize,
-            beforeRevision: Revision,
-            afterRevision: Revision,
             changes: List<PixelChange>,
         ): PixelPatchCreationResult {
             val positions =
@@ -218,8 +183,6 @@ public class PixelPatch private constructor(
                     affectedRegion = affectedRegion(canvas, positions, positionsAreContiguous = false),
                     storage =
                         PixelPatchStorage(
-                            beforeRevision,
-                            afterRevision,
                             positions,
                             ByteArray(changes.size) { index -> changes[index].before.packedIndex() },
                             ByteArray(changes.size) { index -> changes[index].after.packedIndex() },
@@ -276,12 +239,6 @@ public class PixelPatch private constructor(
                 }
             }
         }
-
-        private fun Revision.nextOrNull(): Revision? =
-            when (val result = advance()) {
-                is DomainValueResult.Created -> result.value
-                is DomainValueResult.Rejected -> null
-            }
 
         private fun creationRejected(rejection: PixelPatchCreationRejection): PixelPatchCreationResult =
             PixelPatchCreationResult.Rejected(rejection)
@@ -373,8 +330,6 @@ private data class PixelBounds(
 )
 
 private class PixelPatchStorage(
-    val beforeRevision: Revision,
-    val afterRevision: Revision,
     val positions: IntArray,
     val before: ByteArray,
     val after: ByteArray,

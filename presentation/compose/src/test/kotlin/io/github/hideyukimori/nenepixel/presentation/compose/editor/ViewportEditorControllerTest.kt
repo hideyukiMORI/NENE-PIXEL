@@ -50,7 +50,7 @@ internal class ViewportEditorControllerTest {
         assertInstanceOf(PointerInputAcknowledgement.Accepted::class.java, move)
         val accepted = assertInstanceOf(PointerInputAcknowledgement.Accepted::class.java, end)
         assertInstanceOf(CommandResult.Applied::class.java, accepted.commandResult)
-        assertEquals(1L, accepted.renderState.snapshot.revision.value)
+        assertEquals(1L, fixture.controller.documentState.revision.value)
         assertTrue(accepted.renderState.canUndo)
         assertFalse(accepted.renderState.canRedo)
         assertEquals(red, colorAt(fixture.controller.documentState, position(0, 0)))

@@ -56,12 +56,13 @@ public class DocumentState private constructor(
         // Migration-only single-layer factory; removed once every consumer uses [createLayered] (Issue #142 S11).
         public fun create(
             id: DocumentId,
+            revision: Revision,
             definition: PaletteDefinition,
             snapshot: PixelSnapshot,
         ): DomainValueResult<DocumentState> =
             createLayered(
                 id,
-                snapshot.revision,
+                revision,
                 definition,
                 listOf(Layer.create(LayerId.first(), LayerName.empty, LayerVisibility.Visible, snapshot)),
             )

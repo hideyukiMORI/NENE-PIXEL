@@ -611,8 +611,9 @@ private class IndexedPaletteMeasurementValues(
         DocumentState
             .create(
                 documentId,
+                revision,
                 definition,
-                PixelSnapshot.create(canvas, revision, indices).requiredValue(),
+                PixelSnapshot.create(canvas, indices).requiredValue(),
             ).requiredValue()
 
     private companion object {
@@ -671,16 +672,18 @@ private class CoreMeasurementValues(
         DocumentState
             .create(
                 documentId,
+                revision,
                 definition,
-                PixelSnapshot.create(canvas, revision, pixels).requiredValue(),
+                PixelSnapshot.create(canvas, pixels).requiredValue(),
             ).requiredValue()
 
     fun emptyDocument(revision: Revision): DocumentState =
         DocumentState
             .create(
                 documentId,
+                revision,
                 definition,
-                PixelSnapshot.createEmpty(canvas, revision),
+                PixelSnapshot.createEmpty(canvas),
             ).requiredValue()
 
     fun applyCommand(

@@ -1,7 +1,6 @@
 package io.github.hideyukimori.nenepixel.core.pixelengine
 
 import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
-import io.github.hideyukimori.nenepixel.core.domain.document.Revision
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteRemap
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelCell
@@ -14,7 +13,6 @@ import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.i
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.position
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.red
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.region
-import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.revision
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.stroke
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelPatchAssertions.applicationRejected
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelPatchAssertions.applied
@@ -36,7 +34,6 @@ internal class PixelCellPatchTest {
             created(
                 PixelPatch.create(
                     original.size,
-                    original.revision,
                     listOf(
                         PixelChange.create(position(0, 0), PixelCell.Empty, PixelCell.Covered(green)),
                         PixelChange.create(position(1, 0), PixelCell.Covered(red), PixelCell.Empty),
@@ -48,7 +45,7 @@ internal class PixelCellPatchTest {
 
         assertEquals(PixelCell.Covered(green), changed.cell(0, 0))
         assertEquals(PixelCell.Empty, changed.cell(1, 0))
-        assertEquals(cells(canvas(2, 1), PixelCell.Covered(green), PixelCell.Empty, revision = revision(1L)), changed)
+        assertEquals(cells(canvas(2, 1), PixelCell.Covered(green), PixelCell.Empty), changed)
         assertEquals(original, applied(patch.inverse().applyTo(changed)))
     }
 
@@ -59,13 +56,12 @@ internal class PixelCellPatchTest {
             created(
                 PixelPatch.create(
                     original.size,
-                    original.revision,
                     listOf(PixelChange.create(position(0, 0), PixelCell.Empty, PixelCell.Covered(black))),
                 ),
             )
         val inverse = patch.inverse()
 
-        val rejection = applicationRejected(inverse.applyTo(original.withRevision(revision(1L))))
+        val rejection = applicationRejected(inverse.applyTo(original))
 
         assertEquals(
             PixelPatchApplicationRejection.BeforeValueMismatch(
@@ -87,7 +83,6 @@ internal class PixelCellPatchTest {
             created(
                 PixelPatch.create(
                     size,
-                    Revision.initial(),
                     listOf(PixelChange.create(position(0, 0), PixelCell.Empty, PixelCell.Covered(red))),
                 ),
             )
@@ -95,7 +90,6 @@ internal class PixelCellPatchTest {
             created(
                 PixelPatch.create(
                     size,
-                    Revision.initial(),
                     listOf(PixelChange.create(position(0, 0), PixelCell.Covered(black), PixelCell.Covered(red))),
                 ),
             )
@@ -110,7 +104,6 @@ internal class PixelCellPatchTest {
             created(
                 PixelPatch.create(
                     original.size,
-                    original.revision,
                     listOf(PixelChange.create(position(1, 0), PixelCell.Covered(black), PixelCell.Covered(red))),
                 ),
             )
@@ -128,13 +121,12 @@ internal class PixelCellPatchTest {
     @Test
     fun `last row major position keeps its coverage bits`() {
         val size = canvas(MAX_EDGE, MAX_EDGE)
-        val original = PixelSnapshot.createEmpty(size, Revision.initial())
+        val original = PixelSnapshot.createEmpty(size)
         val last = position(MAX_EDGE - 1, MAX_EDGE - 1)
         val patch =
             created(
                 PixelPatch.create(
                     size,
-                    original.revision,
                     listOf(PixelChange.create(last, PixelCell.Empty, PixelCell.Covered(red))),
                 ),
             )
@@ -142,7 +134,6 @@ internal class PixelCellPatchTest {
             created(
                 PixelPatch.createFromValidatedPackedIndices(
                     size,
-                    original.revision,
                     intArrayOf(packPatchPosition(LAST_INDEX, beforeCovered = false, afterCovered = true)),
                     byteArrayOf(0),
                     byteArrayOf(1),
@@ -175,7 +166,7 @@ internal class PixelCellPatchTest {
         val patch = assertInstanceOf(PaletteRemapApplicationResult.Changed::class.java, result).patch
         assertEquals(1, patch.changeCount)
         assertEquals(
-            cells(canvas(3, 1), PixelCell.Empty, PixelCell.Covered(red), PixelCell.Empty, revision = revision(1L)),
+            cells(canvas(3, 1), PixelCell.Empty, PixelCell.Covered(red), PixelCell.Empty),
             applied(patch.applyTo(original)),
         )
     }
@@ -193,12 +184,12 @@ internal class PixelCellPatchTest {
         val original = cells(canvas(3, 1), PixelCell.Empty, PixelCell.Covered(green), PixelCell.Covered(red))
         val surface = PixelSurface.from(original)
 
-        assertEquals(original, surface.snapshot(original.revision))
+        assertEquals(original, surface.snapshot())
 
         surface.writeCell(1, PixelCell.Empty)
         surface.writeCell(0, PixelCell.Covered(black))
 
-        val written = surface.snapshot(original.revision)
+        val written = surface.snapshot()
         assertEquals(cells(canvas(3, 1), PixelCell.Covered(black), PixelCell.Empty, PixelCell.Covered(red)), written)
         assertEquals(0, written.copyPackedIndices()[1].toInt())
         assertEquals(PixelCell.Empty, surface.cellAt(position(1, 0)))
@@ -213,7 +204,7 @@ internal class PixelCellPatchTest {
 
         assertEquals(1, patch.changeCount)
         assertEquals(
-            cells(canvas(2, 1), PixelCell.Covered(black), PixelCell.Covered(black), revision = revision(1L)),
+            cells(canvas(2, 1), PixelCell.Covered(black), PixelCell.Covered(black)),
             applied(patch.applyTo(original)),
         )
     }
@@ -221,11 +212,10 @@ internal class PixelCellPatchTest {
     private fun cells(
         size: CanvasSize,
         vararg cells: PixelCell,
-        revision: Revision = Revision.initial(),
     ): PixelSnapshot {
-        val surface = PixelSurface.from(PixelSnapshot.createEmpty(size, revision))
+        val surface = PixelSurface.from(PixelSnapshot.createEmpty(size))
         cells.forEachIndexed { rowMajorIndex, cell -> surface.writeCell(rowMajorIndex, cell) }
-        return surface.snapshot(revision)
+        return surface.snapshot()
     }
 
     private fun PixelSnapshot.cell(

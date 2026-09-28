@@ -20,8 +20,8 @@ internal class PixelSurfaceTest {
 
         changedSurface.write(PixelChange.create(position(0, 0), PixelCell.Covered(black), PixelCell.Covered(red)))
 
-        assertEquals(red, changedSurface.snapshot(original.revision).onlyColor())
-        assertEquals(black, untouchedSurface.snapshot(original.revision).onlyColor())
+        assertEquals(red, changedSurface.snapshot().onlyColor())
+        assertEquals(black, untouchedSurface.snapshot().onlyColor())
         assertEquals(black, original.onlyColor())
     }
 

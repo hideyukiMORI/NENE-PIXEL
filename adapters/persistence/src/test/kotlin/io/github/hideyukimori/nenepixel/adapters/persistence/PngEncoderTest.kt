@@ -115,8 +115,9 @@ internal class PngEncoderTest {
     ): DocumentState {
         val palette = created(Palette.create(colors.map(PixelColor::fromPackedRgba8888)))
         val definition = created(PaletteDefinition.create(palette, created(PaletteIndex.create(0))))
-        val snapshot = created(PixelSnapshot.createPackedIndices(size, created(Revision.create(0)), indices))
-        return created(DocumentState.create(created(DocumentId.create("0".repeat(32))), definition, snapshot))
+        val snapshot = created(PixelSnapshot.createPackedIndices(size, indices))
+        val id = created(DocumentId.create("0".repeat(32)))
+        return created(DocumentState.create(id, created(Revision.create(0)), definition, snapshot))
     }
 
     private fun <T> created(result: DomainValueResult<T>): T =

@@ -69,17 +69,14 @@ internal data class DocumentTransition private constructor(
             currentState: DocumentState,
             changeSet: ChangeSet,
             layers: List<Layer>,
-        ): DocumentTransitionResult {
-            // Migration-only: every layer snapshot still carries a revision and PixelPatch.applyTo still checks it,
-            // so all layers, changed or not, follow the document revision. Removed in Issue #142 S6b.
-            val aligned = layers.map { it.withSnapshot(it.snapshot.withRevision(changeSet.afterRevision)) }
-            return when (
+        ): DocumentTransitionResult =
+            when (
                 val result =
                     DocumentState.createLayered(
                         currentState.id,
                         changeSet.afterRevision,
                         changeSet.targetDefinition(currentState),
-                        aligned,
+                        layers,
                     )
             ) {
                 is DomainValueResult.Created -> {
@@ -92,7 +89,6 @@ internal data class DocumentTransition private constructor(
                     rejected(RejectionReason.InvalidIndexedValue(result.rejection))
                 }
             }
-        }
 
         private fun rejected(reason: RejectionReason): DocumentTransitionResult =
             DocumentTransitionResult.Rejected(reason)
