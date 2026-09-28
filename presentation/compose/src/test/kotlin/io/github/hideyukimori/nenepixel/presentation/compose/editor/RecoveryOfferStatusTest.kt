@@ -124,7 +124,10 @@ internal class RecoveryOfferStatusTest {
             )
         val commit = assertInstanceOf(WorkspaceReductionResult.CommitPrepared::class.java, prepared)
         val target = fixture.runtime.state.documentState
-        val result = fixture.runtime.execute(ApplyStrokeCommand.create(fixture.runtime.captureSource(), commit.stroke))
+        val result =
+            fixture.runtime.execute(
+                ApplyStrokeCommand.create(fixture.runtime.captureSource(), commit.layerId, commit.stroke),
+            )
         assertInstanceOf(CommandResult.Applied::class.java, result)
     }
 }

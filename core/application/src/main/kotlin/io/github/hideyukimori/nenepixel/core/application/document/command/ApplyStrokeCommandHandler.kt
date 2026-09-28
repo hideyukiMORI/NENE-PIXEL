@@ -35,9 +35,9 @@ internal class ApplyStrokeCommandHandler {
         currentState: DocumentState,
         command: ApplyStrokeCommand,
     ): DocumentTransitionResult {
-        // Interim target: the bottom layer (migrating documents have one). Replace with the LayerId the gesture
-        // captures in Issue #142 S7.
-        val layer = currentState.layers.first()
+        val layer =
+            currentState.layers.firstOrNull { it.id == command.layerId }
+                ?: return rejected(RejectionReason.LayerNotFound(command.layerId))
         return when (val result = rasterizeStroke(layer.snapshot, command.stroke)) {
             is StrokeRasterizationResult.Rasterized -> {
                 val changes = LayerChange(layer.id, LayerIndexChanges.select(layer.snapshot, result.patch))

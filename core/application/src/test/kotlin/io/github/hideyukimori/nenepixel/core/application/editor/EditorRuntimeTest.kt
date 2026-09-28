@@ -29,6 +29,7 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.palette.Palet
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportState
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentId
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
+import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteRemap
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelCell
@@ -129,7 +130,7 @@ internal class EditorRuntimeTest {
 
         val rejected =
             runtime.execute(
-                ApplyStrokeCommand.create(foreignRuntime.captureSource(), stroke),
+                ApplyStrokeCommand.create(foreignRuntime.captureSource(), LayerId.first(), stroke),
             )
         assertEquals(
             RejectionReason.SourceOwnerMismatch,
@@ -228,6 +229,7 @@ internal class EditorRuntimeTest {
             runtime.execute(
                 ApplyStrokeCommand.create(
                     runtime.captureSource(),
+                    LayerId.first(),
                     eraserStroke(initial.documentState.size, listOf(position(0, 0))),
                 ),
             )
@@ -438,7 +440,7 @@ internal class EditorRuntimeTest {
             )
         assertInstanceOf(
             CommandResult.Applied::class.java,
-            runtime.execute(ApplyStrokeCommand.create(prepared.admission, prepared.stroke)),
+            runtime.execute(ApplyStrokeCommand.create(prepared.admission, prepared.layerId, prepared.stroke)),
         )
     }
 
@@ -456,6 +458,7 @@ internal class EditorRuntimeTest {
             runtime.execute(
                 ApplyStrokeCommand.create(
                     runtime.captureSource(),
+                    LayerId.first(),
                     stroke(target.size, listOf(position), index),
                 ),
             )

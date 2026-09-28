@@ -8,6 +8,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.App
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.redIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.state
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.stroke
+import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Test
@@ -21,6 +22,7 @@ internal class HistoryEntryTest {
         val command =
             ApplyStrokeCommand.create(
                 gateway.captureSource(),
+                LayerId.first(),
                 stroke(initial.size, listOf(position(0, 0)), redIndex),
             )
         val applied = gateway.execute(command) as? CommandResult.Applied ?: fail("Expected applied command")

@@ -17,6 +17,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.App
 import io.github.hideyukimori.nenepixel.core.application.document.transition.DocumentTransition
 import io.github.hideyukimori.nenepixel.core.application.document.transition.DocumentTransitionAssertions.created
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
+import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelCell
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
@@ -125,8 +126,18 @@ internal class CommandGatewayTest {
             val initial = state(canvas(2, 1))
             val gateway = CommandGateway.create(initial)
             val admission = gateway.captureSource()
-            val first = ApplyStrokeCommand.create(admission, stroke(initial.size, listOf(position(0, 0)), redIndex))
-            val second = ApplyStrokeCommand.create(admission, stroke(initial.size, listOf(position(1, 0)), greenIndex))
+            val first =
+                ApplyStrokeCommand.create(
+                    admission,
+                    LayerId.first(),
+                    stroke(initial.size, listOf(position(0, 0)), redIndex),
+                )
+            val second =
+                ApplyStrokeCommand.create(
+                    admission,
+                    LayerId.first(),
+                    stroke(initial.size, listOf(position(1, 0)), greenIndex),
+                )
             val results = executeConcurrently(gateway, first, second)
 
             assertEquals(1, results.count { it is CommandResult.Applied })
@@ -146,7 +157,7 @@ internal class CommandGatewayTest {
     private fun command(
         gateway: CommandGateway,
         stroke: io.github.hideyukimori.nenepixel.core.domain.drawing.Stroke,
-    ): ApplyStrokeCommand = ApplyStrokeCommand.create(gateway.captureSource(), stroke)
+    ): ApplyStrokeCommand = ApplyStrokeCommand.create(gateway.captureSource(), LayerId.first(), stroke)
 
     private fun executeConcurrently(
         gateway: CommandGateway,

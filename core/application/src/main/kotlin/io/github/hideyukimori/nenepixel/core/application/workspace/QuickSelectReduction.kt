@@ -5,6 +5,7 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.quickselect.E
 import io.github.hideyukimori.nenepixel.core.application.workspace.quickselect.QuickSelectItem
 import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelCell
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 
 /** Reduces the quick-select menu and eyedropper actions (ADR 0029); no document command is emitted. */
@@ -95,7 +96,7 @@ private fun confirmQuickSelect(
         is QuickSelectItem.PaletteSlot -> {
             selectingPaletteSlot(state, item.index, palette) {
                 WorkspaceReductionResult.Reduced(
-                    state.withActivePaletteIndex(item.index).withQuickSelection(closed),
+                    state.withEditTarget(state.editTarget.withPaletteIndex(item.index)).withQuickSelection(closed),
                 )
             }
         }
@@ -117,7 +118,10 @@ private fun cancelQuickSelect(state: WorkspaceState): WorkspaceReductionResult =
         WorkspaceReductionResult.Reduced(state.withQuickSelection(state.quickSelection.closed()))
     }
 
-/** Reads the slot index under [WorkspaceAction.PickPaletteEntryAt.position], never its colour. */
+/**
+ * Reads the slot index under [WorkspaceAction.PickPaletteEntryAt.position] on the active layer, never its colour
+ * (ADR 0030); an empty cell is rejected without changing the selection.
+ */
 private fun pickPaletteEntryAt(
     state: WorkspaceState,
     action: WorkspaceAction.PickPaletteEntryAt,
@@ -126,7 +130,13 @@ private fun pickPaletteEntryAt(
     if (state.quickSelection.eyedropper == EyedropperState.Idle) {
         return WorkspaceReductionResult.Rejected(state, WorkspaceActionRejection.EyedropperNotArmed)
     }
-    return when (val read = source.document.snapshot.indexAt(action.position)) {
+    val layer = source.document.layers.firstOrNull { it.id == state.activeLayerId }
+    val read = layer?.snapshot?.cellAt(action.position)
+    return when (read) {
+        null -> {
+            WorkspaceReductionResult.Rejected(state, WorkspaceActionRejection.ActiveLayerNotFound(state.activeLayerId))
+        }
+
         is DomainValueResult.Rejected -> {
             WorkspaceReductionResult.Rejected(
                 state,
@@ -135,14 +145,32 @@ private fun pickPaletteEntryAt(
         }
 
         is DomainValueResult.Created -> {
-            selectingPaletteSlot(state, read.value, source.document.definition.palette) {
+            pickCell(state, read.value, action, source.document.definition.palette)
+        }
+    }
+}
+
+private fun pickCell(
+    state: WorkspaceState,
+    cell: PixelCell,
+    action: WorkspaceAction.PickPaletteEntryAt,
+    palette: Palette,
+): WorkspaceReductionResult =
+    when (cell) {
+        PixelCell.Empty -> {
+            WorkspaceReductionResult.Rejected(state, WorkspaceActionRejection.PickEmptyCell(action.position))
+        }
+
+        is PixelCell.Covered -> {
+            selectingPaletteSlot(state, cell.index, palette) {
                 WorkspaceReductionResult.Reduced(
-                    state.withActivePaletteIndex(read.value).withQuickSelection(state.quickSelection.idle()),
+                    state
+                        .withEditTarget(state.editTarget.withPaletteIndex(cell.index))
+                        .withQuickSelection(state.quickSelection.idle()),
                 )
             }
         }
     }
-}
 
 private fun disarmEyedropper(state: WorkspaceState): WorkspaceReductionResult =
     if (state.quickSelection.eyedropper == EyedropperState.Idle) {

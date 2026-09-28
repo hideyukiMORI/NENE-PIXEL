@@ -7,6 +7,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.command.Docume
 import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryPosition
 import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveProjection
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationProjection
+import io.github.hideyukimori.nenepixel.core.application.workspace.ReconcileDocumentLayer
 import io.github.hideyukimori.nenepixel.core.application.workspace.ReconcileDocumentPalette
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceAction
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceActionRejection
@@ -132,6 +133,10 @@ public class EditorRuntime private constructor(
                 )
             reduceWorkspaceLocked(ReconcileDocumentPalette(nextIndex, recent))
         }
+        val document = owners.commandGateway.runtimeState.documentState
+        LayerSelectionPolicy.afterApplied(owners.workspaceState.activeLayerId, document)?.let { layerId ->
+            reduceWorkspaceLocked(ReconcileDocumentLayer(layerId))
+        }
     }
 
     private fun publishProjectionsLocked() {
@@ -167,10 +172,14 @@ public class EditorRuntime private constructor(
                     workspaceReducer
                         .reduce(effect.owners.workspaceState, WorkspaceAction.SetAppearance(carried.appearance), source)
                         .nextState
-                val workspace =
+                val withWindow =
                     workspaceReducer
                         .reduce(withAppearance, WorkspaceAction.SetActualSizeWindow(carried.actualSizeWindow), source)
                         .nextState
+                // A newly installed document starts on its top layer (ADR 0030).
+                val topLayer = LayerSelectionPolicy.onInstall(source.document)
+                val workspace =
+                    workspaceReducer.reduce(withWindow, ReconcileDocumentLayer(topLayer), source).nextState
                 owners = effect.owners.copy(workspaceState = workspace)
             }
         }

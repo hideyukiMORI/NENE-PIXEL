@@ -16,6 +16,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.App
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.document.Revision
 import io.github.hideyukimori.nenepixel.core.domain.drawing.Stroke
+import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelCell
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
@@ -88,7 +89,7 @@ internal class EraserCommandTest {
     private fun command(
         gateway: CommandGateway,
         stroke: Stroke,
-    ): ApplyStrokeCommand = ApplyStrokeCommand.create(gateway.captureSource(), stroke)
+    ): ApplyStrokeCommand = ApplyStrokeCommand.create(gateway.captureSource(), LayerId.first(), stroke)
 
     private companion object {
         /** `defaultDefinition` holds black, red and green, so slot 3 is outside the palette. */

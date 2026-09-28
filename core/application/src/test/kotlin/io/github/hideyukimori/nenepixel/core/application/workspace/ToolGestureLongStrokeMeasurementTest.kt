@@ -9,6 +9,7 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasWidth
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelX
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelY
+import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelLimits
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
@@ -88,7 +89,7 @@ internal class ToolGestureLongStrokeMeasurementTest {
         effect: StrokeEffect,
         expectedPositionCount: Int,
     ): LongStrokeWorkload {
-        var gesture = ToolGesture.begin(canvas, endpoints.first(), effect, admission)
+        var gesture = ToolGesture.begin(canvas, endpoints.first(), effect, LayerId.first(), admission)
         endpoints.drop(1).forEach { endpoint ->
             gesture =
                 when (val result = gesture.extend(endpoint)) {

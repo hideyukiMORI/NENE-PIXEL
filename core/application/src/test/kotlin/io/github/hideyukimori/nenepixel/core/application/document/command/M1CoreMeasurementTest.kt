@@ -14,6 +14,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.Lay
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.drawing.Stroke
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
+import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelPatchApplicationResult
@@ -89,7 +90,11 @@ internal class M1CoreMeasurementTest {
             val fixture = fixture(edge)
             val gateway = CommandGateway.create(fixture.initial)
             MeasuredOperation(
-                execute = { gateway.execute(ApplyStrokeCommand.create(gateway.captureSource(), fixture.stroke)) },
+                execute = {
+                    gateway.execute(
+                        ApplyStrokeCommand.create(gateway.captureSource(), LayerId.first(), fixture.stroke),
+                    )
+                },
                 verify = { result ->
                     val applied = result.requiredApplied()
                     assertEquals(fixture.expectedApplied, gateway.runtimeState.documentState)
@@ -108,7 +113,10 @@ internal class M1CoreMeasurementTest {
             val fixture = fixture(edge)
             val gateway = CommandGateway.create(fixture.initial)
             val original =
-                gateway.execute(ApplyStrokeCommand.create(gateway.captureSource(), fixture.stroke)).requiredApplied()
+                gateway
+                    .execute(
+                        ApplyStrokeCommand.create(gateway.captureSource(), LayerId.first(), fixture.stroke),
+                    ).requiredApplied()
             val afterApply = gateway.runtimeState.documentState
             val command = UndoCommand.create(afterApply.id, afterApply.revision)
             MeasuredOperation(
@@ -131,7 +139,10 @@ internal class M1CoreMeasurementTest {
             val fixture = fixture(edge)
             val gateway = CommandGateway.create(fixture.initial)
             val original =
-                gateway.execute(ApplyStrokeCommand.create(gateway.captureSource(), fixture.stroke)).requiredApplied()
+                gateway
+                    .execute(
+                        ApplyStrokeCommand.create(gateway.captureSource(), LayerId.first(), fixture.stroke),
+                    ).requiredApplied()
             val afterApply = gateway.runtimeState.documentState
             gateway.execute(UndoCommand.create(afterApply.id, afterApply.revision)).requiredApplied()
             val afterUndo = gateway.runtimeState.documentState

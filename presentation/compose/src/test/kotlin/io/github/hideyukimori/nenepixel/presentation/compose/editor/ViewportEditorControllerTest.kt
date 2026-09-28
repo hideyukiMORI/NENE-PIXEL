@@ -264,7 +264,7 @@ internal class ViewportEditorControllerTest {
         return DirectOutcome(
             commandResult =
                 fixture.runtime.execute(
-                    ApplyStrokeCommand.create(fixture.runtime.captureSource(), commit.stroke),
+                    ApplyStrokeCommand.create(fixture.runtime.captureSource(), commit.layerId, commit.stroke),
                 ),
             workspaceState = commit.nextState,
         )

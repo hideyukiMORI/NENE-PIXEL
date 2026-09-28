@@ -3,6 +3,7 @@ package io.github.hideyukimori.nenepixel.core.application.workspace
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteDraftRejection
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
+import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 
 public sealed interface WorkspaceActionRejection {
@@ -58,5 +59,15 @@ public sealed interface WorkspaceActionRejection {
     public data class PickPositionOutsideCanvas internal constructor(
         public val canvas: CanvasSize,
         public val position: PixelPosition,
+    ) : WorkspaceActionRejection
+
+    /** The eyedropper hit an empty cell on the active layer; the selection is unchanged (ADR 0030). */
+    public data class PickEmptyCell internal constructor(
+        public val position: PixelPosition,
+    ) : WorkspaceActionRejection
+
+    /** The workspace's active layer is not in the document (ADR 0030). */
+    public data class ActiveLayerNotFound internal constructor(
+        public val layerId: LayerId,
     ) : WorkspaceActionRejection
 }

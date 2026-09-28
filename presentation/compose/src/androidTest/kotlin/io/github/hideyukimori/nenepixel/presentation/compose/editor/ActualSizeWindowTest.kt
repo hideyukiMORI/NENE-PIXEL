@@ -44,6 +44,7 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasWidth
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelX
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelY
+import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
@@ -462,7 +463,9 @@ internal class ActualSizeWindowTest {
     ) {
         val stroke =
             Stroke.create(controller.renderState.snapshot.size, path, StrokeEffect.Paint(index)).requiredValue()
-        controller.runtime.execute(ApplyStrokeCommand.create(controller.runtime.captureSource(), stroke))
+        controller.runtime.execute(
+            ApplyStrokeCommand.create(controller.runtime.captureSource(), LayerId.first(), stroke),
+        )
         controller.synchronizeWithRuntime()
     }
 
