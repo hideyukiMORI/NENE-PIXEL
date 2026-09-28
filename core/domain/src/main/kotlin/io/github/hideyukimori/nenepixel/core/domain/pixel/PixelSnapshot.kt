@@ -13,8 +13,10 @@ public class PixelSnapshot private constructor(
     public val size: CanvasSize,
     public val revision: Revision,
     private val packedIndices: ByteArray,
-    public val maximumIndex: PaletteIndex,
+    private val coverage: ByteArray,
 ) {
+    public val maximumIndex: PaletteIndex = maximumOf(packedIndices)
+
     public fun indexAt(position: PixelPosition): DomainValueResult<PaletteIndex> =
         if (size.contains(position)) {
             created(PaletteIndex.createWithinPalette(packedIndices[position.rowMajorIndex(size)].toInt() and U8_MASK))
@@ -22,10 +24,26 @@ public class PixelSnapshot private constructor(
             rejected(DomainValueRejection.PixelPositionOutsideCanvas(size, position))
         }
 
+    public fun cellAt(position: PixelPosition): DomainValueResult<PixelCell> =
+        if (size.contains(position)) {
+            created(cellAtRowMajor(position.rowMajorIndex(size)))
+        } else {
+            rejected(DomainValueRejection.PixelPositionOutsideCanvas(size, position))
+        }
+
     public fun copyPackedIndices(): ByteArray = packedIndices.copyOf()
 
+    public fun copyCoverage(): ByteArray = coverage.copyOf()
+
     public fun withRevision(revision: Revision): PixelSnapshot =
-        PixelSnapshot(size, revision, packedIndices.copyOf(), maximumIndex)
+        PixelSnapshot(size, revision, packedIndices.copyOf(), coverage.copyOf())
+
+    private fun cellAtRowMajor(rowMajorIndex: Int): PixelCell =
+        if (coverage.isCoveredAt(rowMajorIndex)) {
+            PixelCell.Covered(PaletteIndex.createWithinPalette(packedIndices[rowMajorIndex].toInt() and U8_MASK))
+        } else {
+            PixelCell.Empty
+        }
 
     override fun equals(other: Any?): Boolean =
         this === other ||
@@ -33,12 +51,14 @@ public class PixelSnapshot private constructor(
                 other is PixelSnapshot &&
                     size == other.size &&
                     revision == other.revision &&
-                    packedIndices.contentEquals(other.packedIndices)
+                    packedIndices.contentEquals(other.packedIndices) &&
+                    coverage.contentEquals(other.coverage)
             )
 
     override fun hashCode(): Int =
         ((size.hashCode() * HASH_MULTIPLIER) + revision.hashCode()) * HASH_MULTIPLIER +
-            packedIndices.contentHashCode()
+            packedIndices.contentHashCode() * HASH_MULTIPLIER +
+            coverage.contentHashCode()
 
     override fun toString(): String = "PixelSnapshot(size=$size, revision=$revision)"
 
@@ -73,7 +93,7 @@ public class PixelSnapshot private constructor(
                 )
             } else {
                 val packed = ByteArray(indices.size) { indices[it].value.toByte() }
-                created(PixelSnapshot(size, revision, packed, maximumOf(packed)))
+                created(PixelSnapshot(size, revision, packed, fullCoverage(packed.size)))
             }
         }
 
@@ -84,7 +104,7 @@ public class PixelSnapshot private constructor(
         ): DomainValueResult<PixelSnapshot> =
             if (size.pixelCount == packedIndices.size.toLong()) {
                 val owned = packedIndices.copyOf()
-                created(PixelSnapshot(size, revision, owned, maximumOf(owned)))
+                created(PixelSnapshot(size, revision, owned, fullCoverage(owned.size)))
             } else {
                 rejected(DomainValueRejection.PixelSnapshotSizeMismatch(size.pixelCount, packedIndices.size))
             }
@@ -100,12 +120,41 @@ public class PixelSnapshot private constructor(
                         size,
                         revision,
                         ByteArray(size.pixelCount.toInt()) { index.value.toByte() },
-                        index,
+                        fullCoverage(size.pixelCount.toInt()),
                     ),
                 )
             } else {
                 rejected(DomainValueRejection.PixelSnapshotIndexAboveStorageMaximum(0, index, U8_MASK))
             }
+
+        public fun createEmpty(
+            size: CanvasSize,
+            revision: Revision,
+        ): PixelSnapshot {
+            val pixelCount = size.pixelCount.toInt()
+            return PixelSnapshot(size, revision, ByteArray(pixelCount), ByteArray(coverageByteCount(pixelCount)))
+        }
+
+        public fun createPackedCells(
+            size: CanvasSize,
+            revision: Revision,
+            packedIndices: ByteArray,
+            coverage: ByteArray,
+        ): DomainValueResult<PixelSnapshot> =
+            if (size.pixelCount == packedIndices.size.toLong()) {
+                createOwnedCells(size, revision, packedIndices.copyOf(), coverage.copyOf())
+            } else {
+                rejected(DomainValueRejection.PixelSnapshotSizeMismatch(size.pixelCount, packedIndices.size))
+            }
+
+        private fun createOwnedCells(
+            size: CanvasSize,
+            revision: Revision,
+            packedIndices: ByteArray,
+            coverage: ByteArray,
+        ): DomainValueResult<PixelSnapshot> =
+            cellRejection(packedIndices, coverage)?.let(::rejected)
+                ?: created(PixelSnapshot(size, revision, packedIndices, coverage))
 
         private fun maximumOf(packed: ByteArray): PaletteIndex {
             var maximum = 0
