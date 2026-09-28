@@ -159,7 +159,7 @@ public class WorkspaceReducer private constructor() {
         if (state.preview == null) {
             rejected(state, WorkspaceActionRejection.NoActivePreview)
         } else {
-            WorkspaceReductionResult.Reduced(state.withoutPreview())
+            WorkspaceReductionResult.Reduced(state.withPreview(null))
         }
 
     private fun prepareGestureCommit(state: WorkspaceState): WorkspaceReductionResult =
@@ -167,7 +167,7 @@ public class WorkspaceReducer private constructor() {
             rejected(state, WorkspaceActionRejection.NoActivePreview)
         } else {
             WorkspaceReductionResult.CommitPrepared(
-                nextState = state.withoutPreview(),
+                nextState = state.withPreview(null).recordingStroke(state.preview.effect),
                 stroke = state.preview.prepareStroke(),
                 admission = state.preview.admission,
             )
@@ -224,6 +224,14 @@ private fun WorkspaceState.strokeEffect(definition: PaletteDefinition): StrokeEf
         DrawingTool.Eraser -> StrokeEffect.Erase(definition.defaultIndex)
     }
 
+/** A committed paint stroke records its slot as recently used; erase does not (ADR 0029). */
+private fun WorkspaceState.recordingStroke(effect: StrokeEffect): WorkspaceState =
+    when (effect) {
+        is StrokeEffect.Paint -> withQuickSelection(quickSelection.recordPainted(effect.targetIndex))
+        is StrokeEffect.Erase -> this
+    }
+
+/** Drops recent slots outside the new palette, closes the quick-select menu and disarms the eyedropper (ADR 0029). */
 private fun reconcileDocumentPalette(
     state: WorkspaceState,
     action: ReconcileDocumentPalette,
@@ -232,7 +240,15 @@ private fun reconcileDocumentPalette(
     when (val entry = palette.entryAt(action.index)) {
         is DomainValueResult.Created -> {
             WorkspaceReductionResult.Reduced(
-                state.withActivePaletteIndex(action.index).withoutPreview(),
+                state
+                    .withActivePaletteIndex(action.index)
+                    .withPreview(null)
+                    .withQuickSelection(
+                        state.quickSelection
+                            .withoutSlotsOutside(palette.entryCount)
+                            .closed()
+                            .idle(),
+                    ),
             )
         }
 

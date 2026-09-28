@@ -1,6 +1,9 @@
 package io.github.hideyukimori.nenepixel.core.application.workspace
 
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteEditSession
+import io.github.hideyukimori.nenepixel.core.application.workspace.quickselect.CanvasPointerIntent
+import io.github.hideyukimori.nenepixel.core.application.workspace.quickselect.EyedropperState
+import io.github.hideyukimori.nenepixel.core.application.workspace.quickselect.QuickSelection
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportState
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
@@ -14,7 +17,16 @@ public class WorkspaceState private constructor(
     public val appearance: EditorAppearance,
     public val actualSizeWindow: ActualSizeWindow,
     public val paletteEditSession: PaletteEditSession?,
+    public val quickSelection: QuickSelection,
 ) {
+    /** How presentation translates a canvas pointer down: picking exactly while the eyedropper is armed (ADR 0029). */
+    public val canvasPointerIntent: CanvasPointerIntent
+        get() =
+            when (quickSelection.eyedropper) {
+                EyedropperState.Idle -> CanvasPointerIntent.Draw
+                EyedropperState.Armed -> CanvasPointerIntent.PickPaletteEntry
+            }
+
     internal fun withActivePaletteIndex(activePaletteIndex: PaletteIndex): WorkspaceState =
         WorkspaceState(
             activePaletteIndex,
@@ -24,6 +36,7 @@ public class WorkspaceState private constructor(
             appearance,
             actualSizeWindow,
             paletteEditSession,
+            quickSelection,
         )
 
     internal fun withActiveTool(activeTool: DrawingTool): WorkspaceState =
@@ -35,9 +48,11 @@ public class WorkspaceState private constructor(
             appearance,
             actualSizeWindow,
             paletteEditSession,
+            quickSelection,
         )
 
-    internal fun withPreview(preview: ToolGesture): WorkspaceState =
+    /** Replaces the gesture preview; `null` ends it. */
+    internal fun withPreview(preview: ToolGesture?): WorkspaceState =
         WorkspaceState(
             activePaletteIndex,
             activeTool,
@@ -46,16 +61,32 @@ public class WorkspaceState private constructor(
             appearance,
             actualSizeWindow,
             paletteEditSession,
+            quickSelection,
         )
 
-    internal fun withoutPreview(): WorkspaceState =
-        WorkspaceState(activePaletteIndex, activeTool, viewport, null, appearance, actualSizeWindow, paletteEditSession)
-
     internal fun withViewport(viewport: ViewportState): WorkspaceState =
-        WorkspaceState(activePaletteIndex, activeTool, viewport, null, appearance, actualSizeWindow, paletteEditSession)
+        WorkspaceState(
+            activePaletteIndex,
+            activeTool,
+            viewport,
+            null,
+            appearance,
+            actualSizeWindow,
+            paletteEditSession,
+            quickSelection,
+        )
 
     internal fun withAppearance(appearance: EditorAppearance): WorkspaceState =
-        WorkspaceState(activePaletteIndex, activeTool, viewport, null, appearance, actualSizeWindow, paletteEditSession)
+        WorkspaceState(
+            activePaletteIndex,
+            activeTool,
+            viewport,
+            null,
+            appearance,
+            actualSizeWindow,
+            paletteEditSession,
+            quickSelection,
+        )
 
     /** The actual-size window is non-modal: it never cancels an in-progress gesture (ADR 0026). */
     internal fun withActualSizeWindow(actualSizeWindow: ActualSizeWindow): WorkspaceState =
@@ -67,6 +98,7 @@ public class WorkspaceState private constructor(
             appearance,
             actualSizeWindow,
             paletteEditSession,
+            quickSelection,
         )
 
     /** The palette edit session is non-modal: opening or closing it never cancels an in-progress gesture (ADR 0022). */
@@ -79,6 +111,20 @@ public class WorkspaceState private constructor(
             appearance,
             actualSizeWindow,
             paletteEditSession,
+            quickSelection,
+        )
+
+    /** Quick-select state never cancels an in-progress gesture (ADR 0029). */
+    internal fun withQuickSelection(quickSelection: QuickSelection): WorkspaceState =
+        WorkspaceState(
+            activePaletteIndex,
+            activeTool,
+            viewport,
+            preview,
+            appearance,
+            actualSizeWindow,
+            paletteEditSession,
+            quickSelection,
         )
 
     override fun equals(other: Any?): Boolean =
@@ -91,18 +137,27 @@ public class WorkspaceState private constructor(
                     preview == other.preview &&
                     appearance == other.appearance &&
                     actualSizeWindow == other.actualSizeWindow &&
-                    paletteEditSession == other.paletteEditSession
+                    paletteEditSession == other.paletteEditSession &&
+                    quickSelection == other.quickSelection
             )
 
     override fun hashCode(): Int =
-        listOf(activePaletteIndex, activeTool, viewport, preview, appearance, actualSizeWindow, paletteEditSession)
-            .fold(INITIAL_HASH) { hash, value -> hash * HASH_MULTIPLIER + (value?.hashCode() ?: 0) }
+        listOf(
+            activePaletteIndex,
+            activeTool,
+            viewport,
+            preview,
+            appearance,
+            actualSizeWindow,
+            paletteEditSession,
+            quickSelection,
+        ).fold(INITIAL_HASH) { hash, value -> hash * HASH_MULTIPLIER + (value?.hashCode() ?: 0) }
 
     override fun toString(): String =
         "WorkspaceState(" +
             "activePaletteIndex=$activePaletteIndex, activeTool=$activeTool, viewport=$viewport, " +
             "preview=$preview, appearance=$appearance, actualSizeWindow=$actualSizeWindow, " +
-            "paletteEditSession=$paletteEditSession)"
+            "paletteEditSession=$paletteEditSession, quickSelection=$quickSelection)"
 
     public companion object {
         private const val INITIAL_HASH: Int = 1
@@ -117,6 +172,7 @@ public class WorkspaceState private constructor(
                 EditorAppearance.initial,
                 ActualSizeWindow.initial,
                 null,
+                QuickSelection.initial,
             )
     }
 }
