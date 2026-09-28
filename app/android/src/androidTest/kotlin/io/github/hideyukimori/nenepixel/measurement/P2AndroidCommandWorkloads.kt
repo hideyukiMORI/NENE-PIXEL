@@ -23,6 +23,7 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelRegion
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelX
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelY
+import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
@@ -651,7 +652,6 @@ private class CoreMeasurementValues(
 
     fun redPixels(): List<PaletteIndex> = List(canvas.pixelCount.toInt()) { RED_INDEX }
 
-
     fun diagonalRedPixels(): List<PaletteIndex> =
         List(canvas.pixelCount.toInt()) { index ->
             if (index % canvas.width.value == index / canvas.width.value) RED_INDEX else PaletteIndex.first
@@ -692,6 +692,7 @@ private class CoreMeasurementValues(
     ): ApplyStrokeCommand =
         ApplyStrokeCommand.create(
             gateway.captureSource(),
+            LayerId.first(),
             Stroke.create(canvas, path, StrokeEffect.Paint(RED_INDEX)).requiredValue(),
         )
 
@@ -701,6 +702,7 @@ private class CoreMeasurementValues(
     ): ApplyStrokeCommand =
         ApplyStrokeCommand.create(
             gateway.captureSource(),
+            LayerId.first(),
             Stroke.create(canvas, path, StrokeEffect.Erase).requiredValue(),
         )
 

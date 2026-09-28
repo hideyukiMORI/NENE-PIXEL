@@ -7,6 +7,7 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelX
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelY
+import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelLimits
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import kotlin.math.abs
@@ -16,6 +17,8 @@ public class ToolGesture private constructor(
     public val canvas: CanvasSize,
     private val path: GesturePath,
     public val effect: StrokeEffect,
+    /** The layer captured with [effect] at gesture start; later selection changes never retarget it (ADR 0030). */
+    public val layerId: LayerId,
     internal val admission: CommandSourceAdmission,
 ) {
     private val latestSample: GestureSample get() = path.latestSample
@@ -51,6 +54,7 @@ public class ToolGesture private constructor(
                             positionCount = attemptedCount.toInt(),
                         ),
                     effect = effect,
+                    layerId = layerId,
                     admission = admission,
                 ),
             )
@@ -78,6 +82,7 @@ public class ToolGesture private constructor(
                 other is ToolGesture &&
                     canvas == other.canvas &&
                     effect == other.effect &&
+                    layerId == other.layerId &&
                     admission === other.admission &&
                     sampleCount == other.sampleCount &&
                     positionCount == other.positionCount &&
@@ -89,10 +94,13 @@ public class ToolGesture private constructor(
             )
 
     override fun hashCode(): Int =
-        ((canvas.hashCode() * HASH_MULTIPLIER) + effect.hashCode()) * HASH_MULTIPLIER + sampleHash
+        (
+            ((canvas.hashCode() * HASH_MULTIPLIER) + effect.hashCode()) * HASH_MULTIPLIER + layerId.hashCode()
+        ) * HASH_MULTIPLIER + sampleHash
 
     override fun toString(): String =
-        "ToolGesture(canvas=$canvas, sampleCount=$sampleCount, positionCount=$positionCount, effect=$effect)"
+        "ToolGesture(canvas=$canvas, sampleCount=$sampleCount, positionCount=$positionCount, effect=$effect, " +
+            "layerId=$layerId)"
 
     private fun samplesInPathOrder(): Array<PixelPosition> {
         val samples = Array(sampleCount) { latestSample.position }
@@ -111,12 +119,14 @@ public class ToolGesture private constructor(
             canvas: CanvasSize,
             position: PixelPosition,
             effect: StrokeEffect,
+            layerId: LayerId,
             admission: CommandSourceAdmission,
         ): ToolGesture =
             ToolGesture(
                 canvas = canvas,
                 path = GesturePath(GestureSample(position, null), 1, position.hashCode(), 1),
                 effect = effect,
+                layerId = layerId,
                 admission = admission,
             )
     }

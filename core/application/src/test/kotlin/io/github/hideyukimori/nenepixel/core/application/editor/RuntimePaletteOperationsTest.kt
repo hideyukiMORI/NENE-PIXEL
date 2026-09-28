@@ -23,6 +23,7 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceRedu
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteDraftOperation
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteDraftRejection
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentId
+import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelCell
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
@@ -206,6 +207,7 @@ internal class RuntimePaletteOperationsTest {
     ): ApplyStrokeCommand =
         ApplyStrokeCommand.create(
             runtime.captureSource(),
+            LayerId.first(),
             stroke(runtime.state.documentState.size, listOf(position(0, 0)), index),
         )
 

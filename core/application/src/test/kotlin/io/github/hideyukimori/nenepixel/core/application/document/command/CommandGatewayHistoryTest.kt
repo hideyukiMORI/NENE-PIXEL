@@ -17,6 +17,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.Cha
 import io.github.hideyukimori.nenepixel.core.application.document.transition.LayerIndexChanges
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
+import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelLimits
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
@@ -66,7 +67,7 @@ internal class CommandGatewayHistoryTest {
         position: PixelPosition,
         index: io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex,
     ): ApplyStrokeCommand =
-        ApplyStrokeCommand.create(admission, stroke(admission.document.size, listOf(position), index))
+        ApplyStrokeCommand.create(admission, LayerId.first(), stroke(admission.document.size, listOf(position), index))
 
     @Test
     fun `apply undo redo use canonical patches and restore exact document states`() {
@@ -382,6 +383,7 @@ internal class CommandGatewayHistoryTest {
     ): ApplyStrokeCommand =
         ApplyStrokeCommand.create(
             gateway.captureSource(),
+            LayerId.first(),
             stroke(gateway.runtimeState.documentState.size, listOf(position), index),
         )
 
@@ -395,6 +397,7 @@ internal class CommandGatewayHistoryTest {
             gateway.execute(
                 ApplyStrokeCommand.create(
                     gateway.captureSource(),
+                    LayerId.first(),
                     stroke(gateway.runtimeState.documentState.size, path, color),
                 ),
             ),

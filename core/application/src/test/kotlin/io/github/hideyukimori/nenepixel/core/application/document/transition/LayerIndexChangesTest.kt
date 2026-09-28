@@ -93,7 +93,8 @@ internal class LayerIndexChangesTest {
         val gateway = CommandGateway.create(initial)
         val draw = stroke(initial.size, listOf(position(1, 0), position(3, 2)), redIndex)
 
-        val changeSet = applied(gateway.execute(ApplyStrokeCommand.create(gateway.captureSource(), draw)))
+        val changeSet =
+            applied(gateway.execute(ApplyStrokeCommand.create(gateway.captureSource(), LayerId.first(), draw)))
 
         val sparse = assertInstanceOf(LayerIndexChanges.Sparse::class.java, changeSet.layerChanges.single().changes)
         assertEquals(sparse.patch.affectedRegion, changeSet.renderInvalidation)

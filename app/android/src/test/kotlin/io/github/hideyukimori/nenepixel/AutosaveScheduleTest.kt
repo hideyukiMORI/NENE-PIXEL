@@ -23,6 +23,7 @@ import io.github.hideyukimori.nenepixel.core.domain.drawing.StrokeEffect
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelX
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelY
+import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import kotlinx.coroutines.Dispatchers
@@ -345,7 +346,7 @@ private class AutosaveStateTokens {
         val current = runtime.state.documentState
         val position = PixelPosition.create(PixelX.create(nextX).required(), PixelY.create(0).required())
         val stroke = Stroke.create(current.size, listOf(position), StrokeEffect.Paint(PaletteIndex.first)).required()
-        val result = runtime.execute(ApplyStrokeCommand.create(runtime.captureSource(), stroke))
+        val result = runtime.execute(ApplyStrokeCommand.create(runtime.captureSource(), LayerId.first(), stroke))
         check(result is CommandResult.Applied)
         nextX += 1
         return requireNotNull(workflow.autosave.value.pendingStateToken)

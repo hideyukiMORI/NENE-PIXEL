@@ -11,6 +11,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.App
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.state
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.stroke
 import io.github.hideyukimori.nenepixel.core.application.document.transition.DocumentTransitionResult
+import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelCell
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
@@ -132,6 +133,7 @@ internal class UndoRedoCommandHandlerTest {
         val command =
             ApplyStrokeCommand.create(
                 gateway.captureSource(),
+                LayerId.first(),
                 stroke(initial.size, listOf(position(0, 0)), redIndex),
             )
         val result = gateway.execute(command)

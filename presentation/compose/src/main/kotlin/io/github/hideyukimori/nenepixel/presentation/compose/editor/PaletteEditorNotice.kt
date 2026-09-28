@@ -58,6 +58,8 @@ private fun WorkspaceActionRejection.noticeResource(): Int =
         WorkspaceActionRejection.QuickSelectMenuOpen,
         WorkspaceActionRejection.QuickSelectItemNotInMenu,
         is WorkspaceActionRejection.PickPositionOutsideCanvas,
+        is WorkspaceActionRejection.PickEmptyCell,
+        is WorkspaceActionRejection.ActiveLayerNotFound,
         -> R.string.palette_editor_rejected
     }
 

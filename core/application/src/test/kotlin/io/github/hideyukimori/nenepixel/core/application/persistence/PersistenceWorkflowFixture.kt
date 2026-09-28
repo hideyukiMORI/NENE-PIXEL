@@ -35,6 +35,7 @@ import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.document.LegacyRgbaSource
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
+import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -178,6 +179,7 @@ internal fun commandFor(
         }
     return ApplyStrokeCommand.create(
         runtime.captureSource(),
+        LayerId.first(),
         stroke(runtime.state.documentState.size, listOf(position), index),
     )
 }

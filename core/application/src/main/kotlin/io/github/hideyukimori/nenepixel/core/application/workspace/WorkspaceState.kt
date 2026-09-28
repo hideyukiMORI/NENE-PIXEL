@@ -7,10 +7,11 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.quickselect.Q
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportState
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
+import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 
 public class WorkspaceState private constructor(
-    public val activePaletteIndex: PaletteIndex,
+    public val editTarget: EditTarget,
     public val activeTool: DrawingTool,
     public val viewport: ViewportState,
     public val preview: ToolGesture?,
@@ -19,6 +20,12 @@ public class WorkspaceState private constructor(
     public val paletteEditSession: PaletteEditSession?,
     public val quickSelection: QuickSelection,
 ) {
+    public val activePaletteIndex: PaletteIndex
+        get() = editTarget.paletteIndex
+
+    public val activeLayerId: LayerId
+        get() = editTarget.layerId
+
     /** How presentation translates a canvas pointer down: picking exactly while the eyedropper is armed (ADR 0029). */
     public val canvasPointerIntent: CanvasPointerIntent
         get() =
@@ -27,9 +34,9 @@ public class WorkspaceState private constructor(
                 EyedropperState.Armed -> CanvasPointerIntent.PickPaletteEntry
             }
 
-    internal fun withActivePaletteIndex(activePaletteIndex: PaletteIndex): WorkspaceState =
+    internal fun withEditTarget(editTarget: EditTarget): WorkspaceState =
         WorkspaceState(
-            activePaletteIndex,
+            editTarget,
             activeTool,
             viewport,
             preview,
@@ -41,7 +48,7 @@ public class WorkspaceState private constructor(
 
     internal fun withActiveTool(activeTool: DrawingTool): WorkspaceState =
         WorkspaceState(
-            activePaletteIndex,
+            editTarget,
             activeTool,
             viewport,
             preview,
@@ -54,7 +61,7 @@ public class WorkspaceState private constructor(
     /** Replaces the gesture preview; `null` ends it. */
     internal fun withPreview(preview: ToolGesture?): WorkspaceState =
         WorkspaceState(
-            activePaletteIndex,
+            editTarget,
             activeTool,
             viewport,
             preview,
@@ -66,7 +73,7 @@ public class WorkspaceState private constructor(
 
     internal fun withViewport(viewport: ViewportState): WorkspaceState =
         WorkspaceState(
-            activePaletteIndex,
+            editTarget,
             activeTool,
             viewport,
             null,
@@ -78,7 +85,7 @@ public class WorkspaceState private constructor(
 
     internal fun withAppearance(appearance: EditorAppearance): WorkspaceState =
         WorkspaceState(
-            activePaletteIndex,
+            editTarget,
             activeTool,
             viewport,
             null,
@@ -91,7 +98,7 @@ public class WorkspaceState private constructor(
     /** The actual-size window is non-modal: it never cancels an in-progress gesture (ADR 0026). */
     internal fun withActualSizeWindow(actualSizeWindow: ActualSizeWindow): WorkspaceState =
         WorkspaceState(
-            activePaletteIndex,
+            editTarget,
             activeTool,
             viewport,
             preview,
@@ -104,7 +111,7 @@ public class WorkspaceState private constructor(
     /** The palette edit session is non-modal: opening or closing it never cancels an in-progress gesture (ADR 0022). */
     internal fun withPaletteEditSession(paletteEditSession: PaletteEditSession?): WorkspaceState =
         WorkspaceState(
-            activePaletteIndex,
+            editTarget,
             activeTool,
             viewport,
             preview,
@@ -117,7 +124,7 @@ public class WorkspaceState private constructor(
     /** Quick-select state never cancels an in-progress gesture (ADR 0029). */
     internal fun withQuickSelection(quickSelection: QuickSelection): WorkspaceState =
         WorkspaceState(
-            activePaletteIndex,
+            editTarget,
             activeTool,
             viewport,
             preview,
@@ -131,7 +138,7 @@ public class WorkspaceState private constructor(
         this === other ||
             (
                 other is WorkspaceState &&
-                    activePaletteIndex == other.activePaletteIndex &&
+                    editTarget == other.editTarget &&
                     activeTool == other.activeTool &&
                     viewport == other.viewport &&
                     preview == other.preview &&
@@ -143,7 +150,7 @@ public class WorkspaceState private constructor(
 
     override fun hashCode(): Int =
         listOf(
-            activePaletteIndex,
+            editTarget,
             activeTool,
             viewport,
             preview,
@@ -155,7 +162,7 @@ public class WorkspaceState private constructor(
 
     override fun toString(): String =
         "WorkspaceState(" +
-            "activePaletteIndex=$activePaletteIndex, activeTool=$activeTool, viewport=$viewport, " +
+            "editTarget=$editTarget, activeTool=$activeTool, viewport=$viewport, " +
             "preview=$preview, appearance=$appearance, actualSizeWindow=$actualSizeWindow, " +
             "paletteEditSession=$paletteEditSession, quickSelection=$quickSelection)"
 
@@ -165,7 +172,7 @@ public class WorkspaceState private constructor(
 
         public fun create(canvas: CanvasSize): WorkspaceState =
             WorkspaceState(
-                PaletteIndex.first,
+                EditTarget.create(LayerId.first(), PaletteIndex.first),
                 DrawingTool.Pencil,
                 ViewportState.initial(canvas),
                 null,

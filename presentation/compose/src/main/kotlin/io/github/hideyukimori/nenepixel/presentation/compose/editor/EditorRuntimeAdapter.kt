@@ -92,7 +92,7 @@ internal class EditorRuntimeAdapter(
     }
 
     private fun execute(preparation: WorkspaceReductionResult.CommitPrepared): CommandResult {
-        val command = ApplyStrokeCommand.create(preparation.admission, preparation.stroke)
+        val command = ApplyStrokeCommand.create(preparation.admission, preparation.layerId, preparation.stroke)
         return runtime.execute(command)
     }
 
