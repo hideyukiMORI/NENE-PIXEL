@@ -27,6 +27,9 @@ import java.io.OutputStream
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicInteger
 
+/** 23-byte envelope plus the project v3 bytes of the 256x256, 256-colour, one-layer maximum document. */
+private const val MAXIMUM_SINGLE_LAYER_V3_RECORD_BYTE_COUNT: Int = 74_827
+
 internal class AndroidRecoveryRecordAdapterTest {
     @Test
     fun `missing lineage publishes and verifies real retired generation one`() =
@@ -358,7 +361,7 @@ internal class AndroidRecoveryRecordAdapterTest {
                 RecoveryPublicationOutcome.Published(PersistenceTestValues.generation(1L)),
                 result,
             )
-            assertEquals(RecoveryRecordLayout.V2_MAX_CANDIDATE_BYTE_COUNT, file.bytes?.size)
+            assertEquals(MAXIMUM_SINGLE_LAYER_V3_RECORD_BYTE_COUNT, file.bytes?.size)
             assertEquals(
                 RecoveryInspection.Candidate(
                     PersistenceTestValues.generation(1L),

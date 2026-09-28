@@ -15,6 +15,11 @@ import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.io.OutputStream
 
+// Aligned with envelope 3 / project v3 by #142 (ADR 0030). The v2 results collected by #106 remain
+// historical evidence for that artifact; new acceptance measurement follows the #145 protocol.
+
+// One-layer 256x256, 256-color Candidate written as envelope 3; not the 16-layer V3_MAX_CANDIDATE_BYTE_COUNT.
+private const val SINGLE_LAYER_MAX_CANDIDATE_BYTE_COUNT: Int = 74_827
 private const val WARMUP_COUNT: Int = 5
 private const val SAMPLE_COUNT: Int = 20
 private const val SAMPLE_ANOMALY_NANOS: Long = 1_000_000_000L
@@ -63,7 +68,7 @@ private class RecoveryHostEvidenceFixture {
 
     private fun retiredEncodeGroup(): RecoveryHostEvidenceGroup<RecoveryEncodeResult> =
         RecoveryHostEvidenceGroup(
-            "v2_retired_encode",
+            "v3_retired_encode",
             { RecoveryRecordCodec.encodeRetired(first) },
             RecoveryHostEvidenceChecks(
                 { result ->
@@ -79,7 +84,7 @@ private class RecoveryHostEvidenceFixture {
 
     private fun retiredDecodeGroup(): RecoveryHostEvidenceGroup<RecoveryDecodeResult> =
         RecoveryHostEvidenceGroup(
-            "v2_retired_decode",
+            "v3_retired_decode",
             { RecoveryRecordCodec.decode(retiredBytes) },
             RecoveryHostEvidenceChecks(
                 { result -> verifyRetiredFacts(result, first) },
@@ -99,13 +104,13 @@ private class RecoveryHostEvidenceFixture {
 
     private fun candidateEncodeGroup(): RecoveryHostEvidenceGroup<RecoveryEncodeResult> =
         RecoveryHostEvidenceGroup(
-            "v2_max_candidate_encode",
+            "v3_max_candidate_encode",
             { RecoveryRecordCodec.encodeCandidate(first, document) },
             RecoveryHostEvidenceChecks(
                 { result ->
                     verifyEncodedFacts(
                         result,
-                        RecoveryRecordLayout.V2_MAX_CANDIDATE_BYTE_COUNT,
+                        SINGLE_LAYER_MAX_CANDIDATE_BYTE_COUNT,
                         RecoveryRecordLayout.CANDIDATE_STATE,
                     )
                 },
@@ -115,7 +120,7 @@ private class RecoveryHostEvidenceFixture {
 
     private fun candidateDecodeGroup(): RecoveryHostEvidenceGroup<RecoveryDecodeResult> =
         RecoveryHostEvidenceGroup(
-            "v2_max_candidate_decode_current",
+            "v3_max_candidate_decode_current",
             { RecoveryRecordCodec.decode(candidateBytes) },
             RecoveryHostEvidenceChecks(
                 { result -> verifyCurrentFacts(result, first, document) },
@@ -125,7 +130,7 @@ private class RecoveryHostEvidenceFixture {
 
     private fun candidatePublicationGroup(): RecoveryHostEvidenceGroup<RecoveryPublicationOutcome> =
         RecoveryHostEvidenceGroup(
-            "v2_max_candidate_publish",
+            "v3_max_candidate_publish",
             { runBlocking { port.publishCandidate(ExpectedRecoveryLineage.Present(first), document) } },
             RecoveryHostEvidenceChecks(
                 { outcome -> check(outcome == RecoveryPublicationOutcome.Published(next)) },
@@ -141,7 +146,7 @@ private class RecoveryHostEvidenceFixture {
     }
 
     private fun verifyLegacyBoundary() {
-        check(legacyBytes.size == RecoveryRecordLayout.MAX_RECORD_BYTE_COUNT)
+        check(legacyBytes.size == RecoveryRecordLayout.V1_MAX_CANDIDATE_BYTE_COUNT)
         check(legacy.copyPackedRgba8888().toSet().size == 65_536)
         check(
             accepted(RecoveryRecordCodec.decode(legacyBytes)) ==
@@ -151,7 +156,7 @@ private class RecoveryHostEvidenceFixture {
     }
 
     private fun verifyCandidateBoundary() {
-        check(candidateBytes.size == RecoveryRecordLayout.V2_MAX_CANDIDATE_BYTE_COUNT)
+        check(candidateBytes.size == SINGLE_LAYER_MAX_CANDIDATE_BYTE_COUNT)
         check(encoded(RecoveryRecordCodec.encodeCandidate(first, document)).contentEquals(candidateBytes))
         check(
             accepted(RecoveryRecordCodec.decode(candidateBytes)) ==
@@ -219,12 +224,12 @@ internal object RecoveryHostEvidenceReport {
     const val SCHEMA: String = "nene-pixel-p4-recovery-record-host-v1"
     val GROUPS: List<String> =
         listOf(
-            "v2_retired_encode",
-            "v2_retired_decode",
+            "v3_retired_encode",
+            "v3_retired_decode",
             "v1_max_candidate_decode_legacy",
-            "v2_max_candidate_encode",
-            "v2_max_candidate_decode_current",
-            "v2_max_candidate_publish",
+            "v3_max_candidate_encode",
+            "v3_max_candidate_decode_current",
+            "v3_max_candidate_publish",
         )
 
     fun sampleRow(observation: RecoveryHostObservation): String =
@@ -253,7 +258,7 @@ private fun verifyEncodedFacts(
 ) {
     val bytes = encoded(result)
     check(bytes.size == byteCount)
-    check(RecoveryRecordLayout.version(bytes) == RecoveryRecordLayout.V2_VERSION)
+    check(RecoveryRecordLayout.version(bytes) == RecoveryRecordLayout.V3_VERSION)
     check(RecoveryRecordLayout.state(bytes) == state)
 }
 

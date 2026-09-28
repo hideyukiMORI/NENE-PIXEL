@@ -29,6 +29,8 @@ import java.io.File
 import java.nio.file.Files
 import java.util.Random
 
+// Aligned with envelope 3 / project v3 by #142 (ADR 0030). The v2 results collected by #106 remain
+// historical evidence for that artifact; new acceptance measurement follows the #145 protocol.
 @RunWith(AndroidJUnit4::class)
 public class AutosavePublicationDeviceEvidence {
     private val context: Context = InstrumentationRegistry.getInstrumentation().targetContext
@@ -80,8 +82,8 @@ private class AutosavePublicationEvidenceRun(
     fun collect() {
         val maximum = maximumDocument()
         val minimum = minimalDocument()
-        measureGroup(MAX_GROUP, maximum, RecoveryRecordLayout.V2_MAX_CANDIDATE_BYTE_COUNT)
-        measureGroup(MIN_GROUP, minimum, RecoveryRecordLayout.V2_MIN_CANDIDATE_BYTE_COUNT)
+        measureGroup(MAX_GROUP, maximum, SINGLE_LAYER_MAX_CANDIDATE_BYTE_COUNT)
+        measureGroup(MIN_GROUP, minimum, RecoveryRecordLayout.V3_MIN_CANDIDATE_BYTE_COUNT)
     }
 
     private fun measureGroup(
@@ -205,7 +207,7 @@ internal data class PublicationSample(
 
 internal object AutosavePublicationEvidenceReport {
     const val SCHEMA: String = "nene-pixel-p4-indexed-publication-device-v1"
-    private val groups = setOf("candidate_v2_max", "candidate_v2_min")
+    private val groups = setOf("candidate_v3_max", "candidate_v3_min")
     private val kinds = setOf("warmup", "sample", "summary_min", "summary_max")
 
     fun sampleRow(
@@ -266,8 +268,11 @@ internal const val MAX_ROW_COUNT: Int = 54
 private const val SAMPLE_ANOMALY_NANOS: Long = 5_000_000_000L
 private const val OUTER_TIMEOUT_SECONDS: Long = 60L
 private const val FIRST_GENERATION: Long = 1L
-private const val MAX_GROUP: String = "candidate_v2_max"
-private const val MIN_GROUP: String = "candidate_v2_min"
+
+// One-layer 256x256, 256-color Candidate written as envelope 3; not the 16-layer V3_MAX_CANDIDATE_BYTE_COUNT.
+private const val SINGLE_LAYER_MAX_CANDIDATE_BYTE_COUNT: Int = 74_827
+private const val MAX_GROUP: String = "candidate_v3_max"
+private const val MIN_GROUP: String = "candidate_v3_min"
 private const val WARMUP_KIND: String = "warmup"
 private const val SAMPLE_KIND: String = "sample"
 private const val SUMMARY_MIN_KIND: String = "summary_min"

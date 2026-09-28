@@ -47,9 +47,9 @@ internal class ProjectFormatV1CodecGoldenTest {
         val encoded = ProjectFormatCodec.encodeLegacySource(source)
         val decoded = legacy(encoded)
 
-        assertEquals(ProjectFormatBytes.MAX_FILE_BYTE_COUNT, encoded.byteCount)
+        assertEquals(ProjectFormatV1Layout.MAX_FILE_BYTE_COUNT, encoded.byteCount)
         assertEquals(source, decoded)
-        assertTrue(encoded.copyBytes().size <= ProjectFormatBytes.MAX_FILE_BYTE_COUNT)
+        assertTrue(encoded.copyBytes().size <= ProjectFormatV1Layout.MAX_FILE_BYTE_COUNT)
     }
 
     private fun legacy(source: ProjectFormatBytes) =

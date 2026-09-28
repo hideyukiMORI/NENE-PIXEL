@@ -257,7 +257,7 @@ public class AutosavePublicationEvidenceJournalTest {
                 }
             }
         val sample = PublicationSample(42L, expectedGeneration.value, RecordWriteResult.Written(expectedGeneration))
-        val row = AutosavePublicationEvidenceReport.sampleRow("candidate_v2_max", 19, "sample", sample)
+        val row = AutosavePublicationEvidenceReport.sampleRow("candidate_v3_max", 19, "sample", sample)
 
         assertTrue(AutosavePublicationEvidenceReport.validates(row))
         assertFalse(AutosavePublicationEvidenceReport.validates(row.replace(",candidate,", ",baseline,")))

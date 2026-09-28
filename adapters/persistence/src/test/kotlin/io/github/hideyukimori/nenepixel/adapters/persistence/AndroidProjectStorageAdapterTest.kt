@@ -6,6 +6,7 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectLoad
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectSaveOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectStorageFailure
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentImportSource
+import io.github.hideyukimori.nenepixel.core.projectformat.ProjectFormatBytes
 import io.github.hideyukimori.nenepixel.core.projectformat.ProjectFormatCodec
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -89,7 +90,7 @@ internal class AndroidProjectStorageAdapterTest {
     @Test
     fun `known oversize rejects before opening`() =
         runBlocking {
-            val content = MemoryProjectContent(knownByteCount = 262_187L)
+            val content = MemoryProjectContent(knownByteCount = ProjectFormatBytes.MAX_PROBE_BYTE_COUNT.toLong())
             val adapter = adapter(content, InternalPickerResult.Selected(TestLocation))
 
             val result = adapter.load()

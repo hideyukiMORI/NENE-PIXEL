@@ -19,6 +19,12 @@ internal object ProjectStorageRejectionMapper {
             is ProjectFormatRejection.InvalidPaletteEntryCount,
             is ProjectFormatRejection.DefaultIndexOutsidePalette,
             is ProjectFormatRejection.PixelIndexOutsidePalette,
+            is ProjectFormatRejection.InvalidLayerCount,
+            is ProjectFormatRejection.InvalidLayerId,
+            is ProjectFormatRejection.DuplicateLayerId,
+            is ProjectFormatRejection.UnknownLayerFlags,
+            is ProjectFormatRejection.InvalidLayerName,
+            is ProjectFormatRejection.InvalidCoverage,
             -> ProjectStorageFailure.InvalidProject
         }
 }

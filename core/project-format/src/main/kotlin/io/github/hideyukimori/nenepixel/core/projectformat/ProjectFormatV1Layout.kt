@@ -11,6 +11,7 @@ internal object ProjectFormatV1Layout {
     const val PIXEL_OFFSET: Int = 38
     const val FIXED_BYTE_COUNT: Int = 42
     const val MIN_FILE_BYTE_COUNT: Int = 46
+    const val MAX_FILE_BYTE_COUNT: Int = 262_186
 
     private val magic: ByteArray =
         byteArrayOf(0x4e, 0x45, 0x4e, 0x45, 0x50, 0x49, 0x58, 0x00)

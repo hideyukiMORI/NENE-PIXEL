@@ -1,6 +1,7 @@
 package io.github.hideyukimori.nenepixel.adapters.persistence
 
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentImportSource
+import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.projectformat.ProjectFormatCodec
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -9,8 +10,14 @@ import java.util.zip.CRC32
 
 internal class RecoveryRecordCodecTest {
     @Test
-    fun `retired generation one matches exact golden bytes`() {
-        val encoded = encodedRetired(1L)
+    fun `envelope v2 retired generation one matches exact golden bytes`() {
+        val encoded =
+            RecoveryRecordLayout.encode(
+                RecoveryRecordLayout.V2_VERSION,
+                RecoveryRecordLayout.RETIRED_STATE,
+                PersistenceTestValues.generation(1L),
+                ByteArray(0),
+            )
 
         assertEquals(
             "4e454e45524543000002020000000000000001ab096daf",
@@ -21,9 +28,9 @@ internal class RecoveryRecordCodecTest {
     }
 
     @Test
-    fun `minimal candidate is deterministic and round trips nested v2`() {
-        val first = encodedCandidate(3L)
-        val second = encodedCandidate(3L)
+    fun `envelope v2 minimal candidate is deterministic and round trips nested v2`() {
+        val first = v2Candidate(3L, PersistenceTestValues.minimalDocument)
+        val second = v2Candidate(3L, PersistenceTestValues.minimalDocument)
 
         assertArrayEquals(first, second)
         assertEquals(77, first.size)
@@ -38,15 +45,12 @@ internal class RecoveryRecordCodecTest {
     }
 
     @Test
-    fun `maximum candidate reaches the exact record bound`() {
-        val encoded =
-            RecoveryRecordCodec.encodeCandidate(
-                PersistenceTestValues.generation(Long.MAX_VALUE),
-                PersistenceTestValues.maximumDocument(),
-            ) as RecoveryEncodeResult.Encoded
+    fun `envelope v2 maximum candidate reaches the exact v2 bound`() {
+        val bytes = v2Candidate(Long.MAX_VALUE, PersistenceTestValues.maximumDocument())
 
-        assertEquals(66_628, encoded.bytes.size)
-        assertTrueCandidate(RecoveryRecordCodec.decode(encoded.bytes), Long.MAX_VALUE)
+        assertEquals(66_628, bytes.size)
+        assertEquals(RecoveryRecordLayout.V2_MAX_CANDIDATE_BYTE_COUNT, bytes.size)
+        assertTrueCandidate(RecoveryRecordCodec.decode(bytes), Long.MAX_VALUE)
     }
 
     @Test
@@ -131,12 +135,9 @@ internal class RecoveryRecordCodecTest {
         )
 
         val overV2Bound =
-            (
-                RecoveryRecordCodec.encodeCandidate(
-                    generation,
-                    PersistenceTestValues.maximumDocument(),
-                ) as RecoveryEncodeResult.Encoded
-            ).bytes.copyOf(RecoveryRecordLayout.V2_MAX_CANDIDATE_BYTE_COUNT + 1).withUpdatedChecksum()
+            v2Candidate(2L, PersistenceTestValues.maximumDocument())
+                .copyOf(RecoveryRecordLayout.V2_MAX_CANDIDATE_BYTE_COUNT + 1)
+                .withUpdatedChecksum()
         assertEquals(
             RecoveryDecodeResult.Rejected(RecoveryRejection.CORRUPT),
             RecoveryRecordCodec.decode(overV2Bound),
@@ -155,7 +156,7 @@ internal class RecoveryRecordCodecTest {
                 ProjectFormatCodec.encodeLegacySource(source).copyBytes(),
             )
 
-        assertEquals(RecoveryRecordCodec.MAX_RECORD_BYTE_COUNT, bytes.size)
+        assertEquals(RecoveryRecordLayout.V1_MAX_CANDIDATE_BYTE_COUNT, bytes.size)
         assertEquals(
             RecoveryRecord.Candidate(generation, DocumentImportSource.Legacy(source)),
             (RecoveryRecordCodec.decode(bytes) as RecoveryDecodeResult.Accepted).record,
@@ -191,6 +192,17 @@ internal class RecoveryRecordCodecTest {
                 PersistenceTestValues.minimalDocument,
             ) as RecoveryEncodeResult.Encoded
         ).bytes
+
+    private fun v2Candidate(
+        generation: Long,
+        document: DocumentState,
+    ): ByteArray =
+        RecoveryRecordLayout.encode(
+            RecoveryRecordLayout.V2_VERSION,
+            RecoveryRecordLayout.CANDIDATE_STATE,
+            PersistenceTestValues.generation(generation),
+            PersistenceTestValues.v2ProjectBytes(document),
+        )
 
     private fun assertTrueCandidate(
         result: RecoveryDecodeResult,
