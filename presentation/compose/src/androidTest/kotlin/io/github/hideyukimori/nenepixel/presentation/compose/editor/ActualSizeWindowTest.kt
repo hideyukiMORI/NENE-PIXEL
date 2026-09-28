@@ -68,10 +68,10 @@ import kotlin.math.roundToInt
 /**
  * The actual-size window is an exact integer multiple of the committed bitmap (ADR 0026).
  *
- * Pixel equality is checked against [toOpaqueRenderedBitmap], the one projection the canvas also
+ * Pixel equality is checked against [CommittedBitmapCache], the one projection the canvas also
  * draws, rather than against a capture of `PixelCanvas`: the canvas fits the document to the work
  * area at a fractional scale and draws grid lines over it, so its own pixels are not a per-cell
- * reference. `CanvasBitmapProjectionTest` owns the snapshot-to-bitmap contract; this class owns the
+ * reference. `CanvasBitmapProjectionTest` owns the composite-to-bitmap contract; this class owns the
  * bitmap-to-window contract.
  */
 internal class ActualSizeWindowTest {
@@ -143,17 +143,17 @@ internal class ActualSizeWindowTest {
     fun theDockToggleShowsAndHidesTheWindowWithoutTouchingTheDocument() {
         val controller = controller()
         setEditorContent(controller, WIDE_EDGE, TALL_EDGE)
-        val before = controller.renderState.snapshot
+        val before = controller.renderState.document.snapshot
         composeRule.onNodeWithTag(WINDOW_TAG).assertDoesNotExist()
         composeRule.onNodeWithTag(TOGGLE_TAG).assertIsNotSelected().performClick()
         composeRule.onNodeWithTag(WINDOW_TAG).assertIsDisplayed()
         composeRule.onNodeWithTag(TOGGLE_TAG).assertIsSelected()
         assertTrue(controller.renderState.actualSizeWindow.visible)
-        assertSame(before, controller.renderState.snapshot)
+        assertSame(before, controller.renderState.document.snapshot)
         composeRule.onNodeWithTag(TOGGLE_TAG).performClick()
         composeRule.onNodeWithTag(WINDOW_TAG).assertDoesNotExist()
         composeRule.onNodeWithTag(TOGGLE_TAG).assertIsNotSelected()
-        assertSame(before, controller.renderState.snapshot)
+        assertSame(before, controller.renderState.document.snapshot)
     }
 
     @Test
@@ -312,7 +312,7 @@ internal class ActualSizeWindowTest {
         source: WindowSource,
     ) {
         val render = controller.renderState
-        val expected = render.snapshot.toOpaqueRenderedBitmap(render.definition, canvasBackgroundArgb())
+        val expected = CommittedBitmapCache().render(render.document, render.definition, canvasBackgroundArgb())
         val image = composeRule.onNodeWithTag(CONTENT_TAG).captureToImage().toPixelMap()
         assertEquals(expected.getPixel(source.left, source.top), image[0, 0].toArgb())
         assertFalse(
@@ -338,7 +338,7 @@ internal class ActualSizeWindowTest {
         scale: ActualSizeScale,
     ): WindowSource {
         val render = controller.renderState
-        val expected = render.snapshot.toOpaqueRenderedBitmap(render.definition, canvasBackgroundArgb())
+        val expected = CommittedBitmapCache().render(render.document, render.definition, canvasBackgroundArgb())
         val factor = scale.devicePixelsPerCell
         val image = composeRule.onNodeWithTag(CONTENT_TAG).captureToImage().toPixelMap()
         assertEquals("Content width at $scale must be whole cells", 0, image.width % factor)
@@ -361,7 +361,7 @@ internal class ActualSizeWindowTest {
         source: WindowSource,
     ): Set<Int> {
         val render = controller.renderState
-        val expected = render.snapshot.toOpaqueRenderedBitmap(render.definition, canvasBackgroundArgb())
+        val expected = CommittedBitmapCache().render(render.document, render.definition, canvasBackgroundArgb())
         return buildSet {
             repeat(source.rows) { y ->
                 repeat(source.columns) { x -> add(expected.getPixel(source.left + x, source.top + y)) }
@@ -462,7 +462,7 @@ internal class ActualSizeWindowTest {
         index: PaletteIndex,
     ) {
         val stroke =
-            Stroke.create(controller.renderState.snapshot.size, path, StrokeEffect.Paint(index)).requiredValue()
+            Stroke.create(controller.renderState.document.size, path, StrokeEffect.Paint(index)).requiredValue()
         controller.runtime.execute(
             ApplyStrokeCommand.create(controller.runtime.captureSource(), LayerId.first(), stroke),
         )

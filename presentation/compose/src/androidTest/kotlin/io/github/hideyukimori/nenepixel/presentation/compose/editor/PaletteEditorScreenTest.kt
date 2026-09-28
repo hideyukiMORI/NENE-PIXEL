@@ -118,7 +118,7 @@ internal class PaletteEditorScreenTest {
         val controller = controller()
         setEditorContent(controller)
         val before = controller.renderState.definition
-        val snapshot = controller.renderState.snapshot
+        val snapshot = controller.renderState.document.snapshot
         openPaletteEditor()
         editorNode("editor_palette_editor_slot_2").performClick()
         enterHex(EDITED_HEX)
@@ -127,7 +127,7 @@ internal class PaletteEditorScreenTest {
         composeRule.onNodeWithTag("editor_palette_editor_cancel").assertDoesNotExist()
         assertNull(controller.renderState.paletteEditSession)
         assertEquals(before, controller.renderState.definition)
-        assertEquals(snapshot, controller.renderState.snapshot)
+        assertEquals(snapshot, controller.renderState.document.snapshot)
     }
 
     @Test

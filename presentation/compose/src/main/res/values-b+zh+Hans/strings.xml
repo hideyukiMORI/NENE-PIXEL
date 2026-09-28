@@ -131,9 +131,6 @@
     <string name="legacy_dusk_palette">暮色 · 16 色</string>
     <string name="legacy_grayscale_palette">灰阶 · 32 色</string>
     <string name="legacy_swatches_palette">色样 · 256 色</string>
-    <string name="legacy_default_opaque">空白和橡皮擦颜色不透明。</string>
-    <string name="legacy_default_translucent">空白和橡皮擦颜色为半透明。</string>
-    <string name="legacy_default_transparent">空白和橡皮擦颜色透明。</string>
     <string name="legacy_preserve_title">2. 保留原始作品</string>
     <string name="legacy_copy_optional">可保存原始副本，以便保留所有原始颜色。</string>
     <string name="legacy_copy_required">此恢复数据是这里唯一可用的原始作品。替换或丢弃前，须保存并验证副本。</string>

@@ -103,7 +103,7 @@ internal class EditorScreenLayoutTest {
                     EditorControlEdge.Right -> assertTrue(control.left >= canvas.right)
                 }
             }
-            assertSame(initial.snapshot, controller.renderState.snapshot)
+            assertSame(initial.document.snapshot, controller.renderState.document.snapshot)
             assertEquals(initial.viewport, controller.renderState.viewport)
         }
     }
@@ -112,7 +112,7 @@ internal class EditorScreenLayoutTest {
     fun appearanceAndPalettePanelsUseTheCanonicalCallbacks() {
         val controller = controller()
         setEditorContent(controller, 600.dp, 400.dp)
-        val before = controller.renderState.snapshot
+        val before = controller.renderState.document.snapshot
         composeRule.onNodeWithTag("editor_appearance").performClick()
         composeRule.onNodeWithTag("editor_light").performClick()
         composeRule.onNodeWithTag("editor_light").assertIsSelected()
@@ -125,7 +125,7 @@ internal class EditorScreenLayoutTest {
         composeRule.onNodeWithTag("editor_open_palette").performClick()
         composeRule.onNodeWithTag(FIRST_PALETTE_DESCRIPTION).assertIsSelected().performClick()
         composeRule.onNodeWithTag("editor_close_panel").assertDoesNotExist()
-        assertSame(before, controller.renderState.snapshot)
+        assertSame(before, controller.renderState.document.snapshot)
     }
 
     @Test
@@ -161,12 +161,12 @@ internal class EditorScreenLayoutTest {
     fun largestSupportedToolPaletteCanSelectAndReopenItsLastEntry() {
         val controller = controller(paletteCount = 32)
         setEditorContent(controller, 600.dp, 400.dp)
-        val before = controller.renderState.snapshot
+        val before = controller.renderState.document.snapshot
         composeRule.onNodeWithTag("editor_open_palette").performClick()
         composeRule.onNodeWithTag("editor_palette_colors").performScrollToIndex(31)
         composeRule.onNodeWithTag(LAST_PALETTE_DESCRIPTION).assertIsDisplayed().performClick()
         assertEquals(31, controller.renderState.activePaletteIndex.value)
-        assertSame(before, controller.renderState.snapshot)
+        assertSame(before, controller.renderState.document.snapshot)
         composeRule.onNodeWithTag("editor_open_palette").performClick()
         composeRule.onNodeWithTag(LAST_PALETTE_DESCRIPTION).assertIsDisplayed().assertIsSelected()
     }

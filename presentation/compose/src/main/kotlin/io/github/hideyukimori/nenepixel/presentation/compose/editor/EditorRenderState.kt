@@ -8,15 +8,15 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.palette.Palet
 import io.github.hideyukimori.nenepixel.core.application.workspace.quickselect.QuickSelection
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportState
 import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
+import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
 import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
-import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 
 public class EditorRenderState internal constructor(
-    public val snapshot: PixelSnapshot,
+    public val document: DocumentState,
     public val definition: PaletteDefinition,
     public val activePaletteIndex: PaletteIndex,
     public val activeTool: DrawingTool,
@@ -50,7 +50,7 @@ public class EditorRenderState internal constructor(
     /** Every constructor value, in declaration order; equality and hashing compare exactly these. */
     private fun fields(): List<Any?> =
         listOf(
-            snapshot,
+            document,
             definition,
             activePaletteIndex,
             activeTool,
@@ -68,7 +68,7 @@ public class EditorRenderState internal constructor(
 
     override fun toString(): String =
         "EditorRenderState(" +
-            "snapshot=$snapshot, palette=$palette, activePaletteIndex=$activePaletteIndex, activeTool=$activeTool, " +
+            "document=$document, palette=$palette, activePaletteIndex=$activePaletteIndex, activeTool=$activeTool, " +
             "preview=$preview, viewport=$viewport, " +
             "canUndo=$canUndo, canRedo=$canRedo, dirtyState=$dirtyState, appearance=$appearance, " +
             "actualSizeWindow=$actualSizeWindow, paletteEditSession=$paletteEditSession, " +

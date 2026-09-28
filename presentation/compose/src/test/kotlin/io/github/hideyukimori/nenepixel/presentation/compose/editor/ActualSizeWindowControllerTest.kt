@@ -21,7 +21,7 @@ internal class ActualSizeWindowControllerTest {
         assertEquals(shown, result.actualSizeWindow)
         assertEquals(shown, fixture.runtime.state.workspaceState.actualSizeWindow)
         assertSame(result, fixture.controller.renderStates.value)
-        assertSame(before.snapshot, result.snapshot)
+        assertSame(before.document.snapshot, result.document.snapshot)
         assertSame(before.viewport, result.viewport)
         assertEquals(before.appearance, result.appearance)
         assertEquals(before.dirtyState, result.dirtyState)
