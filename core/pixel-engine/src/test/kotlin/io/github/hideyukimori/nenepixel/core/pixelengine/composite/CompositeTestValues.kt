@@ -1,7 +1,6 @@
 package io.github.hideyukimori.nenepixel.core.pixelengine.composite
 
 import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
-import io.github.hideyukimori.nenepixel.core.domain.document.Revision
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasHeight
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasWidth
@@ -48,7 +47,7 @@ internal object CompositeTestValues {
             layerId(id),
             value(LayerName.create("Layer $id")),
             LayerVisibility.Visible,
-            value(PixelSnapshot.createFilled(size, Revision.initial(), value(PaletteIndex.create(index)))),
+            value(PixelSnapshot.createFilled(size, value(PaletteIndex.create(index)))),
         )
 
     fun layerId(id: Int): LayerId = value(LayerId.create(id))
@@ -83,6 +82,6 @@ internal object CompositeTestValues {
                 coverage[byte] = (coverage[byte].toInt() or (1 shl (pixel % BITS_PER_BYTE))).toByte()
             }
         }
-        return value(PixelSnapshot.createPackedCells(size, Revision.initial(), indices, coverage))
+        return value(PixelSnapshot.createPackedCells(size, indices, coverage))
     }
 }

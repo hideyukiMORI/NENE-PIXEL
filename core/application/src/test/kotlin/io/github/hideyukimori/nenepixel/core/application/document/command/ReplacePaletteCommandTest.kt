@@ -1,6 +1,7 @@
 package io.github.hideyukimori.nenepixel.core.application.document.command
 
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandResultAssertions.applied
+import io.github.hideyukimori.nenepixel.core.application.document.command.CommandResultAssertions.rejected
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.black
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.canvas
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.definition
@@ -9,6 +10,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.App
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.paletteIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.position
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.red
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.revision
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.snapshot
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.state
 import io.github.hideyukimori.nenepixel.core.application.document.transition.LayerIndexChanges
@@ -128,6 +130,25 @@ internal class ReplacePaletteCommandTest {
         assertEquals(listOf(LayerId.first(), hiddenId), result.layerChanges.map { it.layerId })
         val changed = gateway.runtimeState.documentState
         applied(gateway.execute(UndoCommand.create(changed.id, changed.revision)))
+        assertEquals(initial, gateway.runtimeState.documentState)
+    }
+
+    @Test
+    fun `effective remap at maximum document revision rejects atomically`() {
+        val definition = definition(paletteIndex(0), black, red)
+        val initial =
+            state(
+                canvas(2, 1),
+                revision = revision(Long.MAX_VALUE),
+                indices = listOf(paletteIndex(0), paletteIndex(1)),
+                definition = definition,
+            )
+        val gateway = CommandGateway.create(initial)
+
+        assertEquals(
+            RejectionReason.RevisionOverflow,
+            rejected(gateway.execute(command(gateway, remap(definition, definition, 1, 0)))),
+        )
         assertEquals(initial, gateway.runtimeState.documentState)
     }
 

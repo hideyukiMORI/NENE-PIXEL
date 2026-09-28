@@ -76,8 +76,9 @@ internal class EraserCommandTest {
             val result =
                 DocumentState.create(
                     defaultDocumentId,
+                    Revision.initial(),
                     defaultDefinition,
-                    PixelSnapshot.createEmpty(canvas(2, 1), Revision.initial()),
+                    PixelSnapshot.createEmpty(canvas(2, 1)),
                 )
         ) {
             is DomainValueResult.Created -> result.value

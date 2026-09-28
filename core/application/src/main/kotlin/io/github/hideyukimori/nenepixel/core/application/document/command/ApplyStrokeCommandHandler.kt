@@ -41,15 +41,7 @@ internal class ApplyStrokeCommandHandler {
         return when (val result = rasterizeStroke(layer.snapshot, command.stroke)) {
             is StrokeRasterizationResult.Rasterized -> {
                 val changes = LayerChange(layer.id, LayerIndexChanges.select(layer.snapshot, result.patch))
-                DocumentTransition.create(
-                    currentState,
-                    ChangeSet.create(
-                        currentState,
-                        result.patch.afterRevision,
-                        PaletteTransition.Unchanged,
-                        listOf(changes),
-                    ),
-                )
+                transition(currentState, changes)
             }
 
             StrokeRasterizationResult.NoChanges -> {
@@ -62,14 +54,27 @@ internal class ApplyStrokeCommandHandler {
         }
     }
 
+    private fun transition(
+        currentState: DocumentState,
+        changes: LayerChange,
+    ): DocumentTransitionResult =
+        when (val next = currentState.revision.advance()) {
+            is DomainValueResult.Created -> {
+                DocumentTransition.create(
+                    currentState,
+                    ChangeSet.create(currentState, next.value, PaletteTransition.Unchanged, listOf(changes)),
+                )
+            }
+
+            is DomainValueResult.Rejected -> {
+                rejected(RejectionReason.RevisionOverflow)
+            }
+        }
+
     private fun StrokeRasterizationRejection.toReason(): RejectionReason =
         when (this) {
             is StrokeRasterizationRejection.CanvasMismatch -> {
                 RejectionReason.CanvasMismatch(expected, actual)
-            }
-
-            StrokeRasterizationRejection.RevisionOverflow -> {
-                RejectionReason.RevisionOverflow
             }
 
             is StrokeRasterizationRejection.TargetIndexAboveStorageMaximum -> {

@@ -1,6 +1,5 @@
 package io.github.hideyukimori.nenepixel.core.pixelengine
 
-import io.github.hideyukimori.nenepixel.core.domain.document.Revision
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
@@ -65,8 +64,7 @@ internal class PixelSurface private constructor(
         }
     }
 
-    fun snapshot(revision: Revision): PixelSnapshot =
-        PixelSnapshot.createPackedCells(size, revision, packedIndices, coverage).requiredValue()
+    fun snapshot(): PixelSnapshot = PixelSnapshot.createPackedCells(size, packedIndices, coverage).requiredValue()
 
     companion object {
         private const val U8_MASK: Int = 0xff

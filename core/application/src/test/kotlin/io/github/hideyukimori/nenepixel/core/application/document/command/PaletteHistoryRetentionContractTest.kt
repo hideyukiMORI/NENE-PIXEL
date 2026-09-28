@@ -126,8 +126,9 @@ private class PaletteHistoryFixture {
         DocumentState
             .create(
                 DocumentId.create(DOCUMENT_ID).value(),
+                revision,
                 definition,
-                PixelSnapshot.create(size, revision, indices).value(),
+                PixelSnapshot.create(size, indices).value(),
             ).value()
 
     private fun index(value: Int): PaletteIndex = PaletteIndex.create(value).value()

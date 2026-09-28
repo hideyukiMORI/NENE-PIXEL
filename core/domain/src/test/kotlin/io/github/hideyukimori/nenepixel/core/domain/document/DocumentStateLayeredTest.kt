@@ -101,9 +101,10 @@ internal class DocumentStateLayeredTest {
     }
 
     @Test
-    fun `migration factory builds one visible unnamed first layer with the snapshot revision`() {
-        val pixels = snapshot(2, 1, listOf(0, 2), created(Revision.create(7)))
-        val state = created(DocumentState.create(DOCUMENT_ID, DEFINITION, pixels))
+    fun `migration factory builds one visible unnamed first layer with the given document revision`() {
+        val pixels = snapshot(2, 1, listOf(0, 2))
+        val revision = created(Revision.create(7))
+        val state = created(DocumentState.create(DOCUMENT_ID, revision, DEFINITION, pixels))
 
         assertEquals(1, state.layers.size)
         val only = state.layers.single()
@@ -111,7 +112,7 @@ internal class DocumentStateLayeredTest {
         assertEquals(LayerName.empty, only.name)
         assertEquals(LayerVisibility.Visible, only.visibility)
         assertEquals(pixels, only.snapshot)
-        assertEquals(pixels.revision, state.revision)
+        assertEquals(revision, state.revision)
     }
 
     @Test
@@ -154,8 +155,7 @@ internal class DocumentStateLayeredTest {
         width: Int,
         height: Int,
         indices: List<Int>,
-        revision: Revision = Revision.initial(),
-    ): PixelSnapshot = created(PixelSnapshot.create(canvasSize(width, height), revision, indices.map(::index)))
+    ): PixelSnapshot = created(PixelSnapshot.create(canvasSize(width, height), indices.map(::index)))
 
     private fun index(value: Int): PaletteIndex = created(PaletteIndex.create(value))
 

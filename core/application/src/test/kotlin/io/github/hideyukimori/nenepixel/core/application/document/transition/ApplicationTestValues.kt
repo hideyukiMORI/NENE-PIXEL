@@ -58,9 +58,8 @@ internal object ApplicationTestValues {
 
     fun snapshot(
         canvas: CanvasSize,
-        revision: Revision = Revision.initial(),
         indices: List<PaletteIndex> = List(canvas.pixelCount.toInt()) { blackIndex },
-    ): PixelSnapshot = PixelSnapshot.create(canvas, revision, indices).value()
+    ): PixelSnapshot = PixelSnapshot.create(canvas, indices).value()
 
     fun state(
         canvas: CanvasSize,
@@ -68,7 +67,7 @@ internal object ApplicationTestValues {
         indices: List<PaletteIndex> = List(canvas.pixelCount.toInt()) { blackIndex },
         documentId: DocumentId = defaultDocumentId,
         definition: PaletteDefinition = defaultDefinition,
-    ): DocumentState = DocumentState.create(documentId, definition, snapshot(canvas, revision, indices)).value()
+    ): DocumentState = DocumentState.create(documentId, revision, definition, snapshot(canvas, indices)).value()
 
     fun stroke(
         canvas: CanvasSize,
@@ -83,10 +82,9 @@ internal object ApplicationTestValues {
 
     fun patch(
         canvas: CanvasSize,
-        beforeRevision: Revision,
         changes: List<PixelChange>,
     ): PixelPatch =
-        when (val result = PixelPatch.create(canvas, beforeRevision, changes)) {
+        when (val result = PixelPatch.create(canvas, changes)) {
             is PixelPatchCreationResult.Created -> result.patch
             is PixelPatchCreationResult.Rejected -> fail("Test patch was rejected: ${result.rejection}")
         }
@@ -97,7 +95,7 @@ internal object ApplicationTestValues {
     ): ChangeSet =
         ChangeSet.create(
             source,
-            patch.afterRevision,
+            source.revision.advance().value(),
             PaletteTransition.Unchanged,
             listOf(LayerChange(LayerId.first(), LayerIndexChanges.Sparse(patch))),
         )

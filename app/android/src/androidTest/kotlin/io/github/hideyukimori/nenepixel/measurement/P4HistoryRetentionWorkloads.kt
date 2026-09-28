@@ -298,8 +298,9 @@ private class P4HistoryValues {
         DocumentState
             .create(
                 documentId,
+                revision,
                 definition,
-                PixelSnapshot.create(canvas, revision, indices).required(),
+                PixelSnapshot.create(canvas, indices).required(),
             ).required()
 
     private fun color(

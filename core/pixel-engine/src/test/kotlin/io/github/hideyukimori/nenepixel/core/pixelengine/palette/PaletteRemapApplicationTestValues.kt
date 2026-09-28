@@ -2,7 +2,6 @@ package io.github.hideyukimori.nenepixel.core.pixelengine.palette
 
 import com.sun.management.ThreadMXBean
 import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
-import io.github.hideyukimori.nenepixel.core.domain.document.Revision
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteRemap
@@ -37,7 +36,6 @@ internal object PaletteRemapApplicationTestValues {
         value(
             PixelSnapshot.createPackedIndices(
                 size,
-                Revision.initial(),
                 ByteArray(size.pixelCount.toInt()) { position -> packedIndexAt(position).toByte() },
             ),
         )

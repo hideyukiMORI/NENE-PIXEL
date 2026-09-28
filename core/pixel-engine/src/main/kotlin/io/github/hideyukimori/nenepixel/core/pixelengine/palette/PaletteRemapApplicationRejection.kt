@@ -9,6 +9,4 @@ public sealed interface PaletteRemapApplicationRejection {
         public val index: PaletteIndex,
         public val entryCount: Int,
     ) : PaletteRemapApplicationRejection
-
-    public data object RevisionOverflow : PaletteRemapApplicationRejection
 }

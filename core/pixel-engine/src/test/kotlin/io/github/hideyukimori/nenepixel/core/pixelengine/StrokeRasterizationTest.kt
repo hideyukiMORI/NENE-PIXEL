@@ -1,6 +1,5 @@
 package io.github.hideyukimori.nenepixel.core.pixelengine
 
-import io.github.hideyukimori.nenepixel.core.domain.document.Revision
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelCell
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.black
@@ -13,7 +12,6 @@ import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.i
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.position
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.red
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.region
-import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.revision
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.snapshot
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.stroke
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelPatchAssertions.applied
@@ -111,7 +109,6 @@ internal class StrokeRasterizationTest {
             created(
                 PixelPatch.create(
                     canvas,
-                    original.revision,
                     listOf(
                         PixelChange.create(position(0, 0), PixelCell.Covered(red), PixelCell.Empty),
                         PixelChange.create(position(2, 0), PixelCell.Covered(black), PixelCell.Empty),
@@ -131,7 +128,7 @@ internal class StrokeRasterizationTest {
     @Test
     fun `erasing Empty cells shares the canonical no changes result`() {
         val canvas = canvas(2, 1)
-        val original = PixelSnapshot.createEmpty(canvas, revision(Long.MAX_VALUE))
+        val original = PixelSnapshot.createEmpty(canvas)
 
         assertEquals(
             StrokeRasterizationResult.NoChanges,
@@ -155,7 +152,7 @@ internal class StrokeRasterizationTest {
     @Test
     fun `painting over Empty records Empty to Covered and its inverse restores Empty`() {
         val canvas = canvas(1, 1)
-        val original = PixelSnapshot.createEmpty(canvas, Revision.initial())
+        val original = PixelSnapshot.createEmpty(canvas)
         val patch = rasterized(rasterizeStroke(original, stroke(canvas, listOf(position(0, 0)), red)))
         val changed = applied(patch.applyTo(original))
 
@@ -164,16 +161,16 @@ internal class StrokeRasterizationTest {
     }
 
     @Test
-    fun `no changes has one result even at maximum revision`() {
+    fun `repainting the same index has one no changes result`() {
         val canvas = canvas(1, 1)
-        val original = snapshot(canvas, revision(Long.MAX_VALUE), listOf(red))
+        val original = snapshot(canvas, listOf(red))
         val stroke = stroke(canvas, listOf(position(0, 0), position(0, 0)), red)
 
         assertEquals(StrokeRasterizationResult.NoChanges, rasterizeStroke(original, stroke))
     }
 
     @Test
-    fun `canvas mismatch and revision overflow are typed rejections`() {
+    fun `canvas mismatch is a typed rejection`() {
         val largerCanvas = canvas(2, 1)
         val outsideStroke = stroke(largerCanvas, listOf(position(1, 0)), red)
         val smallerSnapshot = snapshot(canvas(1, 1))
@@ -184,13 +181,5 @@ internal class StrokeRasterizationTest {
         assertEquals(largerCanvas, canvasRejection.expected)
         assertEquals(smallerSnapshot.size, canvasRejection.actual)
         assertEquals(black, indexAt(smallerSnapshot, position(0, 0)))
-
-        val overflowSnapshot = snapshot(canvas(1, 1), revision(Long.MAX_VALUE))
-        val changedStroke = stroke(overflowSnapshot.size, listOf(position(0, 0)), red)
-        assertEquals(
-            StrokeRasterizationRejection.RevisionOverflow,
-            rejected(rasterizeStroke(overflowSnapshot, changedStroke)),
-        )
-        assertEquals(black, indexAt(overflowSnapshot, position(0, 0)))
     }
 }

@@ -144,11 +144,11 @@ public class AndroidPersistenceFunctionalTest {
             val color = PixelColor.fromPackedRgba8888(0x11223301)
             val palette = created(Palette.create(listOf(PixelColor.blank, color)))
             val definition = created(PaletteDefinition.create(palette, created(PaletteIndex.create(0))))
-            val snapshot = created(PixelSnapshot.createPackedIndices(source.size, source.revision, byteArrayOf(1)))
+            val snapshot = created(PixelSnapshot.createPackedIndices(source.size, byteArrayOf(1)))
             try {
                 assertEquals(
                     PngExportOutcome.Exported,
-                    adapter.export(created(DocumentState.create(source.id, definition, snapshot))),
+                    adapter.export(created(DocumentState.create(source.id, source.revision, definition, snapshot))),
                 )
                 val options = BitmapFactory.Options().apply { inPremultiplied = false }
                 val decoded = checkNotNull(BitmapFactory.decodeFile(output.absolutePath, options))
@@ -342,8 +342,8 @@ public class AndroidPersistenceFunctionalTest {
         val size = CanvasSize.create(created(CanvasWidth.create(1)), created(CanvasHeight.create(1)))
         val palette = created(Palette.create(listOf(PixelColor.blank, PixelColor.blank)))
         val definition = created(PaletteDefinition.create(palette, created(PaletteIndex.create(0))))
-        val snapshot = created(PixelSnapshot.createPackedIndices(size, created(Revision.create(0L)), byteArrayOf(0)))
-        return created(DocumentState.create(id, definition, snapshot))
+        val snapshot = created(PixelSnapshot.createPackedIndices(size, byteArrayOf(0)))
+        return created(DocumentState.create(id, created(Revision.create(0L)), definition, snapshot))
     }
 
     private fun <T> created(result: DomainValueResult<T>): T =

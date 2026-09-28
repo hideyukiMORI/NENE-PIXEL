@@ -9,7 +9,6 @@ import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.i
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.position
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.red
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.region
-import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.revision
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelPatchAssertions.created
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelPatchAssertions.creationRejected
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -23,7 +22,6 @@ internal class PixelPatchCreationTest {
             creationRejected(
                 PixelPatch.create(
                     canvas(1, 1),
-                    revision(0),
                     listOf(PixelChange.create(position(0, 0), PixelCell.Covered(black), PixelCell.Covered(index(256)))),
                 ),
             )
@@ -40,15 +38,14 @@ internal class PixelPatchCreationTest {
         val later = PixelChange.create(position(2, 1), PixelCell.Covered(black), PixelCell.Covered(red))
         val earlier = PixelChange.create(position(1, 0), PixelCell.Covered(black), PixelCell.Covered(green))
         val mutableInput = mutableListOf(later, earlier)
-        val fromUnordered = created(PixelPatch.create(canvas, revision(4L), mutableInput))
-        val fromCanonical = created(PixelPatch.create(canvas, revision(4L), listOf(earlier, later)))
+        val fromUnordered = created(PixelPatch.create(canvas, mutableInput))
+        val fromCanonical = created(PixelPatch.create(canvas, listOf(earlier, later)))
 
         mutableInput.clear()
 
         assertEquals(fromCanonical, fromUnordered)
         assertEquals(fromCanonical.hashCode(), fromUnordered.hashCode())
         assertEquals(2, fromUnordered.changeCount)
-        assertEquals(revision(5L), fromUnordered.afterRevision)
     }
 
     @Test
@@ -58,7 +55,6 @@ internal class PixelPatchCreationTest {
             created(
                 PixelPatch.create(
                     canvas,
-                    revision(0L),
                     listOf(
                         PixelChange.create(position(3, 2), PixelCell.Covered(black), PixelCell.Covered(red)),
                         PixelChange.create(position(1, 0), PixelCell.Covered(black), PixelCell.Covered(green)),
@@ -78,8 +74,8 @@ internal class PixelPatchCreationTest {
         val oppositeCorner = position(PixelLimits.MAX_CANVAS_AXIS - 1, PixelLimits.MAX_CANVAS_AXIS - 1)
         val first = PixelChange.create(origin, PixelCell.Covered(black), PixelCell.Covered(green))
         val last = PixelChange.create(oppositeCorner, PixelCell.Covered(black), PixelCell.Covered(red))
-        val fromUnordered = created(PixelPatch.create(maximumCanvas, revision(0L), listOf(last, first)))
-        val fromCanonical = created(PixelPatch.create(maximumCanvas, revision(0L), listOf(first, last)))
+        val fromUnordered = created(PixelPatch.create(maximumCanvas, listOf(last, first)))
+        val fromCanonical = created(PixelPatch.create(maximumCanvas, listOf(first, last)))
         val expectedRegion = region(maximumCanvas, origin, maximumCanvas)
 
         assertEquals(fromCanonical, fromUnordered)
@@ -95,11 +91,11 @@ internal class PixelPatchCreationTest {
 
         assertEquals(
             PixelPatchCreationRejection.EmptyPatch,
-            creationRejected(PixelPatch.create(canvas, revision(0L), emptyList())),
+            creationRejected(PixelPatch.create(canvas, emptyList())),
         )
         assertInstanceOf(
             PixelPatchCreationRejection.UnchangedPixel::class.java,
-            creationRejected(PixelPatch.create(canvas, revision(0L), listOf(unchanged))),
+            creationRejected(PixelPatch.create(canvas, listOf(unchanged))),
         )
     }
 
@@ -112,11 +108,11 @@ internal class PixelPatchCreationTest {
 
         assertInstanceOf(
             PixelPatchCreationRejection.PositionOutsideCanvas::class.java,
-            creationRejected(PixelPatch.create(canvas, revision(0L), listOf(outside))),
+            creationRejected(PixelPatch.create(canvas, listOf(outside))),
         )
         assertInstanceOf(
             PixelPatchCreationRejection.DuplicatePosition::class.java,
-            creationRejected(PixelPatch.create(canvas, revision(0L), listOf(first, second))),
+            creationRejected(PixelPatch.create(canvas, listOf(first, second))),
         )
     }
 
@@ -133,7 +129,7 @@ internal class PixelPatchCreationTest {
                 ),
             )
 
-        val rejection = creationRejected(PixelPatch.create(canvas, revision(0L), changes))
+        val rejection = creationRejected(PixelPatch.create(canvas, changes))
         val outside =
             assertInstanceOf(
                 PixelPatchCreationRejection.PositionOutsideCanvas::class.java,
@@ -156,7 +152,6 @@ internal class PixelPatchCreationTest {
             creationRejected(
                 PixelPatch.create(
                     maximumCanvas,
-                    revision(0L),
                     listOf(outsideChange, originChange),
                 ),
             )
@@ -183,7 +178,7 @@ internal class PixelPatchCreationTest {
                 }
             }
 
-        val rejection = creationRejected(PixelPatch.create(canvas(1, 1), revision(0L), changes))
+        val rejection = creationRejected(PixelPatch.create(canvas(1, 1), changes))
 
         assertEquals(emptyList<Int>(), accessed)
         assertEquals(
@@ -209,26 +204,11 @@ internal class PixelPatchCreationTest {
 
         assertEquals(
             PixelLimits.MAX_PATCH_CHANGES - 1,
-            created(PixelPatch.create(maximumCanvas, revision(0L), changes.dropLast(1))).changeCount,
+            created(PixelPatch.create(maximumCanvas, changes.dropLast(1))).changeCount,
         )
         assertEquals(
             PixelLimits.MAX_PATCH_CHANGES,
-            created(PixelPatch.create(maximumCanvas, revision(0L), changes)).changeCount,
-        )
-    }
-
-    @Test
-    fun `revision overflow is rejected before reading source changes`() {
-        val unreadableChanges =
-            object : AbstractList<PixelChange>() {
-                override val size: Int = 1
-
-                override fun get(index: Int): PixelChange = error("Revision overflow read source change $index.")
-            }
-
-        assertEquals(
-            PixelPatchCreationRejection.RevisionOverflow,
-            creationRejected(PixelPatch.create(canvas(1, 1), revision(Long.MAX_VALUE), unreadableChanges)),
+            created(PixelPatch.create(maximumCanvas, changes)).changeCount,
         )
     }
 

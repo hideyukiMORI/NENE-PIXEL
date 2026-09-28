@@ -9,7 +9,6 @@ import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteRemap
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelPatch
-import io.github.hideyukimori.nenepixel.core.pixelengine.PixelPatchCreationRejection
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelPatchCreationResult
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelSurface
 import io.github.hideyukimori.nenepixel.core.pixelengine.packPatchPosition
@@ -47,12 +46,7 @@ private fun remapResult(
             }
 
             is PixelPatchCreationResult.Rejected -> {
-                check(
-                    patch.rejection is PixelPatchCreationRejection.RevisionOverflow,
-                )
-                PaletteRemapApplicationResult.Rejected(
-                    PaletteRemapApplicationRejection.RevisionOverflow,
-                )
+                error("A validated palette remap patch was rejected: ${patch.rejection}")
             }
         }
     }
@@ -125,7 +119,6 @@ private class PackedRemapChanges(
     fun toPatch(snapshot: PixelSnapshot): PixelPatchCreationResult =
         PixelPatch.createFromValidatedPackedIndices(
             canvas = snapshot.size,
-            beforeRevision = snapshot.revision,
             positions = positions,
             before = before,
             after = after,

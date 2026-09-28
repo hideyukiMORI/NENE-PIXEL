@@ -107,8 +107,8 @@ internal object ProjectFormatTestValues {
         val documentId = created(DocumentId.create(id))
         val palette = created(Palette.create(colors.map(PixelColor::fromPackedRgba8888)))
         val definition = created(PaletteDefinition.create(palette, created(PaletteIndex.create(defaultIndex))))
-        val snapshot = created(PixelSnapshot.createPackedIndices(size, created(Revision.create(revision)), indices))
-        return created(DocumentState.create(documentId, definition, snapshot))
+        val snapshot = created(PixelSnapshot.createPackedIndices(size, indices))
+        return created(DocumentState.create(documentId, created(Revision.create(revision)), definition, snapshot))
     }
 
     private fun legacySource(

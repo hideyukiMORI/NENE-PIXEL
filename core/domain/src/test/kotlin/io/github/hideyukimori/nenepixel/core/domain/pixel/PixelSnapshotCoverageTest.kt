@@ -4,7 +4,6 @@ import io.github.hideyukimori.nenepixel.core.domain.DomainValueAssertions.create
 import io.github.hideyukimori.nenepixel.core.domain.DomainValueAssertions.rejected
 import io.github.hideyukimori.nenepixel.core.domain.DomainValueTestValues.canvasSize
 import io.github.hideyukimori.nenepixel.core.domain.DomainValueTestValues.pixelPosition
-import io.github.hideyukimori.nenepixel.core.domain.document.Revision
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueRejection
 import org.junit.jupiter.api.Assertions.assertArrayEquals
@@ -14,46 +13,44 @@ import org.junit.jupiter.api.Test
 
 internal class PixelSnapshotCoverageTest {
     @Test
-    fun `existing factories and revision copy produce fully covered snapshots`() {
+    fun `existing factories produce fully covered snapshots`() {
         val size = canvasSize(3, 3)
         val snapshots =
             listOf(
-                created(PixelSnapshot.create(size, Revision.initial(), List(9) { index(it) })),
-                created(PixelSnapshot.createPackedIndices(size, Revision.initial(), ByteArray(9) { 7 })),
-                created(PixelSnapshot.createFilled(size, Revision.initial(), index(4))),
+                created(PixelSnapshot.create(size, List(9) { index(it) })),
+                created(PixelSnapshot.createPackedIndices(size, ByteArray(9) { 7 })),
+                created(PixelSnapshot.createFilled(size, index(4))),
             )
 
         snapshots.forEach { snapshot ->
             assertArrayEquals(byteArrayOf(-1, 1), snapshot.copyCoverage())
-            assertArrayEquals(byteArrayOf(-1, 1), snapshot.withRevision(revision(1)).copyCoverage())
         }
         assertEquals(PixelCell.Covered(index(8)), created(snapshots[0].cellAt(pixelPosition(2, 2))))
     }
 
     @Test
     fun `full coverage on a multiple of eight pixels has no partial byte`() {
-        val snapshot = created(PixelSnapshot.createFilled(canvasSize(4, 2), Revision.initial(), index(0)))
+        val snapshot = created(PixelSnapshot.createFilled(canvasSize(4, 2), index(0)))
 
         assertArrayEquals(byteArrayOf(-1), snapshot.copyCoverage())
     }
 
     @Test
     fun `createEmpty yields empty cells with zero indices`() {
-        val snapshot = PixelSnapshot.createEmpty(canvasSize(3, 3), revision(2))
+        val snapshot = PixelSnapshot.createEmpty(canvasSize(3, 3))
 
         assertArrayEquals(ByteArray(2), snapshot.copyCoverage())
         assertArrayEquals(ByteArray(9), snapshot.copyPackedIndices())
         assertEquals(index(0), snapshot.maximumIndex)
-        assertEquals(revision(2), snapshot.revision)
         assertEquals(PixelCell.Empty, created(snapshot.cellAt(pixelPosition(1, 2))))
-        assertEquals(PixelCell.Empty, created(snapshot.withRevision(revision(3)).cellAt(pixelPosition(0, 0))))
+        assertEquals(PixelCell.Empty, created(snapshot.cellAt(pixelPosition(0, 0))))
     }
 
     @Test
     fun `createPackedCells reads coverage row major LSB first`() {
         val indices = byteArrayOf(0, 5, 0, 0, 0, 0, 0, 0, 200.toByte())
         val coverage = byteArrayOf(0b0000_0010, 0b0000_0001)
-        val snapshot = created(PixelSnapshot.createPackedCells(canvasSize(3, 3), Revision.initial(), indices, coverage))
+        val snapshot = created(PixelSnapshot.createPackedCells(canvasSize(3, 3), indices, coverage))
 
         assertEquals(PixelCell.Empty, created(snapshot.cellAt(pixelPosition(0, 0))))
         assertEquals(PixelCell.Covered(index(5)), created(snapshot.cellAt(pixelPosition(1, 0))))
@@ -66,7 +63,7 @@ internal class PixelSnapshotCoverageTest {
     fun `createPackedCells accepts covered zero index distinct from empty`() {
         val snapshot =
             created(
-                PixelSnapshot.createPackedCells(canvasSize(2, 1), Revision.initial(), ByteArray(2), byteArrayOf(1)),
+                PixelSnapshot.createPackedCells(canvasSize(2, 1), ByteArray(2), byteArrayOf(1)),
             )
 
         assertEquals(PixelCell.Covered(index(0)), created(snapshot.cellAt(pixelPosition(0, 0))))
@@ -76,7 +73,7 @@ internal class PixelSnapshotCoverageTest {
     @Test
     fun `createPackedCells rejects index length before coverage checks`() {
         val rejection =
-            rejected(PixelSnapshot.createPackedCells(canvasSize(3, 3), Revision.initial(), ByteArray(8), ByteArray(0)))
+            rejected(PixelSnapshot.createPackedCells(canvasSize(3, 3), ByteArray(8), ByteArray(0)))
 
         assertEquals(DomainValueRejection.PixelSnapshotSizeMismatch(9, 8), rejection)
     }
@@ -87,11 +84,11 @@ internal class PixelSnapshotCoverageTest {
 
         assertEquals(
             DomainValueRejection.PixelCoverageSizeMismatch(2, 1),
-            rejected(PixelSnapshot.createPackedCells(size, Revision.initial(), ByteArray(9), ByteArray(1))),
+            rejected(PixelSnapshot.createPackedCells(size, ByteArray(9), ByteArray(1))),
         )
         assertEquals(
             DomainValueRejection.PixelCoverageSizeMismatch(2, 3),
-            rejected(PixelSnapshot.createPackedCells(size, Revision.initial(), ByteArray(9), ByteArray(3))),
+            rejected(PixelSnapshot.createPackedCells(size, ByteArray(9), ByteArray(3))),
         )
     }
 
@@ -102,7 +99,7 @@ internal class PixelSnapshotCoverageTest {
 
         assertEquals(
             DomainValueRejection.PixelCoverageTrailingBitsSet,
-            rejected(PixelSnapshot.createPackedCells(canvasSize(3, 3), Revision.initial(), indices, coverage)),
+            rejected(PixelSnapshot.createPackedCells(canvasSize(3, 3), indices, coverage)),
         )
     }
 
@@ -113,14 +110,14 @@ internal class PixelSnapshotCoverageTest {
 
         assertEquals(
             DomainValueRejection.EmptyPixelIndexNotZero(3),
-            rejected(PixelSnapshot.createPackedCells(canvasSize(3, 3), Revision.initial(), indices, coverage)),
+            rejected(PixelSnapshot.createPackedCells(canvasSize(3, 3), indices, coverage)),
         )
     }
 
     @Test
     fun `cellAt rejects position outside canvas`() {
         val size = canvasSize(3, 3)
-        val snapshot = PixelSnapshot.createEmpty(size, Revision.initial())
+        val snapshot = PixelSnapshot.createEmpty(size)
 
         assertEquals(
             DomainValueRejection.PixelPositionOutsideCanvas(size, pixelPosition(3, 0)),
@@ -132,7 +129,7 @@ internal class PixelSnapshotCoverageTest {
     fun `createPackedCells owns inputs and copyCoverage is defensive`() {
         val indices = byteArrayOf(0, 6)
         val coverage = byteArrayOf(0b10)
-        val snapshot = created(PixelSnapshot.createPackedCells(canvasSize(2, 1), Revision.initial(), indices, coverage))
+        val snapshot = created(PixelSnapshot.createPackedCells(canvasSize(2, 1), indices, coverage))
         indices[1] = 9
         coverage[0] = 0b11
         snapshot.copyCoverage()[0] = 0b11
@@ -145,18 +142,16 @@ internal class PixelSnapshotCoverageTest {
     @Test
     fun `equality and hash include coverage`() {
         val size = canvasSize(2, 1)
-        val covered = created(PixelSnapshot.createPackedIndices(size, Revision.initial(), ByteArray(2)))
-        val empty = PixelSnapshot.createEmpty(size, Revision.initial())
+        val covered = created(PixelSnapshot.createPackedIndices(size, ByteArray(2)))
+        val empty = PixelSnapshot.createEmpty(size)
         val sameCovered =
-            created(PixelSnapshot.createPackedCells(size, Revision.initial(), ByteArray(2), byteArrayOf(3)))
+            created(PixelSnapshot.createPackedCells(size, ByteArray(2), byteArrayOf(3)))
 
         assertNotEquals(covered, empty)
         assertEquals(covered, sameCovered)
         assertEquals(covered.hashCode(), sameCovered.hashCode())
-        assertEquals(empty, PixelSnapshot.createEmpty(size, Revision.initial()))
+        assertEquals(empty, PixelSnapshot.createEmpty(size))
     }
 
     private fun index(value: Int): PaletteIndex = created(PaletteIndex.create(value))
-
-    private fun revision(value: Long): Revision = created(Revision.create(value))
 }

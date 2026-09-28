@@ -46,7 +46,6 @@ internal class LayerIndexChangesTest {
         assertEquals(0, dense.changeCount)
         assertEquals(2L * (65_536L + 8_192L), dense.retainedByteCount)
         assertEquals(before, denseChanges.before)
-        assertEquals(revision(1L), denseChanges.after.revision)
     }
 
     @Test
@@ -115,7 +114,7 @@ internal class LayerIndexChangesTest {
                     PixelCell.Covered(redIndex),
                 )
             }
-        return patch(before.size, before.revision, changes)
+        return patch(before.size, changes)
     }
 
     private fun denseChangeSet(

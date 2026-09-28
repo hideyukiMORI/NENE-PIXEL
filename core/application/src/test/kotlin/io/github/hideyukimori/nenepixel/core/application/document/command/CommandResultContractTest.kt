@@ -23,7 +23,6 @@ internal class CommandResultContractTest {
         val patch =
             patch(
                 current.size,
-                current.revision,
                 listOf(PixelChange.create(position(0, 0), PixelCell.Covered(blackIndex), PixelCell.Covered(redIndex))),
             )
         val changeSet =

@@ -75,10 +75,16 @@ internal class CommandGatewayHistoryTest {
 
         val original = applied(gateway.execute(strokeCommand(gateway, position(0, 0), redIndex)))
         val afterStroke = gateway.runtimeState.documentState
+        assertEquals(revision(1L), afterStroke.revision)
+        assertEquals(revision(0L), original.beforeRevision)
+        assertEquals(revision(1L), original.afterRevision)
         assertEquals(HistoryAvailability.UndoAvailable, gateway.runtimeState.historyAvailability)
 
         val undo = applied(gateway.execute(UndoCommand.create(afterStroke.id, afterStroke.revision)))
         assertEquals(initial, gateway.runtimeState.documentState)
+        assertEquals(revision(0L), gateway.runtimeState.documentState.revision)
+        assertEquals(revision(1L), undo.beforeRevision)
+        assertEquals(revision(0L), undo.afterRevision)
         assertEquals(changedPatch(original).inverse(), changedPatch(undo))
         assertEquals(original.renderInvalidation, undo.renderInvalidation)
         assertEquals(HistoryAvailability.RedoAvailable, gateway.runtimeState.historyAvailability)
@@ -86,6 +92,7 @@ internal class CommandGatewayHistoryTest {
         val redoState = gateway.runtimeState.documentState
         val redo = applied(gateway.execute(RedoCommand.create(redoState.id, redoState.revision)))
         assertEquals(afterStroke, gateway.runtimeState.documentState)
+        assertEquals(revision(1L), gateway.runtimeState.documentState.revision)
         assertEquals(changedPatch(original), changedPatch(redo))
         assertEquals(original.renderInvalidation, redo.renderInvalidation)
         assertEquals(HistoryAvailability.UndoAvailable, gateway.runtimeState.historyAvailability)

@@ -106,10 +106,6 @@ private fun PixelPatchApplicationRejection.toReason(): RejectionReason =
             RejectionReason.CanvasMismatch(expected, actual)
         }
 
-        is PixelPatchApplicationRejection.RevisionMismatch -> {
-            RejectionReason.RevisionMismatch(expected, actual)
-        }
-
         is PixelPatchApplicationRejection.BeforeValueMismatch -> {
             RejectionReason.PixelBeforeValueMismatch(
                 position,
