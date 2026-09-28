@@ -1,5 +1,6 @@
 package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -15,7 +16,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.IntSize
 import io.github.hideyukimori.nenepixel.core.application.workspace.EditorControlEdge
 import io.github.hideyukimori.nenepixel.core.application.workspace.quickselect.EyedropperState
@@ -28,7 +31,8 @@ import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
  *
  * It reads the quick selection, the active slot, the palette definition and the control edge through one
  * `derivedStateOf`, so a stroke in progress never recomposes it. Drag versus tap mode is local input state; the
- * menu and its highlight always come from the render state.
+ * menu and its highlight always come from the render state. In tap mode a transparent scrim over the work area,
+ * below the fan and the control, takes every pointer and cancels on a tap, and the first item takes focus.
  */
 @Composable
 internal fun QuickSelectOverlay(
@@ -49,6 +53,7 @@ internal fun QuickSelectOverlay(
     var tapMode by remember { mutableStateOf(false) }
     val menu = inputs.selection.menu
     LaunchedEffect(menu == null) { if (menu == null) tapMode = false }
+    val fanTap = rememberFanTap(callbacks.quickSelect).takeIf { tapMode && menu != null }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val density = LocalDensity.current
         val area = IntSize(constraints.maxWidth, constraints.maxHeight)
@@ -56,18 +61,38 @@ internal fun QuickSelectOverlay(
         val placement = menu?.let { open -> remember(open.items, geometry) { geometry.placement(open.items) } }
         val armed = inputs.selection.eyedropper == EyedropperState.Armed
         val session = rememberUpdatedState(QuickSelectGestureSession(armed, placement, tapMode))
+        val onTapMode = remember { { mode: Boolean -> tapMode = mode } }
+        if (fanTap != null) QuickSelectScrim(callbacks.quickSelect)
         if (placement != null) {
-            QuickSelectFan(placement, menu.highlighted, inputs.definition.palette)
+            QuickSelectFan(placement, menu.highlighted, inputs.definition.palette, fanTap)
         }
         QuickSelectControl(
             inputs.controlDisplay(armed),
-            Modifier
-                .align(inputs.corner)
-                .padding(QuickSelectGeometry.MARGIN)
-                .quickSelectGesture(callbacks.quickSelect, session) { tapMode = it },
+            onClick = { callbacks.quickSelect.clickControl(session.value, onTapMode) },
+            modifier =
+                Modifier
+                    .align(inputs.corner)
+                    .padding(QuickSelectGeometry.MARGIN)
+                    .quickSelectGesture(callbacks.quickSelect, session, onTapMode),
         )
     }
 }
+
+/** Tap mode's transparent scrim over the work area, below the fan and the control. */
+@Composable
+private fun QuickSelectScrim(callbacks: EditorQuickSelectCallbacks) {
+    Box(Modifier.fillMaxSize().testTag(QuickSelectSemantics.SCRIM_TAG).quickSelectScrimGesture(callbacks))
+}
+
+/** Tap mode's item taps: highlight the item, then confirm it. */
+@Composable
+private fun rememberFanTap(callbacks: EditorQuickSelectCallbacks): QuickSelectFanTap =
+    remember(callbacks) {
+        QuickSelectFanTap(FocusRequester()) { item ->
+            callbacks.onHighlight(item)
+            callbacks.onConfirm()
+        }
+    }
 
 private data class QuickSelectInputs(
     val selection: QuickSelection,

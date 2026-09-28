@@ -7,14 +7,19 @@ import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -36,6 +41,7 @@ import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import io.github.hideyukimori.nenepixel.presentation.compose.R
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -43,7 +49,7 @@ import org.junit.Rule
 import org.junit.Test
 import kotlin.math.abs
 
-/** The quick-select control's drag mode and its placement over the work area (ADR 0029, #108 S2a). */
+/** The quick-select control's drag and tap modes and its placement over the work area (ADR 0029, #108 S2). */
 internal class QuickSelectOverlayTest {
     @get:Rule
     val composeRule = createComposeRule()
@@ -145,9 +151,72 @@ internal class QuickSelectOverlayTest {
         }
     }
 
+    @Test
+    fun tappingASlotItemInTapModeSelectsItAndClosesTheFanAndScrim() {
+        val controller = paintedController()
+        enterTapMode()
+        composeRule.onNodeWithTag(SCRIM_TAG).assertExists()
+        composeRule.onNodeWithTag(slotTag(1)).assert(hasClickAction()).performClick()
+        composeRule.waitForIdle()
+        assertEquals(index(1), controller.renderState.activePaletteIndex)
+        assertNull(controller.renderState.quickSelection.menu)
+        composeRule.onNodeWithTag(FAN_TAG).assertDoesNotExist()
+        composeRule.onNodeWithTag(SCRIM_TAG).assertDoesNotExist()
+    }
+
+    @Test
+    fun tappingTheScrimCancelsWithoutReachingTheCanvas() {
+        val controller = paintedController()
+        enterTapMode()
+        val snapshot = controller.renderState.snapshot
+        val canUndo = controller.renderState.canUndo
+        composeRule.onNodeWithTag(SCRIM_TAG).performTouchInput { click(center) }
+        composeRule.waitForIdle()
+        assertEquals(index(0), controller.renderState.activePaletteIndex)
+        assertNull(controller.renderState.quickSelection.menu)
+        assertEquals(snapshot, controller.renderState.snapshot)
+        assertEquals(canUndo, controller.renderState.canUndo)
+        composeRule.onNodeWithTag(FAN_TAG).assertDoesNotExist()
+        composeRule.onNodeWithTag(SCRIM_TAG).assertDoesNotExist()
+    }
+
+    @Test
+    fun theAccessibilityClickOpensTapModeAndFocusesTheFirstItem() {
+        val controller = paintedController()
+        composeRule.onNodeWithTag(CONTROL_TAG).performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.waitForIdle()
+        val menu = controller.renderState.quickSelection.menu
+        assertNotNull("The accessibility click opens the menu", menu)
+        composeRule.onNodeWithTag(SCRIM_TAG).assertExists()
+        val first = menu?.items?.first() ?: error("The open menu has no items")
+        composeRule.onNodeWithTag(QuickSelectSemantics.itemTag(first)).assertIsFocused()
+        composeRule.onNodeWithTag(CONTROL_TAG).performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.waitForIdle()
+        assertNull(controller.renderState.quickSelection.menu)
+    }
+
+    @Test
+    fun clickingTheControlWhileArmedDisarms() {
+        val controller = paintedController()
+        pressControl()
+        releaseOver(EYEDROPPER_TAG)
+        composeRule.onNodeWithTag(CONTROL_TAG).assert(stateDescription(R.string.quick_select_state_eyedropper))
+        composeRule.onNodeWithTag(CONTROL_TAG).performClick()
+        composeRule.waitForIdle()
+        assertNotEquals(EyedropperState.Armed, controller.renderState.quickSelection.eyedropper)
+        assertNull(controller.renderState.quickSelection.menu)
+        composeRule.onNodeWithTag(CONTROL_TAG).assert(stateDescription(R.string.quick_select_state_slot, 1))
+    }
+
     private fun highlighted(controller: EditorController): QuickSelectItem? {
         val menu = controller.renderState.quickSelection.menu
         return menu?.highlighted
+    }
+
+    private fun enterTapMode() {
+        composeRule.onNodeWithTag(CONTROL_TAG).performTouchInput { click(center) }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(FAN_TAG).assertExists()
     }
 
     private fun pressControl() {
@@ -258,6 +327,7 @@ internal class QuickSelectOverlayTest {
         const val TOLERANCE_DP: Float = 1f
         const val CONTROL_TAG: String = "editor_quick_select"
         const val FAN_TAG: String = "editor_quick_select_fan"
+        const val SCRIM_TAG: String = "editor_quick_select_scrim"
         const val EYEDROPPER_TAG: String = "editor_quick_select_eyedropper"
         const val CANVAS_TAG: String = "editor_canvas_4_3"
         const val DOCUMENT_WIDTH: Int = 4

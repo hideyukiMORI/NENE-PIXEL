@@ -7,6 +7,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,11 +26,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import io.github.hideyukimori.nenepixel.core.application.workspace.quickselect.QuickSelectItem
@@ -40,16 +45,19 @@ import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 /**
  * The open menu's items around the control and, while a slot is highlighted, its number above the control
  * (#108 UI spec "扇（fan）"). Items move out from the control centre when the menu opens; the fan leaves
- * composition, without animation, as soon as the menu closes.
+ * composition, without animation, as soon as the menu closes. In tap mode ([tap] not null) the items are buttons in
+ * fan order and the first one takes the focus request.
  */
 @Composable
 internal fun QuickSelectFan(
     placement: QuickSelectFanPlacement,
     highlighted: QuickSelectItem?,
     palette: Palette,
+    tap: QuickSelectFanTap?,
 ) {
     val progress = remember { Animatable(0f) }
     LaunchedEffect(progress) { progress.animateTo(1f, tween(FAN_OPEN_MILLIS, easing = FastOutSlowInEasing)) }
+    LaunchedEffect(tap) { tap?.first?.requestFocus() }
     val itemSize = with(LocalDensity.current) { ITEM_SIZE.roundToPx() }
     Box(Modifier.fillMaxSize().testTag(QuickSelectSemantics.FAN_TAG), contentAlignment = AbsoluteAlignment.TopLeft) {
         placement.items.forEachIndexed { index, item ->
@@ -59,7 +67,8 @@ internal fun QuickSelectFan(
                 palette,
                 Modifier
                     .absoluteOffset { placement.itemTopLeft(index, itemSize, progress.value) }
-                    .graphicsLayer { alpha = progress.value },
+                    .graphicsLayer { alpha = progress.value }
+                    .tapModeItem(tap, item, index == 0),
             )
         }
         (highlighted as? QuickSelectItem.PaletteSlot)?.let { slot ->
@@ -113,6 +122,26 @@ private fun QuickSelectFanItem(
         }
     }
 }
+
+/**
+ * The tap-mode button of [item]; without [tap] the control's own pointer stream is the only input. The items stay
+ * focusable in touch mode, where a clickable alone is not, so the focus request reaches the first item.
+ */
+private fun Modifier.tapModeItem(
+    tap: QuickSelectFanTap?,
+    item: QuickSelectItem,
+    first: Boolean,
+): Modifier {
+    if (tap == null) return this
+    val focus = if (first) focusRequester(tap.first) else this
+    return focus.focusProperties { canFocus = true }.clickable(role = Role.Button) { tap.onTap(item) }
+}
+
+/** Tap mode for the fan: the first item's focus requester and the item tap. */
+internal class QuickSelectFanTap(
+    val first: FocusRequester,
+    val onTap: (QuickSelectItem) -> Unit,
+)
 
 /** The highlighted slot number, centred [CHIP_GAP] above the control. */
 @Composable

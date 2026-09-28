@@ -16,6 +16,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -24,11 +25,13 @@ import io.github.hideyukimori.nenepixel.presentation.compose.R
 
 /**
  * The 56dp quick-select control (#108 UI spec "Components"): a swatch of the shown slot inside a 1dp outline,
- * or a 3dp primary ring and the eyedropper mark while armed.
+ * or a 3dp primary ring and the eyedropper mark while armed. [onClick] is the accessibility click; the pointer
+ * stream is the caller's.
  */
 @Composable
 internal fun QuickSelectControl(
     display: QuickSelectControlDisplay,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val scheme = MaterialTheme.colorScheme
@@ -48,6 +51,10 @@ internal fun QuickSelectControl(
                 role = Role.Button
                 contentDescription = description
                 stateDescription = state
+                onClick {
+                    onClick()
+                    true
+                }
             },
         contentAlignment = Alignment.Center,
     ) {

@@ -26,13 +26,26 @@ internal fun Modifier.quickSelectGesture(
         awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false)
             down.consume()
-            val start = session.value
-            if (start.armed) {
+            val tap = QuickSelectControlTap.of(session.value)
+            if (tap == QuickSelectControlTap.Disarm) {
                 val outcome = trackPress(down) {}
-                if (outcome == PressOutcome.Tap) callbacks.onDisarm()
+                if (outcome == PressOutcome.Tap) callbacks.applyControlTap(tap, onTapMode)
             } else {
-                pressMenu(down, QuickSelectPress(callbacks, session, onTapMode, start.tapMode))
+                pressMenu(down, QuickSelectPress(callbacks, session, onTapMode, tap))
             }
+        }
+    }
+
+/**
+ * The tap-mode scrim's pointer stream: it takes every pointer over the work area from the down, so nothing reaches
+ * the canvas, and a completed press on it cancels the menu.
+ */
+internal fun Modifier.quickSelectScrimGesture(callbacks: EditorQuickSelectCallbacks): Modifier =
+    pointerInput(callbacks) {
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false)
+            down.consume()
+            if (trackPress(down) {} != PressOutcome.Cancel) callbacks.onCancel()
         }
     }
 
@@ -90,12 +103,12 @@ private class QuickSelectPress(
     val callbacks: EditorQuickSelectCallbacks,
     private val session: State<QuickSelectGestureSession>,
     private val onTapMode: (Boolean) -> Unit,
-    val startedInTapMode: Boolean,
+    private val tap: QuickSelectControlTap,
 ) {
     private var highlighted: QuickSelectItem? = null
 
     /** Whether the menu is open for this press: already in tap mode, or opened now. */
-    fun open(): Boolean = startedInTapMode || callbacks.onOpen().quickSelection.menu != null
+    fun open(): Boolean = tap == QuickSelectControlTap.Cancel || callbacks.onOpen().quickSelection.menu != null
 
     fun highlightAt(pointer: Offset) {
         val item = session.value.placement?.itemAt(pointer)
@@ -106,18 +119,17 @@ private class QuickSelectPress(
     }
 
     fun finish(outcome: PressOutcome) {
-        when {
-            outcome == PressOutcome.Drag -> {
+        when (outcome) {
+            PressOutcome.Drag -> {
                 onTapMode(false)
                 callbacks.onConfirm()
             }
 
-            outcome == PressOutcome.Tap && !startedInTapMode -> {
-                onTapMode(true)
-                callbacks.onHighlight(null)
+            PressOutcome.Tap -> {
+                callbacks.applyControlTap(tap, onTapMode)
             }
 
-            else -> {
+            PressOutcome.Cancel -> {
                 onTapMode(false)
                 callbacks.onCancel()
             }

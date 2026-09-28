@@ -17,6 +17,7 @@ import io.github.hideyukimori.nenepixel.presentation.compose.R
 internal object QuickSelectSemantics {
     const val CONTROL_TAG: String = "editor_quick_select"
     const val FAN_TAG: String = "editor_quick_select_fan"
+    const val SCRIM_TAG: String = "editor_quick_select_scrim"
     private const val SLOT_TAG_PREFIX: String = "editor_quick_select_slot_"
     private const val EYEDROPPER_TAG: String = "editor_quick_select_eyedropper"
 
