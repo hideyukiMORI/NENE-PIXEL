@@ -137,7 +137,7 @@ palette. PNG stays RGBA truecolor (ADR 0019). Export when no layer is visible re
 
 ### Project v3 and migration
 
-Project v3 is little endian like v2 and has this layout:
+Project v3 is big endian like v1 and v2 (ADR 0015) and has this layout:
 
 | Field | Size |
 | --- | --- |
