@@ -102,7 +102,7 @@ internal class StrokeTest {
             created(Stroke.create(canvasSize(3, 2), stroke.positions(), paint(1))),
         )
         assertNotEquals(stroke, created(Stroke.create(canvas, stroke.positions(), paint(0))))
-        assertNotEquals(stroke, created(Stroke.create(canvas, stroke.positions(), StrokeEffect.Erase(index(2)))))
+        assertNotEquals(stroke, created(Stroke.create(canvas, stroke.positions(), StrokeEffect.Erase)))
     }
 
     private fun Stroke.positions(): List<PixelPosition> = buildList { forEachPosition(::add) }

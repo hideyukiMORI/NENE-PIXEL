@@ -65,7 +65,7 @@ internal class ToolGestureLongStrokeMeasurementTest {
             workload(
                 "continuous_eraser",
                 continuousEndpoints(),
-                StrokeEffect.Erase(eraseIndex),
+                StrokeEffect.Erase,
                 canvas.pixelCount.toInt(),
             ),
             workload(
@@ -77,7 +77,7 @@ internal class ToolGestureLongStrokeMeasurementTest {
             workload(
                 "repeated_eraser",
                 repeatedEndpoints(),
-                StrokeEffect.Erase(eraseIndex),
+                StrokeEffect.Erase,
                 PixelLimits.MAX_RAW_STROKE_POSITIONS,
             ),
         )
@@ -160,7 +160,6 @@ internal class ToolGestureLongStrokeMeasurementTest {
             CanvasWidth.create(CANVAS_EDGE).requiredValue(),
             CanvasHeight.create(CANVAS_EDGE).requiredValue(),
         )
-    private val eraseIndex: PaletteIndex = PaletteIndex.first
     private val paintIndex: PaletteIndex = PaletteIndex.create(1).requiredValue()
     private val admission = CommandGateway.create(state(canvas)).captureSource()
 

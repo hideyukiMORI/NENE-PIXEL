@@ -1,37 +1,67 @@
 package io.github.hideyukimori.nenepixel.core.pixelengine
 
 import io.github.hideyukimori.nenepixel.core.domain.drawing.Stroke
+import io.github.hideyukimori.nenepixel.core.domain.drawing.StrokeEffect
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 
 public fun rasterizeStroke(
     snapshot: PixelSnapshot,
     stroke: Stroke,
-): StrokeRasterizationResult =
-    when {
+): StrokeRasterizationResult {
+    val effect = stroke.effect
+    return when {
         stroke.canvas != snapshot.size -> {
             rejected(StrokeRasterizationRejection.CanvasMismatch(stroke.canvas, snapshot.size))
         }
 
-        stroke.effect.targetIndex.value > U8_MASK -> {
+        effect is StrokeEffect.Paint && effect.targetIndex.value > U8_MASK -> {
             rejected(
                 StrokeRasterizationRejection.TargetIndexAboveStorageMaximum(
-                    stroke.effect.targetIndex,
+                    effect.targetIndex,
                     U8_MASK,
                 ),
             )
         }
 
         else -> {
-            rasterizeMatchingCanvas(snapshot, stroke)
+            rasterizeMatchingCanvas(snapshot, stroke, StrokeTarget.of(effect))
         }
     }
+}
+
+/** The cell every effective position of a stroke becomes: `Covered(index)` for Paint, `Empty` for Erase. */
+private class StrokeTarget(
+    val covered: Boolean,
+    val packedIndex: Byte,
+) {
+    fun matches(
+        surface: PixelSurface,
+        rowMajorIndex: Int,
+    ): Boolean =
+        surface.isCoveredAt(rowMajorIndex) == covered &&
+            (!covered || surface.packedIndexAt(rowMajorIndex) == packedIndex)
+
+    companion object {
+        private val EMPTY = StrokeTarget(covered = false, packedIndex = 0)
+
+        fun of(effect: StrokeEffect): StrokeTarget =
+            when (effect) {
+                is StrokeEffect.Paint -> {
+                    StrokeTarget(covered = true, packedIndex = effect.targetIndex.value.toByte())
+                }
+
+                StrokeEffect.Erase -> {
+                    EMPTY
+                }
+            }
+    }
+}
 
 private fun rasterizeMatchingCanvas(
     snapshot: PixelSnapshot,
     stroke: Stroke,
+    target: StrokeTarget,
 ): StrokeRasterizationResult {
-    val targetValue = stroke.effect.targetIndex.value
-    val target = targetValue.toByte()
     val canvasPixels = snapshot.size.pixelCount.toInt()
     val surface = PixelSurface.from(snapshot)
     val collection =
@@ -47,7 +77,11 @@ private fun rasterizeMatchingCanvas(
         val packedPositions =
             IntArray(positions.size) { index ->
                 val position = positions[index]
-                packPatchPosition(position, beforeCovered = surface.isCoveredAt(position), afterCovered = true)
+                packPatchPosition(
+                    position,
+                    beforeCovered = surface.isCoveredAt(position),
+                    afterCovered = target.covered,
+                )
             }
         PixelPatch
             .createFromValidatedPackedIndices(
@@ -55,7 +89,7 @@ private fun rasterizeMatchingCanvas(
                 snapshot.revision,
                 packedPositions,
                 before,
-                ByteArray(positions.size) { target },
+                ByteArray(positions.size) { target.packedIndex },
                 positionsAreContiguous = collection.positionsAreContiguous,
             ).toRasterizationResult()
     }
@@ -75,7 +109,7 @@ private class EffectivePositionCollector(
     fun collect(
         stroke: Stroke,
         surface: PixelSurface,
-        target: Byte,
+        target: StrokeTarget,
     ): EffectivePositionCollection {
         repeat(stroke.positionCount) { pathIndex ->
             accept(stroke.rowMajorIndexAt(pathIndex), surface, target)
@@ -91,11 +125,11 @@ private class EffectivePositionCollector(
     private fun accept(
         index: Int,
         surface: PixelSurface,
-        target: Byte,
+        target: StrokeTarget,
     ) {
         if (seen[index]) return
         seen[index] = true
-        if (surface.isCoveredAt(index) && surface.packedIndexAt(index) == target) return
+        if (target.matches(surface, index)) return
         if (changeCount > 0 && index != lastEffectiveIndex + 1) positionsAreContiguous = false
         if (index <= lastEffectiveIndex) isCanonicalOrder = false
         effective[changeCount] = index

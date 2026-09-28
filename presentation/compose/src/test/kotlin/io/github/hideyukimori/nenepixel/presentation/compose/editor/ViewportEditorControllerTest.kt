@@ -11,13 +11,14 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.View
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportSurface
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportSurfacePoint
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportValueResult
-import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelCell
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import io.github.hideyukimori.nenepixel.presentation.compose.EditorFixture
+import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestValues.cellAt
 import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestValues.colorAt
 import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestValues.fixture
 import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestValues.green
@@ -100,7 +101,7 @@ internal class ViewportEditorControllerTest {
         val erased = fixture.controller.pointerEnd(surface, surfacePoint(0, 0))
 
         assertInstanceOf(CommandResult.Applied::class.java, accepted(erased).commandResult)
-        assertEquals(PixelColor.blank, colorAt(fixture.controller.documentState, position(0, 0)))
+        assertEquals(PixelCell.Empty, cellAt(fixture.controller.documentState, position(0, 0)))
         assertEquals(2L, fixture.controller.documentState.revision.value)
         assertTrue(erased.renderState.canUndo)
     }
@@ -226,7 +227,7 @@ internal class ViewportEditorControllerTest {
         assertEquals(direct.runtime.state.documentState, mapped.runtime.state.documentState)
         assertEquals(directOutcome.workspaceState, mapped.controller.workspaceState)
         repeat(4) { x ->
-            assertEquals(PixelColor.blank, colorAt(mapped.controller.documentState, position(x, 0)))
+            assertEquals(PixelCell.Empty, cellAt(mapped.controller.documentState, position(x, 0)))
         }
     }
 
