@@ -14,4 +14,12 @@ public sealed interface WorkspaceNoChangeReason {
     public data object ViewportAlreadySet : WorkspaceNoChangeReason
 
     public data object PaletteDraftUnchanged : WorkspaceNoChangeReason
+
+    public data object QuickSelectMenuAlreadyOpen : WorkspaceNoChangeReason
+
+    public data object QuickSelectMenuAlreadyClosed : WorkspaceNoChangeReason
+
+    public data object QuickSelectHighlightUnchanged : WorkspaceNoChangeReason
+
+    public data object EyedropperAlreadyIdle : WorkspaceNoChangeReason
 }

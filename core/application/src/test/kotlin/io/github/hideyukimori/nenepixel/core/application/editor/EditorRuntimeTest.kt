@@ -311,6 +311,22 @@ internal class EditorRuntimeTest {
     }
 
     @Test
+    fun `palette session refuses quick select open and lets cancel pass`() {
+        val runtime = openedPaletteSession()
+
+        val open =
+            assertInstanceOf(
+                WorkspaceReductionResult.Rejected::class.java,
+                runtime.reduce(WorkspaceAction.OpenQuickSelect),
+            )
+        val cancel = runtime.reduce(WorkspaceAction.CancelQuickSelect)
+
+        assertEquals(WorkspaceActionRejection.PaletteSessionActive, open.rejection)
+        assertNull(runtime.state.workspaceState.quickSelection.menu)
+        assertInstanceOf(WorkspaceReductionResult.Unchanged::class.java, cancel)
+    }
+
+    @Test
     fun `palette session keeps viewport selection and preview cancellation available`() {
         val runtime = openedPaletteSession()
         val viewport = runtime.state.workspaceState.viewport

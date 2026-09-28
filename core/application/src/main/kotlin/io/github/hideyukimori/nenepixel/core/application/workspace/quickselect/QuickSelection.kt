@@ -34,6 +34,10 @@ public class QuickSelection private constructor(
             QuickSelectMenu(recent.map(QuickSelectItem::PaletteSlot) + QuickSelectItem.Eyedropper, null),
         )
 
+    /** Highlights [item] in the open menu; a closed menu stays closed. */
+    internal fun highlighting(item: QuickSelectItem?): QuickSelection =
+        QuickSelection(recent, eyedropper, menu?.withHighlight(item))
+
     internal fun closed(): QuickSelection = QuickSelection(recent, eyedropper, null)
 
     internal fun armed(): QuickSelection = QuickSelection(recent, EyedropperState.Armed, menu)

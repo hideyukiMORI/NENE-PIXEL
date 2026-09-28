@@ -3,6 +3,7 @@ package io.github.hideyukimori.nenepixel.core.application.workspace
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandSourceAdmission
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteDraftTransition
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteEditSession
+import io.github.hideyukimori.nenepixel.core.application.workspace.quickselect.EyedropperState
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
 import io.github.hideyukimori.nenepixel.core.domain.drawing.StrokeEffect
 import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
@@ -57,6 +58,10 @@ public class WorkspaceReducer private constructor() {
                 reducePaletteSession(state, action)
             }
 
+            is WorkspaceAction.QuickSelectAction -> {
+                reduceQuickSelect(state, action, source)
+            }
+
             is ReconcileDocumentPalette -> {
                 reconcileDocumentPalette(state, action, source.document.definition.palette)
             }
@@ -67,20 +72,11 @@ public class WorkspaceReducer private constructor() {
         action: WorkspaceAction.SelectPaletteEntry,
         palette: Palette,
     ): WorkspaceReductionResult =
-        when (palette.entryAt(action.index)) {
-            is DomainValueResult.Rejected -> {
-                rejected(
-                    state,
-                    WorkspaceActionRejection.PaletteIndexOutsidePalette(action.index, palette.entryCount),
-                )
-            }
-
-            is DomainValueResult.Created -> {
-                if (action.index == state.activePaletteIndex) {
-                    unchanged(state, WorkspaceNoChangeReason.ActivePaletteEntryAlreadySelected)
-                } else {
-                    WorkspaceReductionResult.Reduced(state.withActivePaletteIndex(action.index))
-                }
+        selectingPaletteSlot(state, action.index, palette) {
+            if (action.index == state.activePaletteIndex) {
+                unchanged(state, WorkspaceNoChangeReason.ActivePaletteEntryAlreadySelected)
+            } else {
+                WorkspaceReductionResult.Reduced(state.withActivePaletteIndex(action.index))
             }
         }
 
@@ -92,6 +88,14 @@ public class WorkspaceReducer private constructor() {
         when {
             state.preview != null -> {
                 rejected(state, WorkspaceActionRejection.PreviewAlreadyActive)
+            }
+
+            state.quickSelection.menu != null -> {
+                rejected(state, WorkspaceActionRejection.QuickSelectMenuOpen)
+            }
+
+            state.quickSelection.eyedropper == EyedropperState.Armed -> {
+                rejected(state, WorkspaceActionRejection.EyedropperArmed)
             }
 
             action.canvas != source.document.size -> {
@@ -208,14 +212,17 @@ public class WorkspaceReducer private constructor() {
     }
 }
 
+/** Selecting a tool also returns an armed eyedropper to idle, even for the current tool (ADR 0029). */
 private fun selectTool(
     state: WorkspaceState,
     action: WorkspaceAction.SelectTool,
 ): WorkspaceReductionResult =
-    if (action.tool == state.activeTool) {
+    if (action.tool == state.activeTool && state.quickSelection.eyedropper == EyedropperState.Idle) {
         WorkspaceReductionResult.Unchanged(state, WorkspaceNoChangeReason.ActiveToolAlreadySelected)
     } else {
-        WorkspaceReductionResult.Reduced(state.withActiveTool(action.tool))
+        WorkspaceReductionResult.Reduced(
+            state.withActiveTool(action.tool).withQuickSelection(state.quickSelection.idle()),
+        )
     }
 
 private fun WorkspaceState.strokeEffect(definition: PaletteDefinition): StrokeEffect =

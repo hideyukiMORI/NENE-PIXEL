@@ -52,6 +52,12 @@ private fun WorkspaceActionRejection.noticeResource(): Int =
         is WorkspaceActionRejection.PreviewCanvasMismatch,
         is WorkspaceActionRejection.PreviewPositionOutsideCanvas,
         is WorkspaceActionRejection.PreviewPathAboveSupportedMaximum,
+        WorkspaceActionRejection.EyedropperArmed,
+        WorkspaceActionRejection.EyedropperNotArmed,
+        WorkspaceActionRejection.NoQuickSelectMenu,
+        WorkspaceActionRejection.QuickSelectMenuOpen,
+        WorkspaceActionRejection.QuickSelectItemNotInMenu,
+        is WorkspaceActionRejection.PickPositionOutsideCanvas,
         -> R.string.palette_editor_rejected
     }
 

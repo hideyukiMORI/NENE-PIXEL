@@ -42,4 +42,21 @@ public sealed interface WorkspaceActionRejection {
     public data class PaletteDraftRejected internal constructor(
         public val reason: PaletteDraftRejection,
     ) : WorkspaceActionRejection
+
+    /** The eyedropper is armed; the next canvas pointer down reads a slot instead (ADR 0029). */
+    public data object EyedropperArmed : WorkspaceActionRejection
+
+    public data object EyedropperNotArmed : WorkspaceActionRejection
+
+    public data object NoQuickSelectMenu : WorkspaceActionRejection
+
+    /** The quick-select menu is open; the canvas does not draw behind it (ADR 0029). */
+    public data object QuickSelectMenuOpen : WorkspaceActionRejection
+
+    public data object QuickSelectItemNotInMenu : WorkspaceActionRejection
+
+    public data class PickPositionOutsideCanvas internal constructor(
+        public val canvas: CanvasSize,
+        public val position: PixelPosition,
+    ) : WorkspaceActionRejection
 }
