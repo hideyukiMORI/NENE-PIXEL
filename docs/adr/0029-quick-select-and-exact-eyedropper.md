@@ -113,6 +113,13 @@ that pointer stream. `ViewportPointerSession` and `PointerArbitration` do not ch
   item dispatches `HighlightQuickSelectItem` then `ConfirmQuickSelect`; tapping the control, tapping
   outside through a transparent scrim over the work area, or Back dispatches `CancelQuickSelect`.
   Tapping the control while armed dispatches `DisarmEyedropper`.
+- Back in tap mode uses `androidx.activity.compose.BackHandler`, enabled only while tap mode is open.
+  `:presentation:compose` gains `implementation(libs.androidx.activity.compose)`, the catalog entry
+  `:app:android` already ships at the same locked version (1.13.0), so the APK content, size and
+  startup do not change. The API stays inside the quick-select composables and no activity type
+  reaches a public API. Rejected: routing Back from `:app:android` through a callback, which would
+  make the app root track Compose-local tap mode; and `onKeyEvent(Key.Back)`, which predictive back
+  (target SDK 37) does not deliver as a key event and which would be a second Back path.
 - Drag versus tap mode is Compose-local input mechanics; everything that selects, previews or cancels
   is workspace state through actions. Leaving composition or a cancelled pointer stream while the
   menu is open in drag mode dispatches `CancelQuickSelect`.

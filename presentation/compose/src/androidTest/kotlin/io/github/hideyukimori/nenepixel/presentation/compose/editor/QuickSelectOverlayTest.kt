@@ -1,5 +1,7 @@
 package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
+import androidx.activity.OnBackPressedDispatcher
+import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -41,6 +43,7 @@ import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import io.github.hideyukimori.nenepixel.presentation.compose.R
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -53,6 +56,8 @@ import kotlin.math.abs
 internal class QuickSelectOverlayTest {
     @get:Rule
     val composeRule = createComposeRule()
+
+    private var backDispatcher: OnBackPressedDispatcher? = null
 
     @Test
     fun draggingToARecentSlotAndReleasingSelectsItAndClosesTheFan() {
@@ -208,6 +213,28 @@ internal class QuickSelectOverlayTest {
         composeRule.onNodeWithTag(CONTROL_TAG).assert(stateDescription(R.string.quick_select_state_slot, 1))
     }
 
+    @Test
+    fun backInTapModeCancelsAndLeavesTheSelection() {
+        val controller = paintedController()
+        enterTapMode()
+        composeRule.onNodeWithTag(SCRIM_TAG).assertExists()
+        composeRule.runOnIdle { requiredBackDispatcher().onBackPressed() }
+        composeRule.waitForIdle()
+        assertEquals(index(0), controller.renderState.activePaletteIndex)
+        assertNull(controller.renderState.quickSelection.menu)
+        composeRule.onNodeWithTag(FAN_TAG).assertDoesNotExist()
+        composeRule.onNodeWithTag(SCRIM_TAG).assertDoesNotExist()
+    }
+
+    @Test
+    fun backIsNotTakenWhileTheMenuIsClosedOrInDragMode() {
+        paintedController()
+        composeRule.runOnIdle { assertFalse(requiredBackDispatcher().hasEnabledCallbacks()) }
+        pressControl()
+        composeRule.onNodeWithTag(FAN_TAG).assertExists()
+        composeRule.runOnIdle { assertFalse(requiredBackDispatcher().hasEnabledCallbacks()) }
+    }
+
     private fun highlighted(controller: EditorController): QuickSelectItem? {
         val menu = controller.renderState.quickSelection.menu
         return menu?.highlighted
@@ -277,11 +304,15 @@ internal class QuickSelectOverlayTest {
 
     private fun setEditorContent(controller: EditorController) {
         composeRule.setContent {
+            backDispatcher = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
             Box(Modifier.requiredSize(WIDE_EDGE, TALL_EDGE).consumeWindowInsets(WindowInsets.safeDrawing)) {
                 TestNenePixelEditor(controller, Modifier.requiredSize(WIDE_EDGE, TALL_EDGE))
             }
         }
     }
+
+    private fun requiredBackDispatcher(): OnBackPressedDispatcher =
+        backDispatcher ?: error("The test activity provides no OnBackPressedDispatcher")
 
     private fun controller(): EditorController {
         val size =

@@ -1,5 +1,6 @@
 package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
@@ -32,7 +33,8 @@ import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
  * It reads the quick selection, the active slot, the palette definition and the control edge through one
  * `derivedStateOf`, so a stroke in progress never recomposes it. Drag versus tap mode is local input state; the
  * menu and its highlight always come from the render state. In tap mode a transparent scrim over the work area,
- * below the fan and the control, takes every pointer and cancels on a tap, and the first item takes focus.
+ * below the fan and the control, takes every pointer and cancels on a tap, Back cancels, and the first item takes
+ * focus.
  */
 @Composable
 internal fun QuickSelectOverlay(
@@ -54,6 +56,7 @@ internal fun QuickSelectOverlay(
     val menu = inputs.selection.menu
     LaunchedEffect(menu == null) { if (menu == null) tapMode = false }
     val fanTap = rememberFanTap(callbacks.quickSelect).takeIf { tapMode && menu != null }
+    BackHandler(enabled = fanTap != null) { callbacks.quickSelect.onCancel() }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val density = LocalDensity.current
         val area = IntSize(constraints.maxWidth, constraints.maxHeight)
