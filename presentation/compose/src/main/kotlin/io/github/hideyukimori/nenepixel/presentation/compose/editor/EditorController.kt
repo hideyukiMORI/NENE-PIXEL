@@ -3,6 +3,7 @@ package io.github.hideyukimori.nenepixel.presentation.compose.editor
 import io.github.hideyukimori.nenepixel.core.application.editor.EditorRuntime
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceAction
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceState
+import io.github.hideyukimori.nenepixel.core.application.workspace.quickselect.CanvasPointerIntent
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportGesture
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportSurface
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportSurfacePoint
@@ -45,6 +46,7 @@ public class EditorController private constructor(
                 publish(adapter.reduce(WorkspaceAction.SetActualSizeWindow(window)).renderState)
             },
             palette = EditorPaletteCallbacks(runtime, adapter, ::publish),
+            quickSelect = EditorQuickSelectCallbacks(adapter, ::publish),
         )
 
     public fun synchronizeWithRuntime() {
@@ -62,10 +64,21 @@ public class EditorController private constructor(
         point: ViewportSurfacePoint,
     ): PointerInputAcknowledgement =
         acknowledge(
-            mapping.withMappedPoint(surface, point, adapter::ignored) { position ->
-                adapter.reduce(
-                    WorkspaceAction.BeginGesturePreview(runtime.state.documentState.size, position),
-                )
+            when (runtime.state.workspaceState.canvasPointerIntent) {
+                CanvasPointerIntent.Draw -> {
+                    mapping.withMappedPoint(surface, point, adapter::ignored) { position ->
+                        adapter.reduce(
+                            WorkspaceAction.BeginGesturePreview(runtime.state.documentState.size, position),
+                        )
+                    }
+                }
+
+                CanvasPointerIntent.PickPaletteEntry -> {
+                    mapping
+                        .withMappedPoint(surface, point, adapter::rejected) { position ->
+                            adapter.reduce(WorkspaceAction.PickPaletteEntryAt(position))
+                        }.withoutDrawing()
+                }
             },
         )
 
@@ -128,3 +141,17 @@ public class EditorController private constructor(
             EditorController(runtime, EditorRuntimeAdapter(runtime))
     }
 }
+
+/**
+ * A pick never starts a stroke (ADR 0029): anything but a rejection is acknowledged as ignored, so the canvas pointer
+ * session suppresses the rest of that pointer stream; a rejection (outside the canvas included) stays rejected.
+ */
+private fun PointerInputAcknowledgement.withoutDrawing(): PointerInputAcknowledgement =
+    when (this) {
+        is PointerInputAcknowledgement.Rejected -> this
+
+        is PointerInputAcknowledgement.Accepted,
+        is PointerInputAcknowledgement.Cancelled,
+        is PointerInputAcknowledgement.Ignored,
+        -> PointerInputAcknowledgement.Ignored(renderState)
+    }
