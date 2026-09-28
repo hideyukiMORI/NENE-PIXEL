@@ -8,7 +8,7 @@ One concept has one canonical name. New synonyms in code are prohibited. Add or 
 | --- | --- | --- |
 | `Document` | The complete user-created pixel project as a product concept | project data, canvas file, workspace |
 | `DocumentId` | Validated 32-character lowercase hexadecimal identity of one Document | document key, UUID string |
-| `DocumentState` | Immutable saved and undoable DocumentId, PaletteDefinition and indexed PixelSnapshot, validated together | editor state, model data |
+| `DocumentState` | Immutable saved and undoable DocumentId, Revision, PaletteDefinition and ordered Layers, validated together | editor state, model data |
 | `WorkspaceState` | Immutable ephemeral editor/session state not saved in the Document | temporary document, UI model |
 | `EditorAppearance` | Workspace-owned session theme, tablet layout and physical control edge changed through SetAppearance | Compose theme flag, project preference |
 | `EditorTheme` | Closed Dark or Light appearance selection | system theme Boolean |
@@ -72,11 +72,14 @@ One concept has one canonical name. New synonyms in code are prohibited. Add or 
 | `PaletteIndex` | Non-negative typed position used for closed lookup and active Palette selection | palette Int, color index |
 | `PaletteEntry` | Derived immutable Palette slot with its typed index and exact PixelColor | color id, mutable swatch data |
 | `Revision` | Non-negative version of the exact committed DocumentState; canonical undo restores the recorded prior revision | global event sequence, timestamp |
-| `Layer` | An ordered document element contributing pixels/visibility | plane, sheet |
+| `Layer` | An ordered document element with a LayerId, name, visibility and one PixelSnapshot; 1 through 16 per document, bottom first (ADR 0030) | plane, sheet |
+| `LayerId` | Positive document-unique layer identity independent of order and name; new = current maximum + 1 | layer index, layer position |
+| `Empty` | A pixel cell with no palette index; always fully transparent and never remapped | transparent index, erase color |
+| `Composite` | The derived visible RGBA image of visible layers under ADR 0030's one integer source-over rule; never document truth | flattened layer, merged image |
 | `Frame` | One animation frame containing an ordered layer state | page, image |
 | `PixelSurface` | Pixel-engine private mutable flat packed work surface for a bounded raster | Android Bitmap, domain snapshot |
-| `PixelSnapshot` | Domain-owned immutable canvas/revision and packed row-major U8 indices, with no second palette owner | exposed buffer, RGBA raster, Android Bitmap |
-| `PixelPatch` | Pixel-engine-owned row-major I32 positions and U8 before/after index changes with one shared directional inverse payload | materialized inverse, diff, delta |
+| `PixelSnapshot` | Domain-owned immutable canvas size and packed row-major U8 indices plus a one-bit coverage mask for `Empty` cells, with no second palette owner | exposed buffer, RGBA raster, Android Bitmap |
+| `PixelPatch` | Pixel-engine-owned row-major positions and before/after `PixelCell` changes (`Empty` or a covered index) for one layer, with one shared directional inverse payload | materialized inverse, diff, delta |
 | `Stroke` | One committed drawing gesture with a defined tool/path/style | line when it includes the complete drawing operation |
 | `DrawingTool` | Closed workspace-selectable Pencil or Eraser identity | brush string, UI-local selected tool |
 | `StrokeEffect` | Closed Paint or Erase intent carrying the gesture-captured target PaletteIndex | handler choice, current UI color |

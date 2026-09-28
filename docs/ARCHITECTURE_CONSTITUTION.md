@@ -87,6 +87,10 @@ Palette.entryAt. LegacyRgbaSource owns immutable exact RGBA only until import co
 never command-editable. Pixel patches own indexed before/after values inside pixel-engine.
 All live consumers and v2 writers migrate together in #106; no simultaneous editable RGBA/indexed
 document paths are permitted. Historical M3 evidence remains evidence for its original artifacts.
+ADR 0030 replaces the single snapshot with an ordered list of 1 through 16 layers, each owning one
+PixelSnapshot of packed U8 indices plus a private one-bit coverage mask for `Empty` cells. The
+document palette stays one shared PaletteDefinition. The composite image is derived by one
+pixel-engine function and is never stored as document truth.
 
 ### ARC-006 — Explicit composition
 

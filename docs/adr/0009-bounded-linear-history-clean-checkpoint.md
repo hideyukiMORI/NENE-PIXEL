@@ -7,6 +7,13 @@
   `ARC-012`, `CMD-001`, `CMD-003`, `CMD-005` through `CMD-009`, `CMD-011`, `KOT-002`,
   `KOT-003`, `KOT-007`, `KOT-008`, `KOT-013`, `KOT-016`, `QLT-006` through `QLT-010`
 
+## Layered refinement (2026-09-28, #140)
+
+[ADR 0030](0030-ordered-layers-and-empty-pixels.md) amends this decision in part.
+History entries may carry a layer-structure transition and per-layer sparse or dense index
+changes; `MAX_RETAINED_CHANGES` counts sparse changes only and the 8 MiB payload bound counts all
+retained bytes. Linear history, eviction order and clean-checkpoint identity are unchanged.
+
 ## Indexed cutover refinement (2026-09-13, #106)
 
 [ADR 0022](0022-indexed-palette-and-migration.md) and
@@ -182,4 +189,4 @@ partial rollback that keeps two history owners or revision-based dirty logic is 
 - Builds on: ADR 0003 recorded revision semantics
 - Builds on: ADR 0005 history limits and shared inverse storage
 - Supersedes: none
-- Superseded by: none
+- Superseded by: ADR 0030 (in part)

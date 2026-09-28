@@ -6,6 +6,13 @@
 - Affected rules: ARC-001/004/005/007–012, CMD-001/002/005–010/012,
   KOT-001–008/013/016–020, QLT-006–009/011–016
 
+## Layered refinement (2026-09-28, #140)
+
+[ADR 0030](0030-ordered-layers-and-empty-pixels.md) amends this decision in part.
+Write-current becomes project v3 with recovery envelope 3. V2 decodes losslessly as `Current` with
+one layer; v1 legacy conversion is unchanged. The common bounded reader maximum rises to the largest
+v3 Candidate.
+
 ## Context
 
 ADR 0022 accepts indexed document semantics and explicit preservation of nonrepresentable v1 data.
