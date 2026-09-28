@@ -57,6 +57,17 @@ public sealed interface DomainValueRejection {
         public val maximum: Int,
     ) : DomainValueRejection
 
+    public data class PixelCoverageSizeMismatch internal constructor(
+        public val expected: Int,
+        public val actual: Int,
+    ) : DomainValueRejection
+
+    public data object PixelCoverageTrailingBitsSet : DomainValueRejection
+
+    public data class EmptyPixelIndexNotZero internal constructor(
+        public val rowMajorIndex: Int,
+    ) : DomainValueRejection
+
     public data class LegacyRgbaSourceSizeMismatch internal constructor(
         public val expectedPixelCount: Long,
         public val actualPixelCount: Int,
