@@ -123,6 +123,7 @@ private fun RejectionReason.noticeResource(): Int =
         is RejectionReason.HistoryEntryAboveRetainedPayloadMaximum,
         is RejectionReason.LayerSnapshotMismatch,
         is RejectionReason.LayerNotFound,
+        is RejectionReason.LayerStructureMismatch,
         -> R.string.palette_editor_apply_failed
     }
 

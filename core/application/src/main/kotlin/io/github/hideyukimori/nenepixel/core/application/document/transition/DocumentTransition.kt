@@ -40,7 +40,9 @@ internal data class DocumentTransition private constructor(
             changeSet: ChangeSet,
         ): DocumentTransitionResult {
             val layers = currentState.layers.toMutableList()
-            val rejection = changeSet.layerChanges.firstNotNullOfOrNull { change -> applyChange(layers, change) }
+            val rejection =
+                changeSet.layerChanges.firstNotNullOfOrNull { change -> applyChange(layers, change) }
+                    ?: changeSet.structure.applyTo(layers)
             return if (rejection == null) createState(currentState, changeSet, layers) else rejected(rejection)
         }
 

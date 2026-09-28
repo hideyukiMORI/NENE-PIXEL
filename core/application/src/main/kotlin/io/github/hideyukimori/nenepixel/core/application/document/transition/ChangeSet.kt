@@ -13,19 +13,25 @@ public class ChangeSet private constructor(
     public val beforeRevision: Revision,
     public val afterRevision: Revision,
     internal val paletteTransition: PaletteTransition,
-    private val pixels: Pixels,
+    private val layers: Layers,
 ) {
     internal val canvas: CanvasSize
-        get() = pixels.canvas
+        get() = layers.canvas
 
     /** At most one entry per layer id; empty when no layer's pixels change. */
     internal val layerChanges: List<LayerChange>
-        get() = pixels.layerChanges
+        get() = layers.layerChanges
+
+    /** Applied after [layerChanges]; [LayerStructureTransition.None] when the layer list keeps its shape. */
+    internal val structure: LayerStructureTransition
+        get() = layers.structure
 
     public val renderInvalidation: PixelRegion
         get() {
             val only = layerChanges.singleOrNull()?.changes
-            return if (paletteTransition is PaletteTransition.Unchanged && only is LayerIndexChanges.Sparse) {
+            val narrow =
+                paletteTransition is PaletteTransition.Unchanged && structure is LayerStructureTransition.None
+            return if (narrow && only is LayerIndexChanges.Sparse) {
                 only.patch.affectedRegion
             } else {
                 fullCanvasRegion()
@@ -38,14 +44,14 @@ public class ChangeSet private constructor(
     internal val retainedByteCount: Long
         get() =
             TRANSITION_BYTES + layerChanges.sumOf { it.changes.retainedByteCount } +
-                paletteTransition.retainedByteCount
+                paletteTransition.retainedByteCount + structure.retainedByteCount
 
     internal fun inverse(): ChangeSet =
         ChangeSet(
             afterRevision,
             beforeRevision,
             paletteTransition.inverse(),
-            Pixels(canvas, layerChanges.map { it.inverse() }),
+            Layers(canvas, layerChanges.map { it.inverse() }, structure.inverse()),
         )
 
     private fun fullCanvasRegion(): PixelRegion {
@@ -57,7 +63,7 @@ public class ChangeSet private constructor(
         this === other ||
             (
                 other is ChangeSet && beforeRevision == other.beforeRevision && afterRevision == other.afterRevision &&
-                    paletteTransition == other.paletteTransition && pixels == other.pixels
+                    paletteTransition == other.paletteTransition && layers == other.layers
             )
 
     override fun hashCode(): Int =
@@ -65,16 +71,17 @@ public class ChangeSet private constructor(
             (
                 HASH_MULTIPLIER * (HASH_MULTIPLIER * beforeRevision.hashCode() + afterRevision.hashCode()) +
                     paletteTransition.hashCode()
-            ) + pixels.hashCode()
+            ) + layers.hashCode()
 
     override fun toString(): String =
         "ChangeSet(beforeRevision=$beforeRevision, afterRevision=$afterRevision, " +
-            "layerChangeCount=${layerChanges.size}, renderInvalidation=$renderInvalidation)"
+            "layerChangeCount=${layerChanges.size}, structure=$structure, renderInvalidation=$renderInvalidation)"
 
-    // Canvas and layer changes travel together so the constructor stays within four parameters.
-    private data class Pixels(
+    // Canvas, pixel changes and structure travel together to keep the constructor within four parameters.
+    private data class Layers(
         val canvas: CanvasSize,
         val layerChanges: List<LayerChange>,
+        val structure: LayerStructureTransition,
     )
 
     public companion object {
@@ -92,8 +99,26 @@ public class ChangeSet private constructor(
             require(
                 owned.distinctBy { it.layerId }.size == owned.size,
             ) { "A layer may change at most once per ChangeSet." }
-            return ChangeSet(source.revision, afterRevision, paletteTransition, Pixels(source.size, owned))
+            return ChangeSet(
+                source.revision,
+                afterRevision,
+                paletteTransition,
+                Layers(source.size, owned, LayerStructureTransition.None),
+            )
         }
+
+        /** Records a layer-list change from [source] with no pixel change and an unchanged palette. */
+        internal fun createStructural(
+            source: DocumentState,
+            afterRevision: Revision,
+            structure: LayerStructureTransition,
+        ): ChangeSet =
+            ChangeSet(
+                source.revision,
+                afterRevision,
+                PaletteTransition.Unchanged,
+                Layers(source.size, emptyList(), structure),
+            )
 
         private fun <T> required(result: DomainValueResult<T>): T =
             when (result) {

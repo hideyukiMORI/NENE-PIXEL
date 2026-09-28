@@ -71,4 +71,8 @@ public sealed interface RejectionReason {
     public data class LayerNotFound internal constructor(
         public val layerId: LayerId,
     ) : RejectionReason
+
+    public data class LayerStructureMismatch internal constructor(
+        public val layerId: LayerId,
+    ) : RejectionReason
 }
