@@ -14,7 +14,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.App
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.state
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.stroke
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ChangeSet
-import io.github.hideyukimori.nenepixel.core.application.document.transition.IndexChanges
+import io.github.hideyukimori.nenepixel.core.application.document.transition.LayerIndexChanges
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelLimits
@@ -224,7 +224,8 @@ internal class CommandGatewayHistoryTest {
 
     @Test
     fun `entry cap evicts the oldest command and keeps exactly sixty four undo steps`() {
-        val initial = state(canvas(1, 1))
+        // Three pixels keep each one-pixel stroke sparse so it counts one retained change.
+        val initial = state(canvas(3, 1))
         val gateway = CommandGateway.create(initial)
 
         repeat(PixelLimits.MAX_HISTORY_ENTRIES + 1) { index ->
@@ -255,28 +256,17 @@ internal class CommandGatewayHistoryTest {
     }
 
     @Test
-    fun `retained change workload stays at policy cap and evicts one full canvas entry`() {
+    fun `retained change workload stays at policy cap and evicts one largest sparse entry`() {
         val size = canvas(PixelLimits.MAX_CANVAS_AXIS, PixelLimits.MAX_CANVAS_AXIS)
-        val initial = state(size)
-        val gateway = CommandGateway.create(initial)
-        val fullCanvasPath = fullCanvasPath()
+        val gateway = CommandGateway.create(state(size))
+        val largestSparsePath = fullCanvasPath().take(LARGEST_SPARSE_CHANGES)
 
-        repeat(9) { index ->
-            val current = gateway.runtimeState.documentState
-            val color = if (index % 2 == 0) redIndex else greenIndex
-            applied(
-                gateway.execute(
-                    ApplyStrokeCommand.create(
-                        gateway.captureSource(),
-                        stroke(size, fullCanvasPath, color),
-                    ),
-                ),
-            )
-        }
+        repeat(22) { index -> applyAlternating(gateway, largestSparsePath, index) }
 
-        assertEquals(8, gateway.runtimeState.historyEntryCount)
-        assertEquals(PixelLimits.MAX_RETAINED_CHANGES, gateway.runtimeState.retainedHistoryChangeCount)
-        repeat(8) {
+        assertEquals(21, gateway.runtimeState.historyEntryCount)
+        assertEquals(516_096, gateway.runtimeState.retainedHistoryChangeCount)
+        assertEquals(21L * 147_488L, gateway.runtimeState.retainedHistoryByteCount)
+        repeat(21) {
             val current = gateway.runtimeState.documentState
             applied(gateway.execute(UndoCommand.create(current.id, current.revision)))
         }
@@ -287,6 +277,32 @@ internal class CommandGatewayHistoryTest {
             RejectionReason.NoUndoAvailable,
             rejected(gateway.execute(UndoCommand.create(oldestRetained.id, oldestRetained.revision))),
         )
+    }
+
+    @Test
+    fun `full canvas strokes are retained dense without eviction and undo redo round trip`() {
+        val size = canvas(PixelLimits.MAX_CANVAS_AXIS, PixelLimits.MAX_CANVAS_AXIS)
+        val initial = state(size)
+        val gateway = CommandGateway.create(initial)
+        val fullCanvasPath = fullCanvasPath()
+
+        repeat(9) { index -> applyAlternating(gateway, fullCanvasPath, index) }
+        val afterStrokes = gateway.runtimeState.documentState
+
+        assertEquals(9, gateway.runtimeState.historyEntryCount)
+        assertEquals(0, gateway.runtimeState.retainedHistoryChangeCount)
+        assertEquals(9L * 147_488L, gateway.runtimeState.retainedHistoryByteCount)
+        repeat(9) {
+            val current = gateway.runtimeState.documentState
+            val undo = applied(gateway.execute(UndoCommand.create(current.id, current.revision)))
+            assertInstanceOf(LayerIndexChanges.Dense::class.java, undo.layerChanges.single().changes)
+        }
+        assertEquals(initial, gateway.runtimeState.documentState)
+        repeat(9) {
+            val current = gateway.runtimeState.documentState
+            applied(gateway.execute(RedoCommand.create(current.id, current.revision)))
+        }
+        assertEquals(afterStrokes, gateway.runtimeState.documentState)
     }
 
     @Test
@@ -362,12 +378,34 @@ internal class CommandGatewayHistoryTest {
             stroke(gateway.runtimeState.documentState.size, listOf(position), index),
         )
 
-    private fun changedPatch(changeSet: ChangeSet) = (changeSet.indexChanges as IndexChanges.Changed).patch
+    private fun applyAlternating(
+        gateway: CommandGateway,
+        path: List<PixelPosition>,
+        index: Int,
+    ) {
+        val color = if (index % 2 == 0) redIndex else greenIndex
+        applied(
+            gateway.execute(
+                ApplyStrokeCommand.create(
+                    gateway.captureSource(),
+                    stroke(gateway.runtimeState.documentState.size, path, color),
+                ),
+            ),
+        )
+    }
+
+    private fun changedPatch(changeSet: ChangeSet) =
+        (changeSet.layerChanges.single().changes as LayerIndexChanges.Sparse).patch
 
     private fun fullCanvasPath(): List<PixelPosition> =
         List(PixelLimits.MAX_CANVAS_PIXELS) { index ->
             position(index % PixelLimits.MAX_CANVAS_AXIS, index / PixelLimits.MAX_CANVAS_AXIS)
         }
+
+    private companion object {
+        // 6 * 24,576 = 147,456 = 2 * (65,536 + 8,192): the largest change that stays sparse on 256 x 256.
+        const val LARGEST_SPARSE_CHANGES: Int = 24_576
+    }
 
     private data class ReplayOutcome(
         val results: List<CommandResult>,

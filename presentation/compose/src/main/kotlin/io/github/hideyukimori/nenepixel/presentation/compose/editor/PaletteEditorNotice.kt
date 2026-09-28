@@ -119,6 +119,8 @@ private fun RejectionReason.noticeResource(): Int =
         RejectionReason.SourceHistoryMismatch,
         is RejectionReason.InvalidIndexedValue,
         is RejectionReason.HistoryEntryAboveRetainedPayloadMaximum,
+        is RejectionReason.LayerSnapshotMismatch,
+        is RejectionReason.LayerNotFound,
         -> R.string.palette_editor_apply_failed
     }
 

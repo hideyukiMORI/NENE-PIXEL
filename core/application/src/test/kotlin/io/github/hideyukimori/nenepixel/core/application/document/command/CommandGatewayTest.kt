@@ -14,17 +14,14 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.App
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.revision
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.state
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.stroke
-import io.github.hideyukimori.nenepixel.core.application.document.transition.IndexChanges
+import io.github.hideyukimori.nenepixel.core.application.document.transition.DocumentTransition
+import io.github.hideyukimori.nenepixel.core.application.document.transition.DocumentTransitionAssertions.created
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelCell
-import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
-import io.github.hideyukimori.nenepixel.core.pixelengine.PixelPatch
-import io.github.hideyukimori.nenepixel.core.pixelengine.PixelPatchApplicationResult
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.fail
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -40,8 +37,10 @@ internal class CommandGatewayTest {
         val firstResult = firstGateway.execute(command(firstGateway, draw))
         val secondResult = secondGateway.execute(command(secondGateway, draw))
         val changeSet = applied(firstResult)
-        val forward = changedPatch(changeSet.indexChanges)
-        val restored = appliedSnapshot(forward.inverse().applyTo(firstGateway.runtimeState.documentState.snapshot))
+        val restored =
+            created(
+                DocumentTransition.create(firstGateway.runtimeState.documentState, changeSet.inverse()),
+            ).nextState.snapshot
 
         assertEquals(firstResult, secondResult)
         assertEquals(firstGateway.runtimeState.documentState, secondGateway.runtimeState.documentState)
@@ -148,15 +147,6 @@ internal class CommandGatewayTest {
         gateway: CommandGateway,
         stroke: io.github.hideyukimori.nenepixel.core.domain.drawing.Stroke,
     ): ApplyStrokeCommand = ApplyStrokeCommand.create(gateway.captureSource(), stroke)
-
-    private fun changedPatch(changes: IndexChanges): PixelPatch =
-        assertInstanceOf(IndexChanges.Changed::class.java, changes).patch
-
-    private fun appliedSnapshot(result: PixelPatchApplicationResult): PixelSnapshot =
-        when (result) {
-            is PixelPatchApplicationResult.Applied -> result.snapshot
-            is PixelPatchApplicationResult.Rejected -> fail("Patch rejected: ${result.rejection}")
-        }
 
     private fun executeConcurrently(
         gateway: CommandGateway,

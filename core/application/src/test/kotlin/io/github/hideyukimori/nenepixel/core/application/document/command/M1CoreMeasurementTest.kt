@@ -10,7 +10,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.App
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.snapshot
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.state
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.stroke
-import io.github.hideyukimori.nenepixel.core.application.document.transition.IndexChanges
+import io.github.hideyukimori.nenepixel.core.application.document.transition.LayerIndexChanges
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.drawing.Stroke
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
@@ -337,7 +337,7 @@ internal class M1CoreMeasurementTest {
     )
 
     private fun io.github.hideyukimori.nenepixel.core.application.document.transition.ChangeSet.changedPatch() =
-        (indexChanges as IndexChanges.Changed).patch
+        (layerChanges.single().changes as LayerIndexChanges.Sparse).patch
 
     private class ThreadAllocationCounter private constructor(
         private val bean: ThreadMXBean,

@@ -9,6 +9,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.App
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.position
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.redIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.revision
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.sparseChangeSet
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.state
 import io.github.hideyukimori.nenepixel.core.application.document.transition.DocumentTransitionAssertions.created
 import io.github.hideyukimori.nenepixel.core.application.document.transition.DocumentTransitionAssertions.rejected
@@ -29,8 +30,8 @@ internal class DocumentTransitionTest {
                 listOf(PixelChange.create(position(1, 0), PixelCell.Covered(blackIndex), PixelCell.Covered(redIndex))),
             )
 
-        val first = created(DocumentTransition.create(current, ChangeSet.create(patch)))
-        val second = created(DocumentTransition.create(current, ChangeSet.create(patch)))
+        val first = created(DocumentTransition.create(current, sparseChangeSet(current, patch)))
+        val second = created(DocumentTransition.create(current, sparseChangeSet(current, patch)))
 
         assertEquals(first, second)
         assertEquals(current.id, first.nextState.id)
@@ -52,7 +53,7 @@ internal class DocumentTransitionTest {
                 listOf(PixelChange.create(position(0, 0), PixelCell.Covered(blackIndex), PixelCell.Covered(redIndex))),
             )
 
-        val reason = rejected(DocumentTransition.create(current, ChangeSet.create(patch)))
+        val reason = rejected(DocumentTransition.create(current, sparseChangeSet(state(smallerCanvas), patch)))
 
         val mismatch = assertInstanceOf(RejectionReason.CanvasMismatch::class.java, reason)
         assertEquals(smallerCanvas, mismatch.expected)
@@ -72,7 +73,8 @@ internal class DocumentTransitionTest {
                 listOf(PixelChange.create(position(0, 0), PixelCell.Covered(blackIndex), PixelCell.Covered(redIndex))),
             )
 
-        val reason = rejected(DocumentTransition.create(current, ChangeSet.create(patch)))
+        val reason =
+            rejected(DocumentTransition.create(current, sparseChangeSet(state(current.size, revision(1L)), patch)))
 
         val mismatch = assertInstanceOf(RejectionReason.RevisionMismatch::class.java, reason)
         assertEquals(revision(1L), mismatch.expected)
@@ -91,7 +93,7 @@ internal class DocumentTransitionTest {
                 listOf(PixelChange.create(position(0, 0), PixelCell.Covered(blackIndex), PixelCell.Covered(redIndex))),
             )
 
-        val reason = rejected(DocumentTransition.create(current, ChangeSet.create(patch)))
+        val reason = rejected(DocumentTransition.create(current, sparseChangeSet(current, patch)))
 
         val mismatch = assertInstanceOf(RejectionReason.PixelBeforeValueMismatch::class.java, reason)
         assertEquals(position(0, 0), mismatch.position)

@@ -7,6 +7,8 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.App
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.position
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.redIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.revision
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.sparseChangeSet
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.sparsePatch
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.state
 import io.github.hideyukimori.nenepixel.core.application.document.transition.DocumentTransitionAssertions.created
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelRegion
@@ -28,15 +30,15 @@ internal class ChangeSetTest {
                 PixelChange.create(position(1, 0), PixelCell.Covered(blackIndex), PixelCell.Covered(redIndex)),
             )
         val patch = patch(canvas, original.revision, input)
-        val changeSet = created(DocumentTransition.create(original, ChangeSet.create(patch))).changeSet
+        val changeSet = created(DocumentTransition.create(original, sparseChangeSet(original, patch))).changeSet
 
         input.clear()
 
         assertEquals(revision(4L), changeSet.beforeRevision)
         assertEquals(revision(5L), changeSet.afterRevision)
         assertEquals(region(canvas, position(1, 0), canvas(3, 3)), changeSet.renderInvalidation)
-        val forward = (changeSet.indexChanges as IndexChanges.Changed).patch
-        val inverse = (changeSet.inverse().indexChanges as IndexChanges.Changed).patch
+        val forward = sparsePatch(changeSet)
+        val inverse = sparsePatch(changeSet.inverse())
         assertEquals(revision(5L), inverse.beforeRevision)
         assertEquals(revision(4L), inverse.afterRevision)
         assertEquals(changeSet.renderInvalidation, inverse.affectedRegion)
@@ -53,8 +55,8 @@ internal class ChangeSetTest {
         val change = PixelChange.create(position(0, 0), PixelCell.Covered(blackIndex), PixelCell.Covered(redIndex))
         val firstPatch = patch(canvas, original.revision, listOf(change))
         val secondPatch = patch(canvas, original.revision, listOf(change))
-        val first = created(DocumentTransition.create(original, ChangeSet.create(firstPatch))).changeSet
-        val second = created(DocumentTransition.create(original, ChangeSet.create(secondPatch))).changeSet
+        val first = created(DocumentTransition.create(original, sparseChangeSet(original, firstPatch))).changeSet
+        val second = created(DocumentTransition.create(original, sparseChangeSet(original, secondPatch))).changeSet
 
         assertEquals(first, second)
         assertEquals(first.hashCode(), second.hashCode())

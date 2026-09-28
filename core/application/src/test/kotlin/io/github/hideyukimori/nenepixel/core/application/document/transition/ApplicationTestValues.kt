@@ -13,6 +13,7 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasWidth
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelX
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelY
+import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
@@ -89,6 +90,20 @@ internal object ApplicationTestValues {
             is PixelPatchCreationResult.Created -> result.patch
             is PixelPatchCreationResult.Rejected -> fail("Test patch was rejected: ${result.rejection}")
         }
+
+    fun sparseChangeSet(
+        source: DocumentState,
+        patch: PixelPatch,
+    ): ChangeSet =
+        ChangeSet.create(
+            source,
+            patch.afterRevision,
+            PaletteTransition.Unchanged,
+            listOf(LayerChange(LayerId.first(), LayerIndexChanges.Sparse(patch))),
+        )
+
+    fun sparsePatch(changeSet: ChangeSet): PixelPatch =
+        (changeSet.layerChanges.single().changes as LayerIndexChanges.Sparse).patch
 
     fun appliedSnapshot(result: PixelPatchApplicationResult): PixelSnapshot =
         when (result) {

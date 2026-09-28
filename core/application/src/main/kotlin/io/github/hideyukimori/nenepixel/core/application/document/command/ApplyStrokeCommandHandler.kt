@@ -3,6 +3,9 @@ package io.github.hideyukimori.nenepixel.core.application.document.command
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ChangeSet
 import io.github.hideyukimori.nenepixel.core.application.document.transition.DocumentTransition
 import io.github.hideyukimori.nenepixel.core.application.document.transition.DocumentTransitionResult
+import io.github.hideyukimori.nenepixel.core.application.document.transition.LayerChange
+import io.github.hideyukimori.nenepixel.core.application.document.transition.LayerIndexChanges
+import io.github.hideyukimori.nenepixel.core.application.document.transition.PaletteTransition
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.drawing.StrokeEffect
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
@@ -31,12 +34,21 @@ internal class ApplyStrokeCommandHandler {
     private fun rasterize(
         currentState: DocumentState,
         command: ApplyStrokeCommand,
-    ): DocumentTransitionResult =
-        when (val result = rasterizeStroke(currentState.snapshot, command.stroke)) {
+    ): DocumentTransitionResult {
+        // Interim target: the bottom layer (migrating documents have one). Replace with the LayerId the gesture
+        // captures in Issue #142 S7.
+        val layer = currentState.layers.first()
+        return when (val result = rasterizeStroke(layer.snapshot, command.stroke)) {
             is StrokeRasterizationResult.Rasterized -> {
+                val changes = LayerChange(layer.id, LayerIndexChanges.select(layer.snapshot, result.patch))
                 DocumentTransition.create(
                     currentState,
-                    ChangeSet.create(result.patch),
+                    ChangeSet.create(
+                        currentState,
+                        result.patch.afterRevision,
+                        PaletteTransition.Unchanged,
+                        listOf(changes),
+                    ),
                 )
             }
 
@@ -48,6 +60,7 @@ internal class ApplyStrokeCommandHandler {
                 rejected(result.rejection.toReason())
             }
         }
+    }
 
     private fun StrokeRasterizationRejection.toReason(): RejectionReason =
         when (this) {
