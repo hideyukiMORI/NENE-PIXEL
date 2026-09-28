@@ -67,7 +67,8 @@ internal object ApplicationTestValues {
         indices: List<PaletteIndex> = List(canvas.pixelCount.toInt()) { blackIndex },
         documentId: DocumentId = defaultDocumentId,
         definition: PaletteDefinition = defaultDefinition,
-    ): DocumentState = DocumentState.create(documentId, revision, definition, snapshot(canvas, indices)).value()
+    ): DocumentState =
+        DocumentState.createSingleLayer(documentId, revision, definition, snapshot(canvas, indices)).value()
 
     fun stroke(
         canvas: CanvasSize,
@@ -108,11 +109,6 @@ internal object ApplicationTestValues {
             is PixelPatchApplicationResult.Applied -> result.snapshot
             is PixelPatchApplicationResult.Rejected -> fail("Test application was rejected: ${result.rejection}")
         }
-
-    fun indexAt(
-        snapshot: PixelSnapshot,
-        position: PixelPosition,
-    ): PaletteIndex = snapshot.indexAt(position).value()
 
     fun cellAt(
         snapshot: PixelSnapshot,

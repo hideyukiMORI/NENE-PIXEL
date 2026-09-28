@@ -63,13 +63,22 @@ internal object PresentationTestValues {
     fun cellAt(
         state: DocumentState,
         position: PixelPosition,
-    ): PixelCell = state.snapshot.cellAt(position).requiredValue()
+    ): PixelCell =
+        state.layers
+            .single()
+            .snapshot
+            .cellAt(position)
+            .requiredValue()
 
     fun colorAt(
         state: DocumentState,
         position: PixelPosition,
     ): PixelColor {
-        val index = state.snapshot.indexAt(position).requiredValue()
+        val index =
+            when (val cell = cellAt(state, position)) {
+                is PixelCell.Covered -> cell.index
+                PixelCell.Empty -> fail("Expected a covered cell at $position")
+            }
         return state.definition.palette
             .entryAt(index)
             .requiredValue()

@@ -8,7 +8,6 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.App
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.cellAt
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.eraserStroke
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.greenIndex
-import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.indexAt
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.position
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.redIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.revision
@@ -41,16 +40,20 @@ internal class CommandGatewayTest {
         val restored =
             created(
                 DocumentTransition.create(firstGateway.runtimeState.documentState, changeSet.inverse()),
-            ).nextState.snapshot
+            ).nextState.layers.single().snapshot
 
         assertEquals(firstResult, secondResult)
         assertEquals(firstGateway.runtimeState.documentState, secondGateway.runtimeState.documentState)
         assertEquals(revision(0), changeSet.beforeRevision)
         assertEquals(revision(1), changeSet.afterRevision)
-        assertEquals(redIndex, indexAt(firstGateway.runtimeState.documentState.snapshot, position(0, 0)))
-        assertEquals(greenIndex, indexAt(firstGateway.runtimeState.documentState.snapshot, position(1, 0)))
-        assertEquals(redIndex, indexAt(firstGateway.runtimeState.documentState.snapshot, position(2, 0)))
-        assertEquals(initial.snapshot, restored)
+        val committed =
+            firstGateway.runtimeState.documentState.layers
+                .single()
+                .snapshot
+        assertEquals(PixelCell.Covered(redIndex), cellAt(committed, position(0, 0)))
+        assertEquals(PixelCell.Covered(greenIndex), cellAt(committed, position(1, 0)))
+        assertEquals(PixelCell.Covered(redIndex), cellAt(committed, position(2, 0)))
+        assertEquals(initial.layers.single().snapshot, restored)
     }
 
     @Test
@@ -88,8 +91,8 @@ internal class CommandGatewayTest {
         )
         val erased = gateway.runtimeState.documentState
 
-        assertEquals(PixelCell.Empty, cellAt(erased.snapshot, position(0, 0)))
-        assertEquals(PixelCell.Empty, cellAt(erased.snapshot, position(1, 0)))
+        assertEquals(PixelCell.Empty, cellAt(erased.layers.single().snapshot, position(0, 0)))
+        assertEquals(PixelCell.Empty, cellAt(erased.layers.single().snapshot, position(1, 0)))
         assertEquals(HistoryAvailability.UndoAvailable, gateway.runtimeState.historyAvailability)
         applied(gateway.execute(UndoCommand.create(erased.id, erased.revision)))
         assertEquals(initial, gateway.runtimeState.documentState)
@@ -117,7 +120,15 @@ internal class CommandGatewayTest {
         applied(gateway.execute(redCommand))
         assertEquals(RejectionReason.SourceHistoryMismatch, rejected(gateway.execute(staleGreen)))
         applied(gateway.execute(command(gateway, stroke(initial.size, listOf(position(0, 0)), greenIndex))))
-        assertEquals(greenIndex, indexAt(gateway.runtimeState.documentState.snapshot, position(0, 0)))
+        assertEquals(
+            PixelCell.Covered(greenIndex),
+            cellAt(
+                gateway.runtimeState.documentState.layers
+                    .single()
+                    .snapshot,
+                position(0, 0),
+            ),
+        )
     }
 
     @Test
@@ -147,9 +158,13 @@ internal class CommandGatewayTest {
                 rejected(results.single { it is CommandResult.Rejected }),
             )
             assertEquals(revision(1), gateway.runtimeState.documentState.revision)
+            val committed =
+                gateway.runtimeState.documentState.layers
+                    .single()
+                    .snapshot
             assertTrue(
-                indexAt(gateway.runtimeState.documentState.snapshot, position(0, 0)) == redIndex ||
-                    indexAt(gateway.runtimeState.documentState.snapshot, position(1, 0)) == greenIndex,
+                cellAt(committed, position(0, 0)) == PixelCell.Covered(redIndex) ||
+                    cellAt(committed, position(1, 0)) == PixelCell.Covered(greenIndex),
             )
         }
     }

@@ -15,13 +15,6 @@ public class PixelSnapshot private constructor(
 ) {
     public val maximumIndex: PaletteIndex = maximumOf(packedIndices)
 
-    public fun indexAt(position: PixelPosition): DomainValueResult<PaletteIndex> =
-        if (size.contains(position)) {
-            created(PaletteIndex.createWithinPalette(packedIndices[position.rowMajorIndex(size)].toInt() and U8_MASK))
-        } else {
-            rejected(DomainValueRejection.PixelPositionOutsideCanvas(size, position))
-        }
-
     public fun cellAt(position: PixelPosition): DomainValueResult<PixelCell> =
         if (size.contains(position)) {
             created(cellAtRowMajor(position.rowMajorIndex(size)))

@@ -205,7 +205,11 @@ internal class PreparedCommandWorkload internal constructor(
             spec = spec,
             outcome = verifySample(result),
             documentHash = runtimeState.documentState.hashCode(),
-            snapshotHash = runtimeState.documentState.snapshot.hashCode(),
+            snapshotHash =
+                runtimeState.documentState.layers
+                    .single()
+                    .snapshot
+                    .hashCode(),
         )
     }
 
@@ -610,7 +614,7 @@ private class IndexedPaletteMeasurementValues(
         indices: List<PaletteIndex>,
     ): DocumentState =
         DocumentState
-            .create(
+            .createSingleLayer(
                 documentId,
                 revision,
                 definition,
@@ -670,7 +674,7 @@ private class CoreMeasurementValues(
         pixels: List<PaletteIndex>,
     ): DocumentState =
         DocumentState
-            .create(
+            .createSingleLayer(
                 documentId,
                 revision,
                 definition,
@@ -679,7 +683,7 @@ private class CoreMeasurementValues(
 
     fun emptyDocument(revision: Revision): DocumentState =
         DocumentState
-            .create(
+            .createSingleLayer(
                 documentId,
                 revision,
                 definition,

@@ -109,7 +109,9 @@ internal class EditorRuntimeTest {
         assertEquals(0L, state.documentState.revision.value)
         assertEquals(
             List(6) { 0 },
-            state.documentState.snapshot
+            state.documentState.layers
+                .single()
+                .snapshot
                 .copyPackedIndices()
                 .map { it.toInt() and 0xff },
         )
@@ -170,7 +172,12 @@ internal class EditorRuntimeTest {
         apply(runtime, position(1, 0), redIndex)
 
         assertEquals(abandoned.revision, runtime.state.documentState.revision)
-        assertNotEquals(abandoned.snapshot, runtime.state.documentState.snapshot)
+        assertNotEquals(
+            abandoned.layers.single().snapshot,
+            runtime.state.documentState.layers
+                .single()
+                .snapshot,
+        )
         assertEquals(DocumentDirtyState.Dirty, runtime.state.dirtyState)
 
         val branch = runtime.state.documentState
@@ -211,7 +218,10 @@ internal class EditorRuntimeTest {
     @Test
     fun `new document starts with every pixel Empty`() {
         val runtime = EditorRuntime.create(canvas(3, 2), toolDefinition, SequentialDocumentIdSource())
-        val snapshot = runtime.state.documentState.snapshot
+        val snapshot =
+            runtime.state.documentState.layers
+                .single()
+                .snapshot
 
         assertEquals(PixelSnapshot.createEmpty(snapshot.size), snapshot)
         for (y in 0 until 2) {

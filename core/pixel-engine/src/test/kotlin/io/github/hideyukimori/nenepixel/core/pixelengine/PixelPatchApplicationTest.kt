@@ -35,9 +35,9 @@ internal class PixelPatchApplicationTest {
 
         val result = applied(patch.applyTo(original))
 
-        assertEquals(red, result.color(position(0, 0)))
-        assertEquals(green, result.color(position(1, 0)))
-        assertEquals(green, result.color(position(2, 0)))
+        assertEquals(PixelCell.Covered(red), result.color(position(0, 0)))
+        assertEquals(PixelCell.Covered(green), result.color(position(1, 0)))
+        assertEquals(PixelCell.Covered(green), result.color(position(2, 0)))
     }
 
     @Test
@@ -73,7 +73,7 @@ internal class PixelPatchApplicationTest {
         val changed = applied(patch.applyTo(original))
         val restored = applied(patch.inverse().applyTo(changed))
 
-        assertEquals(target, changed.color(position(0, 0)))
+        assertEquals(PixelCell.Covered(target), changed.color(position(0, 0)))
         assertEquals(original, restored)
     }
 
@@ -95,8 +95,8 @@ internal class PixelPatchApplicationTest {
             PixelPatchApplicationRejection.BeforeValueMismatch::class.java,
             applicationRejected(patch.applyTo(original)),
         )
-        assertEquals(black, original.color(position(0, 0)))
-        assertEquals(green, original.color(position(1, 0)))
+        assertEquals(PixelCell.Covered(black), original.color(position(0, 0)))
+        assertEquals(PixelCell.Covered(green), original.color(position(1, 0)))
     }
 
     @Test
@@ -131,8 +131,8 @@ internal class PixelPatchApplicationTest {
 
     private fun io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot.color(
         position: io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition,
-    ): io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex =
-        when (val result = indexAt(position)) {
+    ): PixelCell =
+        when (val result = cellAt(position)) {
             is DomainValueResult.Created -> result.value
             is DomainValueResult.Rejected -> fail("Test position was rejected: ${result.rejection}")
         }

@@ -28,7 +28,13 @@ internal class ProjectFormatV2CodecGoldenTest {
         val entries = current.definition.palette.entries()
         assertEquals(0x11223300, entries[0].color.toPackedRgba8888())
         assertEquals(entries[1].color, entries[2].color)
-        assertArrayEquals(byteArrayOf(0, 1, 2, 2, 1, 0), current.snapshot.copyPackedIndices())
+        assertArrayEquals(
+            byteArrayOf(0, 1, 2, 2, 1, 0),
+            current.layers
+                .single()
+                .snapshot
+                .copyPackedIndices(),
+        )
     }
 
     @Test

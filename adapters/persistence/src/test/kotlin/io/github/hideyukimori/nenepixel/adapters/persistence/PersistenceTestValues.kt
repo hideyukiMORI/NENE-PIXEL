@@ -131,7 +131,9 @@ internal object PersistenceTestValues {
         val palette = created(Palette.create(colors.map(PixelColor::fromPackedRgba8888)))
         val definition = created(PaletteDefinition.create(palette, created(PaletteIndex.create(defaultIndex))))
         val snapshot = created(PixelSnapshot.createPackedIndices(size, indices))
-        return created(DocumentState.create(documentId, created(Revision.create(revision)), definition, snapshot))
+        return created(
+            DocumentState.createSingleLayer(documentId, created(Revision.create(revision)), definition, snapshot),
+        )
     }
 
     private fun <T> created(result: DomainValueResult<T>): T =

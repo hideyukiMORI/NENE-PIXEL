@@ -124,7 +124,9 @@ internal class EditorRecoveryOfferTest {
     }
 
     private fun DocumentState.visiblePixels(): IntArray =
-        snapshot
+        layers
+            .single()
+            .snapshot
             .copyPackedIndices()
             .map { packed ->
                 definition.palette

@@ -148,7 +148,9 @@ public class AndroidPersistenceFunctionalTest {
             try {
                 assertEquals(
                     PngExportOutcome.Exported,
-                    adapter.export(created(DocumentState.create(source.id, source.revision, definition, snapshot))),
+                    adapter.export(
+                        created(DocumentState.createSingleLayer(source.id, source.revision, definition, snapshot)),
+                    ),
                 )
                 val options = BitmapFactory.Options().apply { inPremultiplied = false }
                 val decoded = checkNotNull(BitmapFactory.decodeFile(output.absolutePath, options))
@@ -343,7 +345,7 @@ public class AndroidPersistenceFunctionalTest {
         val palette = created(Palette.create(listOf(PixelColor.blank, PixelColor.blank)))
         val definition = created(PaletteDefinition.create(palette, created(PaletteIndex.create(0))))
         val snapshot = created(PixelSnapshot.createPackedIndices(size, byteArrayOf(0)))
-        return created(DocumentState.create(id, created(Revision.create(0L)), definition, snapshot))
+        return created(DocumentState.createSingleLayer(id, created(Revision.create(0L)), definition, snapshot))
     }
 
     private fun <T> created(result: DomainValueResult<T>): T =

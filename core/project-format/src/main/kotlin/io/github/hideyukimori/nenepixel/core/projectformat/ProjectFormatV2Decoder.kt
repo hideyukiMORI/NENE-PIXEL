@@ -163,7 +163,7 @@ internal class ProjectFormatV2Decoder {
                     error("Validated v2 indices failed snapshot mapping: ${result.rejection}")
                 }
             }
-        return when (val result = DocumentState.create(fields.id, fields.revision, definition, snapshot)) {
+        return when (val result = DocumentState.createSingleLayer(fields.id, fields.revision, definition, snapshot)) {
             is DomainValueResult.Created -> accepted(DocumentImportSource.Current(result.value))
             is DomainValueResult.Rejected -> error("Validated v2 document failed domain mapping: ${result.rejection}")
         }

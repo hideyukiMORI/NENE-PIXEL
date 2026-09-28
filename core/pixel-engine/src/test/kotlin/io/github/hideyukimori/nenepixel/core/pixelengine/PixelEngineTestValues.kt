@@ -55,11 +55,6 @@ internal object PixelEngineTestValues {
         pixels: List<PaletteIndex> = List(canvas.pixelCount.toInt()) { black },
     ): PixelSnapshot = PixelSnapshot.create(canvas, pixels).value()
 
-    fun indexAt(
-        snapshot: PixelSnapshot,
-        position: PixelPosition,
-    ): PaletteIndex = snapshot.indexAt(position).value()
-
     fun cellAt(
         snapshot: PixelSnapshot,
         position: PixelPosition,

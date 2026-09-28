@@ -41,7 +41,7 @@ public object LegacyImportPlanner {
         val definition = PaletteDefinition.create(Palette.create(colors).requiredValue(), defaultIndex).requiredValue()
         val indices = ByteArray(packed.size) { position -> slots.getValue(packed[position]).toByte() }
         val snapshot = PixelSnapshot.createPackedIndices(source.size, indices).requiredValue()
-        val document = DocumentState.create(source.id, source.revision, definition, snapshot).requiredValue()
+        val document = DocumentState.createSingleLayer(source.id, source.revision, definition, snapshot).requiredValue()
         return LegacyImportResult.Lossless(document)
     }
 

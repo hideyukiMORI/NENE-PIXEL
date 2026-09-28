@@ -11,7 +11,6 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.App
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.definition
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.green
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.greenIndex
-import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.indexAt
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.position
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.red
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.redIndex
@@ -64,8 +63,8 @@ internal class RuntimePaletteOperationsTest {
         assertSame(PaletteApplyResult.Applied, runtime.paletteOperations.applyPaletteDraft())
 
         val document = runtime.state.documentState
-        assertEquals(blackIndex, indexAt(document.snapshot, position(0, 0)))
-        assertEquals(PixelCell.Empty, cellAt(document.snapshot, position(1, 1)))
+        assertEquals(PixelCell.Covered(blackIndex), cellAt(document.layers.single().snapshot, position(0, 0)))
+        assertEquals(PixelCell.Empty, cellAt(document.layers.single().snapshot, position(1, 1)))
         val colors =
             document.definition.palette
                 .entries()

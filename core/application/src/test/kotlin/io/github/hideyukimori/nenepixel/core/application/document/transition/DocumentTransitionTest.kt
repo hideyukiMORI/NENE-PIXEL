@@ -3,8 +3,8 @@ package io.github.hideyukimori.nenepixel.core.application.document.transition
 import io.github.hideyukimori.nenepixel.core.application.document.command.RejectionReason
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.blackIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.canvas
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.cellAt
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.greenIndex
-import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.indexAt
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.patch
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.position
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.redIndex
@@ -36,8 +36,16 @@ internal class DocumentTransitionTest {
         assertEquals(current.id, first.nextState.id)
         assertEquals(current.size, first.nextState.size)
         assertEquals(revision(1L), first.nextState.revision)
-        assertEquals(redIndex, indexAt(first.nextState.snapshot, position(1, 0)))
-        assertEquals(blackIndex, indexAt(current.snapshot, position(1, 0)))
+        assertEquals(
+            PixelCell.Covered(redIndex),
+            cellAt(
+                first.nextState.layers
+                    .single()
+                    .snapshot,
+                position(1, 0),
+            ),
+        )
+        assertEquals(PixelCell.Covered(blackIndex), cellAt(current.layers.single().snapshot, position(1, 0)))
         assertEquals(first.changeSet, second.changeSet)
     }
 
@@ -57,8 +65,8 @@ internal class DocumentTransitionTest {
         assertEquals(smallerCanvas, mismatch.expected)
         assertEquals(current.size, mismatch.actual)
         assertEquals(revision(0L), current.revision)
-        assertEquals(blackIndex, indexAt(current.snapshot, position(0, 0)))
-        assertEquals(blackIndex, indexAt(current.snapshot, position(1, 0)))
+        assertEquals(PixelCell.Covered(blackIndex), cellAt(current.layers.single().snapshot, position(0, 0)))
+        assertEquals(PixelCell.Covered(blackIndex), cellAt(current.layers.single().snapshot, position(1, 0)))
     }
 
     @Test
@@ -77,7 +85,7 @@ internal class DocumentTransitionTest {
         assertEquals(revision(1L), mismatch.expected)
         assertEquals(revision(2L), mismatch.actual)
         assertEquals(revision(2L), current.revision)
-        assertEquals(blackIndex, indexAt(current.snapshot, position(0, 0)))
+        assertEquals(PixelCell.Covered(blackIndex), cellAt(current.layers.single().snapshot, position(0, 0)))
     }
 
     @Test
@@ -96,6 +104,6 @@ internal class DocumentTransitionTest {
         assertEquals(PixelCell.Covered(blackIndex), mismatch.expected)
         assertEquals(PixelCell.Covered(greenIndex), mismatch.actual)
         assertEquals(revision(0L), current.revision)
-        assertEquals(greenIndex, indexAt(current.snapshot, position(0, 0)))
+        assertEquals(PixelCell.Covered(greenIndex), cellAt(current.layers.single().snapshot, position(0, 0)))
     }
 }

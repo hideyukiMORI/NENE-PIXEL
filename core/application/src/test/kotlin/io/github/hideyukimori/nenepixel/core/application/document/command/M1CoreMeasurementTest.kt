@@ -74,7 +74,14 @@ internal class M1CoreMeasurementTest {
             boundary = "canonical rasterizeStroke including PixelChange list and PixelPatch creation",
         ) {
             MeasuredOperation(
-                execute = { rasterizeStroke(fixture.initial.snapshot, fixture.stroke) },
+                execute = {
+                    rasterizeStroke(
+                        fixture.initial.layers
+                            .single()
+                            .snapshot,
+                        fixture.stroke,
+                    )
+                },
                 verify = { result -> verifyRasterized(result, fixture) },
             )
         }
@@ -168,13 +175,23 @@ internal class M1CoreMeasurementTest {
                 is StrokeRasterizationResult.Rejected -> fail("Measurement stroke was rejected: ${result.rejection}")
             }
         assertEquals(fixture.stroke.positionCount, patch.changeCount)
-        val applied = patch.applyTo(fixture.initial.snapshot)
+        val applied =
+            patch.applyTo(
+                fixture.initial.layers
+                    .single()
+                    .snapshot,
+            )
         val snapshot =
             when (applied) {
                 is PixelPatchApplicationResult.Applied -> applied.snapshot
                 is PixelPatchApplicationResult.Rejected -> fail("Measurement patch was rejected: ${applied.rejection}")
             }
-        assertEquals(fixture.expectedApplied.snapshot, snapshot)
+        assertEquals(
+            fixture.expectedApplied.layers
+                .single()
+                .snapshot,
+            snapshot,
+        )
     }
 
     private fun <T : Any> measure(

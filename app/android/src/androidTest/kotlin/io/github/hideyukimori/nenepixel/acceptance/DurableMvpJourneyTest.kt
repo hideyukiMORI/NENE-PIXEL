@@ -285,7 +285,9 @@ internal class DurableMvpJourneyTest {
     }
 
     private fun documentSnapshotPixels(document: DocumentState): IntArray =
-        document.snapshot
+        document.layers
+            .single()
+            .snapshot
             .copyPackedIndices()
             .map { packed ->
                 document.definition.palette

@@ -143,17 +143,30 @@ internal class ActualSizeWindowTest {
     fun theDockToggleShowsAndHidesTheWindowWithoutTouchingTheDocument() {
         val controller = controller()
         setEditorContent(controller, WIDE_EDGE, TALL_EDGE)
-        val before = controller.renderState.document.snapshot
+        val before =
+            controller.renderState.document.layers
+                .single()
+                .snapshot
         composeRule.onNodeWithTag(WINDOW_TAG).assertDoesNotExist()
         composeRule.onNodeWithTag(TOGGLE_TAG).assertIsNotSelected().performClick()
         composeRule.onNodeWithTag(WINDOW_TAG).assertIsDisplayed()
         composeRule.onNodeWithTag(TOGGLE_TAG).assertIsSelected()
         assertTrue(controller.renderState.actualSizeWindow.visible)
-        assertSame(before, controller.renderState.document.snapshot)
+        assertSame(
+            before,
+            controller.renderState.document.layers
+                .single()
+                .snapshot,
+        )
         composeRule.onNodeWithTag(TOGGLE_TAG).performClick()
         composeRule.onNodeWithTag(WINDOW_TAG).assertDoesNotExist()
         composeRule.onNodeWithTag(TOGGLE_TAG).assertIsNotSelected()
-        assertSame(before, controller.renderState.document.snapshot)
+        assertSame(
+            before,
+            controller.renderState.document.layers
+                .single()
+                .snapshot,
+        )
     }
 
     @Test

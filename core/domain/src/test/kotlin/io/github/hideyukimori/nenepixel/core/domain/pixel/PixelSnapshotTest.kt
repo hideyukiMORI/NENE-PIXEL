@@ -16,10 +16,10 @@ internal class PixelSnapshotTest {
         val values = listOf(index(0), index(127), index(128), index(255))
         val snapshot = created(PixelSnapshot.create(canvasSize(2, 2), values))
 
-        assertEquals(index(0), created(snapshot.indexAt(pixelPosition(0, 0))))
-        assertEquals(index(127), created(snapshot.indexAt(pixelPosition(1, 0))))
-        assertEquals(index(128), created(snapshot.indexAt(pixelPosition(0, 1))))
-        assertEquals(index(255), created(snapshot.indexAt(pixelPosition(1, 1))))
+        assertEquals(PixelCell.Covered(index(0)), created(snapshot.cellAt(pixelPosition(0, 0))))
+        assertEquals(PixelCell.Covered(index(127)), created(snapshot.cellAt(pixelPosition(1, 0))))
+        assertEquals(PixelCell.Covered(index(128)), created(snapshot.cellAt(pixelPosition(0, 1))))
+        assertEquals(PixelCell.Covered(index(255)), created(snapshot.cellAt(pixelPosition(1, 1))))
         assertEquals(listOf(0, 127, -128, -1), snapshot.copyPackedIndices().map(Byte::toInt))
     }
 
@@ -48,8 +48,8 @@ internal class PixelSnapshotTest {
         val output = snapshot.copyPackedIndices()
         output[1] = 12
 
-        assertEquals(index(0), created(snapshot.indexAt(pixelPosition(0, 0))))
-        assertEquals(index(255), created(snapshot.indexAt(pixelPosition(1, 0))))
+        assertEquals(PixelCell.Covered(index(0)), created(snapshot.cellAt(pixelPosition(0, 0))))
+        assertEquals(PixelCell.Covered(index(255)), created(snapshot.cellAt(pixelPosition(1, 0))))
         assertEquals(listOf<Byte>(0, 255.toByte()), snapshot.copyPackedIndices().toList())
     }
 
@@ -59,7 +59,7 @@ internal class PixelSnapshotTest {
         assertEquals(listOf(255, 255), snapshot.copyPackedIndices().map { it.toInt() and 0xff })
         assertInstanceOf(
             DomainValueRejection.PixelPositionOutsideCanvas::class.java,
-            rejected(snapshot.indexAt(pixelPosition(2, 0))),
+            rejected(snapshot.cellAt(pixelPosition(2, 0))),
         )
         assertInstanceOf(
             DomainValueRejection.PixelSnapshotIndexAboveStorageMaximum::class.java,

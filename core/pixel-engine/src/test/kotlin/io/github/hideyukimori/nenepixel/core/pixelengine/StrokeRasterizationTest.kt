@@ -8,7 +8,6 @@ import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.c
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.eraserStroke
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.green
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.index
-import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.indexAt
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.position
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.red
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.region
@@ -41,9 +40,9 @@ internal class StrokeRasterizationTest {
         val changed = applied(patch.applyTo(original))
         val restored = applied(patch.inverse().applyTo(changed))
 
-        assertEquals(red, indexAt(changed, position(0, 0)))
-        assertEquals(green, indexAt(changed, position(1, 0)))
-        assertEquals(red, indexAt(changed, position(2, 0)))
+        assertEquals(PixelCell.Covered(red), cellAt(changed, position(0, 0)))
+        assertEquals(PixelCell.Covered(green), cellAt(changed, position(1, 0)))
+        assertEquals(PixelCell.Covered(red), cellAt(changed, position(2, 0)))
         assertEquals(region(canvas, position(0, 0), canvas(3, 1)), patch.affectedRegion)
         assertEquals(original, restored)
     }
@@ -89,9 +88,9 @@ internal class StrokeRasterizationTest {
 
         assertEquals(1, patch.changeCount)
         assertEquals(region(canvas, position(2, 0), canvas(1, 1)), patch.affectedRegion)
-        assertEquals(red, indexAt(changed, position(0, 0)))
-        assertEquals(black, indexAt(changed, position(1, 0)))
-        assertEquals(red, indexAt(changed, position(2, 0)))
+        assertEquals(PixelCell.Covered(red), cellAt(changed, position(0, 0)))
+        assertEquals(PixelCell.Covered(black), cellAt(changed, position(1, 0)))
+        assertEquals(PixelCell.Covered(red), cellAt(changed, position(2, 0)))
     }
 
     @Test
@@ -180,6 +179,6 @@ internal class StrokeRasterizationTest {
             assertInstanceOf(StrokeRasterizationRejection.CanvasMismatch::class.java, outside)
         assertEquals(largerCanvas, canvasRejection.expected)
         assertEquals(smallerSnapshot.size, canvasRejection.actual)
-        assertEquals(black, indexAt(smallerSnapshot, position(0, 0)))
+        assertEquals(PixelCell.Covered(black), cellAt(smallerSnapshot, position(0, 0)))
     }
 }

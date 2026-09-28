@@ -19,7 +19,14 @@ internal class EditorAppearanceControllerTest {
         assertEquals(choice, result.appearance)
         assertEquals(choice, fixture.runtime.state.workspaceState.appearance)
         assertSame(result, fixture.controller.renderStates.value)
-        assertSame(before.document.snapshot, result.document.snapshot)
+        assertSame(
+            before.document.layers
+                .single()
+                .snapshot,
+            result.document.layers
+                .single()
+                .snapshot,
+        )
         assertSame(before.viewport, result.viewport)
         assertEquals(before.dirtyState, result.dirtyState)
         assertEquals(before.canUndo, result.canUndo)

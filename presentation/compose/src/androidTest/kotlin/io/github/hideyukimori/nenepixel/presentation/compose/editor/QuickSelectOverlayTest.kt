@@ -94,12 +94,20 @@ internal class QuickSelectOverlayTest {
         releaseOver(EYEDROPPER_TAG)
         assertEquals(EyedropperState.Armed, controller.renderState.quickSelection.eyedropper)
         composeRule.onNodeWithTag(CONTROL_TAG).assert(stateDescription(R.string.quick_select_state_eyedropper))
-        val snapshot = controller.renderState.document.snapshot
+        val snapshot =
+            controller.renderState.document.layers
+                .single()
+                .snapshot
         val canUndo = controller.renderState.canUndo
         composeRule.onNodeWithTag(CANVAS_TAG).performTouchInput { click(center) }
         composeRule.waitForIdle()
         assertEquals(index(2), controller.renderState.activePaletteIndex)
-        assertEquals(snapshot, controller.renderState.document.snapshot)
+        assertEquals(
+            snapshot,
+            controller.renderState.document.layers
+                .single()
+                .snapshot,
+        )
         assertEquals(canUndo, controller.renderState.canUndo)
         composeRule.onNodeWithTag(CONTROL_TAG).assert(stateDescription(R.string.quick_select_state_slot, 3))
     }
@@ -173,13 +181,21 @@ internal class QuickSelectOverlayTest {
     fun tappingTheScrimCancelsWithoutReachingTheCanvas() {
         val controller = paintedController()
         enterTapMode()
-        val snapshot = controller.renderState.document.snapshot
+        val snapshot =
+            controller.renderState.document.layers
+                .single()
+                .snapshot
         val canUndo = controller.renderState.canUndo
         composeRule.onNodeWithTag(SCRIM_TAG).performTouchInput { click(center) }
         composeRule.waitForIdle()
         assertEquals(index(0), controller.renderState.activePaletteIndex)
         assertNull(controller.renderState.quickSelection.menu)
-        assertEquals(snapshot, controller.renderState.document.snapshot)
+        assertEquals(
+            snapshot,
+            controller.renderState.document.layers
+                .single()
+                .snapshot,
+        )
         assertEquals(canUndo, controller.renderState.canUndo)
         composeRule.onNodeWithTag(FAN_TAG).assertDoesNotExist()
         composeRule.onNodeWithTag(SCRIM_TAG).assertDoesNotExist()

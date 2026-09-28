@@ -95,7 +95,7 @@ private class PaletteHistoryFixture {
         assertEquals(transitionCount.toLong(), document.revision.value)
         assertEquals(if (transitionCount % 2 == 0) paletteA else paletteB, document.definition)
         val expectedChangedIndex = if (transitionCount % 2 == 0) 0 else 2
-        document.snapshot.copyPackedIndices().forEachIndexed { position, packed ->
+        document.layers.single().snapshot.copyPackedIndices().forEachIndexed { position, packed ->
             val expected =
                 if (position < CHANGES_PER_ENTRY) {
                     expectedChangedIndex
@@ -124,7 +124,7 @@ private class PaletteHistoryFixture {
         indices: List<PaletteIndex>,
     ): DocumentState =
         DocumentState
-            .create(
+            .createSingleLayer(
                 DocumentId.create(DOCUMENT_ID).value(),
                 revision,
                 definition,

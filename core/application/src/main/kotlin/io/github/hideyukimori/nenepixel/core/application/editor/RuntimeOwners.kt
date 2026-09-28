@@ -46,7 +46,12 @@ internal data class RuntimeOwners(
             val snapshot = PixelSnapshot.createEmpty(canvas)
             return create(
                 required(
-                    DocumentState.create(documentIdSource.nextDocumentId(), Revision.initial(), definition, snapshot),
+                    DocumentState.createSingleLayer(
+                        documentIdSource.nextDocumentId(),
+                        Revision.initial(),
+                        definition,
+                        snapshot,
+                    ),
                 ),
             )
         }
@@ -66,7 +71,7 @@ internal data class RuntimeOwners(
         ): RuntimeOwners =
             create(
                 required(
-                    DocumentState.create(
+                    DocumentState.createSingleLayer(
                         documentIdSource.nextDocumentId(),
                         Revision.initial(),
                         preview.definition,
