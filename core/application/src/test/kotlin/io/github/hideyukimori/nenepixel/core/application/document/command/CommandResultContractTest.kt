@@ -6,8 +6,8 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.App
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.position
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.redIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.revision
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.sparseChangeSet
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.state
-import io.github.hideyukimori.nenepixel.core.application.document.transition.ChangeSet
 import io.github.hideyukimori.nenepixel.core.application.document.transition.DocumentTransition
 import io.github.hideyukimori.nenepixel.core.application.document.transition.DocumentTransitionResult
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelCell
@@ -27,7 +27,7 @@ internal class CommandResultContractTest {
                 listOf(PixelChange.create(position(0, 0), PixelCell.Covered(blackIndex), PixelCell.Covered(redIndex))),
             )
         val changeSet =
-            when (val result = DocumentTransition.create(current, ChangeSet.create(patch))) {
+            when (val result = DocumentTransition.create(current, sparseChangeSet(current, patch))) {
                 is DocumentTransitionResult.Created -> result.transition.changeSet
                 is DocumentTransitionResult.Rejected -> fail("Test transition was rejected: ${result.reason}")
             }

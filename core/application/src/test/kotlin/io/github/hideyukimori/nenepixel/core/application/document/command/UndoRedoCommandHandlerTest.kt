@@ -96,7 +96,7 @@ internal class UndoRedoCommandHandlerTest {
     @Test
     fun `undo rejects a conflicting current pixel atomically`() {
         val fixture = historyFixture()
-        val conflicting = state(fixture.initial.size, revision(1L), listOf(greenIndex))
+        val conflicting = state(fixture.initial.size, revision(1L), listOf(greenIndex, blackIndex, blackIndex))
         val command = UndoCommand.create(conflicting.id, conflicting.revision)
 
         val result = UndoCommandHandler().execute(conflicting, command, fixture.entry)
@@ -112,7 +112,7 @@ internal class UndoRedoCommandHandlerTest {
     @Test
     fun `redo rejects a conflicting current pixel atomically`() {
         val fixture = historyFixture()
-        val conflicting = state(fixture.initial.size, indices = listOf(greenIndex))
+        val conflicting = state(fixture.initial.size, indices = listOf(greenIndex, blackIndex, blackIndex))
         val command = RedoCommand.create(conflicting.id, conflicting.revision)
 
         val result = RedoCommandHandler().execute(conflicting, command, fixture.entry)
@@ -126,7 +126,8 @@ internal class UndoRedoCommandHandlerTest {
     }
 
     private fun historyFixture(): HandlerFixture {
-        val initial = state(canvas(1, 1))
+        // Three pixels keep the one-pixel stroke sparse (6 <= 2 * (3 + 1)); a 1 x 1 canvas records it dense.
+        val initial = state(canvas(3, 1))
         val gateway = CommandGateway.create(initial)
         val command =
             ApplyStrokeCommand.create(

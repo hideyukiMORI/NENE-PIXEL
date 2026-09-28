@@ -2,11 +2,9 @@ package io.github.hideyukimori.nenepixel.core.application.document.transition
 
 import io.github.hideyukimori.nenepixel.core.application.document.command.RejectionReason
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
+import io.github.hideyukimori.nenepixel.core.domain.layer.Layer
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
-import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
-import io.github.hideyukimori.nenepixel.core.pixelengine.PixelPatchApplicationRejection
-import io.github.hideyukimori.nenepixel.core.pixelengine.PixelPatchApplicationResult
 
 internal data class DocumentTransition private constructor(
     val nextState: DocumentState,
@@ -19,8 +17,8 @@ internal data class DocumentTransition private constructor(
         ): DocumentTransitionResult {
             val palette = changeSet.paletteTransition
             return when {
-                currentState.size != changeSet.indexChanges.canvas -> {
-                    rejected(RejectionReason.CanvasMismatch(changeSet.indexChanges.canvas, currentState.size))
+                currentState.size != changeSet.canvas -> {
+                    rejected(RejectionReason.CanvasMismatch(changeSet.canvas, currentState.size))
                 }
 
                 currentState.revision != changeSet.beforeRevision -> {
@@ -32,42 +30,56 @@ internal data class DocumentTransition private constructor(
                 }
 
                 else -> {
-                    applyIndices(currentState, changeSet)
+                    applyLayers(currentState, changeSet)
                 }
             }
         }
 
-        private fun applyIndices(
+        private fun applyLayers(
             currentState: DocumentState,
             changeSet: ChangeSet,
-        ): DocumentTransitionResult =
-            when (val indices = changeSet.indexChanges) {
-                is IndexChanges.NoIndexChanges -> {
-                    createState(currentState, changeSet, currentState.snapshot.withRevision(changeSet.afterRevision))
+        ): DocumentTransitionResult {
+            val layers = currentState.layers.toMutableList()
+            val rejection = changeSet.layerChanges.firstNotNullOfOrNull { change -> applyChange(layers, change) }
+            return if (rejection == null) createState(currentState, changeSet, layers) else rejected(rejection)
+        }
+
+        /** Replaces the changed layer in [layers] and returns null, or returns why the change does not apply. */
+        private fun applyChange(
+            layers: MutableList<Layer>,
+            change: LayerChange,
+        ): RejectionReason? {
+            val position = layers.indexOfFirst { it.id == change.layerId }
+            if (position < 0) {
+                return RejectionReason.LayerNotFound(change.layerId)
+            }
+            return when (val applied = change.changes.applyTo(change.layerId, layers[position].snapshot)) {
+                is LayerIndexChanges.Application.Applied -> {
+                    layers[position] = layers[position].withSnapshot(applied.snapshot)
+                    null
                 }
 
-                is IndexChanges.Changed -> {
-                    when (val result = indices.patch.applyTo(currentState.snapshot)) {
-                        is PixelPatchApplicationResult.Applied -> createState(currentState, changeSet, result.snapshot)
-                        is PixelPatchApplicationResult.Rejected -> rejected(result.rejection.toReason())
-                    }
+                is LayerIndexChanges.Application.Rejected -> {
+                    applied.reason
                 }
             }
+        }
 
         private fun createState(
             currentState: DocumentState,
             changeSet: ChangeSet,
-            snapshot: PixelSnapshot,
+            layers: List<Layer>,
         ): DocumentTransitionResult {
-            check(
-                snapshot.revision == changeSet.afterRevision,
-            ) { "Recorded patch revision differs from its ChangeSet." }
+            // Migration-only: every layer snapshot still carries a revision and PixelPatch.applyTo still checks it,
+            // so all layers, changed or not, follow the document revision. Removed in Issue #142 S6b.
+            val aligned = layers.map { it.withSnapshot(it.snapshot.withRevision(changeSet.afterRevision)) }
             return when (
                 val result =
-                    DocumentState.create(
+                    DocumentState.createLayered(
                         currentState.id,
+                        changeSet.afterRevision,
                         changeSet.targetDefinition(currentState),
-                        snapshot,
+                        aligned,
                     )
             ) {
                 is DomainValueResult.Created -> {
@@ -91,23 +103,4 @@ private fun ChangeSet.targetDefinition(currentState: DocumentState): PaletteDefi
     when (val transition = paletteTransition) {
         PaletteTransition.Unchanged -> currentState.definition
         is PaletteTransition.Changed -> transition.after
-    }
-
-private fun PixelPatchApplicationRejection.toReason(): RejectionReason =
-    when (this) {
-        is PixelPatchApplicationRejection.CanvasMismatch -> {
-            RejectionReason.CanvasMismatch(expected, actual)
-        }
-
-        is PixelPatchApplicationRejection.RevisionMismatch -> {
-            RejectionReason.RevisionMismatch(expected, actual)
-        }
-
-        is PixelPatchApplicationRejection.BeforeValueMismatch -> {
-            RejectionReason.PixelBeforeValueMismatch(
-                position,
-                expected,
-                actual,
-            )
-        }
     }
