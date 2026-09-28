@@ -40,7 +40,7 @@ internal class ProjectFormatV1CodecRejectionTest {
         val badMagic = minimal.copyOf().also { bytes -> bytes[0] = 0 }
         assertSame(ProjectFormatRejection.InvalidMagic, rejected(decode(badMagic)))
 
-        listOf(0, 3, UShort.MAX_VALUE.toInt()).forEach { wireVersion ->
+        listOf(0, 4, UShort.MAX_VALUE.toInt()).forEach { wireVersion ->
             val unsupportedBytes =
                 minimal.copyOf().also { bytes ->
                     writeUnsignedShort(bytes, ProjectFormatV1Layout.VERSION_OFFSET, wireVersion)

@@ -18,7 +18,7 @@ public class ProjectFormatBytes private constructor(
     public override fun toString(): String = "ProjectFormatBytes(byteCount=$byteCount)"
 
     public companion object {
-        public const val MAX_FILE_BYTE_COUNT: Int = 262_186
+        public const val MAX_FILE_BYTE_COUNT: Int = 1_182_862
         public const val MAX_PROBE_BYTE_COUNT: Int = MAX_FILE_BYTE_COUNT + 1
 
         public fun create(bytes: ByteArray): ProjectFormatResult<ProjectFormatBytes> =

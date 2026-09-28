@@ -7,8 +7,9 @@ import io.github.hideyukimori.nenepixel.core.domain.document.LegacyRgbaSource
 public object ProjectFormatCodec {
     private val v1Decoder: ProjectFormatV1Decoder = ProjectFormatV1Decoder()
     private val v2Decoder: ProjectFormatV2Decoder = ProjectFormatV2Decoder()
+    private val v3Decoder: ProjectFormatV3Decoder = ProjectFormatV3Decoder()
 
-    public fun encode(document: DocumentState): ProjectFormatBytes = ProjectFormatV2Encoder.encode(document)
+    public fun encode(document: DocumentState): ProjectFormatBytes = ProjectFormatV3Encoder.encode(document)
 
     public fun decode(source: ProjectFormatBytes): ProjectFormatResult<DocumentImportSource> =
         when {
@@ -43,6 +44,10 @@ public object ProjectFormatCodec {
 
                     ProjectFormatV2Layout.VERSION -> {
                         v2Decoder.decode(source)
+                    }
+
+                    ProjectFormatV3Layout.VERSION -> {
+                        v3Decoder.decode(source)
                     }
 
                     else -> {

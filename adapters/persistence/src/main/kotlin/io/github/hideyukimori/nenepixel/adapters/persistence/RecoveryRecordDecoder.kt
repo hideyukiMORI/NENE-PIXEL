@@ -84,7 +84,7 @@ internal object RecoveryRecordDecoder {
                 RecoveryRejection.CORRUPT
             }
 
-            version !in RecoveryRecordLayout.V1_VERSION..RecoveryRecordLayout.V2_VERSION -> {
+            version !in RecoveryRecordLayout.V1_VERSION..RecoveryRecordLayout.V3_VERSION -> {
                 RecoveryRejection.UNSUPPORTED_VERSION
             }
 
@@ -159,6 +159,12 @@ internal object RecoveryRecordDecoder {
             is ProjectFormatRejection.InvalidPaletteEntryCount,
             is ProjectFormatRejection.DefaultIndexOutsidePalette,
             is ProjectFormatRejection.PixelIndexOutsidePalette,
+            is ProjectFormatRejection.InvalidLayerCount,
+            is ProjectFormatRejection.InvalidLayerId,
+            is ProjectFormatRejection.DuplicateLayerId,
+            is ProjectFormatRejection.UnknownLayerFlags,
+            is ProjectFormatRejection.InvalidLayerName,
+            is ProjectFormatRejection.InvalidCoverage,
             -> RecoveryRejection.CORRUPT
         }
 

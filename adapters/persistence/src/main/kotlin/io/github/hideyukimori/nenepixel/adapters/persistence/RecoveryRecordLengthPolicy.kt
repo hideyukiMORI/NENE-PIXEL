@@ -17,10 +17,18 @@ internal object RecoveryRecordLengthPolicy {
         byteCount: Int,
     ): RecoveryRejection? {
         val range =
-            if (version == RecoveryRecordLayout.V1_VERSION) {
-                RecoveryRecordLayout.V1_MIN_CANDIDATE_BYTE_COUNT..RecoveryRecordLayout.MAX_RECORD_BYTE_COUNT
-            } else {
-                RecoveryRecordLayout.V2_MIN_CANDIDATE_BYTE_COUNT..RecoveryRecordLayout.V2_MAX_CANDIDATE_BYTE_COUNT
+            when (version) {
+                RecoveryRecordLayout.V1_VERSION -> {
+                    RecoveryRecordLayout.V1_MIN_CANDIDATE_BYTE_COUNT..RecoveryRecordLayout.V1_MAX_CANDIDATE_BYTE_COUNT
+                }
+
+                RecoveryRecordLayout.V2_VERSION -> {
+                    RecoveryRecordLayout.V2_MIN_CANDIDATE_BYTE_COUNT..RecoveryRecordLayout.V2_MAX_CANDIDATE_BYTE_COUNT
+                }
+
+                else -> {
+                    RecoveryRecordLayout.V3_MIN_CANDIDATE_BYTE_COUNT..RecoveryRecordLayout.V3_MAX_CANDIDATE_BYTE_COUNT
+                }
             }
         return if (byteCount in range) null else RecoveryRejection.CORRUPT
     }

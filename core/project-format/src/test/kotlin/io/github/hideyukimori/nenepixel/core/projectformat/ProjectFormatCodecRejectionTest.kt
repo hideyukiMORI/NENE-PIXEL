@@ -24,14 +24,14 @@ internal class ProjectFormatCodecRejectionTest {
     @Test
     fun `unsupported version precedes version specific truncation`() {
         val bytes = minimalV2.copyOf(40)
-        ProjectFormatBigEndian.writeUnsignedShort(bytes, ProjectFormatV1Layout.VERSION_OFFSET, 3)
+        ProjectFormatBigEndian.writeUnsignedShort(bytes, ProjectFormatV1Layout.VERSION_OFFSET, 4)
 
         val unsupported =
             assertInstanceOf(
                 ProjectFormatRejection.UnsupportedVersion::class.java,
                 rejected(ProjectFormatCodec.decode(ProjectFormatTestValues.carrier(bytes))),
             )
-        assertEquals(3u.toUShort(), unsupported.actualVersion.value)
+        assertEquals(4u.toUShort(), unsupported.actualVersion.value)
     }
 
     @Test
@@ -66,7 +66,7 @@ internal class ProjectFormatCodecRejectionTest {
         assertEquals(ProjectFormatV2Layout.MAX_FILE_BYTE_COUNT, v2Rejection.maximumByteCount)
 
         val v1 = ProjectFormatCodec.encodeLegacySource(ProjectFormatTestValues.maximumLegacySource())
-        assertEquals(ProjectFormatBytes.MAX_FILE_BYTE_COUNT, v1.byteCount)
+        assertEquals(ProjectFormatV1Layout.MAX_FILE_BYTE_COUNT, v1.byteCount)
         assertInstanceOf(
             DocumentImportSource.Legacy::class.java,
             accepted(ProjectFormatCodec.decode(v1)),
