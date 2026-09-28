@@ -79,8 +79,11 @@ member function:
 is open or the eyedropper is armed, so a second finger on the canvas cannot draw behind the menu.
 During a palette edit session (ADR 0022) `OpenQuickSelect`, `HighlightQuickSelectItem`,
 `ConfirmQuickSelect` and `PickPaletteEntryAt` are refused and `CancelQuickSelect` and
-`DisarmEyedropper` pass. `ReconcileDocumentPalette` drops `recent` entries outside the new palette,
-closes the menu and disarms. Document replacement builds a fresh `WorkspaceState`, so the selection
+`DisarmEyedropper` pass. `ReconcileDocumentPalette` moves `recent` by the same policy as
+`activePaletteIndex` (`PaletteSelectionPolicy`): a `ReplacePaletteCommand` maps every entry through its
+remap and keeps the first of any entries that land on the same slot; any other palette change (undo or
+redo) drops entries outside the palette instead of substituting the default slot, because recent means
+slots that were painted. It also closes the menu and disarms. Document replacement builds a fresh `WorkspaceState`, so the selection
 state is not carried over (unlike appearance and the actual-size window).
 
 `CMD-002`'s selection sentence changes from "`SelectPaletteEntry` is its only mutation route" to "the

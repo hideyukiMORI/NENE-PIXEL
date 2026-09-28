@@ -79,10 +79,13 @@ internal class QuickSelectionTest {
     }
 
     @Test
-    fun `slots outside the palette are dropped and order is kept`() {
-        val trimmed = painted(0, 4, 1, 2).withoutSlotsOutside(2)
+    fun `replacing recent slots keeps order drops duplicates and applies the limit`() {
+        val opened = painted(1).opened().armed()
+        val replaced = opened.withRecent(indices(3, 0, 3, 1, 2, 4, 5, 6, 7, 8))
 
-        assertEquals(indices(1, 0), trimmed.recent)
+        assertEquals(indices(3, 0, 1, 2, 4, 5, 6, 7), replaced.recent)
+        assertEquals(opened.menu, replaced.menu)
+        assertEquals(EyedropperState.Armed, replaced.eyedropper)
     }
 
     @Test

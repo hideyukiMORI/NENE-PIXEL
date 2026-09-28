@@ -70,6 +70,29 @@ internal class EditorRuntimeTest {
     }
 
     @Test
+    fun `reordering replacement moves recent slots with the palette and undo keeps slots inside it`() {
+        val runtime = EditorRuntime.create(canvas(2, 1), toolDefinition, SequentialDocumentIdSource())
+        paintWithGesture(runtime, redIndex)
+        paintWithGesture(runtime, greenIndex)
+        val target = definition(blackIndex, green, black, red)
+        val remap = PaletteRemap.create(toolDefinition, target, listOf(redIndex, greenIndex, blackIndex)).value()
+
+        assertInstanceOf(
+            CommandResult.Applied::class.java,
+            runtime.execute(ReplacePaletteCommand.create(runtime.captureSource(), remap)),
+        )
+        val replaced = runtime.state.workspaceState.quickSelection.recent
+        val afterReplace = runtime.state.documentState
+        assertInstanceOf(
+            CommandResult.Applied::class.java,
+            runtime.execute(UndoCommand.create(afterReplace.id, afterReplace.revision)),
+        )
+
+        assertEquals(listOf(blackIndex, greenIndex), replaced)
+        assertEquals(listOf(blackIndex, greenIndex), runtime.state.workspaceState.quickSelection.recent)
+    }
+
+    @Test
     fun `initial runtime uses one canonical blank clean empty-history construction`() {
         val canvas = canvas(2, 3)
         val ids = SequentialDocumentIdSource()
@@ -368,6 +391,23 @@ internal class EditorRuntimeTest {
                 ActivePersistenceOperation.Switch.Switching(creation.handle, candidate, SwitchKind.NewDocument)
             PersistenceTransition(creation.next.withActive(switching), Unit)
         }
+    }
+
+    private fun paintWithGesture(
+        runtime: EditorRuntime,
+        index: PaletteIndex,
+    ) {
+        runtime.reduce(WorkspaceAction.SelectPaletteEntry(index))
+        runtime.reduce(WorkspaceAction.BeginGesturePreview(runtime.state.documentState.size, position(0, 0)))
+        val prepared =
+            assertInstanceOf(
+                WorkspaceReductionResult.CommitPrepared::class.java,
+                runtime.reduce(WorkspaceAction.PrepareGestureCommit),
+            )
+        assertInstanceOf(
+            CommandResult.Applied::class.java,
+            runtime.execute(ApplyStrokeCommand.create(prepared.admission, prepared.stroke)),
+        )
     }
 
     private fun applyOnePixel(runtime: EditorRuntime) {

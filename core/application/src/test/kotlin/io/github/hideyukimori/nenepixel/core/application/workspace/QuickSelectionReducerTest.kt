@@ -56,7 +56,7 @@ internal class QuickSelectionReducerTest {
     }
 
     @Test
-    fun `reconciling the palette drops outside slots closes the menu and disarms`() {
+    fun `reconciling the palette installs the reconciled slots closes the menu and disarms`() {
         val selection =
             listOf(0, 3, 1)
                 .fold(QuickSelection.initial) { current, value -> current.recordPainted(paletteIndex(value)) }
@@ -64,9 +64,11 @@ internal class QuickSelectionReducerTest {
                 .armed()
         val start = WorkspaceState.create(canvas).withQuickSelection(selection)
 
-        val reconciled = reduced(reduce(start, ReconcileDocumentPalette(paletteIndex(0)))).quickSelection
+        val action = ReconcileDocumentPalette(paletteIndex(0), listOf(paletteIndex(0), paletteIndex(1)))
 
-        assertEquals(listOf(paletteIndex(1), paletteIndex(0)), reconciled.recent)
+        val reconciled = reduced(reduce(start, action)).quickSelection
+
+        assertEquals(listOf(paletteIndex(0), paletteIndex(1)), reconciled.recent)
         assertNull(reconciled.menu)
         assertEquals(EyedropperState.Idle, reconciled.eyedropper)
     }

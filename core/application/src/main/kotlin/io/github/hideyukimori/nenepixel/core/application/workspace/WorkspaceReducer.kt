@@ -231,7 +231,9 @@ private fun WorkspaceState.recordingStroke(effect: StrokeEffect): WorkspaceState
         is StrokeEffect.Erase -> this
     }
 
-/** Drops recent slots outside the new palette, closes the quick-select menu and disarms the eyedropper (ADR 0029). */
+/**
+ * Installs the reconciled recent slots, closes the quick-select menu and disarms the eyedropper (ADR 0029).
+ */
 private fun reconcileDocumentPalette(
     state: WorkspaceState,
     action: ReconcileDocumentPalette,
@@ -245,7 +247,7 @@ private fun reconcileDocumentPalette(
                     .withPreview(null)
                     .withQuickSelection(
                         state.quickSelection
-                            .withoutSlotsOutside(palette.entryCount)
+                            .withRecent(action.recent)
                             .closed()
                             .idle(),
                     ),

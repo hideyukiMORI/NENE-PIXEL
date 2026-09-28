@@ -22,9 +22,9 @@ public class QuickSelection private constructor(
             menu,
         )
 
-    /** Drops [recent] slots that do not exist in a palette of [entryCount] entries. */
-    internal fun withoutSlotsOutside(entryCount: Int): QuickSelection =
-        QuickSelection(recent.filter { it.value < entryCount }, eyedropper, menu)
+    /** Replaces [recent] with the distinct slots of [slots] in order, at most [RECENT_LIMIT]. */
+    internal fun withRecent(slots: List<PaletteIndex>): QuickSelection =
+        QuickSelection(slots.distinct().take(RECENT_LIMIT), eyedropper, menu)
 
     /** Opens the menu with [recent] in order followed by the eyedropper, nothing highlighted. */
     internal fun opened(): QuickSelection =
