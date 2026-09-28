@@ -11,6 +11,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.App
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.state
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.stroke
 import io.github.hideyukimori.nenepixel.core.application.document.transition.DocumentTransitionResult
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelCell
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Test
@@ -103,8 +104,8 @@ internal class UndoRedoCommandHandlerTest {
         val reason = assertRejected(result)
         val mismatch = assertInstanceOf(RejectionReason.PixelBeforeValueMismatch::class.java, reason)
         assertEquals(position(0, 0), mismatch.position)
-        assertEquals(redIndex, mismatch.expected)
-        assertEquals(greenIndex, mismatch.actual)
+        assertEquals(PixelCell.Covered(redIndex), mismatch.expected)
+        assertEquals(PixelCell.Covered(greenIndex), mismatch.actual)
         assertEquals(revision(1L), conflicting.revision)
     }
 
@@ -119,8 +120,8 @@ internal class UndoRedoCommandHandlerTest {
         val reason = assertRejected(result)
         val mismatch = assertInstanceOf(RejectionReason.PixelBeforeValueMismatch::class.java, reason)
         assertEquals(position(0, 0), mismatch.position)
-        assertEquals(blackIndex, mismatch.expected)
-        assertEquals(greenIndex, mismatch.actual)
+        assertEquals(PixelCell.Covered(blackIndex), mismatch.expected)
+        assertEquals(PixelCell.Covered(greenIndex), mismatch.actual)
         assertEquals(revision(0L), conflicting.revision)
     }
 

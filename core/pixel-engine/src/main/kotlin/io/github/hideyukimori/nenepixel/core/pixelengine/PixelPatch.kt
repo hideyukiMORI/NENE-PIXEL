@@ -9,6 +9,7 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelRegion
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelX
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelY
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelCell
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelLimits
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
@@ -19,6 +20,8 @@ public class PixelPatch private constructor(
     private val storage: PixelPatchStorage,
     private val direction: PixelPatchDirection,
 ) {
+    private val changes: PixelPatchChanges = PixelPatchChanges(storage, direction)
+
     public val beforeRevision: Revision
         get() = if (direction == PixelPatchDirection.Forward) storage.beforeRevision else storage.afterRevision
 
@@ -46,19 +49,19 @@ public class PixelPatch private constructor(
     private fun applyToMatchingSnapshot(snapshot: PixelSnapshot): PixelPatchApplicationResult {
         val surface = PixelSurface.from(snapshot)
         repeat(changeCount) { index ->
-            val positionIndex = storage.positions[index]
-            val actual = surface.packedIndexAt(positionIndex)
-            val expected = beforeAt(index)
+            val positionIndex = changes.positionAt(index)
+            val actual = surface.cellAt(positionIndex)
+            val expected = changes.beforeCellAt(index)
             if (actual != expected) {
                 return rejected(
                     PixelPatchApplicationRejection.BeforeValueMismatch(
                         position = canvas.positionAt(positionIndex),
-                        expected = expected.toPaletteIndex(),
-                        actual = actual.toPaletteIndex(),
+                        expected = expected,
+                        actual = actual,
                     ),
                 )
             }
-            surface.writePackedIndex(positionIndex, afterAt(index))
+            surface.writePackedCell(positionIndex, changes.afterCoveredAt(index), changes.afterAt(index))
         }
         return PixelPatchApplicationResult.Applied(surface.snapshot(afterRevision))
     }
@@ -82,12 +85,15 @@ public class PixelPatch private constructor(
                     changesEqual(other)
             )
 
-    private fun changesEqual(other: PixelPatch): Boolean {
-        if (!storage.positions.contentEquals(other.storage.positions)) return false
-        return storage.positions.indices.all { index ->
-            beforeAt(index) == other.beforeAt(index) && afterAt(index) == other.afterAt(index)
-        }
-    }
+    private fun changesEqual(other: PixelPatch): Boolean =
+        changeCount == other.changeCount &&
+            (0 until changeCount).all { index ->
+                changes.positionAt(index) == other.changes.positionAt(index) &&
+                    changes.beforeCoveredAt(index) == other.changes.beforeCoveredAt(index) &&
+                    changes.afterCoveredAt(index) == other.changes.afterCoveredAt(index) &&
+                    changes.beforeAt(index) == other.changes.beforeAt(index) &&
+                    changes.afterAt(index) == other.changes.afterAt(index)
+            }
 
     override fun hashCode(): Int {
         var result = canvas.hashCode()
@@ -95,9 +101,11 @@ public class PixelPatch private constructor(
         result = HASH_MULTIPLIER * result + afterRevision.hashCode()
         result = HASH_MULTIPLIER * result + affectedRegion.hashCode()
         repeat(changeCount) { index ->
-            result = HASH_MULTIPLIER * result + storage.positions[index]
-            result = HASH_MULTIPLIER * result + beforeAt(index)
-            result = HASH_MULTIPLIER * result + afterAt(index)
+            result = HASH_MULTIPLIER * result + changes.positionAt(index)
+            result = HASH_MULTIPLIER * result + changes.beforeCoveredAt(index).hashCode()
+            result = HASH_MULTIPLIER * result + changes.afterCoveredAt(index).hashCode()
+            result = HASH_MULTIPLIER * result + changes.beforeAt(index)
+            result = HASH_MULTIPLIER * result + changes.afterAt(index)
         }
         return result
     }
@@ -105,12 +113,6 @@ public class PixelPatch private constructor(
     override fun toString(): String =
         "PixelPatch(canvas=$canvas, beforeRevision=$beforeRevision, " +
             "afterRevision=$afterRevision, changeCount=$changeCount)"
-
-    private fun beforeAt(index: Int): Byte =
-        if (direction == PixelPatchDirection.Forward) storage.before[index] else storage.after[index]
-
-    private fun afterAt(index: Int): Byte =
-        if (direction == PixelPatchDirection.Forward) storage.after[index] else storage.before[index]
 
     public companion object {
         private const val HASH_MULTIPLIER: Int = 31
@@ -172,7 +174,10 @@ public class PixelPatch private constructor(
 
                 else -> {
                     check(positions.isNotEmpty() && positions.size == before.size && positions.size == after.size)
-                    check(positions.first() >= 0 && positions.last() < canvas.pixelCount.toInt())
+                    check(
+                        positions.first() and POSITION_MASK >= 0 &&
+                            positions.last() and POSITION_MASK < canvas.pixelCount.toInt(),
+                    )
                     PixelPatchCreationResult.Created(
                         PixelPatch(
                             canvas = canvas,
@@ -198,7 +203,15 @@ public class PixelPatch private constructor(
             afterRevision: Revision,
             changes: List<PixelChange>,
         ): PixelPatchCreationResult {
-            val positions = IntArray(changes.size) { index -> changes[index].position.rowMajorIndex(canvas) }
+            val positions =
+                IntArray(changes.size) { index ->
+                    val change = changes[index]
+                    packPatchPosition(
+                        change.position.rowMajorIndex(canvas),
+                        beforeCovered = change.before is PixelCell.Covered,
+                        afterCovered = change.after is PixelCell.Covered,
+                    )
+                }
             return PixelPatchCreationResult.Created(
                 PixelPatch(
                     canvas = canvas,
@@ -208,8 +221,8 @@ public class PixelPatch private constructor(
                             beforeRevision,
                             afterRevision,
                             positions,
-                            ByteArray(changes.size) { index -> changes[index].before.value.toByte() },
-                            ByteArray(changes.size) { index -> changes[index].after.value.toByte() },
+                            ByteArray(changes.size) { index -> changes[index].before.packedIndex() },
+                            ByteArray(changes.size) { index -> changes[index].after.packedIndex() },
                         ),
                     direction = PixelPatchDirection.Forward,
                 ),
@@ -225,9 +238,11 @@ public class PixelPatch private constructor(
             val duplicate = changes.zipWithNext().firstOrNull { (first, second) -> first.position == second.position }
             val outsideStorage =
                 changes.firstNotNullOfOrNull { change ->
+                    val before = change.before.indexOrNull()
+                    val after = change.after.indexOrNull()
                     when {
-                        change.before.value > U8_MASK -> change.position to change.before
-                        change.after.value > U8_MASK -> change.position to change.after
+                        before != null && before.value > U8_MASK -> change.position to before
+                        after != null && after.value > U8_MASK -> change.position to after
                         else -> null
                     }
                 }
@@ -294,7 +309,8 @@ public class PixelPatch private constructor(
             var minimumY = canvas.height.value
             var maximumX = 0
             var maximumY = 0
-            positions.forEach { index ->
+            positions.forEach { packed ->
+                val index = packed and POSITION_MASK
                 val x = index % width
                 val y = index / width
                 minimumX = minOf(minimumX, x)
@@ -310,8 +326,8 @@ public class PixelPatch private constructor(
             positions: IntArray,
         ): PixelBounds {
             val width = canvas.width.value
-            val first = positions.first()
-            val last = positions.last()
+            val first = positions.first() and POSITION_MASK
+            val last = positions.last() and POSITION_MASK
             val minimumY = first / width
             val maximumY = last / width
             val withinOneRow = minimumY == maximumY
@@ -364,6 +380,28 @@ private class PixelPatchStorage(
     val after: ByteArray,
 )
 
+private class PixelPatchChanges(
+    private val storage: PixelPatchStorage,
+    direction: PixelPatchDirection,
+) {
+    private val forward: Boolean = direction == PixelPatchDirection.Forward
+
+    fun positionAt(index: Int): Int = storage.positions[index] and POSITION_MASK
+
+    fun beforeCoveredAt(index: Int): Boolean =
+        storage.positions[index] and (if (forward) BEFORE_COVERED_BIT else AFTER_COVERED_BIT) != 0
+
+    fun afterCoveredAt(index: Int): Boolean =
+        storage.positions[index] and (if (forward) AFTER_COVERED_BIT else BEFORE_COVERED_BIT) != 0
+
+    fun beforeCellAt(index: Int): PixelCell =
+        if (beforeCoveredAt(index)) PixelCell.Covered(beforeAt(index).toPaletteIndex()) else PixelCell.Empty
+
+    fun beforeAt(index: Int): Byte = if (forward) storage.before[index] else storage.after[index]
+
+    fun afterAt(index: Int): Byte = if (forward) storage.after[index] else storage.before[index]
+}
+
 private enum class PixelPatchDirection {
     Forward,
     Reverse,
@@ -371,6 +409,25 @@ private enum class PixelPatchDirection {
 
     fun inverse(): PixelPatchDirection = if (this == Forward) Reverse else Forward
 }
+
+internal fun packPatchPosition(
+    rowMajorIndex: Int,
+    beforeCovered: Boolean,
+    afterCovered: Boolean,
+): Int {
+    var packed = rowMajorIndex
+    if (beforeCovered) packed = packed or BEFORE_COVERED_BIT
+    if (afterCovered) packed = packed or AFTER_COVERED_BIT
+    return packed
+}
+
+private const val POSITION_MASK: Int = 0xffff
+private const val BEFORE_COVERED_BIT: Int = 1 shl 16
+private const val AFTER_COVERED_BIT: Int = 1 shl 17
+
+private fun PixelCell.indexOrNull(): PaletteIndex? = (this as? PixelCell.Covered)?.index
+
+private fun PixelCell.packedIndex(): Byte = indexOrNull()?.value?.toByte() ?: 0
 
 private fun CanvasSize.positionAt(index: Int): PixelPosition = pixelPosition(index % width.value, index / width.value)
 

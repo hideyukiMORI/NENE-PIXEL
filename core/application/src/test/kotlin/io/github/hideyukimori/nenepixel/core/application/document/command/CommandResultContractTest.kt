@@ -10,6 +10,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.App
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ChangeSet
 import io.github.hideyukimori.nenepixel.core.application.document.transition.DocumentTransition
 import io.github.hideyukimori.nenepixel.core.application.document.transition.DocumentTransitionResult
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelCell
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelChange
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
@@ -23,7 +24,7 @@ internal class CommandResultContractTest {
             patch(
                 current.size,
                 current.revision,
-                listOf(PixelChange.create(position(0, 0), blackIndex, redIndex)),
+                listOf(PixelChange.create(position(0, 0), PixelCell.Covered(blackIndex), PixelCell.Covered(redIndex))),
             )
         val changeSet =
             when (val result = DocumentTransition.create(current, ChangeSet.create(patch))) {
