@@ -5,6 +5,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.App
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.red
 import io.github.hideyukimori.nenepixel.core.application.editor.DocumentDirtyState
 import io.github.hideyukimori.nenepixel.core.application.editor.DocumentOutputStart
+import io.github.hideyukimori.nenepixel.core.application.editor.PngExportStart
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.NonCancellable
@@ -23,9 +24,9 @@ internal class PngExportWorkflowTest {
         runBlocking {
             val fixture = initializedFixture()
             val operations = fixture.runtime.pngExportOperations
-            val first = assertInstanceOf(DocumentOutputStart.Started::class.java, operations.begin())
+            val first = assertInstanceOf(DocumentOutputStart.Started::class.java, outputStart(operations.begin()))
             operations.complete(first.handle, PngExportOutcome.Exported)
-            val second = assertInstanceOf(DocumentOutputStart.Started::class.java, operations.begin())
+            val second = assertInstanceOf(DocumentOutputStart.Started::class.java, outputStart(operations.begin()))
             val before = fixture.workflow.operation.value
             assertEquals(PersistenceRequestResult.Stale, operations.complete(first.handle, PngExportOutcome.Cancelled))
             assertEquals(before, fixture.workflow.operation.value)
@@ -166,3 +167,6 @@ internal class PngExportWorkflowTest {
             assertTrue(fixture.recovery.retireCalls.isEmpty())
         }
 }
+
+private fun outputStart(start: PngExportStart): DocumentOutputStart =
+    assertInstanceOf(PngExportStart.Output::class.java, start).start

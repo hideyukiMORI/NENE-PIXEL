@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
@@ -19,6 +20,8 @@ import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.dp
+import io.github.hideyukimori.nenepixel.core.application.document.command.CommandResult
+import io.github.hideyukimori.nenepixel.core.application.document.command.SetLayerVisibilityCommand
 import io.github.hideyukimori.nenepixel.core.application.editor.DocumentIdSource
 import io.github.hideyukimori.nenepixel.core.application.editor.EditorRuntime
 import io.github.hideyukimori.nenepixel.core.application.workspace.EditorControlEdge
@@ -34,6 +37,8 @@ import io.github.hideyukimori.nenepixel.core.domain.document.DocumentId
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasHeight
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasWidth
+import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
+import io.github.hideyukimori.nenepixel.core.domain.layer.LayerVisibility
 import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
@@ -79,6 +84,23 @@ internal class EditorScreenLayoutTest {
         }
         composeRule.onNodeWithTag("editor_close_panel").performClick()
         composeRule.onNodeWithTag("editor_clean_document").assertIsDisplayed()
+    }
+
+    @Test
+    fun exportIsDisabledWithAnExplanationWhenNoLayerIsVisible() {
+        val controller = controller()
+        val hide =
+            SetLayerVisibilityCommand.create(
+                controller.runtime.captureSource(),
+                LayerId.first(),
+                LayerVisibility.Hidden,
+            )
+        assertTrue(controller.runtime.execute(hide) is CommandResult.Applied)
+        controller.synchronizeWithRuntime()
+        setEditorContent(controller, 600.dp, 900.dp)
+        composeRule.onNodeWithTag("editor_file").performClick()
+        composeRule.onNodeWithTag("editor_export_png").assertIsNotEnabled()
+        composeRule.onNodeWithTag("editor_export_png_no_visible_layer").assertIsDisplayed()
     }
 
     @Test

@@ -216,7 +216,7 @@ private fun PanelContent(
 
         EditorPanel.File -> {
             Column(Modifier.verticalScroll(rememberScrollState())) {
-                PersistenceControls(inputs.storage.operation, state.document.size, inputs.storage.callbacks, dismiss)
+                PersistenceControls(inputs.storage.operation, state.document, inputs.storage.callbacks, dismiss)
                 Text(
                     stringResource(inputs.storage.operation.statusResource(inputs.storage.autosave)),
                     style = MaterialTheme.typography.bodySmall,

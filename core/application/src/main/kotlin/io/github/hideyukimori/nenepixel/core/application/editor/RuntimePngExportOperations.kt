@@ -5,33 +5,46 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.Persistence
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationHandle
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceRequestResult
 import io.github.hideyukimori.nenepixel.core.application.persistence.PngExportOutcome
+import io.github.hideyukimori.nenepixel.core.domain.layer.LayerVisibility
 
 internal class RuntimePngExportOperations(
     private val runtime: EditorRuntime,
 ) {
-    fun begin(): DocumentOutputStart =
+    /**
+     * Starts a PNG export unless the document has no visible layer. The visibility check runs in the same
+     * transaction before any lease is taken, so a refused export leaves coordination untouched (ADR 0030).
+     */
+    fun begin(): PngExportStart =
         runtime.transact { transaction ->
-            val lease = DocumentOutputTransitions.begin(transaction.coordination)
-            val start =
-                when (val result = lease.result) {
-                    is DocumentOutputLease.Started -> {
-                        DocumentOutputStart.Started(result.handle, transaction.documentState())
-                    }
-
-                    DocumentOutputLease.Busy -> {
-                        DocumentOutputStart.Busy
-                    }
-
-                    DocumentOutputLease.RecoveryUnavailable -> {
-                        DocumentOutputStart.RecoveryUnavailable
-                    }
-
-                    DocumentOutputLease.IdentityExhausted -> {
-                        DocumentOutputStart.IdentityExhausted
-                    }
-                }
-            PersistenceTransition(lease.next, start, lease.effect)
+            if (transaction.documentState().layers.none { it.visibility == LayerVisibility.Visible }) {
+                PersistenceTransition(transaction.coordination, PngExportStart.NoVisibleLayer)
+            } else {
+                beginOutput(transaction)
+            }
         }
+
+    private fun beginOutput(transaction: EditorRuntime.RuntimeTransaction): PersistenceTransition<PngExportStart> {
+        val lease = DocumentOutputTransitions.begin(transaction.coordination)
+        val start =
+            when (val result = lease.result) {
+                is DocumentOutputLease.Started -> {
+                    DocumentOutputStart.Started(result.handle, transaction.documentState())
+                }
+
+                DocumentOutputLease.Busy -> {
+                    DocumentOutputStart.Busy
+                }
+
+                DocumentOutputLease.RecoveryUnavailable -> {
+                    DocumentOutputStart.RecoveryUnavailable
+                }
+
+                DocumentOutputLease.IdentityExhausted -> {
+                    DocumentOutputStart.IdentityExhausted
+                }
+            }
+        return PersistenceTransition(lease.next, PngExportStart.Output(start), lease.effect)
+    }
 
     fun complete(
         handle: PersistenceOperationHandle,
@@ -52,4 +65,12 @@ internal class RuntimePngExportOperations(
             PngExportOutcome.Cancelled -> PersistenceLastOutcome.Cancelled
             is PngExportOutcome.Failed -> PersistenceLastOutcome.Failed(PersistenceFailure.PngExport(failure, cleanup))
         }
+}
+
+internal sealed interface PngExportStart {
+    data class Output(
+        val start: DocumentOutputStart,
+    ) : PngExportStart
+
+    data object NoVisibleLayer : PngExportStart
 }

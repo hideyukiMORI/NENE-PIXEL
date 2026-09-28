@@ -1,6 +1,7 @@
 package io.github.hideyukimori.nenepixel.core.application.persistence
 
 import io.github.hideyukimori.nenepixel.core.application.editor.DocumentOutputStart
+import io.github.hideyukimori.nenepixel.core.application.editor.PngExportStart
 import io.github.hideyukimori.nenepixel.core.application.editor.RuntimePngExportOperations
 import kotlinx.coroutines.CancellationException
 
@@ -12,7 +13,13 @@ internal class PersistencePngExportFlow(
     suspend fun exportPng(): PersistenceRequestResult = autosave.retryAfterPublication { attempt() }
 
     private suspend fun attempt(): PersistenceRequestResult =
-        when (val start = operations.begin()) {
+        when (val begun = operations.begin()) {
+            is PngExportStart.Output -> output(begun.start)
+            PngExportStart.NoVisibleLayer -> PersistenceRequestResult.NoVisibleLayer
+        }
+
+    private suspend fun output(start: DocumentOutputStart): PersistenceRequestResult =
+        when (start) {
             is DocumentOutputStart.Started -> export(start)
             DocumentOutputStart.Busy -> PersistenceRequestResult.Busy
             DocumentOutputStart.RecoveryUnavailable -> PersistenceRequestResult.RecoveryUnavailable
