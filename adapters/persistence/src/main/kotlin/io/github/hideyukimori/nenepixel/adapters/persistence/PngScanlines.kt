@@ -1,5 +1,6 @@
 package io.github.hideyukimori.nenepixel.adapters.persistence
 
+import io.github.hideyukimori.nenepixel.core.application.render.DocumentComposite
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import java.nio.ByteBuffer
 import java.util.zip.Adler32
@@ -28,12 +29,7 @@ internal object PngScanlines {
         document: DocumentState,
         rowBytes: Int,
     ): ByteArray {
-        val indices = document.snapshot.copyPackedIndices()
-        val colors =
-            document.definition.palette
-                .entries()
-                .map { it.color.toPackedRgba8888() }
-                .toIntArray()
+        val pixels = DocumentComposite.render(document).copyPackedRgba8888()
         val width = document.size.width.value
         return ByteArray(rowBytes * document.size.height.value) { offset ->
             val columnByte = offset % rowBytes
@@ -41,7 +37,7 @@ internal object PngScanlines {
                 0
             } else {
                 val position = (offset / rowBytes) * width + (columnByte - 1) / CHANNEL_COUNT
-                val pixel = colors[indices[position].toInt() and U8_MASK]
+                val pixel = pixels[position]
                 val shift = (CHANNEL_COUNT - 1 - (columnByte - 1) % CHANNEL_COUNT) * BYTE_BITS
                 (pixel ushr shift).toByte()
             }
@@ -57,7 +53,6 @@ internal object PngScanlines {
 
     private const val CHANNEL_COUNT: Int = 4
     private const val BYTE_BITS: Int = 8
-    private const val U8_MASK: Int = 0xff
     private const val ZLIB_OVERHEAD: Int = 6
     private const val BLOCK_OVERHEAD: Int = 5
     private const val ZLIB_METHOD: Byte = 0x78
