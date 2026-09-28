@@ -10,6 +10,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.App
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.state
 import io.github.hideyukimori.nenepixel.core.application.document.transition.DocumentTransitionAssertions.created
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelRegion
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelCell
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelChange
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -23,8 +24,8 @@ internal class ChangeSetTest {
         val original = state(canvas, revision(4L))
         val input =
             mutableListOf(
-                PixelChange.create(position(3, 2), blackIndex, redIndex),
-                PixelChange.create(position(1, 0), blackIndex, redIndex),
+                PixelChange.create(position(3, 2), PixelCell.Covered(blackIndex), PixelCell.Covered(redIndex)),
+                PixelChange.create(position(1, 0), PixelCell.Covered(blackIndex), PixelCell.Covered(redIndex)),
             )
         val patch = patch(canvas, original.revision, input)
         val changeSet = created(DocumentTransition.create(original, ChangeSet.create(patch))).changeSet
@@ -49,7 +50,7 @@ internal class ChangeSetTest {
     fun `identical state and patch data produce equal change sets`() {
         val canvas = canvas(1, 1)
         val original = state(canvas)
-        val change = PixelChange.create(position(0, 0), blackIndex, redIndex)
+        val change = PixelChange.create(position(0, 0), PixelCell.Covered(blackIndex), PixelCell.Covered(redIndex))
         val firstPatch = patch(canvas, original.revision, listOf(change))
         val secondPatch = patch(canvas, original.revision, listOf(change))
         val first = created(DocumentTransition.create(original, ChangeSet.create(firstPatch))).changeSet

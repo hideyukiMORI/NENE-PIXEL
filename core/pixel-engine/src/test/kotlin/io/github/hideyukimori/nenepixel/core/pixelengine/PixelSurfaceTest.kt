@@ -1,5 +1,6 @@
 package io.github.hideyukimori.nenepixel.core.pixelengine
 
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelCell
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.black
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.canvas
@@ -17,7 +18,7 @@ internal class PixelSurfaceTest {
         val changedSurface = PixelSurface.from(original)
         val untouchedSurface = PixelSurface.from(original)
 
-        changedSurface.write(PixelChange.create(position(0, 0), black, red))
+        changedSurface.write(PixelChange.create(position(0, 0), PixelCell.Covered(black), PixelCell.Covered(red)))
 
         assertEquals(red, changedSurface.snapshot(original.revision).onlyColor())
         assertEquals(black, untouchedSurface.snapshot(original.revision).onlyColor())

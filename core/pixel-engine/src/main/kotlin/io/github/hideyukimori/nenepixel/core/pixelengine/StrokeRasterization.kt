@@ -33,22 +33,27 @@ private fun rasterizeMatchingCanvas(
     val targetValue = stroke.effect.targetIndex.value
     val target = targetValue.toByte()
     val canvasPixels = snapshot.size.pixelCount.toInt()
-    val sourcePixels = snapshot.copyPackedIndices()
+    val surface = PixelSurface.from(snapshot)
     val collection =
         EffectivePositionCollector(
             canvasPixels = canvasPixels,
             capacity = minOf(stroke.positionCount, canvasPixels),
-        ).collect(stroke, sourcePixels, target)
+        ).collect(stroke, surface, target)
     val positions = collection.positions
     return if (positions.isEmpty()) {
         StrokeRasterizationResult.NoChanges
     } else {
-        val before = ByteArray(positions.size) { index -> sourcePixels[positions[index]] }
+        val before = ByteArray(positions.size) { index -> surface.packedIndexAt(positions[index]) }
+        val packedPositions =
+            IntArray(positions.size) { index ->
+                val position = positions[index]
+                packPatchPosition(position, beforeCovered = surface.isCoveredAt(position), afterCovered = true)
+            }
         PixelPatch
             .createFromValidatedPackedIndices(
                 snapshot.size,
                 snapshot.revision,
-                positions,
+                packedPositions,
                 before,
                 ByteArray(positions.size) { target },
                 positionsAreContiguous = collection.positionsAreContiguous,
@@ -69,11 +74,11 @@ private class EffectivePositionCollector(
 
     fun collect(
         stroke: Stroke,
-        sourcePixels: ByteArray,
+        surface: PixelSurface,
         target: Byte,
     ): EffectivePositionCollection {
         repeat(stroke.positionCount) { pathIndex ->
-            accept(stroke.rowMajorIndexAt(pathIndex), sourcePixels, target)
+            accept(stroke.rowMajorIndexAt(pathIndex), surface, target)
         }
         val positions = effective.copyOf(changeCount)
         if (!isCanonicalOrder) positions.sort()
@@ -85,12 +90,12 @@ private class EffectivePositionCollector(
 
     private fun accept(
         index: Int,
-        sourcePixels: ByteArray,
+        surface: PixelSurface,
         target: Byte,
     ) {
         if (seen[index]) return
         seen[index] = true
-        if (sourcePixels[index] == target) return
+        if (surface.isCoveredAt(index) && surface.packedIndexAt(index) == target) return
         if (changeCount > 0 && index != lastEffectiveIndex + 1) positionsAreContiguous = false
         if (index <= lastEffectiveIndex) isCanonicalOrder = false
         effective[changeCount] = index

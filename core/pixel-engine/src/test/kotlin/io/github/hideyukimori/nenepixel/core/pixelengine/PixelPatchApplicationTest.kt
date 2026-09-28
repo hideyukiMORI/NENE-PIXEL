@@ -1,6 +1,7 @@
 package io.github.hideyukimori.nenepixel.core.pixelengine
 
 import io.github.hideyukimori.nenepixel.core.domain.document.Revision
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelCell
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.black
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.canvas
@@ -29,8 +30,8 @@ internal class PixelPatchApplicationTest {
                     beforeRevision = original.revision,
                     changes =
                         listOf(
-                            PixelChange.create(position(0, 0), black, red),
-                            PixelChange.create(position(2, 0), black, green),
+                            PixelChange.create(position(0, 0), PixelCell.Covered(black), PixelCell.Covered(red)),
+                            PixelChange.create(position(2, 0), PixelCell.Covered(black), PixelCell.Covered(green)),
                         ),
                 ),
             )
@@ -51,7 +52,7 @@ internal class PixelPatchApplicationTest {
                 PixelPatch.create(
                     original.size,
                     original.revision,
-                    listOf(PixelChange.create(position(1, 0), black, red)),
+                    listOf(PixelChange.create(position(1, 0), PixelCell.Covered(black), PixelCell.Covered(red))),
                 ),
             )
 
@@ -71,7 +72,7 @@ internal class PixelPatchApplicationTest {
                 PixelPatch.create(
                     original.size,
                     original.revision,
-                    listOf(PixelChange.create(position(0, 0), source, target)),
+                    listOf(PixelChange.create(position(0, 0), PixelCell.Covered(source), PixelCell.Covered(target))),
                 ),
             )
 
@@ -91,8 +92,8 @@ internal class PixelPatchApplicationTest {
                     original.size,
                     original.revision,
                     listOf(
-                        PixelChange.create(position(0, 0), black, red),
-                        PixelChange.create(position(1, 0), black, red),
+                        PixelChange.create(position(0, 0), PixelCell.Covered(black), PixelCell.Covered(red)),
+                        PixelChange.create(position(1, 0), PixelCell.Covered(black), PixelCell.Covered(red)),
                     ),
                 ),
             )
@@ -113,7 +114,7 @@ internal class PixelPatchApplicationTest {
                 PixelPatch.create(
                     canvas(1, 1),
                     revision(0L),
-                    listOf(PixelChange.create(position(0, 0), black, red)),
+                    listOf(PixelChange.create(position(0, 0), PixelCell.Covered(black), PixelCell.Covered(red))),
                 ),
             )
 
@@ -135,7 +136,7 @@ internal class PixelPatchApplicationTest {
                 PixelPatch.create(
                     original.size,
                     original.revision,
-                    listOf(PixelChange.create(position(0, 0), black, red)),
+                    listOf(PixelChange.create(position(0, 0), PixelCell.Covered(black), PixelCell.Covered(red))),
                 ),
             )
 
