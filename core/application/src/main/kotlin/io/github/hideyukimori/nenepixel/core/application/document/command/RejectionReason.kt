@@ -75,4 +75,15 @@ public sealed interface RejectionReason {
     public data class LayerStructureMismatch internal constructor(
         public val layerId: LayerId,
     ) : RejectionReason
+
+    public data object LayerLimitReached : RejectionReason
+
+    public data object LayerIdOverflow : RejectionReason
+
+    public data object LastLayerNotDeletable : RejectionReason
+
+    public data class LayerPositionOutOfRange internal constructor(
+        public val position: Int,
+        public val count: Int,
+    ) : RejectionReason
 }

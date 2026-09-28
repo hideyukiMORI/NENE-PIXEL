@@ -124,6 +124,10 @@ private fun RejectionReason.noticeResource(): Int =
         is RejectionReason.LayerSnapshotMismatch,
         is RejectionReason.LayerNotFound,
         is RejectionReason.LayerStructureMismatch,
+        RejectionReason.LayerLimitReached,
+        RejectionReason.LayerIdOverflow,
+        RejectionReason.LastLayerNotDeletable,
+        is RejectionReason.LayerPositionOutOfRange,
         -> R.string.palette_editor_apply_failed
     }
 

@@ -15,6 +15,7 @@ public class CommandGateway private constructor(
     private var history: BoundedLinearHistory = BoundedLinearHistory.empty()
     private val applyStrokeCommandHandler: ApplyStrokeCommandHandler = ApplyStrokeCommandHandler()
     private val replacePaletteCommandHandler: ReplacePaletteCommandHandler = ReplacePaletteCommandHandler()
+    private val layerCommandHandler: LayerCommandHandler = LayerCommandHandler()
     private val undoCommandHandler: UndoCommandHandler = UndoCommandHandler()
     private val redoCommandHandler: RedoCommandHandler = RedoCommandHandler()
 
@@ -49,6 +50,12 @@ public class CommandGateway private constructor(
                 is ReplacePaletteCommand -> {
                     executeAdmitted(command.admission) {
                         replacePaletteCommandHandler.execute(currentState, command)
+                    }
+                }
+
+                is LayerCommand -> {
+                    executeAdmitted(command.admission) {
+                        layerCommandHandler.execute(currentState, command)
                     }
                 }
 
