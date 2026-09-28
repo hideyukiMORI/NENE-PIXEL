@@ -160,7 +160,10 @@ private fun SideDock(
     }
 }
 
-/** The actual-size window draws over the canvas inside the same work-area box (ADR 0026). */
+/**
+ * The actual-size window draws over the canvas inside the same work-area box (ADR 0026); the quick-select control
+ * draws over both (ADR 0029).
+ */
 @Composable
 private fun EditorCanvas(
     state: State<EditorRenderState>,
@@ -170,6 +173,7 @@ private fun EditorCanvas(
     val size by remember(state) { derivedStateOf { state.value.snapshot.size } }
     PixelCanvas(state, size, callbacks, committed, Modifier.fillMaxSize())
     ActualSizeWindowOverlay(state, committed, callbacks)
+    QuickSelectOverlay(state, callbacks)
 }
 
 @Composable

@@ -3,6 +3,7 @@ package io.github.hideyukimori.nenepixel.core.application.workspace
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandSourceAdmission
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteDraftTransition
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteEditSession
+import io.github.hideyukimori.nenepixel.core.application.workspace.quickselect.EyedropperState
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
 import io.github.hideyukimori.nenepixel.core.domain.drawing.StrokeEffect
 import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
@@ -57,6 +58,10 @@ public class WorkspaceReducer private constructor() {
                 reducePaletteSession(state, action)
             }
 
+            is WorkspaceAction.QuickSelectAction -> {
+                reduceQuickSelect(state, action, source)
+            }
+
             is ReconcileDocumentPalette -> {
                 reconcileDocumentPalette(state, action, source.document.definition.palette)
             }
@@ -67,20 +72,11 @@ public class WorkspaceReducer private constructor() {
         action: WorkspaceAction.SelectPaletteEntry,
         palette: Palette,
     ): WorkspaceReductionResult =
-        when (palette.entryAt(action.index)) {
-            is DomainValueResult.Rejected -> {
-                rejected(
-                    state,
-                    WorkspaceActionRejection.PaletteIndexOutsidePalette(action.index, palette.entryCount),
-                )
-            }
-
-            is DomainValueResult.Created -> {
-                if (action.index == state.activePaletteIndex) {
-                    unchanged(state, WorkspaceNoChangeReason.ActivePaletteEntryAlreadySelected)
-                } else {
-                    WorkspaceReductionResult.Reduced(state.withActivePaletteIndex(action.index))
-                }
+        selectingPaletteSlot(state, action.index, palette) {
+            if (action.index == state.activePaletteIndex) {
+                unchanged(state, WorkspaceNoChangeReason.ActivePaletteEntryAlreadySelected)
+            } else {
+                WorkspaceReductionResult.Reduced(state.withActivePaletteIndex(action.index))
             }
         }
 
@@ -92,6 +88,14 @@ public class WorkspaceReducer private constructor() {
         when {
             state.preview != null -> {
                 rejected(state, WorkspaceActionRejection.PreviewAlreadyActive)
+            }
+
+            state.quickSelection.menu != null -> {
+                rejected(state, WorkspaceActionRejection.QuickSelectMenuOpen)
+            }
+
+            state.quickSelection.eyedropper == EyedropperState.Armed -> {
+                rejected(state, WorkspaceActionRejection.EyedropperArmed)
             }
 
             action.canvas != source.document.size -> {
@@ -159,7 +163,7 @@ public class WorkspaceReducer private constructor() {
         if (state.preview == null) {
             rejected(state, WorkspaceActionRejection.NoActivePreview)
         } else {
-            WorkspaceReductionResult.Reduced(state.withoutPreview())
+            WorkspaceReductionResult.Reduced(state.withPreview(null))
         }
 
     private fun prepareGestureCommit(state: WorkspaceState): WorkspaceReductionResult =
@@ -167,7 +171,7 @@ public class WorkspaceReducer private constructor() {
             rejected(state, WorkspaceActionRejection.NoActivePreview)
         } else {
             WorkspaceReductionResult.CommitPrepared(
-                nextState = state.withoutPreview(),
+                nextState = state.withPreview(null).recordingStroke(state.preview.effect),
                 stroke = state.preview.prepareStroke(),
                 admission = state.preview.admission,
             )
@@ -208,14 +212,17 @@ public class WorkspaceReducer private constructor() {
     }
 }
 
+/** Selecting a tool also returns an armed eyedropper to idle, even for the current tool (ADR 0029). */
 private fun selectTool(
     state: WorkspaceState,
     action: WorkspaceAction.SelectTool,
 ): WorkspaceReductionResult =
-    if (action.tool == state.activeTool) {
+    if (action.tool == state.activeTool && state.quickSelection.eyedropper == EyedropperState.Idle) {
         WorkspaceReductionResult.Unchanged(state, WorkspaceNoChangeReason.ActiveToolAlreadySelected)
     } else {
-        WorkspaceReductionResult.Reduced(state.withActiveTool(action.tool))
+        WorkspaceReductionResult.Reduced(
+            state.withActiveTool(action.tool).withQuickSelection(state.quickSelection.idle()),
+        )
     }
 
 private fun WorkspaceState.strokeEffect(definition: PaletteDefinition): StrokeEffect =
@@ -224,6 +231,16 @@ private fun WorkspaceState.strokeEffect(definition: PaletteDefinition): StrokeEf
         DrawingTool.Eraser -> StrokeEffect.Erase(definition.defaultIndex)
     }
 
+/** A committed paint stroke records its slot as recently used; erase does not (ADR 0029). */
+private fun WorkspaceState.recordingStroke(effect: StrokeEffect): WorkspaceState =
+    when (effect) {
+        is StrokeEffect.Paint -> withQuickSelection(quickSelection.recordPainted(effect.targetIndex))
+        is StrokeEffect.Erase -> this
+    }
+
+/**
+ * Installs the reconciled recent slots, closes the quick-select menu and disarms the eyedropper (ADR 0029).
+ */
 private fun reconcileDocumentPalette(
     state: WorkspaceState,
     action: ReconcileDocumentPalette,
@@ -232,7 +249,15 @@ private fun reconcileDocumentPalette(
     when (val entry = palette.entryAt(action.index)) {
         is DomainValueResult.Created -> {
             WorkspaceReductionResult.Reduced(
-                state.withActivePaletteIndex(action.index).withoutPreview(),
+                state
+                    .withActivePaletteIndex(action.index)
+                    .withPreview(null)
+                    .withQuickSelection(
+                        state.quickSelection
+                            .withRecent(action.recent)
+                            .closed()
+                            .idle(),
+                    ),
             )
         }
 

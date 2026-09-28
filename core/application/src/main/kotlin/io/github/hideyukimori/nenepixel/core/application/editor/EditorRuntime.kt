@@ -115,15 +115,22 @@ public class EditorRuntime private constructor(
         command: DocumentCommand,
         result: CommandResult.Applied,
     ) {
+        val definition = owners.commandGateway.runtimeState.documentState.definition
         val nextIndex =
             PaletteSelectionPolicy.afterApplied(
                 owners.workspaceState.activePaletteIndex,
-                owners.commandGateway.runtimeState.documentState.definition,
+                definition,
                 command,
                 result.changeSet.paletteTransition,
             )
         if (nextIndex != null) {
-            reduceWorkspaceLocked(ReconcileDocumentPalette(nextIndex))
+            val recent =
+                PaletteSelectionPolicy.recentAfterApplied(
+                    owners.workspaceState.quickSelection.recent,
+                    definition,
+                    command,
+                )
+            reduceWorkspaceLocked(ReconcileDocumentPalette(nextIndex, recent))
         }
     }
 

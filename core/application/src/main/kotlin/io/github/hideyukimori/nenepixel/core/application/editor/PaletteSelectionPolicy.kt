@@ -36,6 +36,28 @@ internal object PaletteSelectionPolicy {
             }
         }
 
+    /**
+     * Follows the recent quick-select slots (ADR 0029) with the same rule as [afterApplied]: a palette
+     * replacement maps each slot through its remap keeping first occurrences, and another palette change
+     * drops slots outside the palette. Slots are never replaced by the default index.
+     */
+    fun recentAfterApplied(
+        recent: List<PaletteIndex>,
+        definition: PaletteDefinition,
+        command: DocumentCommand,
+    ): List<PaletteIndex> =
+        if (command is ReplacePaletteCommand) {
+            recent
+                .mapNotNull { index ->
+                    when (val mapped = command.remap.destinationAt(index)) {
+                        is DomainValueResult.Created -> mapped.value
+                        is DomainValueResult.Rejected -> null
+                    }
+                }.distinct()
+        } else {
+            recent.filter { index -> definition.palette.entryAt(index) is DomainValueResult.Created }
+        }
+
     private fun restored(
         definition: PaletteDefinition,
         index: PaletteIndex,

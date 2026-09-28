@@ -2,6 +2,7 @@ package io.github.hideyukimori.nenepixel.core.application.workspace
 
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteDraftOperation
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteImportMode
+import io.github.hideyukimori.nenepixel.core.application.workspace.quickselect.QuickSelectItem
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportState
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
@@ -74,6 +75,31 @@ public sealed interface WorkspaceAction {
     public data object ConfirmPaletteImport : PaletteSessionAction
 
     public data object CancelPaletteImport : PaletteSessionAction
+
+    /** Every quick-select menu and eyedropper action; the reducer hands the whole family to one reduction. */
+    public sealed interface QuickSelectAction : WorkspaceAction
+
+    /** Opens the quick-select menu with the recent slots and the eyedropper, nothing highlighted. */
+    public data object OpenQuickSelect : QuickSelectAction
+
+    /** Highlights one item of the open menu, or clears the highlight with `null`. */
+    public data class HighlightQuickSelectItem(
+        public val item: QuickSelectItem?,
+    ) : QuickSelectAction
+
+    /** Closes the menu and applies its highlight. */
+    public data object ConfirmQuickSelect : QuickSelectAction
+
+    /** Closes the menu and changes nothing else. */
+    public data object CancelQuickSelect : QuickSelectAction
+
+    /** Selects the slot index painted at `position` and returns the armed eyedropper to idle. */
+    public data class PickPaletteEntryAt(
+        public val position: PixelPosition,
+    ) : QuickSelectAction
+
+    /** Returns the armed eyedropper to idle. */
+    public data object DisarmEyedropper : QuickSelectAction
 }
 
 /**
@@ -90,11 +116,17 @@ internal fun WorkspaceAction.isAllowedDuringPaletteSession(): Boolean =
         is WorkspaceAction.PaletteSessionAction,
         is BeginPaletteEdit,
         is ReconcileDocumentPalette,
+        WorkspaceAction.CancelQuickSelect,
+        WorkspaceAction.DisarmEyedropper,
         -> true
 
         is WorkspaceAction.SelectTool,
         is WorkspaceAction.BeginGesturePreview,
         is WorkspaceAction.ExtendGesturePreview,
         WorkspaceAction.PrepareGestureCommit,
+        WorkspaceAction.OpenQuickSelect,
+        is WorkspaceAction.HighlightQuickSelectItem,
+        WorkspaceAction.ConfirmQuickSelect,
+        is WorkspaceAction.PickPaletteEntryAt,
         -> false
     }

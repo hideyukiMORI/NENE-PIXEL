@@ -112,6 +112,7 @@ internal class EditorRuntimeAdapter(
             actualSizeWindow = state.workspaceState.actualSizeWindow,
             paletteEditSession = state.workspaceState.paletteEditSession,
             paletteNotice = paletteNotice,
+            quickSelection = state.workspaceState.quickSelection,
         )
     }
 

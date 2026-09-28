@@ -4,4 +4,5 @@ import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 
 internal data class ReconcileDocumentPalette(
     val index: PaletteIndex,
+    val recent: List<PaletteIndex>,
 ) : WorkspaceAction

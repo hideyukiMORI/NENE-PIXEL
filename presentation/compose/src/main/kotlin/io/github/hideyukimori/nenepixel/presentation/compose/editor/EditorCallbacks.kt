@@ -22,6 +22,7 @@ public class EditorCallbacks internal constructor(
     private val setAppearance: (EditorAppearance) -> EditorRenderState,
     private val setActualSizeWindow: (ActualSizeWindow) -> EditorRenderState,
     internal val palette: EditorPaletteCallbacks,
+    internal val quickSelect: EditorQuickSelectCallbacks,
 ) {
     internal val viewport: EditorViewportCallbacks = EditorViewportCallbacks(viewportStarted, viewportTransformed)
 

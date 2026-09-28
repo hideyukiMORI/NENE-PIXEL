@@ -5,7 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.painterResource
 import io.github.hideyukimori.nenepixel.presentation.compose.R
 
-internal enum class EditorIcon { Pencil, Eraser, Undo, Redo, Palette, ActualSize, File, Settings, Close }
+internal enum class EditorIcon { Pencil, Eraser, Undo, Redo, Palette, ActualSize, File, Settings, Close, Eyedropper }
 
 @Composable
 internal fun EditorSymbol(icon: EditorIcon) {
@@ -20,6 +20,7 @@ internal fun EditorSymbol(icon: EditorIcon) {
             EditorIcon.File -> R.drawable.editor_file
             EditorIcon.Settings -> R.drawable.editor_settings
             EditorIcon.Close -> R.drawable.editor_close
+            EditorIcon.Eyedropper -> R.drawable.editor_eyedropper
         }
     Icon(painter = painterResource(resource), contentDescription = null)
 }

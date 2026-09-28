@@ -228,8 +228,10 @@ captures either `StrokeEffect.Paint(activePaletteIndex)` or
 
 `DocumentState` owns one `PaletteDefinition` containing the ordered colors and default index.
 `EditorRuntime` and `WorkspaceReducer` retain no independent palette configuration. `WorkspaceState`
-owns only the typed
-`activePaletteIndex`, and `WorkspaceAction.SelectPaletteEntry` is its only mutation route. The
+owns the typed `activePaletteIndex` and, in `QuickSelection`, only typed slot indices (ADR 0029). The
+reducer's one slot selection is the only mutation route of `activePaletteIndex`, reached from
+`WorkspaceAction.SelectPaletteEntry`, `ConfirmQuickSelect` and the eyedropper's `PickPaletteEntryAt`,
+which reads the exact slot index at a pixel and never matches by colour. The
 reducer returns a typed rejection for an index outside the current document palette and a typed unchanged
 result for the current index. Selection emits no document command and changes no revision, history,
 or dirty state. Displayed active color is always derived from palette plus selection.
