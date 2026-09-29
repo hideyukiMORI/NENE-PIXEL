@@ -151,7 +151,13 @@ internal class QuickSelectRecompositionTest {
         const val PACKAGE: String = "io.github.hideyukimori.nenepixel.presentation.compose.editor."
         const val OVERLAY_BODY: String = PACKAGE + "QuickSelectOverlay "
         const val QUICK_SELECT_PREFIX: String = PACKAGE + "QuickSelect"
-        const val STROKE_STEPS: Float = 6f
+
+        /**
+         * The stroke moves along the first axis by steps of the short side divided by this. It ends three steps
+         * from the centre, which must stay inside the canvas when that axis is the short side (portrait).
+         */
+        const val STROKE_STEPS: Float = 8f
+
         const val STROKE_MOVES: Int = 4
         const val MIN_STROKE_POSITIONS: Int = 2
         const val LOG_TAG: String = "QuickSelectRecomposition"
