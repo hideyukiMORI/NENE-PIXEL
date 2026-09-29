@@ -13,13 +13,13 @@ $ErrorActionPreference = 'Stop'
 # role clone's own build tree, so it holds that clone's measurement sources only - the P4 tooling
 # itself lives at newer commits and is bound through `tools.*`, not through measurement_files.
 $script:P4ProtocolId = 'nene-pixel-p4-indexed-cutover-verification-v7'
-# Lane 3 revision (still v7 identity) takes its Issue/protocol agreement from Issue #120;
-# Issue #106 carried the run5 agreement and is CLOSED.
-$script:P4AgreementIssue = 120
+# Lane 3 (still v7 identity) takes its Issue/protocol agreement from the current binding's Issue
+# (protocol, Lane 3 binding table): Issue #142. Issue #120 carried the frame1 agreement and is CLOSED.
+$script:P4AgreementIssue = 142
 $script:P4ManifestSchema = 'nene-pixel-p4-indexed-preflight-v7'
-# Lane 3 revision (still v7 identity): baseline production is main at collection time (2f0b617, 2026-09-23).
-# Issue #106's accepted baseline 2dd4e01 stays bound only to the preserved run5 evidence.
-$script:P4BaselineProduction = '2f0b617e56f7bcf3d71b5a258a48e0edead354d9'
+# Lane 3 (still v7 identity): baseline production is main at collection time (8120c06, 2026-09-29).
+# 2f0b617 stays bound to the preserved frame1 evidence, 2dd4e01 to the preserved run5 evidence.
+$script:P4BaselineProduction = '8120c06fae1a372b23d2a7af4f50aa2b9cdfeff9'
 
 # Exactly one contract record per lane boundary. Absent, duplicate or unknown scopes are refusals.
 $script:P4CollectorContractScopes = @(
