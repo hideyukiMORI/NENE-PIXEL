@@ -7,6 +7,7 @@ import io.github.hideyukimori.nenepixel.core.domain.document.Revision
 import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelCell
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.canvas
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.position
@@ -51,6 +52,7 @@ internal class LegacyImportPlannerTest {
         values[0] = 0x01020300
         val document = assertInstanceOf(LegacyImportResult.Lossless::class.java, classify(values)).document
         assertEquals(256, document.definition.palette.entryCount)
+        assertEquals(Revision.create(7).value(), document.revision)
         assertEquals(index(0), document.definition.defaultIndex)
         assertEquals(
             0x01020300,
@@ -82,7 +84,7 @@ internal class LegacyImportPlannerTest {
     }
 
     @Test
-    fun `reduction uses exact then nearest mapping and returns revision zero bound preview`() {
+    fun `reduction uses exact then nearest mapping and returns a bound preview`() {
         val candidate =
             assertInstanceOf(
                 LegacyImportResult.ConversionRequired::class.java,
@@ -94,12 +96,11 @@ internal class LegacyImportPlannerTest {
         val preview = LegacyImportPlanner.reduce(candidate, target)
 
         assertSame(target, preview.definition)
-        assertEquals(Revision.initial(), preview.snapshot.revision)
         assertEquals(candidate.source.size, preview.snapshot.size)
         assertEquals(
-            index(0),
+            PixelCell.Covered(index(0)),
             preview.snapshot
-                .indexAt(position(0, 0))
+                .cellAt(position(0, 0))
                 .value(),
         )
     }

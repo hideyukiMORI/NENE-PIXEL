@@ -5,6 +5,7 @@ import io.github.hideyukimori.nenepixel.core.domain.document.LegacyRgbaSource
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelCell
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import io.github.hideyukimori.nenepixel.core.pixelengine.importing.LegacyReductionPreview
 
@@ -88,9 +89,14 @@ public class LegacyReductionProjection internal constructor(
     private val snapshot = preview.snapshot
 
     public fun colorAt(position: PixelPosition): LegacyPreviewColorResult =
-        when (val index = snapshot.indexAt(position)) {
+        when (val cell = snapshot.cellAt(position)) {
             is DomainValueResult.Created -> {
-                when (val entry = definition.palette.entryAt(index.value)) {
+                val index =
+                    when (val value = cell.value) {
+                        is PixelCell.Covered -> value.index
+                        PixelCell.Empty -> error("Legacy reduction preview is fully covered")
+                    }
+                when (val entry = definition.palette.entryAt(index)) {
                     is DomainValueResult.Created -> LegacyPreviewColorResult.Color(entry.value.color)
                     is DomainValueResult.Rejected -> error("Validated reduction preview lost palette membership")
                 }

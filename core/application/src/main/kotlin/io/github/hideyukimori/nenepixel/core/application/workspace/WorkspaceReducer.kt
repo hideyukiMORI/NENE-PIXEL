@@ -7,9 +7,7 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.quickselect.E
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
 import io.github.hideyukimori.nenepixel.core.domain.drawing.StrokeEffect
 import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
-import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelLimits
-import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 
 public class WorkspaceReducer private constructor() {
     public fun reduce(
@@ -62,8 +60,8 @@ public class WorkspaceReducer private constructor() {
                 reduceQuickSelect(state, action, source)
             }
 
-            is ReconcileDocumentPalette -> {
-                reconcileDocumentPalette(state, action, source.document.definition.palette)
+            is DocumentReconciliation -> {
+                reconcileDocument(state, action, source.document)
             }
         }
 
@@ -76,7 +74,7 @@ public class WorkspaceReducer private constructor() {
             if (action.index == state.activePaletteIndex) {
                 unchanged(state, WorkspaceNoChangeReason.ActivePaletteEntryAlreadySelected)
             } else {
-                WorkspaceReductionResult.Reduced(state.withActivePaletteIndex(action.index))
+                WorkspaceReductionResult.Reduced(state.withEditTarget(state.editTarget.withPaletteIndex(action.index)))
             }
         }
 
@@ -111,7 +109,8 @@ public class WorkspaceReducer private constructor() {
                     ToolGesture.begin(
                         action.canvas,
                         action.position,
-                        state.strokeEffect(source.document.definition),
+                        state.strokeEffect(),
+                        state.activeLayerId,
                         source,
                     )
                 WorkspaceReductionResult.Reduced(state.withPreview(preview))
@@ -173,6 +172,7 @@ public class WorkspaceReducer private constructor() {
             WorkspaceReductionResult.CommitPrepared(
                 nextState = state.withPreview(null).recordingStroke(state.preview.effect),
                 stroke = state.preview.prepareStroke(),
+                layerId = state.preview.layerId,
                 admission = state.preview.admission,
             )
         }
@@ -225,45 +225,17 @@ private fun selectTool(
         )
     }
 
-private fun WorkspaceState.strokeEffect(definition: PaletteDefinition): StrokeEffect =
+private fun WorkspaceState.strokeEffect(): StrokeEffect =
     when (activeTool) {
         DrawingTool.Pencil -> StrokeEffect.Paint(activePaletteIndex)
-        DrawingTool.Eraser -> StrokeEffect.Erase(definition.defaultIndex)
+        DrawingTool.Eraser -> StrokeEffect.Erase
     }
 
 /** A committed paint stroke records its slot as recently used; erase does not (ADR 0029). */
 private fun WorkspaceState.recordingStroke(effect: StrokeEffect): WorkspaceState =
     when (effect) {
         is StrokeEffect.Paint -> withQuickSelection(quickSelection.recordPainted(effect.targetIndex))
-        is StrokeEffect.Erase -> this
-    }
-
-/**
- * Installs the reconciled recent slots, closes the quick-select menu and disarms the eyedropper (ADR 0029).
- */
-private fun reconcileDocumentPalette(
-    state: WorkspaceState,
-    action: ReconcileDocumentPalette,
-    palette: Palette,
-): WorkspaceReductionResult =
-    when (val entry = palette.entryAt(action.index)) {
-        is DomainValueResult.Created -> {
-            WorkspaceReductionResult.Reduced(
-                state
-                    .withActivePaletteIndex(action.index)
-                    .withPreview(null)
-                    .withQuickSelection(
-                        state.quickSelection
-                            .withRecent(action.recent)
-                            .closed()
-                            .idle(),
-                    ),
-            )
-        }
-
-        is DomainValueResult.Rejected -> {
-            error("Document transition produced an invalid selection: ${entry.rejection}")
-        }
+        StrokeEffect.Erase -> this
     }
 
 private fun setAppearance(

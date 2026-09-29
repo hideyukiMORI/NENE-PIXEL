@@ -9,6 +9,7 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasWidth
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelX
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelY
+import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelLimits
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
@@ -65,7 +66,7 @@ internal class ToolGestureLongStrokeMeasurementTest {
             workload(
                 "continuous_eraser",
                 continuousEndpoints(),
-                StrokeEffect.Erase(eraseIndex),
+                StrokeEffect.Erase,
                 canvas.pixelCount.toInt(),
             ),
             workload(
@@ -77,7 +78,7 @@ internal class ToolGestureLongStrokeMeasurementTest {
             workload(
                 "repeated_eraser",
                 repeatedEndpoints(),
-                StrokeEffect.Erase(eraseIndex),
+                StrokeEffect.Erase,
                 PixelLimits.MAX_RAW_STROKE_POSITIONS,
             ),
         )
@@ -88,7 +89,7 @@ internal class ToolGestureLongStrokeMeasurementTest {
         effect: StrokeEffect,
         expectedPositionCount: Int,
     ): LongStrokeWorkload {
-        var gesture = ToolGesture.begin(canvas, endpoints.first(), effect, admission)
+        var gesture = ToolGesture.begin(canvas, endpoints.first(), effect, LayerId.first(), admission)
         endpoints.drop(1).forEach { endpoint ->
             gesture =
                 when (val result = gesture.extend(endpoint)) {
@@ -160,7 +161,6 @@ internal class ToolGestureLongStrokeMeasurementTest {
             CanvasWidth.create(CANVAS_EDGE).requiredValue(),
             CanvasHeight.create(CANVAS_EDGE).requiredValue(),
         )
-    private val eraseIndex: PaletteIndex = PaletteIndex.first
     private val paintIndex: PaletteIndex = PaletteIndex.create(1).requiredValue()
     private val admission = CommandGateway.create(state(canvas)).captureSource()
 

@@ -16,6 +16,7 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelY
 import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelCell
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import io.github.hideyukimori.nenepixel.presentation.compose.editor.EditorController
@@ -59,11 +60,25 @@ internal object PresentationTestValues {
         )
     }
 
+    fun cellAt(
+        state: DocumentState,
+        position: PixelPosition,
+    ): PixelCell =
+        state.layers
+            .single()
+            .snapshot
+            .cellAt(position)
+            .requiredValue()
+
     fun colorAt(
         state: DocumentState,
         position: PixelPosition,
     ): PixelColor {
-        val index = state.snapshot.indexAt(position).requiredValue()
+        val index =
+            when (val cell = cellAt(state, position)) {
+                is PixelCell.Covered -> cell.index
+                PixelCell.Empty -> fail("Expected a covered cell at $position")
+            }
         return state.definition.palette
             .entryAt(index)
             .requiredValue()
@@ -77,8 +92,6 @@ internal object PresentationTestValues {
         PixelSnapshot
             .create(
                 canvas,
-                io.github.hideyukimori.nenepixel.core.domain.document.Revision
-                    .initial(),
                 indices.map(::paletteIndex),
             ).requiredValue()
 

@@ -118,7 +118,9 @@ internal class EditorRuntimeLifecycleTest {
             assertEquals(0L, state.documentState.revision.value)
             assertEquals(
                 256,
-                state.documentState.snapshot
+                state.documentState.layers
+                    .single()
+                    .snapshot
                     .copyPackedIndices()
                     .size,
             )

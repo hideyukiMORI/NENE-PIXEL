@@ -30,6 +30,7 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasWidth
 import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import io.github.hideyukimori.nenepixel.presentation.compose.R
 import org.junit.Assert.assertEquals
@@ -69,7 +70,7 @@ internal class UndoRedoEditorTest {
         composeRule.waitForIdle()
 
         val drawn = controller.renderState
-        assertEquals(1L, drawn.snapshot.revision.value)
+        assertEquals(1L, controller.documentState.revision.value)
         assertTrue(drawn.canUndo)
         assertFalse(drawn.canRedo)
         composeRule.onNodeWithTag("editor_dirty_document").assertExists()
@@ -77,8 +78,15 @@ internal class UndoRedoEditorTest {
         composeRule.waitForIdle()
 
         val undone = controller.renderState
-        assertEquals(initial.snapshot, undone.snapshot)
-        assertEquals(0L, undone.snapshot.revision.value)
+        assertEquals(
+            initial.document.layers
+                .single()
+                .snapshot,
+            undone.document.layers
+                .single()
+                .snapshot,
+        )
+        assertEquals(0L, controller.documentState.revision.value)
         assertFalse(undone.canUndo)
         assertTrue(undone.canRedo)
         composeRule.onNodeWithTag("editor_clean_document").assertExists()
@@ -86,8 +94,15 @@ internal class UndoRedoEditorTest {
         composeRule.waitForIdle()
 
         val redone = controller.renderState
-        assertEquals(drawn.snapshot, redone.snapshot)
-        assertEquals(1L, redone.snapshot.revision.value)
+        assertEquals(
+            drawn.document.layers
+                .single()
+                .snapshot,
+            redone.document.layers
+                .single()
+                .snapshot,
+        )
+        assertEquals(1L, controller.documentState.revision.value)
         assertTrue(redone.canUndo)
         assertFalse(redone.canRedo)
         composeRule.onNodeWithTag("editor_dirty_document").assertExists()
@@ -105,7 +120,7 @@ internal class UndoRedoEditorTest {
         touchPixel(SECOND_PIXEL_PERCENT)
         composeRule.waitForIdle()
 
-        assertEquals(2L, controller.renderState.snapshot.revision.value)
+        assertEquals(2L, controller.documentState.revision.value)
         composeRule.onNodeWithTag("editor_undo").assertIsEnabled().performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("editor_undo").assertIsEnabled()
@@ -148,8 +163,15 @@ internal class UndoRedoEditorTest {
 
         val transformed = controller.renderState
         assertNotEquals(initial.viewport, transformed.viewport)
-        assertEquals(initial.snapshot, transformed.snapshot)
-        assertEquals(0L, transformed.snapshot.revision.value)
+        assertEquals(
+            initial.document.layers
+                .single()
+                .snapshot,
+            transformed.document.layers
+                .single()
+                .snapshot,
+        )
+        assertEquals(0L, controller.documentState.revision.value)
         assertFalse(transformed.canUndo)
         assertFalse(transformed.canRedo)
 
@@ -164,7 +186,7 @@ internal class UndoRedoEditorTest {
             }
         composeRule.waitForIdle()
 
-        assertEquals(1L, controller.renderState.snapshot.revision.value)
+        assertEquals(1L, controller.documentState.revision.value)
     }
 
     @Test
@@ -180,23 +202,37 @@ internal class UndoRedoEditorTest {
         composeRule.waitForIdle()
 
         val drawn = controller.renderState
-        assertEquals(1L, drawn.snapshot.revision.value)
-        assertTrue(drawn.snapshot.copyPackedIndices().any { index -> index.toInt() and UBYTE_MASK != DEFAULT_INDEX })
+        assertEquals(1L, controller.documentState.revision.value)
+        val blank = PixelSnapshot.createEmpty(drawn.document.size)
+        assertNotEquals(
+            blank,
+            drawn.document.layers
+                .single()
+                .snapshot,
+        )
 
         composeRule.onNodeWithTag("editor_eraser_tool").performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("editor_eraser_tool").assertIsSelected()
         composeRule.onNodeWithTag("editor_pencil_tool").assertIsNotSelected()
-        assertEquals(drawn.snapshot, controller.renderState.snapshot)
+        assertEquals(
+            drawn.document.layers
+                .single()
+                .snapshot,
+            controller.renderState.document.layers
+                .single()
+                .snapshot,
+        )
 
         touchFirstPixel()
         composeRule.waitForIdle()
 
-        assertEquals(2L, controller.renderState.snapshot.revision.value)
-        assertTrue(
-            controller.renderState.snapshot
-                .copyPackedIndices()
-                .all { index -> index.toInt() and UBYTE_MASK == DEFAULT_INDEX },
+        assertEquals(2L, controller.documentState.revision.value)
+        assertEquals(
+            blank,
+            controller.renderState.document.layers
+                .single()
+                .snapshot,
         )
     }
 
@@ -211,7 +247,7 @@ internal class UndoRedoEditorTest {
         touchFirstPixel()
         composeRule.waitForIdle()
 
-        assertEquals(0L, controller.renderState.snapshot.revision.value)
+        assertEquals(0L, controller.documentState.revision.value)
         assertFalse(controller.renderState.canUndo)
         assertFalse(controller.renderState.canRedo)
         composeRule.onNodeWithTag("editor_undo").assertIsNotEnabled()
@@ -227,7 +263,10 @@ internal class UndoRedoEditorTest {
         composeRule.onNodeWithTag("editor_open_palette").performClick()
         composeRule.onNodeWithTag(FIRST_PALETTE_DESCRIPTION).assertIsSelected()
         composeRule.onNodeWithTag(SECOND_PALETTE_DESCRIPTION).assertIsNotSelected()
-        val before = controller.renderState.snapshot
+        val before =
+            controller.renderState.document.layers
+                .single()
+                .snapshot
 
         selectSecondColor()
         composeRule.waitForIdle()
@@ -237,7 +276,12 @@ internal class UndoRedoEditorTest {
         composeRule.onNodeWithTag(SECOND_PALETTE_DESCRIPTION).assertIsSelected()
         composeRule.onNodeWithTag("editor_close_panel").performClick()
         assertEquals(EXACT_PALETTE_RGBA, controller.renderState.activeColor.toPackedRgba8888())
-        assertSame(before, controller.renderState.snapshot)
+        assertSame(
+            before,
+            controller.renderState.document.layers
+                .single()
+                .snapshot,
+        )
         assertFalse(controller.renderState.canUndo)
         assertFalse(controller.renderState.canRedo)
 
@@ -246,12 +290,14 @@ internal class UndoRedoEditorTest {
 
         assertEquals(
             SECOND_PALETTE_INDEX,
-            controller.renderState.snapshot
+            controller.renderState.document.layers
+                .single()
+                .snapshot
                 .copyPackedIndices()
                 .first()
                 .toInt() and UBYTE_MASK,
         )
-        assertEquals(1L, controller.renderState.snapshot.revision.value)
+        assertEquals(1L, controller.documentState.revision.value)
     }
 
     @Test
@@ -275,9 +321,19 @@ internal class UndoRedoEditorTest {
         composeRule.onNodeWithTag("editor_open_palette").performClick()
         composeRule.onNodeWithTag(FIRST_PALETTE_DESCRIPTION).assertIsSelected()
         assertEquals(2, ids.callCount)
-        assertEquals(3, controller.renderState.snapshot.size.width.value)
-        assertEquals(2, controller.renderState.snapshot.size.height.value)
-        assertEquals(0L, controller.renderState.snapshot.revision.value)
+        assertEquals(
+            3,
+            controller.renderState.document.layers
+                .single()
+                .snapshot.size.width.value,
+        )
+        assertEquals(
+            2,
+            controller.renderState.document.layers
+                .single()
+                .snapshot.size.height.value,
+        )
+        assertEquals(0L, controller.documentState.revision.value)
         assertFalse(controller.renderState.canUndo)
         assertFalse(controller.renderState.canRedo)
     }
@@ -349,13 +405,29 @@ internal class UndoRedoEditorTest {
                 is ViewportValueResult.Created -> result.value
                 is ViewportValueResult.Rejected -> error("Invalid test surface: ${result.rejection}")
             }
-        val transform = checkNotNull(createViewportTransform(current.snapshot.size, surface, current.viewport))
+        val transform =
+            checkNotNull(
+                createViewportTransform(
+                    current.document.layers
+                        .single()
+                        .snapshot.size,
+                    surface,
+                    current.viewport,
+                ),
+            )
         val pixel =
             pixelPosition(
-                (x * current.snapshot.size.width.value).toInt(),
+                (
+                    x *
+                        current.document.layers
+                            .single()
+                            .snapshot.size.width.value
+                ).toInt(),
                 (
                     y *
-                        current.snapshot.size.height.value
+                        current.document.layers
+                            .single()
+                            .snapshot.size.height.value
                 ).toInt(),
             )
         val bounds = checkNotNull(transform.surfaceBounds(pixel))

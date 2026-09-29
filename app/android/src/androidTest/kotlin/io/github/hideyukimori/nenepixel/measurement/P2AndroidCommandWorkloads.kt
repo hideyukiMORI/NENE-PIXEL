@@ -23,6 +23,7 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelRegion
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelX
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelY
+import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
@@ -204,7 +205,11 @@ internal class PreparedCommandWorkload internal constructor(
             spec = spec,
             outcome = verifySample(result),
             documentHash = runtimeState.documentState.hashCode(),
-            snapshotHash = runtimeState.documentState.snapshot.hashCode(),
+            snapshotHash =
+                runtimeState.documentState.layers
+                    .single()
+                    .snapshot
+                    .hashCode(),
         )
     }
 
@@ -302,7 +307,7 @@ private object WorkloadFactory {
             expectedState =
                 if (correctness) {
                     P2CommandOraclePreparationTracker.recordEraserExpectedDocument()
-                    values.document(values.revision(1L), values.blankPixels())
+                    values.emptyDocument(values.revision(1L))
                 } else {
                     null
                 },
@@ -609,10 +614,11 @@ private class IndexedPaletteMeasurementValues(
         indices: List<PaletteIndex>,
     ): DocumentState =
         DocumentState
-            .create(
+            .createSingleLayer(
                 documentId,
+                revision,
                 definition,
-                PixelSnapshot.create(canvas, revision, indices).requiredValue(),
+                PixelSnapshot.create(canvas, indices).requiredValue(),
             ).requiredValue()
 
     private companion object {
@@ -650,8 +656,6 @@ private class CoreMeasurementValues(
 
     fun redPixels(): List<PaletteIndex> = List(canvas.pixelCount.toInt()) { RED_INDEX }
 
-    fun blankPixels(): List<PaletteIndex> = List(canvas.pixelCount.toInt()) { DEFAULT_INDEX }
-
     fun diagonalRedPixels(): List<PaletteIndex> =
         List(canvas.pixelCount.toInt()) { index ->
             if (index % canvas.width.value == index / canvas.width.value) RED_INDEX else PaletteIndex.first
@@ -670,10 +674,20 @@ private class CoreMeasurementValues(
         pixels: List<PaletteIndex>,
     ): DocumentState =
         DocumentState
-            .create(
+            .createSingleLayer(
                 documentId,
+                revision,
                 definition,
-                PixelSnapshot.create(canvas, revision, pixels).requiredValue(),
+                PixelSnapshot.create(canvas, pixels).requiredValue(),
+            ).requiredValue()
+
+    fun emptyDocument(revision: Revision): DocumentState =
+        DocumentState
+            .createSingleLayer(
+                documentId,
+                revision,
+                definition,
+                PixelSnapshot.createEmpty(canvas),
             ).requiredValue()
 
     fun applyCommand(
@@ -682,6 +696,7 @@ private class CoreMeasurementValues(
     ): ApplyStrokeCommand =
         ApplyStrokeCommand.create(
             gateway.captureSource(),
+            LayerId.first(),
             Stroke.create(canvas, path, StrokeEffect.Paint(RED_INDEX)).requiredValue(),
         )
 
@@ -691,7 +706,8 @@ private class CoreMeasurementValues(
     ): ApplyStrokeCommand =
         ApplyStrokeCommand.create(
             gateway.captureSource(),
-            Stroke.create(canvas, path, StrokeEffect.Erase(DEFAULT_INDEX)).requiredValue(),
+            LayerId.first(),
+            Stroke.create(canvas, path, StrokeEffect.Erase).requiredValue(),
         )
 
     fun revision(value: Long): Revision = Revision.create(value).requiredValue()

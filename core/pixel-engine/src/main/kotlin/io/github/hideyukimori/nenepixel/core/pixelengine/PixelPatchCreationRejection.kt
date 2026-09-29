@@ -7,8 +7,6 @@ import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 public sealed interface PixelPatchCreationRejection {
     public data object EmptyPatch : PixelPatchCreationRejection
 
-    public data object RevisionOverflow : PixelPatchCreationRejection
-
     public data class ChangeCountAboveSupportedMaximum internal constructor(
         public val attemptedCount: Int,
         public val maximum: Int,

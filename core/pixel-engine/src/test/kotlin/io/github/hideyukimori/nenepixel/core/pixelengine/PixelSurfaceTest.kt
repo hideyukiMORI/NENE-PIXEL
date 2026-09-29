@@ -1,5 +1,6 @@
 package io.github.hideyukimori.nenepixel.core.pixelengine
 
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelCell
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.black
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.canvas
@@ -17,16 +18,15 @@ internal class PixelSurfaceTest {
         val changedSurface = PixelSurface.from(original)
         val untouchedSurface = PixelSurface.from(original)
 
-        changedSurface.write(PixelChange.create(position(0, 0), black, red))
+        changedSurface.write(PixelChange.create(position(0, 0), PixelCell.Covered(black), PixelCell.Covered(red)))
 
-        assertEquals(red, changedSurface.snapshot(original.revision).onlyColor())
-        assertEquals(black, untouchedSurface.snapshot(original.revision).onlyColor())
-        assertEquals(black, original.onlyColor())
+        assertEquals(PixelCell.Covered(red), changedSurface.snapshot().onlyColor())
+        assertEquals(PixelCell.Covered(black), untouchedSurface.snapshot().onlyColor())
+        assertEquals(PixelCell.Covered(black), original.onlyColor())
     }
 
-    private fun io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot.onlyColor():
-        io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex =
-        when (val result = indexAt(position(0, 0))) {
+    private fun io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot.onlyColor(): PixelCell =
+        when (val result = cellAt(position(0, 0))) {
             is DomainValueResult.Created -> result.value
             is DomainValueResult.Rejected -> fail("Test position was rejected: ${result.rejection}")
         }

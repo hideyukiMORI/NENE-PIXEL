@@ -2,7 +2,6 @@ package io.github.hideyukimori.nenepixel.core.pixelengine.palette
 
 import io.github.hideyukimori.nenepixel.core.domain.color.ColorChannel
 import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
-import io.github.hideyukimori.nenepixel.core.domain.document.Revision
 import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
@@ -48,7 +47,7 @@ internal class PaletteRemapApplicationTest {
         val target = definition(listOf(rgba(0), rgba(1)))
         val sourceValues = List(PixelLimits.MAX_CANVAS_PIXELS) { position -> position % 256 }
         val size = canvas(PixelLimits.MAX_CANVAS_AXIS, PixelLimits.MAX_CANVAS_AXIS)
-        val snapshot = PixelSnapshot.create(size, Revision.initial(), sourceValues.map(::index)).value()
+        val snapshot = PixelSnapshot.create(size, sourceValues.map(::index)).value()
         val mapping = List(256) { sourceIndex -> sourceIndex % 2 }
 
         val result = applyPaletteRemap(snapshot, remap(source, target, mapping))
@@ -61,7 +60,7 @@ internal class PaletteRemapApplicationTest {
     }
 
     @Test
-    fun `invalid source membership and revision overflow are typed`() {
+    fun `invalid source membership is typed`() {
         val definition = definition(listOf(rgba(0), rgba(1)))
         val badSnapshot = snapshot(listOf(2))
         val invalid = applyPaletteRemap(badSnapshot, remap(definition, definition, listOf(0, 1)))
@@ -70,20 +69,10 @@ internal class PaletteRemapApplicationTest {
             assertInstanceOf(PaletteRemapApplicationRejection.SourceIndexOutsidePalette::class.java, rejection)
         assertEquals(position(0, 0), outside.position)
         assertEquals(index(2), outside.index)
-
-        val overflow =
-            snapshot(listOf(0), Revision.create(Long.MAX_VALUE).value())
-        val overflowResult = applyPaletteRemap(overflow, remap(definition, definition, listOf(1, 0)))
-        assertEquals(
-            PaletteRemapApplicationRejection.RevisionOverflow,
-            assertInstanceOf(PaletteRemapApplicationResult.Rejected::class.java, overflowResult).rejection,
-        )
     }
 
-    private fun snapshot(
-        values: List<Int>,
-        revision: Revision = Revision.initial(),
-    ): PixelSnapshot = PixelSnapshot.create(canvas(values.size, 1), revision, values.map(::index)).value()
+    private fun snapshot(values: List<Int>): PixelSnapshot =
+        PixelSnapshot.create(canvas(values.size, 1), values.map(::index)).value()
 
     private fun definition(colors: List<PixelColor>): PaletteDefinition =
         PaletteDefinition.create(Palette.create(colors).value(), PaletteIndex.first).value()

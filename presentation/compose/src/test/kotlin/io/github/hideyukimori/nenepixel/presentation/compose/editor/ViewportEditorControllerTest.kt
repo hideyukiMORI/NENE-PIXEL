@@ -11,13 +11,14 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.View
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportSurface
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportSurfacePoint
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportValueResult
-import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelCell
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import io.github.hideyukimori.nenepixel.presentation.compose.EditorFixture
+import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestValues.cellAt
 import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestValues.colorAt
 import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestValues.fixture
 import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestValues.green
@@ -49,7 +50,7 @@ internal class ViewportEditorControllerTest {
         assertInstanceOf(PointerInputAcknowledgement.Accepted::class.java, move)
         val accepted = assertInstanceOf(PointerInputAcknowledgement.Accepted::class.java, end)
         assertInstanceOf(CommandResult.Applied::class.java, accepted.commandResult)
-        assertEquals(1L, accepted.renderState.snapshot.revision.value)
+        assertEquals(1L, fixture.controller.documentState.revision.value)
         assertTrue(accepted.renderState.canUndo)
         assertFalse(accepted.renderState.canRedo)
         assertEquals(red, colorAt(fixture.controller.documentState, position(0, 0)))
@@ -57,12 +58,26 @@ internal class ViewportEditorControllerTest {
         assertEquals(red, colorAt(fixture.controller.documentState, position(2, 0)))
 
         val undone = fixture.controller.callbacks.onUndo()
-        assertEquals(initial.snapshot, undone.snapshot)
+        assertEquals(
+            initial.document.layers
+                .single()
+                .snapshot,
+            undone.document.layers
+                .single()
+                .snapshot,
+        )
         assertFalse(undone.canUndo)
         assertTrue(undone.canRedo)
 
         val redone = fixture.controller.callbacks.onRedo()
-        assertEquals(accepted.renderState.snapshot, redone.snapshot)
+        assertEquals(
+            accepted.renderState.document.layers
+                .single()
+                .snapshot,
+            redone.document.layers
+                .single()
+                .snapshot,
+        )
         assertTrue(redone.canUndo)
         assertFalse(redone.canRedo)
     }
@@ -100,7 +115,7 @@ internal class ViewportEditorControllerTest {
         val erased = fixture.controller.pointerEnd(surface, surfacePoint(0, 0))
 
         assertInstanceOf(CommandResult.Applied::class.java, accepted(erased).commandResult)
-        assertEquals(PixelColor.blank, colorAt(fixture.controller.documentState, position(0, 0)))
+        assertEquals(PixelCell.Empty, cellAt(fixture.controller.documentState, position(0, 0)))
         assertEquals(2L, fixture.controller.documentState.revision.value)
         assertTrue(erased.renderState.canUndo)
     }
@@ -226,7 +241,7 @@ internal class ViewportEditorControllerTest {
         assertEquals(direct.runtime.state.documentState, mapped.runtime.state.documentState)
         assertEquals(directOutcome.workspaceState, mapped.controller.workspaceState)
         repeat(4) { x ->
-            assertEquals(PixelColor.blank, colorAt(mapped.controller.documentState, position(x, 0)))
+            assertEquals(PixelCell.Empty, cellAt(mapped.controller.documentState, position(x, 0)))
         }
     }
 
@@ -263,7 +278,7 @@ internal class ViewportEditorControllerTest {
         return DirectOutcome(
             commandResult =
                 fixture.runtime.execute(
-                    ApplyStrokeCommand.create(fixture.runtime.captureSource(), commit.stroke),
+                    ApplyStrokeCommand.create(fixture.runtime.captureSource(), commit.layerId, commit.stroke),
                 ),
             workspaceState = commit.nextState,
         )

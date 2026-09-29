@@ -12,7 +12,7 @@ internal class RecoveryHostEvidenceContractTest {
 
     @Test
     fun `sample rows round trip through the fixed schema parser`() {
-        val observation = RecoveryHostObservation("v2_max_candidate_publish", 19, 999L)
+        val observation = RecoveryHostObservation("v3_max_candidate_publish", 19, 999L)
 
         assertEquals(
             observation,

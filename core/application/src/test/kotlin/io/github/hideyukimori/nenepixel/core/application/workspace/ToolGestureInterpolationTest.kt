@@ -7,6 +7,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.App
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.state
 import io.github.hideyukimori.nenepixel.core.domain.drawing.StrokeEffect
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
+import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -45,7 +46,14 @@ internal class ToolGestureInterpolationTest {
     @Test
     fun `revisited segment preserves ordered overlap and prepares the identical stroke path`() {
         val canvas = canvas(6, 3)
-        val started = ToolGesture.begin(canvas, position(0, 0), StrokeEffect.Paint(redIndex), admission(canvas))
+        val started =
+            ToolGesture.begin(
+                canvas,
+                position(0, 0),
+                StrokeEffect.Paint(redIndex),
+                LayerId.first(),
+                admission(canvas),
+            )
         val outward = extended(started, position(5, 2))
         val returned = extended(outward, position(0, 0))
         val positions = returned.positions()
@@ -62,7 +70,7 @@ internal class ToolGestureInterpolationTest {
         start: PixelPosition,
         end: PixelPosition,
     ): List<PixelPosition> {
-        val gesture = ToolGesture.begin(canvas, start, StrokeEffect.Paint(redIndex), admission(canvas))
+        val gesture = ToolGesture.begin(canvas, start, StrokeEffect.Paint(redIndex), LayerId.first(), admission(canvas))
         return if (start == end) gesture.positions() else extended(gesture, end).positions()
     }
 

@@ -9,7 +9,7 @@ internal class ProjectFormatV2CodecGoldenTest {
     @Test
     fun `minimal v2 golden is exact and decodes current document`() {
         val golden = ProjectFormatTestValues.golden("minimal-v2.hex")
-        val encoded = ProjectFormatCodec.encode(ProjectFormatTestValues.v2MinimalDocument)
+        val encoded = ProjectFormatV2Encoder.encode(ProjectFormatTestValues.v2MinimalDocument)
 
         assertEquals(ProjectFormatV2Layout.MIN_FILE_BYTE_COUNT, golden.size)
         assertArrayEquals(golden, encoded.copyBytes())
@@ -19,7 +19,7 @@ internal class ProjectFormatV2CodecGoldenTest {
     @Test
     fun `rectangular v2 golden preserves duplicate slots and hidden RGB`() {
         val golden = ProjectFormatTestValues.golden("rectangular-duplicates-v2.hex")
-        val encoded = ProjectFormatCodec.encode(ProjectFormatTestValues.v2RectangularDocument)
+        val encoded = ProjectFormatV2Encoder.encode(ProjectFormatTestValues.v2RectangularDocument)
 
         assertEquals(63, golden.size)
         assertArrayEquals(golden, encoded.copyBytes())
@@ -28,12 +28,18 @@ internal class ProjectFormatV2CodecGoldenTest {
         val entries = current.definition.palette.entries()
         assertEquals(0x11223300, entries[0].color.toPackedRgba8888())
         assertEquals(entries[1].color, entries[2].color)
-        assertArrayEquals(byteArrayOf(0, 1, 2, 2, 1, 0), current.snapshot.copyPackedIndices())
+        assertArrayEquals(
+            byteArrayOf(0, 1, 2, 2, 1, 0),
+            current.layers
+                .single()
+                .snapshot
+                .copyPackedIndices(),
+        )
     }
 
     @Test
     fun `indexed document writes v2 at the maximum layout`() {
-        val encoded = ProjectFormatCodec.encode(ProjectFormatTestValues.maximumDocument())
+        val encoded = ProjectFormatV2Encoder.encode(ProjectFormatTestValues.maximumDocument())
 
         assertEquals(ProjectFormatV2Layout.MAX_FILE_BYTE_COUNT, encoded.byteCount)
     }

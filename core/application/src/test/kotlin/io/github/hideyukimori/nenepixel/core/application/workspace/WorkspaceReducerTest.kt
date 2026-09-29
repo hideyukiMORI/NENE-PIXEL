@@ -105,7 +105,7 @@ internal class WorkspaceReducerTest {
         assertEquals(WorkspaceNoChangeReason.ActiveToolAlreadySelected, repeated.reason)
         assertSame(eraserSelected, repeated.nextState)
         assertEquals(DrawingTool.Pencil, pencilSelected.activeTool)
-        assertEquals(StrokeEffect.Erase(paletteIndex(0)), pencilSelected.preview?.effect)
+        assertEquals(StrokeEffect.Erase, pencilSelected.preview?.effect)
         assertEquals(previewing.preview, pencilSelected.preview)
     }
 

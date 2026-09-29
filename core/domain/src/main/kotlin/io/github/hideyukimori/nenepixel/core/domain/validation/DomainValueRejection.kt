@@ -57,6 +57,17 @@ public sealed interface DomainValueRejection {
         public val maximum: Int,
     ) : DomainValueRejection
 
+    public data class PixelCoverageSizeMismatch internal constructor(
+        public val expected: Int,
+        public val actual: Int,
+    ) : DomainValueRejection
+
+    public data object PixelCoverageTrailingBitsSet : DomainValueRejection
+
+    public data class EmptyPixelIndexNotZero internal constructor(
+        public val rowMajorIndex: Int,
+    ) : DomainValueRejection
+
     public data class LegacyRgbaSourceSizeMismatch internal constructor(
         public val expectedPixelCount: Long,
         public val actualPixelCount: Int,
@@ -115,4 +126,36 @@ public sealed interface DomainValueRejection {
     ) : DomainValueRejection
 
     public data object RevisionOverflow : DomainValueRejection
+
+    public data class InvalidLayerId internal constructor(
+        public val value: Int,
+    ) : DomainValueRejection
+
+    public data object LayerIdOverflow : DomainValueRejection
+
+    public data class LayerNameTooLong internal constructor(
+        public val codePointCount: Int,
+    ) : DomainValueRejection
+
+    public data class LayerNameControlCharacter internal constructor(
+        public val codePointIndex: Int,
+    ) : DomainValueRejection
+
+    public data class LayerNameInvalidSurrogate internal constructor(
+        public val charIndex: Int,
+    ) : DomainValueRejection
+
+    public data class DocumentLayerCountOutOfRange internal constructor(
+        public val count: Int,
+    ) : DomainValueRejection
+
+    public data class DuplicateLayerId internal constructor(
+        public val layerId: Int,
+    ) : DomainValueRejection
+
+    public data class LayerSizeMismatch internal constructor(
+        public val layerId: Int,
+        public val expected: CanvasSize,
+        public val actual: CanvasSize,
+    ) : DomainValueRejection
 }

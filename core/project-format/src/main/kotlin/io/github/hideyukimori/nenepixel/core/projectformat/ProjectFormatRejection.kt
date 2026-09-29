@@ -50,4 +50,29 @@ public sealed interface ProjectFormatRejection {
         public val index: PaletteIndex,
         public val entryCount: Int,
     ) : ProjectFormatRejection
+
+    public data class InvalidLayerCount internal constructor(
+        public val count: Int,
+    ) : ProjectFormatRejection
+
+    public data class InvalidLayerId internal constructor(
+        public val wireValue: Long,
+    ) : ProjectFormatRejection
+
+    public data class DuplicateLayerId internal constructor(
+        public val id: Int,
+    ) : ProjectFormatRejection
+
+    public data class UnknownLayerFlags internal constructor(
+        public val layerIndex: Int,
+        public val flags: Int,
+    ) : ProjectFormatRejection
+
+    public data class InvalidLayerName internal constructor(
+        public val layerIndex: Int,
+    ) : ProjectFormatRejection
+
+    public data class InvalidCoverage internal constructor(
+        public val layerIndex: Int,
+    ) : ProjectFormatRejection
 }

@@ -218,7 +218,7 @@ internal class QuickSelectActionReducerTest {
 
     @Test
     fun `picking the active slot is still reduced to idle`() {
-        val activeTwo = armed().withActivePaletteIndex(paletteIndex(2))
+        val activeTwo = armed().let { it.withEditTarget(it.editTarget.withPaletteIndex(paletteIndex(2))) }
 
         val picked = reduced(reduce(activeTwo, WorkspaceAction.PickPaletteEntryAt(position(1, 0))))
 

@@ -123,16 +123,6 @@ internal class EditorRecoveryOfferTest {
         return pixels
     }
 
-    private fun DocumentState.visiblePixels(): IntArray =
-        snapshot
-            .copyPackedIndices()
-            .map { packed ->
-                definition.palette
-                    .entries()[packed.toInt() and UBYTE_MASK]
-                    .color
-                    .toPackedRgba8888()
-            }.toIntArray()
-
     private fun awaitCandidate(): RecoveryInspection.Candidate {
         val probe = probe()
         val deadline = SystemClock.uptimeMillis() + OFFER_TIMEOUT_MILLIS
@@ -173,6 +163,5 @@ internal class EditorRecoveryOfferTest {
         const val CANVAS_CENTER_PERCENT: Float = 0.5f
         const val OFFER_TIMEOUT_MILLIS: Long = 10_000L
         const val POLL_MILLIS: Long = 100L
-        const val UBYTE_MASK: Int = 0xff
     }
 }

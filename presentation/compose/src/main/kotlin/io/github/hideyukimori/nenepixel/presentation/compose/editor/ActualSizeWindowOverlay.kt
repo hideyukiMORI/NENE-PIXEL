@@ -53,16 +53,16 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import io.github.hideyukimori.nenepixel.core.application.workspace.ActualSizeWindow
 import io.github.hideyukimori.nenepixel.core.application.workspace.WindowAnchor
+import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
-import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 import io.github.hideyukimori.nenepixel.presentation.compose.R
 import kotlin.math.roundToInt
 
 /**
  * The committed document drawn over the canvas at an exact device-pixel multiple (ADR 0026).
  *
- * It subscribes only to the committed snapshot, palette definition and window state, so a stroke in
+ * It subscribes only to the committed document, palette definition and window state, so a stroke in
  * progress never redraws it. A handle band and a scale chip make the two gestures visible
  * (amendment 2026-09-22, #126): a drag on either band or on the content moves the window, and a tap
  * on the chip or on the window body cycles the scale. Its pointer events never reach the canvas.
@@ -75,7 +75,7 @@ internal fun ActualSizeWindowOverlay(
 ) {
     val inputs by remember(state) {
         derivedStateOf {
-            ActualSizeWindowInputs(state.value.snapshot, state.value.definition, state.value.actualSizeWindow)
+            ActualSizeWindowInputs(state.value.document, state.value.definition, state.value.actualSizeWindow)
         }
     }
     if (inputs.window.visible) {
@@ -92,7 +92,7 @@ internal fun ActualSizeWindowOverlay(
             val area = IntSize(constraints.maxWidth, constraints.maxHeight)
             ActualSizeWindowSurface(
                 inputs,
-                actualSizeWindowGeometry(inputs.snapshot.size, inputs.window, area, chrome),
+                actualSizeWindowGeometry(inputs.document.size, inputs.window, area, chrome),
                 committed,
                 callbacks,
             )
@@ -151,7 +151,7 @@ private fun ActualSizeWindowContent(
         Canvas(Modifier.exactSize(geometry.contentWidth, geometry.contentHeight).testTag(CONTENT_TAG)) {
             drawIntoCanvas { canvas ->
                 canvas.nativeCanvas.drawBitmap(
-                    committed.render(inputs.snapshot, inputs.definition, background),
+                    committed.render(inputs.document, inputs.definition, background),
                     geometry.source,
                     RectF(0f, 0f, geometry.contentWidth.toFloat(), geometry.contentHeight.toFloat()),
                     committed.paint,
@@ -312,7 +312,7 @@ private fun Modifier.exactSize(
     }
 
 private data class ActualSizeWindowInputs(
-    val snapshot: PixelSnapshot,
+    val document: DocumentState,
     val definition: PaletteDefinition,
     val window: ActualSizeWindow,
 )

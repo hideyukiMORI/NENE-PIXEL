@@ -115,7 +115,7 @@ internal fun WorkspaceAction.isAllowedDuringPaletteSession(): Boolean =
         WorkspaceAction.CancelGesturePreview,
         is WorkspaceAction.PaletteSessionAction,
         is BeginPaletteEdit,
-        is ReconcileDocumentPalette,
+        is DocumentReconciliation,
         WorkspaceAction.CancelQuickSelect,
         WorkspaceAction.DisarmEyedropper,
         -> true

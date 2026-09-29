@@ -11,6 +11,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.history.Histor
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.black
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.blackIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.canvas
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.cellAt
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.defaultDefinition
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.definition
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.eraserStroke
@@ -28,9 +29,12 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.palette.Palet
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportState
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentId
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
+import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteRemap
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelCell
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelLimits
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
@@ -105,7 +109,9 @@ internal class EditorRuntimeTest {
         assertEquals(0L, state.documentState.revision.value)
         assertEquals(
             List(6) { 0 },
-            state.documentState.snapshot
+            state.documentState.layers
+                .single()
+                .snapshot
                 .copyPackedIndices()
                 .map { it.toInt() and 0xff },
         )
@@ -126,7 +132,7 @@ internal class EditorRuntimeTest {
 
         val rejected =
             runtime.execute(
-                ApplyStrokeCommand.create(foreignRuntime.captureSource(), stroke),
+                ApplyStrokeCommand.create(foreignRuntime.captureSource(), LayerId.first(), stroke),
             )
         assertEquals(
             RejectionReason.SourceOwnerMismatch,
@@ -166,7 +172,12 @@ internal class EditorRuntimeTest {
         apply(runtime, position(1, 0), redIndex)
 
         assertEquals(abandoned.revision, runtime.state.documentState.revision)
-        assertNotEquals(abandoned.snapshot, runtime.state.documentState.snapshot)
+        assertNotEquals(
+            abandoned.layers.single().snapshot,
+            runtime.state.documentState.layers
+                .single()
+                .snapshot,
+        )
         assertEquals(DocumentDirtyState.Dirty, runtime.state.dirtyState)
 
         val branch = runtime.state.documentState
@@ -205,6 +216,22 @@ internal class EditorRuntimeTest {
     }
 
     @Test
+    fun `new document starts with every pixel Empty`() {
+        val runtime = EditorRuntime.create(canvas(3, 2), toolDefinition, SequentialDocumentIdSource())
+        val snapshot =
+            runtime.state.documentState.layers
+                .single()
+                .snapshot
+
+        assertEquals(PixelSnapshot.createEmpty(snapshot.size), snapshot)
+        for (y in 0 until 2) {
+            for (x in 0 until 3) {
+                assertEquals(PixelCell.Empty, cellAt(snapshot, position(x, y)))
+            }
+        }
+    }
+
+    @Test
     fun `already blank erase leaves clean runtime and empty history`() {
         val runtime = EditorRuntime.create(canvas(2, 2), toolDefinition, SequentialDocumentIdSource())
         val initial = runtime.state
@@ -212,6 +239,7 @@ internal class EditorRuntimeTest {
             runtime.execute(
                 ApplyStrokeCommand.create(
                     runtime.captureSource(),
+                    LayerId.first(),
                     eraserStroke(initial.documentState.size, listOf(position(0, 0))),
                 ),
             )
@@ -422,7 +450,7 @@ internal class EditorRuntimeTest {
             )
         assertInstanceOf(
             CommandResult.Applied::class.java,
-            runtime.execute(ApplyStrokeCommand.create(prepared.admission, prepared.stroke)),
+            runtime.execute(ApplyStrokeCommand.create(prepared.admission, prepared.layerId, prepared.stroke)),
         )
     }
 
@@ -440,6 +468,7 @@ internal class EditorRuntimeTest {
             runtime.execute(
                 ApplyStrokeCommand.create(
                     runtime.captureSource(),
+                    LayerId.first(),
                     stroke(target.size, listOf(position), index),
                 ),
             )

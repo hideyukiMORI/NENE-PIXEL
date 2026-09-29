@@ -3,7 +3,6 @@ package io.github.hideyukimori.nenepixel.core.pixelengine.importing
 import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.document.LegacyRgbaSource
-import io.github.hideyukimori.nenepixel.core.domain.document.Revision
 import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
@@ -41,8 +40,8 @@ public object LegacyImportPlanner {
             }
         val definition = PaletteDefinition.create(Palette.create(colors).requiredValue(), defaultIndex).requiredValue()
         val indices = ByteArray(packed.size) { position -> slots.getValue(packed[position]).toByte() }
-        val snapshot = PixelSnapshot.createPackedIndices(source.size, source.revision, indices).requiredValue()
-        val document = DocumentState.create(source.id, definition, snapshot).requiredValue()
+        val snapshot = PixelSnapshot.createPackedIndices(source.size, indices).requiredValue()
+        val document = DocumentState.createSingleLayer(source.id, source.revision, definition, snapshot).requiredValue()
         return LegacyImportResult.Lossless(document)
     }
 
@@ -61,8 +60,7 @@ public object LegacyImportPlanner {
                     }.value
                     .toByte()
             }
-        val snapshot =
-            PixelSnapshot.createPackedIndices(candidate.source.size, Revision.initial(), indices).requiredValue()
+        val snapshot = PixelSnapshot.createPackedIndices(candidate.source.size, indices).requiredValue()
         return LegacyReductionPreview(target, snapshot)
     }
 

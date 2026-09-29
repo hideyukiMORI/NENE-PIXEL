@@ -9,8 +9,6 @@ public sealed interface StrokeRasterizationRejection {
         public val actual: CanvasSize,
     ) : StrokeRasterizationRejection
 
-    public data object RevisionOverflow : StrokeRasterizationRejection
-
     public data class TargetIndexAboveStorageMaximum internal constructor(
         public val attemptedIndex: PaletteIndex,
         public val maximum: Int,

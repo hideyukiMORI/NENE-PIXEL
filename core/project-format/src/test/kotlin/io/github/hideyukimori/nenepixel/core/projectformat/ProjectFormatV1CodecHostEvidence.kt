@@ -33,9 +33,9 @@ private class ProjectFormatHostEvidenceFixture {
     private val legacy = maximumLegacySource()
     private val legacyBytes = ProjectFormatCodec.encodeLegacySource(legacy)
     private val minimum = ProjectFormatTestValues.minimalDocument
-    private val minimumBytes = ProjectFormatCodec.encode(minimum)
+    private val minimumBytes = ProjectFormatV2Encoder.encode(minimum)
     private val maximum = ProjectFormatTestValues.maximumDocument()
-    private val maximumBytes = ProjectFormatCodec.encode(maximum)
+    private val maximumBytes = ProjectFormatV2Encoder.encode(maximum)
 
     fun groups(): List<ProjectFormatHostEvidenceGroup<*>> =
         listOf(
@@ -51,7 +51,7 @@ private class ProjectFormatHostEvidenceFixture {
         ProjectFormatHostEvidenceGroup(
             "v1_max_exact_original_encode",
             { ProjectFormatCodec.encodeLegacySource(legacy) },
-            { bytes -> verifyEncoded(bytes, ProjectFormatBytes.MAX_FILE_BYTE_COUNT, ProjectFormatV1Layout.VERSION) },
+            { bytes -> verifyEncoded(bytes, ProjectFormatV1Layout.MAX_FILE_BYTE_COUNT, ProjectFormatV1Layout.VERSION) },
             { verifyLegacyBoundary() },
         )
 
@@ -70,9 +70,9 @@ private class ProjectFormatHostEvidenceFixture {
     ): ProjectFormatHostEvidenceGroup<ProjectFormatBytes> =
         ProjectFormatHostEvidenceGroup(
             name,
-            { ProjectFormatCodec.encode(document) },
+            { ProjectFormatV2Encoder.encode(document) },
             { bytes -> verifyEncoded(bytes, byteCount, ProjectFormatV2Layout.VERSION) },
-            { verifyCurrentBoundary(document, ProjectFormatCodec.encode(document)) },
+            { verifyCurrentBoundary(document, ProjectFormatV2Encoder.encode(document)) },
         )
 
     private fun currentDecodeGroup(
@@ -201,7 +201,7 @@ private fun verifyCurrentBoundary(
     document: DocumentState,
     bytes: ProjectFormatBytes,
 ) {
-    check(ProjectFormatCodec.encode(document) == bytes)
+    check(ProjectFormatV2Encoder.encode(document) == bytes)
     check(acceptedCurrent(ProjectFormatCodec.decode(bytes)) == document)
     verifyStoredChecksum(bytes)
 }

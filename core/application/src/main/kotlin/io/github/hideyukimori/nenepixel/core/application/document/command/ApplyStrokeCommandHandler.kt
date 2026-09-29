@@ -3,7 +3,11 @@ package io.github.hideyukimori.nenepixel.core.application.document.command
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ChangeSet
 import io.github.hideyukimori.nenepixel.core.application.document.transition.DocumentTransition
 import io.github.hideyukimori.nenepixel.core.application.document.transition.DocumentTransitionResult
+import io.github.hideyukimori.nenepixel.core.application.document.transition.LayerChange
+import io.github.hideyukimori.nenepixel.core.application.document.transition.LayerIndexChanges
+import io.github.hideyukimori.nenepixel.core.application.document.transition.PaletteTransition
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
+import io.github.hideyukimori.nenepixel.core.domain.drawing.StrokeEffect
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import io.github.hideyukimori.nenepixel.core.pixelengine.StrokeRasterizationRejection
 import io.github.hideyukimori.nenepixel.core.pixelengine.StrokeRasterizationResult
@@ -14,21 +18,30 @@ internal class ApplyStrokeCommandHandler {
         currentState: DocumentState,
         command: ApplyStrokeCommand,
     ): DocumentTransitionResult =
-        when (val entry = currentState.definition.palette.entryAt(command.stroke.effect.targetIndex)) {
-            is DomainValueResult.Created -> rasterize(currentState, command)
-            is DomainValueResult.Rejected -> rejected(RejectionReason.InvalidIndexedValue(entry.rejection))
+        when (val effect = command.stroke.effect) {
+            is StrokeEffect.Paint -> {
+                when (val entry = currentState.definition.palette.entryAt(effect.targetIndex)) {
+                    is DomainValueResult.Created -> rasterize(currentState, command)
+                    is DomainValueResult.Rejected -> rejected(RejectionReason.InvalidIndexedValue(entry.rejection))
+                }
+            }
+
+            StrokeEffect.Erase -> {
+                rasterize(currentState, command)
+            }
         }
 
     private fun rasterize(
         currentState: DocumentState,
         command: ApplyStrokeCommand,
-    ): DocumentTransitionResult =
-        when (val result = rasterizeStroke(currentState.snapshot, command.stroke)) {
+    ): DocumentTransitionResult {
+        val layer =
+            currentState.layers.firstOrNull { it.id == command.layerId }
+                ?: return rejected(RejectionReason.LayerNotFound(command.layerId))
+        return when (val result = rasterizeStroke(layer.snapshot, command.stroke)) {
             is StrokeRasterizationResult.Rasterized -> {
-                DocumentTransition.create(
-                    currentState,
-                    ChangeSet.create(result.patch),
-                )
+                val changes = LayerChange(layer.id, LayerIndexChanges.select(layer.snapshot, result.patch))
+                transition(currentState, changes)
             }
 
             StrokeRasterizationResult.NoChanges -> {
@@ -39,15 +52,29 @@ internal class ApplyStrokeCommandHandler {
                 rejected(result.rejection.toReason())
             }
         }
+    }
+
+    private fun transition(
+        currentState: DocumentState,
+        changes: LayerChange,
+    ): DocumentTransitionResult =
+        when (val next = currentState.revision.advance()) {
+            is DomainValueResult.Created -> {
+                DocumentTransition.create(
+                    currentState,
+                    ChangeSet.create(currentState, next.value, PaletteTransition.Unchanged, listOf(changes)),
+                )
+            }
+
+            is DomainValueResult.Rejected -> {
+                rejected(RejectionReason.RevisionOverflow)
+            }
+        }
 
     private fun StrokeRasterizationRejection.toReason(): RejectionReason =
         when (this) {
             is StrokeRasterizationRejection.CanvasMismatch -> {
                 RejectionReason.CanvasMismatch(expected, actual)
-            }
-
-            StrokeRasterizationRejection.RevisionOverflow -> {
-                RejectionReason.RevisionOverflow
             }
 
             is StrokeRasterizationRejection.TargetIndexAboveStorageMaximum -> {

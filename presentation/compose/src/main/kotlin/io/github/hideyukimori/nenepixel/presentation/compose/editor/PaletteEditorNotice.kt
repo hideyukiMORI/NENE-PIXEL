@@ -58,6 +58,8 @@ private fun WorkspaceActionRejection.noticeResource(): Int =
         WorkspaceActionRejection.QuickSelectMenuOpen,
         WorkspaceActionRejection.QuickSelectItemNotInMenu,
         is WorkspaceActionRejection.PickPositionOutsideCanvas,
+        is WorkspaceActionRejection.PickEmptyCell,
+        is WorkspaceActionRejection.ActiveLayerNotFound,
         -> R.string.palette_editor_rejected
     }
 
@@ -119,6 +121,8 @@ private fun RejectionReason.noticeResource(): Int =
         RejectionReason.SourceHistoryMismatch,
         is RejectionReason.InvalidIndexedValue,
         is RejectionReason.HistoryEntryAboveRetainedPayloadMaximum,
+        is RejectionReason.LayerSnapshotMismatch,
+        is RejectionReason.LayerNotFound,
         -> R.string.palette_editor_apply_failed
     }
 

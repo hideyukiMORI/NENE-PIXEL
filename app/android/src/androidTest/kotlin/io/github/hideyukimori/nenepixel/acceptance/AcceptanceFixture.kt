@@ -56,25 +56,45 @@ internal class AcceptanceFixture {
             "%02x".format(it)
         }
 
+    /** Checks [bytes] against the hand-written project v3 layout in [AcceptanceProjectV3]. */
     fun verifyProject(
         bytes: ByteArray,
         documentId: String,
         revision: Long,
         recovered: Boolean = false,
     ) {
-        assertEquals(129, bytes.size)
+        assertEquals(AcceptanceProjectV3.FILE_BYTE_COUNT, bytes.size)
         assertArrayEquals(byteArrayOf(78, 69, 78, 69, 80, 73, 88, 0), bytes.copyOfRange(0, 8))
         val buffer = ByteBuffer.wrap(bytes)
-        assertEquals(2, buffer.getShort(8).toInt())
+        assertEquals(AcceptanceProjectV3.VERSION, buffer.getShort(8).toInt())
         assertEquals(8, buffer.getShort(10).toInt())
         assertEquals(6, buffer.getShort(12).toInt())
         assertEquals(documentId, bytes.copyOfRange(14, 30).joinToString("") { "%02x".format(it) })
         assertEquals(revision, buffer.getLong(30))
         assertEquals(9, buffer.getShort(38).toInt())
         assertEquals(8, bytes[40].toInt() and UBYTE_MASK)
-        assertArrayEquals(expectedIndices(recovered), IntArray(48) { bytes[77 + it].toInt() and UBYTE_MASK })
-        val crc = CRC32().apply { update(bytes, 0, 125) }.value
-        assertEquals(crc, buffer.getInt(125).toLong() and 0xffffffffL)
+        verifyLayer(bytes, recovered)
+        val crc = CRC32().apply { update(bytes, 0, AcceptanceProjectV3.CHECKSUM_OFFSET) }.value
+        assertEquals(crc, buffer.getInt(AcceptanceProjectV3.CHECKSUM_OFFSET).toLong() and 0xffffffffL)
+    }
+
+    private fun verifyLayer(
+        bytes: ByteArray,
+        recovered: Boolean,
+    ) {
+        val layout = AcceptanceProjectV3
+        assertEquals(layout.LAYER_COUNT, bytes[layout.LAYER_COUNT_OFFSET].toInt() and UBYTE_MASK)
+        assertEquals(layout.LAYER_ID, ByteBuffer.wrap(bytes).getInt(layout.LAYER_ID_OFFSET))
+        assertEquals(layout.VISIBLE_FLAGS, bytes[layout.LAYER_FLAGS_OFFSET].toInt() and UBYTE_MASK)
+        assertEquals(0, bytes[layout.LAYER_NAME_LENGTH_OFFSET].toInt() and UBYTE_MASK)
+        assertArrayEquals(
+            layout.expectedCoverage(recovered),
+            IntArray(layout.COVERAGE_BYTE_COUNT) { bytes[layout.COVERAGE_OFFSET + it].toInt() and UBYTE_MASK },
+        )
+        assertArrayEquals(
+            layout.expectedIndices(recovered),
+            IntArray(layout.PIXEL_COUNT) { bytes[layout.INDICES_OFFSET + it].toInt() and UBYTE_MASK },
+        )
     }
 
     fun expectedPixels(recovered: Boolean = false): IntArray =
@@ -83,14 +103,6 @@ internal class AcceptanceFixture {
             this[11] = 0xff0000ff.toInt()
             this[29] = 0x0000ffff
             if (recovered) this[38] = 0x00ff00ff
-        }
-
-    fun expectedIndices(recovered: Boolean = false): IntArray =
-        IntArray(48) { 8 }.apply {
-            this[9] = 0
-            this[11] = 0
-            this[29] = 4
-            if (recovered) this[38] = 3
         }
 
     private companion object {

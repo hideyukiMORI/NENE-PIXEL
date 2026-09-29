@@ -21,6 +21,7 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasWidth
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelX
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelY
+import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
@@ -64,6 +65,7 @@ internal class P4CommonIndexedHistoryWorkload : P4HistoryRetentionWorkload {
                 gateway.execute(
                     ApplyStrokeCommand.create(
                         gateway.captureSource(),
+                        LayerId.first(),
                         Stroke.create(values.canvas, path, StrokeEffect.Paint(target)).required(),
                     ),
                 ),
@@ -188,7 +190,7 @@ private class P4HistoryValues {
                 transitionCount % 2 == 0 -> 2
                 else -> 1
             }
-        assertIndices(document.snapshot, expectedChanged, 0)
+        assertIndices(document.layers.single().snapshot, expectedChanged, 0)
     }
 
     fun assertPaletteState(
@@ -203,7 +205,7 @@ private class P4HistoryValues {
                 transitionCount % 2 == 0 -> 0
                 else -> 2
             }
-        assertIndices(document.snapshot, expectedChanged, UNCHANGED_SLOT)
+        assertIndices(document.layers.single().snapshot, expectedChanged, UNCHANGED_SLOT)
     }
 
     fun assertFullUndoRedo(
@@ -296,10 +298,11 @@ private class P4HistoryValues {
         indices: List<PaletteIndex>,
     ): DocumentState =
         DocumentState
-            .create(
+            .createSingleLayer(
                 documentId,
+                revision,
                 definition,
-                PixelSnapshot.create(canvas, revision, indices).required(),
+                PixelSnapshot.create(canvas, indices).required(),
             ).required()
 
     private fun color(

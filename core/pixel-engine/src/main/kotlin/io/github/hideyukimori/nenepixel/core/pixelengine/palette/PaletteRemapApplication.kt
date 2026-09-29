@@ -9,8 +9,9 @@ import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteRemap
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelPatch
-import io.github.hideyukimori.nenepixel.core.pixelengine.PixelPatchCreationRejection
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelPatchCreationResult
+import io.github.hideyukimori.nenepixel.core.pixelengine.PixelSurface
+import io.github.hideyukimori.nenepixel.core.pixelengine.packPatchPosition
 
 public fun applyPaletteRemap(
     snapshot: PixelSnapshot,
@@ -27,7 +28,7 @@ public fun applyPaletteRemap(
         }
 
         else -> {
-            remapResult(snapshot, collectRemapChanges(snapshot.copyPackedIndices(), destinations))
+            remapResult(snapshot, collectRemapChanges(PixelSurface.from(snapshot), snapshot.size, destinations))
         }
     }
 }
@@ -45,12 +46,7 @@ private fun remapResult(
             }
 
             is PixelPatchCreationResult.Rejected -> {
-                check(
-                    patch.rejection is PixelPatchCreationRejection.RevisionOverflow,
-                )
-                PaletteRemapApplicationResult.Rejected(
-                    PaletteRemapApplicationRejection.RevisionOverflow,
-                )
+                error("A validated palette remap patch was rejected: ${patch.rejection}")
             }
         }
     }
@@ -70,23 +66,28 @@ private fun sourceIndexOutsidePalette(
 }
 
 private fun collectRemapChanges(
-    packed: ByteArray,
+    surface: PixelSurface,
+    size: CanvasSize,
     destinations: ByteArray,
 ): PackedRemapChanges {
-    val changeCount = countRemapChanges(packed, destinations)
+    val pixelCount = size.pixelCount.toInt()
+    val changeCount = countRemapChanges(surface, pixelCount, destinations)
     val positions = IntArray(changeCount)
     val before = ByteArray(changeCount)
     val after = ByteArray(changeCount)
     var collected = 0
+    var lastPosition = -1
     var positionsAreContiguous = true
-    for (position in packed.indices) {
-        val source = packed[position]
+    for (position in 0 until pixelCount) {
+        if (!surface.isCoveredAt(position)) continue
+        val source = surface.packedIndexAt(position)
         val destination = destinations[source.toInt() and U8_MASK]
         if (destination != source) {
-            if (collected > 0 && position != positions[collected - 1] + 1) positionsAreContiguous = false
-            positions[collected] = position
+            if (collected > 0 && position != lastPosition + 1) positionsAreContiguous = false
+            positions[collected] = packPatchPosition(position, beforeCovered = true, afterCovered = true)
             before[collected] = source
             after[collected] = destination
+            lastPosition = position
             collected += 1
         }
     }
@@ -94,12 +95,14 @@ private fun collectRemapChanges(
 }
 
 private fun countRemapChanges(
-    packed: ByteArray,
+    surface: PixelSurface,
+    pixelCount: Int,
     destinations: ByteArray,
 ): Int {
     var changeCount = 0
-    for (source in packed) {
-        if (destinations[source.toInt() and U8_MASK] != source) changeCount += 1
+    for (position in 0 until pixelCount) {
+        val source = surface.packedIndexAt(position)
+        if (surface.isCoveredAt(position) && destinations[source.toInt() and U8_MASK] != source) changeCount += 1
     }
     return changeCount
 }
@@ -116,7 +119,6 @@ private class PackedRemapChanges(
     fun toPatch(snapshot: PixelSnapshot): PixelPatchCreationResult =
         PixelPatch.createFromValidatedPackedIndices(
             canvas = snapshot.size,
-            beforeRevision = snapshot.revision,
             positions = positions,
             before = before,
             after = after,

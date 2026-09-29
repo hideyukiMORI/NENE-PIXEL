@@ -137,7 +137,7 @@ palette. PNG stays RGBA truecolor (ADR 0019). Export when no layer is visible re
 
 ### Project v3 and migration
 
-Project v3 is little endian like v2 and has this layout:
+Project v3 is big endian like v1 and v2 (ADR 0015) and has this layout:
 
 | Field | Size |
 | --- | --- |
@@ -178,9 +178,12 @@ Delivery happens in four focused Issues, in this order:
 
 1. **P4-05a cutover.** Layered `DocumentState`, `Empty` coverage, the composite function, v3 and
    envelope 3, v2 reading, Eraser to `Empty`, `activeLayerId`, and every consumer, together. Before
-   this change the document is single-layer; after it, still one layer.
+   this change the document is single-layer; after it, still one layer. The stroke preview keeps
+   drawing over the committed image, which equals the composite while the active layer is the only
+   one.
 2. **P4-05b layer commands.** The five commands, `SelectLayer`, reconciliation, hidden-layer
-   rejections and `NoVisibleLayer`.
+   rejections, `NoVisibleLayer`, and the stroke preview through the composite (below, new cell,
+   above) once layers can exist above the active one.
 3. **P4-05c layer panel.** The opening panel, built from a UI spec written first.
 4. **P4-05d worst-case evidence.** 16 full layers: M5 drawing-latency budget on the named minimum
    profile (#135), retained memory, autosave and save write time for 1.18 MB, and the history bytes of a

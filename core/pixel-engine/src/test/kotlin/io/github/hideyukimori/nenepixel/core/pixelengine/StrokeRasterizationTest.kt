@@ -1,18 +1,20 @@
 package io.github.hideyukimori.nenepixel.core.pixelengine
 
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelCell
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.black
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.canvas
+import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.cellAt
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.eraserStroke
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.green
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.index
-import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.indexAt
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.position
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.red
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.region
-import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.revision
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.snapshot
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.stroke
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelPatchAssertions.applied
+import io.github.hideyukimori.nenepixel.core.pixelengine.PixelPatchAssertions.created
 import io.github.hideyukimori.nenepixel.core.pixelengine.StrokeRasterizationAssertions.rasterized
 import io.github.hideyukimori.nenepixel.core.pixelengine.StrokeRasterizationAssertions.rejected
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -38,9 +40,9 @@ internal class StrokeRasterizationTest {
         val changed = applied(patch.applyTo(original))
         val restored = applied(patch.inverse().applyTo(changed))
 
-        assertEquals(red, indexAt(changed, position(0, 0)))
-        assertEquals(green, indexAt(changed, position(1, 0)))
-        assertEquals(red, indexAt(changed, position(2, 0)))
+        assertEquals(PixelCell.Covered(red), cellAt(changed, position(0, 0)))
+        assertEquals(PixelCell.Covered(green), cellAt(changed, position(1, 0)))
+        assertEquals(PixelCell.Covered(red), cellAt(changed, position(2, 0)))
         assertEquals(region(canvas, position(0, 0), canvas(3, 1)), patch.affectedRegion)
         assertEquals(original, restored)
     }
@@ -86,13 +88,13 @@ internal class StrokeRasterizationTest {
 
         assertEquals(1, patch.changeCount)
         assertEquals(region(canvas, position(2, 0), canvas(1, 1)), patch.affectedRegion)
-        assertEquals(red, indexAt(changed, position(0, 0)))
-        assertEquals(black, indexAt(changed, position(1, 0)))
-        assertEquals(red, indexAt(changed, position(2, 0)))
+        assertEquals(PixelCell.Covered(red), cellAt(changed, position(0, 0)))
+        assertEquals(PixelCell.Covered(black), cellAt(changed, position(1, 0)))
+        assertEquals(PixelCell.Covered(red), cellAt(changed, position(2, 0)))
     }
 
     @Test
-    fun `eraser writes its captured target index through the same patch and inverse path`() {
+    fun `eraser writes Empty over covered cells through the same patch and inverse path`() {
         val canvas = canvas(3, 1)
         val original = snapshot(canvas, pixels = listOf(red, green, black))
         val stroke = eraserStroke(canvas, listOf(position(0, 0), position(2, 0), position(0, 0)))
@@ -101,35 +103,73 @@ internal class StrokeRasterizationTest {
         val changed = applied(patch.applyTo(original))
         val restored = applied(patch.inverse().applyTo(changed))
 
-        assertEquals(1, patch.changeCount)
-        assertEquals(black, indexAt(changed, position(0, 0)))
-        assertEquals(green, indexAt(changed, position(1, 0)))
-        assertEquals(black, indexAt(changed, position(2, 0)))
+        assertEquals(2, patch.changeCount)
+        assertEquals(
+            created(
+                PixelPatch.create(
+                    canvas,
+                    listOf(
+                        PixelChange.create(position(0, 0), PixelCell.Covered(red), PixelCell.Empty),
+                        PixelChange.create(position(2, 0), PixelCell.Covered(black), PixelCell.Empty),
+                    ),
+                ),
+            ),
+            patch,
+        )
+        assertEquals(PixelCell.Empty, cellAt(changed, position(0, 0)))
+        assertEquals(PixelCell.Covered(green), cellAt(changed, position(1, 0)))
+        assertEquals(PixelCell.Empty, cellAt(changed, position(2, 0)))
+        assertEquals(PixelCell.Covered(red), cellAt(restored, position(0, 0)))
+        assertEquals(PixelCell.Covered(black), cellAt(restored, position(2, 0)))
         assertEquals(original, restored)
     }
 
     @Test
-    fun `already blank erase shares the canonical no changes result`() {
-        val canvas = canvas(1, 1)
-        val original = snapshot(canvas, revision(Long.MAX_VALUE), listOf(black))
+    fun `erasing Empty cells shares the canonical no changes result`() {
+        val canvas = canvas(2, 1)
+        val original = PixelSnapshot.createEmpty(canvas)
 
         assertEquals(
             StrokeRasterizationResult.NoChanges,
-            rasterizeStroke(original, eraserStroke(canvas, listOf(position(0, 0)))),
+            rasterizeStroke(original, eraserStroke(canvas, listOf(position(0, 0), position(1, 0)))),
         )
     }
 
     @Test
-    fun `no changes has one result even at maximum revision`() {
+    fun `eraser records only covered cells when the path crosses Empty cells`() {
+        val canvas = canvas(3, 1)
+        val covered = snapshot(canvas)
+        val middle = rasterized(rasterizeStroke(covered, eraserStroke(canvas, listOf(position(1, 0)))))
+        val half = applied(middle.applyTo(covered))
+        val fullPath = listOf(position(0, 0), position(1, 0), position(2, 0))
+        val patch = rasterized(rasterizeStroke(half, eraserStroke(canvas, fullPath)))
+
+        assertEquals(2, patch.changeCount)
+        assertEquals(PixelCell.Empty, cellAt(applied(patch.applyTo(half)), position(0, 0)))
+    }
+
+    @Test
+    fun `painting over Empty records Empty to Covered and its inverse restores Empty`() {
         val canvas = canvas(1, 1)
-        val original = snapshot(canvas, revision(Long.MAX_VALUE), listOf(red))
+        val original = PixelSnapshot.createEmpty(canvas)
+        val patch = rasterized(rasterizeStroke(original, stroke(canvas, listOf(position(0, 0)), red)))
+        val changed = applied(patch.applyTo(original))
+
+        assertEquals(PixelCell.Covered(red), cellAt(changed, position(0, 0)))
+        assertEquals(original, applied(patch.inverse().applyTo(changed)))
+    }
+
+    @Test
+    fun `repainting the same index has one no changes result`() {
+        val canvas = canvas(1, 1)
+        val original = snapshot(canvas, listOf(red))
         val stroke = stroke(canvas, listOf(position(0, 0), position(0, 0)), red)
 
         assertEquals(StrokeRasterizationResult.NoChanges, rasterizeStroke(original, stroke))
     }
 
     @Test
-    fun `canvas mismatch and revision overflow are typed rejections`() {
+    fun `canvas mismatch is a typed rejection`() {
         val largerCanvas = canvas(2, 1)
         val outsideStroke = stroke(largerCanvas, listOf(position(1, 0)), red)
         val smallerSnapshot = snapshot(canvas(1, 1))
@@ -139,14 +179,6 @@ internal class StrokeRasterizationTest {
             assertInstanceOf(StrokeRasterizationRejection.CanvasMismatch::class.java, outside)
         assertEquals(largerCanvas, canvasRejection.expected)
         assertEquals(smallerSnapshot.size, canvasRejection.actual)
-        assertEquals(black, indexAt(smallerSnapshot, position(0, 0)))
-
-        val overflowSnapshot = snapshot(canvas(1, 1), revision(Long.MAX_VALUE))
-        val changedStroke = stroke(overflowSnapshot.size, listOf(position(0, 0)), red)
-        assertEquals(
-            StrokeRasterizationRejection.RevisionOverflow,
-            rejected(rasterizeStroke(overflowSnapshot, changedStroke)),
-        )
-        assertEquals(black, indexAt(overflowSnapshot, position(0, 0)))
+        assertEquals(PixelCell.Covered(black), cellAt(smallerSnapshot, position(0, 0)))
     }
 }

@@ -4,8 +4,9 @@ import io.github.hideyukimori.nenepixel.core.domain.document.DocumentId
 import io.github.hideyukimori.nenepixel.core.domain.document.Revision
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
+import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
-import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelCell
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueRejection
 
 public sealed interface RejectionReason {
@@ -26,8 +27,8 @@ public sealed interface RejectionReason {
 
     public data class PixelBeforeValueMismatch internal constructor(
         public val position: PixelPosition,
-        public val expected: PaletteIndex,
-        public val actual: PaletteIndex,
+        public val expected: PixelCell,
+        public val actual: PixelCell,
     ) : RejectionReason
 
     public data object NoEffectiveChange : RejectionReason
@@ -61,5 +62,13 @@ public sealed interface RejectionReason {
     public data class HistoryEntryAboveRetainedPayloadMaximum internal constructor(
         public val attemptedBytes: Long,
         public val maximum: Long,
+    ) : RejectionReason
+
+    public data class LayerSnapshotMismatch internal constructor(
+        public val layerId: LayerId,
+    ) : RejectionReason
+
+    public data class LayerNotFound internal constructor(
+        public val layerId: LayerId,
     ) : RejectionReason
 }

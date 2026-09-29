@@ -18,7 +18,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
-import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import io.github.hideyukimori.nenepixel.presentation.compose.R
 
 @Composable
@@ -29,9 +28,6 @@ internal fun LegacyConversionOptions(
     Column {
         Text(stringResource(R.string.legacy_palette_title), style = MaterialTheme.typography.titleSmall)
         inputs.paletteChoices().forEach { choice -> LegacyPaletteChoice(inputs, choice) }
-        inputs.source.selectedDestination?.let { definition ->
-            Text(stringResource(definition.defaultColorResource()), style = MaterialTheme.typography.bodySmall)
-        }
         LegacyOriginalPreservation(inputs)
         Row(
             Modifier
@@ -83,26 +79,6 @@ private fun LegacyPaletteChoice(
         }
     }
 }
-
-private fun PaletteDefinition.defaultColorResource(): Int =
-    when (val entry = palette.entryAt(defaultIndex)) {
-        is DomainValueResult.Created -> {
-            when (
-                entry.value.color.alpha.value
-                    .toInt()
-            ) {
-                0 -> R.string.legacy_default_transparent
-                OPAQUE_ALPHA -> R.string.legacy_default_opaque
-                else -> R.string.legacy_default_translucent
-            }
-        }
-
-        is DomainValueResult.Rejected -> {
-            error("Validated destination lost its default entry")
-        }
-    }
-
-private const val OPAQUE_ALPHA = 255
 
 private data class LegacyPaletteChoice(
     val definition: PaletteDefinition,

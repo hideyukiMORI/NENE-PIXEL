@@ -1,13 +1,12 @@
 package io.github.hideyukimori.nenepixel.core.pixelengine
 
-import io.github.hideyukimori.nenepixel.core.domain.document.Revision
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelCell
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.black
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.canvas
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.green
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.position
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.red
-import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.revision
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelEngineTestValues.snapshot
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelPatchAssertions.applicationRejected
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelPatchAssertions.applied
@@ -19,39 +18,36 @@ import org.junit.jupiter.api.fail
 
 internal class PixelPatchApplicationTest {
     @Test
-    fun `apply changes only named pixels and advances revision`() {
+    fun `apply changes only named pixels`() {
         val canvas = canvas(3, 1)
         val original = snapshot(canvas, pixels = listOf(black, green, black))
         val patch =
             created(
                 PixelPatch.create(
                     canvas,
-                    beforeRevision = original.revision,
                     changes =
                         listOf(
-                            PixelChange.create(position(0, 0), black, red),
-                            PixelChange.create(position(2, 0), black, green),
+                            PixelChange.create(position(0, 0), PixelCell.Covered(black), PixelCell.Covered(red)),
+                            PixelChange.create(position(2, 0), PixelCell.Covered(black), PixelCell.Covered(green)),
                         ),
                 ),
             )
 
         val result = applied(patch.applyTo(original))
 
-        assertEquals(red, result.color(position(0, 0)))
-        assertEquals(green, result.color(position(1, 0)))
-        assertEquals(green, result.color(position(2, 0)))
-        assertEquals(revision(1L), result.revision)
+        assertEquals(PixelCell.Covered(red), result.color(position(0, 0)))
+        assertEquals(PixelCell.Covered(green), result.color(position(1, 0)))
+        assertEquals(PixelCell.Covered(green), result.color(position(2, 0)))
     }
 
     @Test
-    fun `inverse application restores exact snapshot and revision`() {
+    fun `inverse application restores exact snapshot`() {
         val original = snapshot(canvas(2, 1))
         val patch =
             created(
                 PixelPatch.create(
                     original.size,
-                    original.revision,
-                    listOf(PixelChange.create(position(1, 0), black, red)),
+                    listOf(PixelChange.create(position(1, 0), PixelCell.Covered(black), PixelCell.Covered(red))),
                 ),
             )
 
@@ -70,15 +66,14 @@ internal class PixelPatchApplicationTest {
             created(
                 PixelPatch.create(
                     original.size,
-                    original.revision,
-                    listOf(PixelChange.create(position(0, 0), source, target)),
+                    listOf(PixelChange.create(position(0, 0), PixelCell.Covered(source), PixelCell.Covered(target))),
                 ),
             )
 
         val changed = applied(patch.applyTo(original))
         val restored = applied(patch.inverse().applyTo(changed))
 
-        assertEquals(target, changed.color(position(0, 0)))
+        assertEquals(PixelCell.Covered(target), changed.color(position(0, 0)))
         assertEquals(original, restored)
     }
 
@@ -89,10 +84,9 @@ internal class PixelPatchApplicationTest {
             created(
                 PixelPatch.create(
                     original.size,
-                    original.revision,
                     listOf(
-                        PixelChange.create(position(0, 0), black, red),
-                        PixelChange.create(position(1, 0), black, red),
+                        PixelChange.create(position(0, 0), PixelCell.Covered(black), PixelCell.Covered(red)),
+                        PixelChange.create(position(1, 0), PixelCell.Covered(black), PixelCell.Covered(red)),
                     ),
                 ),
             )
@@ -101,29 +95,23 @@ internal class PixelPatchApplicationTest {
             PixelPatchApplicationRejection.BeforeValueMismatch::class.java,
             applicationRejected(patch.applyTo(original)),
         )
-        assertEquals(black, original.color(position(0, 0)))
-        assertEquals(green, original.color(position(1, 0)))
-        assertEquals(Revision.initial(), original.revision)
+        assertEquals(PixelCell.Covered(black), original.color(position(0, 0)))
+        assertEquals(PixelCell.Covered(green), original.color(position(1, 0)))
     }
 
     @Test
-    fun `canvas and revision mismatch are rejected`() {
+    fun `canvas mismatch is rejected`() {
         val patch =
             created(
                 PixelPatch.create(
                     canvas(1, 1),
-                    revision(0L),
-                    listOf(PixelChange.create(position(0, 0), black, red)),
+                    listOf(PixelChange.create(position(0, 0), PixelCell.Covered(black), PixelCell.Covered(red))),
                 ),
             )
 
         assertInstanceOf(
             PixelPatchApplicationRejection.CanvasMismatch::class.java,
             applicationRejected(patch.applyTo(snapshot(canvas(2, 1)))),
-        )
-        assertInstanceOf(
-            PixelPatchApplicationRejection.RevisionMismatch::class.java,
-            applicationRejected(patch.applyTo(snapshot(canvas(1, 1), revision(1L)))),
         )
     }
 
@@ -134,8 +122,7 @@ internal class PixelPatchApplicationTest {
             created(
                 PixelPatch.create(
                     original.size,
-                    original.revision,
-                    listOf(PixelChange.create(position(0, 0), black, red)),
+                    listOf(PixelChange.create(position(0, 0), PixelCell.Covered(black), PixelCell.Covered(red))),
                 ),
             )
 
@@ -144,8 +131,8 @@ internal class PixelPatchApplicationTest {
 
     private fun io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot.color(
         position: io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition,
-    ): io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex =
-        when (val result = indexAt(position)) {
+    ): PixelCell =
+        when (val result = cellAt(position)) {
             is DomainValueResult.Created -> result.value
             is DomainValueResult.Rejected -> fail("Test position was rejected: ${result.rejection}")
         }

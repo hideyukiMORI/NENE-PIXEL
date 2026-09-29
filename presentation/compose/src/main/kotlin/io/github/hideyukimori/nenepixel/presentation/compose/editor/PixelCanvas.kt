@@ -53,13 +53,13 @@ internal fun PixelCanvas(
                 ).viewportPointerInput(callbacks),
     ) {
         val current = renderState.value
-        val canvas = current.snapshot.size
+        val canvas = current.document.size
         val surface = createViewportSurface() ?: return@Canvas
         val geometry = geometries.resolve(canvas, surface, current.viewport) ?: return@Canvas
         drawCanvasMargins(geometry.destination, PresentationPalette.canvasSurround(current.appearance.theme))
         drawPixels(
             geometry.destination,
-            committed.render(current.snapshot, current.definition, background),
+            committed.render(current.document, current.definition, background),
             committed.paint,
         )
         previews.renderPreview(current)?.let { preview -> drawPixels(geometry.destination, preview, committed.paint) }
@@ -212,8 +212,8 @@ private fun PreviewBitmapCache.renderPreview(state: EditorRenderState): Bitmap? 
     val preview = state.preview ?: return null
     return render(
         preview,
-        state.snapshot.size.width.value,
-        state.snapshot.size.height.value,
+        state.document.size.width.value,
+        state.document.size.height.value,
         preview.effect
             .previewColor(state.definition)
             .toArgb(),
@@ -221,18 +221,23 @@ private fun PreviewBitmapCache.renderPreview(state: EditorRenderState): Bitmap? 
 }
 
 private fun StrokeEffect.previewColor(definition: PaletteDefinition): Color =
-    when (val entry = definition.palette.entryAt(targetIndex)) {
-        is DomainValueResult.Created -> {
-            val color = entry.value.color
-            if (this is StrokeEffect.Erase && color.alpha.value.toInt() == 0) {
-                PresentationPalette.eraserPreview
-            } else {
-                color.toComposeColor().copy(alpha = PREVIEW_ALPHA)
+    when (this) {
+        is StrokeEffect.Paint -> {
+            when (val entry = definition.palette.entryAt(targetIndex)) {
+                is DomainValueResult.Created -> {
+                    entry.value.color
+                        .toComposeColor()
+                        .copy(alpha = PREVIEW_ALPHA)
+                }
+
+                is DomainValueResult.Rejected -> {
+                    error("Render preview target is invalid: ${entry.rejection}")
+                }
             }
         }
 
-        is DomainValueResult.Rejected -> {
-            error("Render preview target is invalid: ${entry.rejection}")
+        StrokeEffect.Erase -> {
+            PresentationPalette.eraserPreview
         }
     }
 

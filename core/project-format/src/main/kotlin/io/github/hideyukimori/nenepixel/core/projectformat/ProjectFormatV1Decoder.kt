@@ -52,10 +52,10 @@ internal class ProjectFormatV1Decoder(
 
     private fun validateByteBounds(source: ProjectFormatBytes): ProjectFormatRejection? =
         when {
-            source.byteCount > ProjectFormatBytes.MAX_FILE_BYTE_COUNT -> {
+            source.byteCount > ProjectFormatV1Layout.MAX_FILE_BYTE_COUNT -> {
                 ProjectFormatRejection.ResourceLimitExceeded(
                     source.byteCount,
-                    ProjectFormatBytes.MAX_FILE_BYTE_COUNT,
+                    ProjectFormatV1Layout.MAX_FILE_BYTE_COUNT,
                 )
             }
 

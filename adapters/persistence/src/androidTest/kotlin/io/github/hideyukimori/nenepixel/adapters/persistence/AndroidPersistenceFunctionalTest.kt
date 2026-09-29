@@ -66,7 +66,7 @@ public class AndroidPersistenceFunctionalTest {
             val document = minimalDocument()
             try {
                 assertEquals(ProjectSaveOutcome.Saved, adapter.save(document))
-                assertArrayEquals(minimalV2Bytes(), projectFile.readBytes())
+                assertArrayEquals(minimalV3Bytes(), projectFile.readBytes())
                 assertEquals(ProjectLoadOutcome.Loaded(DocumentImportSource.Current(document)), adapter.load())
             } finally {
                 projectFile.delete()
@@ -144,11 +144,13 @@ public class AndroidPersistenceFunctionalTest {
             val color = PixelColor.fromPackedRgba8888(0x11223301)
             val palette = created(Palette.create(listOf(PixelColor.blank, color)))
             val definition = created(PaletteDefinition.create(palette, created(PaletteIndex.create(0))))
-            val snapshot = created(PixelSnapshot.createPackedIndices(source.size, source.revision, byteArrayOf(1)))
+            val snapshot = created(PixelSnapshot.createPackedIndices(source.size, byteArrayOf(1)))
             try {
                 assertEquals(
                     PngExportOutcome.Exported,
-                    adapter.export(created(DocumentState.create(source.id, definition, snapshot))),
+                    adapter.export(
+                        created(DocumentState.createSingleLayer(source.id, source.revision, definition, snapshot)),
+                    ),
                 )
                 val options = BitmapFactory.Options().apply { inPremultiplied = false }
                 val decoded = checkNotNull(BitmapFactory.decodeFile(output.absolutePath, options))
@@ -279,10 +281,15 @@ public class AndroidPersistenceFunctionalTest {
         return bytes
     }
 
-    private fun minimalV2Bytes(): ByteArray {
-        val bytes = ByteArray(54)
+    /**
+     * Hand-assembled project v3 (ADR 0030) for [minimalDocument]: the v2-shaped header with version 3,
+     * then layer count 1 and one layer [id 1, flags visible, name length 0, coverage bit 0 set,
+     * index 0], then CRC32 over every earlier byte. 49 + 9 + 4 = 62 bytes.
+     */
+    private fun minimalV3Bytes(): ByteArray {
+        val bytes = ByteArray(V3_MINIMAL_BYTE_COUNT)
         MAGIC.copyInto(bytes)
-        writeUnsignedShort(bytes, VERSION_OFFSET, 2)
+        writeUnsignedShort(bytes, VERSION_OFFSET, 3)
         writeUnsignedShort(bytes, WIDTH_OFFSET, 1)
         writeUnsignedShort(bytes, HEIGHT_OFFSET, 1)
         (0 until 16).forEach { index -> bytes[DOCUMENT_ID_OFFSET + index] = index.toByte() }
@@ -291,7 +298,12 @@ public class AndroidPersistenceFunctionalTest {
         bytes[DEFAULT_INDEX_OFFSET] = 0
         writeInt(bytes, PALETTE_OFFSET, 0)
         writeInt(bytes, PALETTE_OFFSET + BYTES_PER_PIXEL, 0)
-        bytes[PALETTE_OFFSET + 2 * BYTES_PER_PIXEL] = 0
+        bytes[V3_LAYER_COUNT_OFFSET] = 1
+        writeInt(bytes, V3_LAYER_ID_OFFSET, 1)
+        bytes[V3_LAYER_FLAGS_OFFSET] = V3_FLAG_VISIBLE
+        bytes[V3_LAYER_NAME_LENGTH_OFFSET] = 0
+        bytes[V3_LAYER_COVERAGE_OFFSET] = V3_COVERAGE_FIRST_PIXEL
+        bytes[V3_LAYER_INDICES_OFFSET] = 0
         writeInt(bytes, bytes.size - CRC_BYTES, checksum(bytes, bytes.size - CRC_BYTES).toInt())
         return bytes
     }
@@ -342,8 +354,8 @@ public class AndroidPersistenceFunctionalTest {
         val size = CanvasSize.create(created(CanvasWidth.create(1)), created(CanvasHeight.create(1)))
         val palette = created(Palette.create(listOf(PixelColor.blank, PixelColor.blank)))
         val definition = created(PaletteDefinition.create(palette, created(PaletteIndex.create(0))))
-        val snapshot = created(PixelSnapshot.createPackedIndices(size, created(Revision.create(0L)), byteArrayOf(0)))
-        return created(DocumentState.create(id, definition, snapshot))
+        val snapshot = created(PixelSnapshot.createPackedIndices(size, byteArrayOf(0)))
+        return created(DocumentState.createSingleLayer(id, created(Revision.create(0L)), definition, snapshot))
     }
 
     private fun <T> created(result: DomainValueResult<T>): T =
@@ -362,6 +374,15 @@ public class AndroidPersistenceFunctionalTest {
         const val PALETTE_COUNT_OFFSET: Int = 38
         const val DEFAULT_INDEX_OFFSET: Int = 40
         const val PALETTE_OFFSET: Int = 41
+        const val V3_LAYER_COUNT_OFFSET: Int = 49
+        const val V3_LAYER_ID_OFFSET: Int = 50
+        const val V3_LAYER_FLAGS_OFFSET: Int = 54
+        const val V3_LAYER_NAME_LENGTH_OFFSET: Int = 55
+        const val V3_LAYER_COVERAGE_OFFSET: Int = 56
+        const val V3_LAYER_INDICES_OFFSET: Int = 57
+        const val V3_MINIMAL_BYTE_COUNT: Int = 62
+        const val V3_FLAG_VISIBLE: Byte = 0x01
+        const val V3_COVERAGE_FIRST_PIXEL: Byte = 0x01
         const val V1_PIXEL_OFFSET: Int = 38
         const val RECOVERY_VERSION_OFFSET: Int = 8
         const val RECOVERY_STATE_OFFSET: Int = 10

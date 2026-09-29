@@ -25,11 +25,11 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.View
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportSurface
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportTransform
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportValueResult
-import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelX
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelY
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
+import io.github.hideyukimori.nenepixel.visiblePixels
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -69,8 +69,9 @@ internal class DurableMvpJourneyTest {
             touchPixel(2, 1)
             val erased = state()
             assertPixels(recovered = false, revision = 3L)
+            assertEquals(0, erased.documentState.visiblePixels()[ERASED_PIXEL])
             click("editor_undo")
-            assertEquals(0xff0000ff.toInt(), state().documentState.visiblePixels()[10])
+            assertEquals(0xff0000ff.toInt(), state().documentState.visiblePixels()[ERASED_PIXEL])
             assertEquals(HistoryAvailability.UndoAndRedoAvailable, state().historyAvailability)
             click("editor_redo")
             assertEquals(erased.documentState, state().documentState)
@@ -205,8 +206,6 @@ internal class DurableMvpJourneyTest {
         assertArrayEquals(fixture.expectedPixels(recovered), document.visiblePixels())
     }
 
-    private fun DocumentState.visiblePixels(): IntArray = documentSnapshotPixels(this)
-
     private fun touchPixel(
         x: Int,
         y: Int,
@@ -246,7 +245,7 @@ internal class DurableMvpJourneyTest {
         val transform =
             (
                 ViewportTransform.create(
-                    current.snapshot.size,
+                    current.document.size,
                     surface,
                     current.viewport,
                 ) as ViewportValueResult.Created
@@ -284,19 +283,9 @@ internal class DurableMvpJourneyTest {
         }
     }
 
-    private fun documentSnapshotPixels(document: DocumentState): IntArray =
-        document.snapshot
-            .copyPackedIndices()
-            .map { packed ->
-                document.definition.palette
-                    .entries()[packed.toInt() and UBYTE_MASK]
-                    .color
-                    .toPackedRgba8888()
-            }.toIntArray()
-
     private companion object {
         const val TIMEOUT = 60_000L
         const val CANVAS = "editor_canvas_8_6"
-        const val UBYTE_MASK = 0xff
+        const val ERASED_PIXEL = 10
     }
 }

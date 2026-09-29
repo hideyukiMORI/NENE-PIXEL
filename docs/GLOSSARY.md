@@ -74,6 +74,7 @@ One concept has one canonical name. New synonyms in code are prohibited. Add or 
 | `Revision` | Non-negative version of the exact committed DocumentState; canonical undo restores the recorded prior revision | global event sequence, timestamp |
 | `Layer` | An ordered document element with a LayerId, name, visibility and one PixelSnapshot; 1 through 16 per document, bottom first (ADR 0030) | plane, sheet |
 | `LayerId` | Positive document-unique layer identity independent of order and name; new = current maximum + 1 | layer index, layer position |
+| `EditTarget` | Workspace-owned active layer and active palette slot targeted by drawing, erasing and the eyedropper; never saved | current layer state, brush target |
 | `Empty` | A pixel cell with no palette index; always fully transparent and never remapped | transparent index, erase color |
 | `Composite` | The derived visible RGBA image of visible layers under ADR 0030's one integer source-over rule; never document truth | flattened layer, merged image |
 | `Frame` | One animation frame containing an ordered layer state | page, image |

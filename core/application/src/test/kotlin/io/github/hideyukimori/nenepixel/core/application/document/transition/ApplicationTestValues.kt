@@ -13,9 +13,11 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasWidth
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelX
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelY
+import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelCell
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelChange
@@ -56,9 +58,8 @@ internal object ApplicationTestValues {
 
     fun snapshot(
         canvas: CanvasSize,
-        revision: Revision = Revision.initial(),
         indices: List<PaletteIndex> = List(canvas.pixelCount.toInt()) { blackIndex },
-    ): PixelSnapshot = PixelSnapshot.create(canvas, revision, indices).value()
+    ): PixelSnapshot = PixelSnapshot.create(canvas, indices).value()
 
     fun state(
         canvas: CanvasSize,
@@ -66,7 +67,8 @@ internal object ApplicationTestValues {
         indices: List<PaletteIndex> = List(canvas.pixelCount.toInt()) { blackIndex },
         documentId: DocumentId = defaultDocumentId,
         definition: PaletteDefinition = defaultDefinition,
-    ): DocumentState = DocumentState.create(documentId, definition, snapshot(canvas, revision, indices)).value()
+    ): DocumentState =
+        DocumentState.createSingleLayer(documentId, revision, definition, snapshot(canvas, indices)).value()
 
     fun stroke(
         canvas: CanvasSize,
@@ -77,18 +79,30 @@ internal object ApplicationTestValues {
     fun eraserStroke(
         canvas: CanvasSize,
         path: List<PixelPosition>,
-        targetIndex: PaletteIndex = blackIndex,
-    ): Stroke = Stroke.create(canvas, path, StrokeEffect.Erase(targetIndex)).value()
+    ): Stroke = Stroke.create(canvas, path, StrokeEffect.Erase).value()
 
     fun patch(
         canvas: CanvasSize,
-        beforeRevision: Revision,
         changes: List<PixelChange>,
     ): PixelPatch =
-        when (val result = PixelPatch.create(canvas, beforeRevision, changes)) {
+        when (val result = PixelPatch.create(canvas, changes)) {
             is PixelPatchCreationResult.Created -> result.patch
             is PixelPatchCreationResult.Rejected -> fail("Test patch was rejected: ${result.rejection}")
         }
+
+    fun sparseChangeSet(
+        source: DocumentState,
+        patch: PixelPatch,
+    ): ChangeSet =
+        ChangeSet.create(
+            source,
+            source.revision.advance().value(),
+            PaletteTransition.Unchanged,
+            listOf(LayerChange(LayerId.first(), LayerIndexChanges.Sparse(patch))),
+        )
+
+    fun sparsePatch(changeSet: ChangeSet): PixelPatch =
+        (changeSet.layerChanges.single().changes as LayerIndexChanges.Sparse).patch
 
     fun appliedSnapshot(result: PixelPatchApplicationResult): PixelSnapshot =
         when (result) {
@@ -96,10 +110,10 @@ internal object ApplicationTestValues {
             is PixelPatchApplicationResult.Rejected -> fail("Test application was rejected: ${result.rejection}")
         }
 
-    fun indexAt(
+    fun cellAt(
         snapshot: PixelSnapshot,
         position: PixelPosition,
-    ): PaletteIndex = snapshot.indexAt(position).value()
+    ): PixelCell = snapshot.cellAt(position).value()
 
     private fun color(
         red: Int,

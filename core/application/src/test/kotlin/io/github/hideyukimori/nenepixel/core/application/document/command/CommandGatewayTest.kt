@@ -5,24 +5,23 @@ import io.github.hideyukimori.nenepixel.core.application.document.command.Comman
 import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryAvailability
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.blackIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.canvas
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.cellAt
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.eraserStroke
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.greenIndex
-import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.indexAt
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.position
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.redIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.revision
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.state
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.stroke
-import io.github.hideyukimori.nenepixel.core.application.document.transition.IndexChanges
+import io.github.hideyukimori.nenepixel.core.application.document.transition.DocumentTransition
+import io.github.hideyukimori.nenepixel.core.application.document.transition.DocumentTransitionAssertions.created
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
-import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
-import io.github.hideyukimori.nenepixel.core.pixelengine.PixelPatch
-import io.github.hideyukimori.nenepixel.core.pixelengine.PixelPatchApplicationResult
+import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelCell
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.fail
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -38,17 +37,23 @@ internal class CommandGatewayTest {
         val firstResult = firstGateway.execute(command(firstGateway, draw))
         val secondResult = secondGateway.execute(command(secondGateway, draw))
         val changeSet = applied(firstResult)
-        val forward = changedPatch(changeSet.indexChanges)
-        val restored = appliedSnapshot(forward.inverse().applyTo(firstGateway.runtimeState.documentState.snapshot))
+        val restored =
+            created(
+                DocumentTransition.create(firstGateway.runtimeState.documentState, changeSet.inverse()),
+            ).nextState.layers.single().snapshot
 
         assertEquals(firstResult, secondResult)
         assertEquals(firstGateway.runtimeState.documentState, secondGateway.runtimeState.documentState)
         assertEquals(revision(0), changeSet.beforeRevision)
         assertEquals(revision(1), changeSet.afterRevision)
-        assertEquals(redIndex, indexAt(firstGateway.runtimeState.documentState.snapshot, position(0, 0)))
-        assertEquals(greenIndex, indexAt(firstGateway.runtimeState.documentState.snapshot, position(1, 0)))
-        assertEquals(redIndex, indexAt(firstGateway.runtimeState.documentState.snapshot, position(2, 0)))
-        assertEquals(initial.snapshot, restored)
+        val committed =
+            firstGateway.runtimeState.documentState.layers
+                .single()
+                .snapshot
+        assertEquals(PixelCell.Covered(redIndex), cellAt(committed, position(0, 0)))
+        assertEquals(PixelCell.Covered(greenIndex), cellAt(committed, position(1, 0)))
+        assertEquals(PixelCell.Covered(redIndex), cellAt(committed, position(2, 0)))
+        assertEquals(initial.layers.single().snapshot, restored)
     }
 
     @Test
@@ -76,7 +81,7 @@ internal class CommandGatewayTest {
     }
 
     @Test
-    fun `eraser applies captured default and undo redo replay the recorded transition`() {
+    fun `eraser writes Empty and undo redo replay the recorded transition`() {
         val initial = state(canvas(2, 1), indices = listOf(redIndex, greenIndex))
         val gateway = CommandGateway.create(initial)
         applied(
@@ -86,8 +91,8 @@ internal class CommandGatewayTest {
         )
         val erased = gateway.runtimeState.documentState
 
-        assertEquals(blackIndex, indexAt(erased.snapshot, position(0, 0)))
-        assertEquals(blackIndex, indexAt(erased.snapshot, position(1, 0)))
+        assertEquals(PixelCell.Empty, cellAt(erased.layers.single().snapshot, position(0, 0)))
+        assertEquals(PixelCell.Empty, cellAt(erased.layers.single().snapshot, position(1, 0)))
         assertEquals(HistoryAvailability.UndoAvailable, gateway.runtimeState.historyAvailability)
         applied(gateway.execute(UndoCommand.create(erased.id, erased.revision)))
         assertEquals(initial, gateway.runtimeState.documentState)
@@ -115,7 +120,15 @@ internal class CommandGatewayTest {
         applied(gateway.execute(redCommand))
         assertEquals(RejectionReason.SourceHistoryMismatch, rejected(gateway.execute(staleGreen)))
         applied(gateway.execute(command(gateway, stroke(initial.size, listOf(position(0, 0)), greenIndex))))
-        assertEquals(greenIndex, indexAt(gateway.runtimeState.documentState.snapshot, position(0, 0)))
+        assertEquals(
+            PixelCell.Covered(greenIndex),
+            cellAt(
+                gateway.runtimeState.documentState.layers
+                    .single()
+                    .snapshot,
+                position(0, 0),
+            ),
+        )
     }
 
     @Test
@@ -124,8 +137,18 @@ internal class CommandGatewayTest {
             val initial = state(canvas(2, 1))
             val gateway = CommandGateway.create(initial)
             val admission = gateway.captureSource()
-            val first = ApplyStrokeCommand.create(admission, stroke(initial.size, listOf(position(0, 0)), redIndex))
-            val second = ApplyStrokeCommand.create(admission, stroke(initial.size, listOf(position(1, 0)), greenIndex))
+            val first =
+                ApplyStrokeCommand.create(
+                    admission,
+                    LayerId.first(),
+                    stroke(initial.size, listOf(position(0, 0)), redIndex),
+                )
+            val second =
+                ApplyStrokeCommand.create(
+                    admission,
+                    LayerId.first(),
+                    stroke(initial.size, listOf(position(1, 0)), greenIndex),
+                )
             val results = executeConcurrently(gateway, first, second)
 
             assertEquals(1, results.count { it is CommandResult.Applied })
@@ -135,9 +158,13 @@ internal class CommandGatewayTest {
                 rejected(results.single { it is CommandResult.Rejected }),
             )
             assertEquals(revision(1), gateway.runtimeState.documentState.revision)
+            val committed =
+                gateway.runtimeState.documentState.layers
+                    .single()
+                    .snapshot
             assertTrue(
-                indexAt(gateway.runtimeState.documentState.snapshot, position(0, 0)) == redIndex ||
-                    indexAt(gateway.runtimeState.documentState.snapshot, position(1, 0)) == greenIndex,
+                cellAt(committed, position(0, 0)) == PixelCell.Covered(redIndex) ||
+                    cellAt(committed, position(1, 0)) == PixelCell.Covered(greenIndex),
             )
         }
     }
@@ -145,16 +172,7 @@ internal class CommandGatewayTest {
     private fun command(
         gateway: CommandGateway,
         stroke: io.github.hideyukimori.nenepixel.core.domain.drawing.Stroke,
-    ): ApplyStrokeCommand = ApplyStrokeCommand.create(gateway.captureSource(), stroke)
-
-    private fun changedPatch(changes: IndexChanges): PixelPatch =
-        assertInstanceOf(IndexChanges.Changed::class.java, changes).patch
-
-    private fun appliedSnapshot(result: PixelPatchApplicationResult): PixelSnapshot =
-        when (result) {
-            is PixelPatchApplicationResult.Applied -> result.snapshot
-            is PixelPatchApplicationResult.Rejected -> fail("Patch rejected: ${result.rejection}")
-        }
+    ): ApplyStrokeCommand = ApplyStrokeCommand.create(gateway.captureSource(), LayerId.first(), stroke)
 
     private fun executeConcurrently(
         gateway: CommandGateway,

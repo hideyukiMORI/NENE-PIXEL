@@ -4,24 +4,22 @@ import io.github.hideyukimori.nenepixel.core.domain.DomainValueAssertions.create
 import io.github.hideyukimori.nenepixel.core.domain.DomainValueAssertions.rejected
 import io.github.hideyukimori.nenepixel.core.domain.DomainValueTestValues.canvasSize
 import io.github.hideyukimori.nenepixel.core.domain.DomainValueTestValues.pixelPosition
-import io.github.hideyukimori.nenepixel.core.domain.document.Revision
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueRejection
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
-import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Test
 
 internal class PixelSnapshotTest {
     @Test
     fun `snapshot stores unsigned U8 indices in row major order`() {
         val values = listOf(index(0), index(127), index(128), index(255))
-        val snapshot = created(PixelSnapshot.create(canvasSize(2, 2), Revision.initial(), values))
+        val snapshot = created(PixelSnapshot.create(canvasSize(2, 2), values))
 
-        assertEquals(index(0), created(snapshot.indexAt(pixelPosition(0, 0))))
-        assertEquals(index(127), created(snapshot.indexAt(pixelPosition(1, 0))))
-        assertEquals(index(128), created(snapshot.indexAt(pixelPosition(0, 1))))
-        assertEquals(index(255), created(snapshot.indexAt(pixelPosition(1, 1))))
+        assertEquals(PixelCell.Covered(index(0)), created(snapshot.cellAt(pixelPosition(0, 0))))
+        assertEquals(PixelCell.Covered(index(127)), created(snapshot.cellAt(pixelPosition(1, 0))))
+        assertEquals(PixelCell.Covered(index(128)), created(snapshot.cellAt(pixelPosition(0, 1))))
+        assertEquals(PixelCell.Covered(index(255)), created(snapshot.cellAt(pixelPosition(1, 1))))
         assertEquals(listOf(0, 127, -128, -1), snapshot.copyPackedIndices().map(Byte::toInt))
     }
 
@@ -35,39 +33,37 @@ internal class PixelSnapshotTest {
             }
         assertInstanceOf(
             DomainValueRejection.PixelSnapshotSizeMismatch::class.java,
-            rejected(PixelSnapshot.create(canvasSize(2, 2), Revision.initial(), sentinel)),
+            rejected(PixelSnapshot.create(canvasSize(2, 2), sentinel)),
         )
 
-        val rejection = rejected(PixelSnapshot.create(canvasSize(1, 1), Revision.initial(), listOf(index(256))))
+        val rejection = rejected(PixelSnapshot.create(canvasSize(1, 1), listOf(index(256))))
         assertEquals(DomainValueRejection.PixelSnapshotIndexAboveStorageMaximum(0, index(256), 255), rejection)
     }
 
     @Test
-    fun `packed input output and revision copy never alias backing storage`() {
+    fun `packed input and output never alias backing storage`() {
         val input = byteArrayOf(0, 255.toByte())
-        val snapshot = created(PixelSnapshot.createPackedIndices(canvasSize(2, 1), Revision.initial(), input))
+        val snapshot = created(PixelSnapshot.createPackedIndices(canvasSize(2, 1), input))
         input[0] = 12
         val output = snapshot.copyPackedIndices()
         output[1] = 12
-        val later = snapshot.withRevision(created(Revision.create(1)))
 
-        assertEquals(index(0), created(snapshot.indexAt(pixelPosition(0, 0))))
-        assertEquals(index(255), created(snapshot.indexAt(pixelPosition(1, 0))))
-        assertEquals(listOf<Byte>(0, 255.toByte()), later.copyPackedIndices().toList())
-        assertNotEquals(snapshot, later)
+        assertEquals(PixelCell.Covered(index(0)), created(snapshot.cellAt(pixelPosition(0, 0))))
+        assertEquals(PixelCell.Covered(index(255)), created(snapshot.cellAt(pixelPosition(1, 0))))
+        assertEquals(listOf<Byte>(0, 255.toByte()), snapshot.copyPackedIndices().toList())
     }
 
     @Test
     fun `filled snapshot validates U8 and outside query is typed`() {
-        val snapshot = created(PixelSnapshot.createFilled(canvasSize(2, 1), Revision.initial(), index(255)))
+        val snapshot = created(PixelSnapshot.createFilled(canvasSize(2, 1), index(255)))
         assertEquals(listOf(255, 255), snapshot.copyPackedIndices().map { it.toInt() and 0xff })
         assertInstanceOf(
             DomainValueRejection.PixelPositionOutsideCanvas::class.java,
-            rejected(snapshot.indexAt(pixelPosition(2, 0))),
+            rejected(snapshot.cellAt(pixelPosition(2, 0))),
         )
         assertInstanceOf(
             DomainValueRejection.PixelSnapshotIndexAboveStorageMaximum::class.java,
-            rejected(PixelSnapshot.createFilled(canvasSize(1, 1), Revision.initial(), index(256))),
+            rejected(PixelSnapshot.createFilled(canvasSize(1, 1), index(256))),
         )
     }
 

@@ -10,10 +10,11 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.App
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.snapshot
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.state
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.stroke
-import io.github.hideyukimori.nenepixel.core.application.document.transition.IndexChanges
+import io.github.hideyukimori.nenepixel.core.application.document.transition.LayerIndexChanges
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.drawing.Stroke
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
+import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelPatchApplicationResult
@@ -58,7 +59,7 @@ internal class M1CoreMeasurementTest {
             boundary = "PixelSnapshot.create defensive row-major ownership",
         ) {
             MeasuredOperation(
-                execute = { PixelSnapshot.create(size, revision(0L), indices) },
+                execute = { PixelSnapshot.create(size, indices) },
                 verify = { result -> assertEquals(expected, result.requiredValue()) },
             )
         }
@@ -73,7 +74,14 @@ internal class M1CoreMeasurementTest {
             boundary = "canonical rasterizeStroke including PixelChange list and PixelPatch creation",
         ) {
             MeasuredOperation(
-                execute = { rasterizeStroke(fixture.initial.snapshot, fixture.stroke) },
+                execute = {
+                    rasterizeStroke(
+                        fixture.initial.layers
+                            .single()
+                            .snapshot,
+                        fixture.stroke,
+                    )
+                },
                 verify = { result -> verifyRasterized(result, fixture) },
             )
         }
@@ -89,7 +97,11 @@ internal class M1CoreMeasurementTest {
             val fixture = fixture(edge)
             val gateway = CommandGateway.create(fixture.initial)
             MeasuredOperation(
-                execute = { gateway.execute(ApplyStrokeCommand.create(gateway.captureSource(), fixture.stroke)) },
+                execute = {
+                    gateway.execute(
+                        ApplyStrokeCommand.create(gateway.captureSource(), LayerId.first(), fixture.stroke),
+                    )
+                },
                 verify = { result ->
                     val applied = result.requiredApplied()
                     assertEquals(fixture.expectedApplied, gateway.runtimeState.documentState)
@@ -108,7 +120,10 @@ internal class M1CoreMeasurementTest {
             val fixture = fixture(edge)
             val gateway = CommandGateway.create(fixture.initial)
             val original =
-                gateway.execute(ApplyStrokeCommand.create(gateway.captureSource(), fixture.stroke)).requiredApplied()
+                gateway
+                    .execute(
+                        ApplyStrokeCommand.create(gateway.captureSource(), LayerId.first(), fixture.stroke),
+                    ).requiredApplied()
             val afterApply = gateway.runtimeState.documentState
             val command = UndoCommand.create(afterApply.id, afterApply.revision)
             MeasuredOperation(
@@ -131,7 +146,10 @@ internal class M1CoreMeasurementTest {
             val fixture = fixture(edge)
             val gateway = CommandGateway.create(fixture.initial)
             val original =
-                gateway.execute(ApplyStrokeCommand.create(gateway.captureSource(), fixture.stroke)).requiredApplied()
+                gateway
+                    .execute(
+                        ApplyStrokeCommand.create(gateway.captureSource(), LayerId.first(), fixture.stroke),
+                    ).requiredApplied()
             val afterApply = gateway.runtimeState.documentState
             gateway.execute(UndoCommand.create(afterApply.id, afterApply.revision)).requiredApplied()
             val afterUndo = gateway.runtimeState.documentState
@@ -157,13 +175,23 @@ internal class M1CoreMeasurementTest {
                 is StrokeRasterizationResult.Rejected -> fail("Measurement stroke was rejected: ${result.rejection}")
             }
         assertEquals(fixture.stroke.positionCount, patch.changeCount)
-        val applied = patch.applyTo(fixture.initial.snapshot)
+        val applied =
+            patch.applyTo(
+                fixture.initial.layers
+                    .single()
+                    .snapshot,
+            )
         val snapshot =
             when (applied) {
                 is PixelPatchApplicationResult.Applied -> applied.snapshot
                 is PixelPatchApplicationResult.Rejected -> fail("Measurement patch was rejected: ${applied.rejection}")
             }
-        assertEquals(fixture.expectedApplied.snapshot, snapshot)
+        assertEquals(
+            fixture.expectedApplied.layers
+                .single()
+                .snapshot,
+            snapshot,
+        )
     }
 
     private fun <T : Any> measure(
@@ -337,7 +365,7 @@ internal class M1CoreMeasurementTest {
     )
 
     private fun io.github.hideyukimori.nenepixel.core.application.document.transition.ChangeSet.changedPatch() =
-        (indexChanges as IndexChanges.Changed).patch
+        (layerChanges.single().changes as LayerIndexChanges.Sparse).patch
 
     private class ThreadAllocationCounter private constructor(
         private val bean: ThreadMXBean,

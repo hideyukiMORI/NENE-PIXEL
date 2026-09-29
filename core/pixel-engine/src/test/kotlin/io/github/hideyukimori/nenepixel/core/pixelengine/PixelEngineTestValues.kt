@@ -11,6 +11,7 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelRegion
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelX
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelY
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelCell
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import org.junit.jupiter.api.fail
@@ -41,7 +42,7 @@ internal object PixelEngineTestValues {
     fun eraserStroke(
         canvas: CanvasSize,
         path: List<PixelPosition>,
-    ): Stroke = Stroke.create(canvas, path, StrokeEffect.Erase(black)).value()
+    ): Stroke = Stroke.create(canvas, path, StrokeEffect.Erase).value()
 
     fun region(
         canvas: CanvasSize,
@@ -51,14 +52,13 @@ internal object PixelEngineTestValues {
 
     fun snapshot(
         canvas: CanvasSize,
-        revision: Revision = Revision.initial(),
         pixels: List<PaletteIndex> = List(canvas.pixelCount.toInt()) { black },
-    ): PixelSnapshot = PixelSnapshot.create(canvas, revision, pixels).value()
+    ): PixelSnapshot = PixelSnapshot.create(canvas, pixels).value()
 
-    fun indexAt(
+    fun cellAt(
         snapshot: PixelSnapshot,
         position: PixelPosition,
-    ): PaletteIndex = snapshot.indexAt(position).value()
+    ): PixelCell = snapshot.cellAt(position).value()
 
     fun index(value: Int): PaletteIndex = PaletteIndex.create(value).value()
 

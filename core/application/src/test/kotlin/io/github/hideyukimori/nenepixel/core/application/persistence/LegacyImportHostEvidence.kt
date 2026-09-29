@@ -311,7 +311,11 @@ private fun verifyDocumentPixels(
     document: DocumentState,
 ) {
     val packed = source.copyPackedRgba8888()
-    val indices = document.snapshot.copyPackedIndices()
+    val indices =
+        document.layers
+            .single()
+            .snapshot
+            .copyPackedIndices()
     val colors =
         document.definition.palette
             .entries()
