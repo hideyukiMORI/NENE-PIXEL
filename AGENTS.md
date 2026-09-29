@@ -46,6 +46,7 @@ Read the active GitHub Issue, relevant accepted ADRs, and active waivers after t
 - Do not treat a Markdown checklist as current task state. GitHub Issues are the TODO authority.
 - Do not introduce OpenAPI, HTTP, or MCP before the decision gate in `docs/API_STRATEGY.md` is satisfied.
 - Do not commit secrets, local SDK paths, signing materials, generated build output, IDE state, or private user assets.
+- Do not create clones, worktrees, or evidence directories outside the development lab beside the repository (`docs/DEVELOPMENT_SETUP.md`). Do not leave collected evidence inside the `build/` directory of a clone or worktree, do not write a lab location as an absolute path in a tracked file, and do not delete or overwrite anything under the lab's `evidence/`.
 - Prefer the smallest change that fully follows the canonical path.
 - MUST follow QLT-011 through QLT-018 in `docs/QUALITY_GATES.md` when planning, running, and reporting verification. Record the change scope and applicable checks before execution.
 - MUST select checks from the diff. Name the changed behavior and the regression each check detects in the changed code or in a direct dependent or caller; do not run a check that cannot be explained that way. Documentation, comment, and rule changes need no app behavior tests. A hook or developer-tool change needs only that tool's short check.
