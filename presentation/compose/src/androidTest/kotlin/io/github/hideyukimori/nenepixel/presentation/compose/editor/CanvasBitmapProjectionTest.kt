@@ -48,7 +48,7 @@ internal class CanvasBitmapProjectionTest {
         val definition = definition(intArrayOf(OPAQUE_RED, OPAQUE_GREEN, HALF_ALPHA_BLUE, TRANSPARENT_BLACK))
         val source = document(definition, coveredLayer(intArrayOf(0, 1, 2, 3)))
 
-        val rendered = CommittedBitmapCache().render(source, definition)
+        val rendered = CommittedBitmapCache().render(source, definition, null)
 
         TransparencyExpectation.assertPixelsNear(
             "committed",
@@ -64,8 +64,8 @@ internal class CanvasBitmapProjectionTest {
         val source = document(first, coveredLayer(intArrayOf(0, 0, 0, 0)))
         val cache = CommittedBitmapCache()
 
-        assertEquals(OPAQUE_RED, cache.render(source, first).getPixel(0, 0))
-        assertEquals(OPAQUE_GREEN, cache.render(source, second).getPixel(0, 0))
+        assertEquals(OPAQUE_RED, cache.render(source, first, null).getPixel(0, 0))
+        assertEquals(OPAQUE_GREEN, cache.render(source, second, null).getPixel(0, 0))
     }
 
     @Test
@@ -75,7 +75,7 @@ internal class CanvasBitmapProjectionTest {
         val image = composite(source)
 
         assertEquals(TRANSPARENT_BLACK, image.toRenderedBitmap().getPixel(0, 0))
-        assertEquals(TRANSPARENT_BLACK, CommittedBitmapCache().render(source, definition).getPixel(0, 0))
+        assertEquals(TRANSPARENT_BLACK, CommittedBitmapCache().render(source, definition, null).getPixel(0, 0))
     }
 
     /**
@@ -96,7 +96,7 @@ internal class CanvasBitmapProjectionTest {
                 coveredLayer(intArrayOf(2, 2, 2, 2), id = 3, visibility = LayerVisibility.Hidden),
             )
 
-        val rendered = CommittedBitmapCache().render(source, definition)
+        val rendered = CommittedBitmapCache().render(source, definition, null)
 
         TransparencyExpectation.assertPixelsNear(
             "visible layers",
@@ -110,7 +110,7 @@ internal class CanvasBitmapProjectionTest {
         val definition = definition(intArrayOf(OPAQUE_RED, OPAQUE_WHITE))
         val source = document(definition, cellLayer(intArrayOf(0, 0, 0, 0), coveredMask = 0, id = 1))
 
-        val rendered = CommittedBitmapCache().render(source, definition)
+        val rendered = CommittedBitmapCache().render(source, definition, null)
 
         assertArrayEquals(IntArray(PIXEL_COUNT) { TRANSPARENT_BLACK }, rendered.pixels())
     }
@@ -125,7 +125,7 @@ internal class CanvasBitmapProjectionTest {
                 coveredLayer(intArrayOf(1, 1, 1, 1), id = 2, visibility = LayerVisibility.Hidden),
             )
 
-        val rendered = CommittedBitmapCache().render(source, definition)
+        val rendered = CommittedBitmapCache().render(source, definition, null)
 
         assertArrayEquals(IntArray(PIXEL_COUNT) { OPAQUE_RED }, rendered.pixels())
     }
@@ -138,14 +138,14 @@ internal class CanvasBitmapProjectionTest {
         val changed = document(definition, coveredLayer(intArrayOf(1, 1, 1, 1)))
         val cache = CommittedBitmapCache()
 
-        val initial = cache.render(first, definition)
+        val initial = cache.render(first, definition, null)
 
-        assertSame(initial, cache.render(first, definition))
+        assertSame(initial, cache.render(first, definition, null))
         assertEquals(first, equalCopy)
-        assertNotSame(initial, cache.render(equalCopy, definition))
+        assertNotSame(initial, cache.render(equalCopy, definition, null))
         assertArrayEquals(
             IntArray(PIXEL_COUNT) { OPAQUE_GREEN },
-            cache.render(changed, definition).pixels(),
+            cache.render(changed, definition, null).pixels(),
         )
     }
 

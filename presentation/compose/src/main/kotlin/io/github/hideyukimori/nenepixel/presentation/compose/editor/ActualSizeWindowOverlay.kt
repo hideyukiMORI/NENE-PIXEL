@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import io.github.hideyukimori.nenepixel.core.application.workspace.ActualSizeWindow
 import io.github.hideyukimori.nenepixel.core.application.workspace.WindowAnchor
+import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteEditSession
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
@@ -61,10 +62,11 @@ import kotlin.math.roundToInt
 /**
  * The committed document drawn over the canvas at an exact device-pixel multiple (ADR 0026).
  *
- * It subscribes only to the committed document, palette definition and window state, so a stroke in
- * progress never redraws it. A handle band and a scale chip make the two gestures visible
- * (amendment 2026-09-22, #126): a drag on either band or on the content moves the window, and a tap
- * on the chip or on the window body cycles the scale. Its pointer events never reach the canvas.
+ * It subscribes only to the committed document, palette definition, palette edit session and window
+ * state, so a stroke in progress never redraws it and a palette draft change redraws it once. A
+ * handle band and a scale chip make the two gestures visible (amendment 2026-09-22, #126): a drag
+ * on either band or on the content moves the window, and a tap on the chip or on the window body
+ * cycles the scale. Its pointer events never reach the canvas.
  */
 @Composable
 internal fun ActualSizeWindowOverlay(
@@ -74,7 +76,13 @@ internal fun ActualSizeWindowOverlay(
 ) {
     val inputs by remember(state) {
         derivedStateOf {
-            ActualSizeWindowInputs(state.value.document, state.value.definition, state.value.actualSizeWindow)
+            val current = state.value
+            ActualSizeWindowInputs(
+                current.document,
+                current.definition,
+                current.paletteEditSession,
+                current.actualSizeWindow,
+            )
         }
     }
     if (inputs.window.visible) {
@@ -153,7 +161,7 @@ private fun ActualSizeWindowContent(
             drawTransparencyBackdrop(backdrop, content)
             drawIntoCanvas { canvas ->
                 canvas.nativeCanvas.drawBitmap(
-                    committed.render(inputs.document, inputs.definition),
+                    committed.render(inputs.document, inputs.definition, inputs.session),
                     geometry.source,
                     content,
                     committed.paint,
@@ -313,11 +321,26 @@ private fun Modifier.exactSize(
         layout(width, height) { placeable.place(0, 0) }
     }
 
-private data class ActualSizeWindowInputs(
+/**
+ * What the window draws from. The document, definition and session are compared by reference, exactly
+ * as `CommittedBitmapCache` keys them, so the window and the canvas always ask the shared cache for
+ * the same bitmap; the window state is compared by value.
+ */
+private class ActualSizeWindowInputs(
     val document: DocumentState,
     val definition: PaletteDefinition,
+    val session: PaletteEditSession?,
     val window: ActualSizeWindow,
-)
+) {
+    override fun equals(other: Any?): Boolean =
+        other is ActualSizeWindowInputs &&
+            document === other.document &&
+            definition === other.definition &&
+            session === other.session &&
+            window == other.window
+
+    override fun hashCode(): Int = System.identityHashCode(document) * HASH_MULTIPLIER + window.hashCode()
+}
 
 /** The fixed device-pixel bands that surround the content: they carry the window's affordances. */
 private data class ActualSizeWindowChrome(
@@ -379,6 +402,7 @@ private data class ActualSizeWindowGeometry(
 private const val HANDLE_TAG: String = "editor_actual_size_window_handle"
 private const val CONTENT_TAG: String = "editor_actual_size_window_content"
 private const val CHIP_TAG: String = "editor_actual_size_window_chip"
+private const val HASH_MULTIPLIER: Int = 31
 private val WINDOW_FRAME = 2.dp
 private val WINDOW_HANDLE = 20.dp
 private val WINDOW_FOOTER = 22.dp
