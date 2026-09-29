@@ -28,7 +28,7 @@ Exploration may happen without an Issue when it is read-only and produces no rep
 5. Change policy/ADR first when the accepted design changes.
 6. Implement the smallest complete change.
 7. Add or update tests and generated contracts.
-8. Record the change scope and verification triggers under QLT-011 through QLT-018, select each check from the diff with the regression it detects, and run only those during development.
+8. Record the change scope and verification triggers under QLT-011 through QLT-019, select each check from the diff with the regression it detects, and run only those during development.
 9. Reuse the recorded passing results for handoff and review preparation; rerun only what a relevant change, failure, or concrete unverified concern invalidates. Reserve the full canonical suite for the final PR merge candidate under QLT-011.
 10. Self-review against every affected rule ID.
 11. Open a PR linked to the Issue.

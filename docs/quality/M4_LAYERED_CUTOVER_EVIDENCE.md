@@ -93,9 +93,19 @@ composite path has not been measured.
 
 ### What follows
 
-Issue #142 stays open and PR #146 is not merged on this evidence. The M5 budget and the Lane 3
-tolerances are unchanged. A further collection needs a revised plan in the Issue first: a named
-change to the commit path or to the profile, its expected effect, and a new experiment identity.
+The result above is retained and is not judged again. The M5 budget and the Lane 3 tolerances are
+unchanged.
+
+After the collection the commit path of the candidate was revised in PR #146: the two whole-image
+copies per commit were removed and the blend over the canvas colour runs once per run of equal
+values. The output pixels are unchanged. The effect of the revision has not been measured.
+
+On 2026-09-29 [ADR 0031](../adr/0031-phase-gate-device-performance.md) moved device performance
+collection to a phase gate (QLT-019). The single-layer latency condition of Issue #142 moved to
+Issue #145, the gate of the layer phase, which collects the single-layer workloads of this
+document together with the 16-layer worst case against the same baseline production commit and
+the same limits. PR #146 merges on the correctness evidence below; its device performance verdict
+is pending until that gate.
 
 ## Device functional evidence — 2026-09-29
 

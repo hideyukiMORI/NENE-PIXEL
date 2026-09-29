@@ -127,7 +127,8 @@ Performance-driven architecture exceptions require a reproducible benchmark, nam
 
 The following rules are the single authority for verification frequency and performance evaluation,
 accepted in [ADR 0011](adr/0011-change-scoped-verification.md) and extended by
-[ADR 0024](adr/0024-differential-check-selection-and-result-reuse.md). They govern future work,
+[ADR 0024](adr/0024-differential-check-selection-and-result-reuse.md) and
+[ADR 0031](adr/0031-phase-gate-device-performance.md). They govern future work,
 including Issue #54. Historical evidence remains immutable. These are mandatory agent/reviewer obligations;
 they are not claims that Gradle automatically detects every process violation.
 
@@ -144,8 +145,8 @@ boundary during iteration. The following triggers are mandatory:
 | Issue's PR ready to merge | Required successful CI `quality` running canonical `./gradlew check :app:android:assembleDebug` for the final merge candidate; no duplicate local full run is required |
 | Documentation-only change | Documentation validation during development; the same pre-merge CI gate applies when merging, with no device measurement or profile generation solely for prose changes |
 | UI or lifecycle behavior | Relevant device/emulator functional tests in addition to host contracts |
-| Rendering, command, history, or memory performance change | Before/after measurement of the affected representative workload, with separate correctness evidence |
-| Representation, storage format, or supported limit change | Relevant boundary/round-trip/corruption tests and latency or retained-memory evidence affected by that decision |
+| Rendering, command, history, or memory performance change | Cost statement in the completion report and the affected workload registered with the phase gate Issue (QLT-019); the device collection runs at the phase gate, with separate correctness evidence |
+| Representation, storage format, or supported limit change | Relevant boundary/round-trip/corruption tests; latency or retained-memory evidence affected by that decision is collected at the phase gate (QLT-019) |
 | Baseline Profile update | Explicit generation and reproducibility verification under ADR 0010; ordinary builds verify the committed artifact |
 
 Checks are selected from the diff. Before a check runs, name the changed behavior and the regression
@@ -307,6 +308,30 @@ closed before toolchain setup. That job reruns on every non-draft pull-request e
 check; ADR 0024 records why this repetition is accepted. Prefer the existing target selection
 (`--tests` filters and module tasks) and recorded result reuse over any automatic test-selection
 infrastructure. Disabling verification wholesale is prohibited.
+
+### QLT-019 — Device performance is judged at the phase gate
+
+Accepted in [ADR 0031](adr/0031-phase-gate-device-performance.md). A device performance collection
+runs once per phase, in the phase's gate Issue, after the phase's feature Issues have merged and in
+one experiment that covers every registered workload. A feature Issue MUST NOT carry a device
+collection of its own. When its change touches a measured path (input to committed presentation,
+command execution, history, storage, retained memory), it MUST register the affected workload with
+the gate Issue before it merges. A Baseline Profile that the phase's code requires is generated
+once, before the gate collection.
+
+An Issue that changes a measured path MUST state in its completion report the work one operation
+does after the change against the work it did before: whole-document scans, allocations and copies
+proportional to the document size, per-pixel arithmetic, and work added to preview frames. The
+statement is a code-inspection statement under QLT-016. Work it shows to be avoidable is removed
+before the merge. A cost property that can be asserted deterministically on the host is a
+regression test of the Issue.
+
+A collection outside the gate is planned in its own Issue only when a release or milestone exit
+depends on its verdict before the phase ends, or when the cost statement shows work proportional to
+the document size added to every preview frame that cannot be reshaped away. When a gate collection
+fails, the result is retained, the retained frames are read first, the corrections are made
+together, and one further collection follows under the owning protocol. This rule changes no
+budget, threshold, protocol or milestone exit criterion.
 
 ## Merge gate
 
