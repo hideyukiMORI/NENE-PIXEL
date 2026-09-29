@@ -43,7 +43,8 @@ import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
  * progress or a committed stroke leaves those structurally equal, so neither the chip nor the panel recomposes.
  * Open or closed is local, saveable Compose state (ADR 0020), not workspace state. Back closes the panel, and
  * closing returns focus to the chip. The overlay takes no pointer itself: only the chip and the panel do. The
- * panel rows send their selection and visibility changes through [callbacks], passed on as the same instance.
+ * panel rows and the add row send their changes through [callbacks], passed on as the same instance inside one
+ * remembered [LayerRowActions]; rename does nothing until U7 connects it.
  */
 @Composable
 internal fun LayerOverlay(
@@ -59,6 +60,8 @@ internal fun LayerOverlay(
     var open by rememberSaveable { mutableStateOf(false) }
     var returnFocus by remember { mutableStateOf(false) }
     val chipFocus = remember { FocusRequester() }
+    val actions = remember(callbacks) { LayerRowActions(callbacks, onRename = {}) }
+    val onAdd = remember<() -> Unit>(callbacks) { { callbacks.onAdd() } }
     val close = {
         open = false
         returnFocus = true
@@ -79,7 +82,8 @@ internal fun LayerOverlay(
         }
         AnimatedVisibility(open, Modifier.align(corner), panelEnter(density), PANEL_EXIT) {
             LayerPanel(inputs.rows.size, close, Modifier.panelBounds(maxWidth, maxHeight, inputs.edge)) {
-                LayerPanelRows(inputs.rows, inputs.activeLayerId, callbacks, Modifier.weight(1f, fill = false))
+                LayerPanelRows(inputs.rows, inputs.activeLayerId, actions, Modifier.weight(1f, fill = false))
+                LayerPanelAddRow(inputs.rows.size, onAdd)
             }
         }
     }

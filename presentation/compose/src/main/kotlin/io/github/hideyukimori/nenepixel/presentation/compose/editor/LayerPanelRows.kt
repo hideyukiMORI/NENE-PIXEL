@@ -16,31 +16,36 @@ import androidx.compose.ui.focus.focusRequester
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 
 /**
- * The panel's row list (#144 UI spec "パネル" 2): [rows] top to bottom, front-most first as `layerRowsOf` orders them.
- * Only this list scrolls. It is composed each time the panel opens; after the first layout it scrolls the active
- * layer's row into view and moves focus to it.
+ * The panel's row list (#144 UI spec "パネル" 2): [rows] top to bottom, front-most first as `layerRowsOf` orders them,
+ * each with its "more" menu. Only this list scrolls. It is composed each time the panel opens; after the first
+ * layout it moves focus to the active layer's row. Whenever the active layer changes (opening, add, a row tap,
+ * undo / redo) it scrolls that row into view after the next layout (#144 U5 ruling).
  */
 @Composable
 internal fun LayerPanelRows(
     rows: List<LayerRowModel>,
     activeLayerId: LayerId,
-    callbacks: EditorLayerCallbacks,
+    actions: LayerRowActions,
     modifier: Modifier = Modifier,
 ) {
     val activeFocus = remember { FocusRequester() }
     val activeView = remember { BringIntoViewRequester() }
     LaunchedEffect(Unit) {
         withFrameNanos { }
-        activeView.bringIntoView()
         activeFocus.requestFocus()
     }
+    LaunchedEffect(activeLayerId) {
+        withFrameNanos { }
+        activeView.bringIntoView()
+    }
     Column(modifier.verticalScroll(rememberScrollState())) {
-        rows.forEach { row ->
+        rows.forEachIndexed { index, row ->
             key(row.id.value) {
                 val current = row.id == activeLayerId
                 val target =
                     if (current) Modifier.bringIntoViewRequester(activeView).focusRequester(activeFocus) else Modifier
-                LayerRow(LayerRowEntry(row, current), callbacks, target)
+                val entry = LayerRowEntry(row, current, position = rows.size - 1 - index, layerCount = rows.size)
+                LayerRow(entry, actions.callbacks, target) { LayerRowMenu(entry, actions) }
             }
         }
     }

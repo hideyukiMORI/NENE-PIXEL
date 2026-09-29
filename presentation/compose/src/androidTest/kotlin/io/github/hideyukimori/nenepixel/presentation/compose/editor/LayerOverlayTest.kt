@@ -270,7 +270,7 @@ internal class LayerOverlayTest {
     private companion object {
         val WIDE_EDGE: Dp = 600.dp
         val TALL_EDGE: Dp = 400.dp
-        val PROBE_INSET: Dp = 16.dp
+        val PROBE_INSET: Dp = 4.dp
 
         /**
          * With 76-90dp of header and status the work area is 140-154dp: above the 104dp the Left limit needs, and

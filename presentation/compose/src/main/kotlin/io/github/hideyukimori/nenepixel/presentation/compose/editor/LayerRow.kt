@@ -32,7 +32,7 @@ import io.github.hideyukimori.nenepixel.presentation.compose.R
 
 /**
  * One layer-panel row (#144 UI spec "行"): the visibility toggle, then the selectable name area with the pencil mark
- * on the active layer, then [trailing] (the "more" button's 48dp place; empty until U5 fills it).
+ * on the active layer, then [trailing] (the "more" button's 48dp place; the panel fills it with `LayerRowMenu`).
  *
  * The toggle, the name area and [trailing] sit side by side and never overlap, so the focus order inside a row is
  * toggle → row → more. [modifier] lands on the selectable name area, so a focus requester there focuses the row.
