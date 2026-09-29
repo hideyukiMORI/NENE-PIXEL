@@ -79,6 +79,13 @@ One composite function in `:core:pixel-engine` defines the visible image. The co
 actual-size window, stroke preview, palette remap preview and PNG export all use it. Android canvas
 blending never substitutes for it.
 
+While a gesture runs, every position it has touched shows the composite that committing the gesture
+would produce: the layers below, the cell the stroke writes in place of the target layer's cell,
+and the layers above. Untouched positions show the committed image. No preview-only tint or eraser
+colour exists (owner decision, 2026-09-29), so a stroke hidden by an upper layer stays hidden while
+it is drawn and an erased cell shows what lies below it. The per-position evaluation uses the same
+validation, the same first-contribution rule and the same blend as the whole-image composite.
+
 For each pixel the result starts with no contribution. Visible layers are visited bottom to top.
 An `Empty` cell or a covered color with alpha 0 contributes nothing once a contribution exists.
 The first covered color is copied exactly, hidden RGB included. After that, a color with alpha 255
