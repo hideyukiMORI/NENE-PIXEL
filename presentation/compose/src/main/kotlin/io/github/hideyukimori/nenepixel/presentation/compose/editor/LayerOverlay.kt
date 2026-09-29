@@ -46,7 +46,8 @@ import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
  * recomposes. Open or closed is local, saveable Compose state (ADR 0020), not workspace state. Back closes the
  * panel, and closing returns focus to the chip. The overlay takes no pointer itself: only the chip, the panel and a
  * shown notice do. The panel rows and the add row send their changes through the layer route of [editorCallbacks],
- * passed on as the same instance inside one remembered [LayerRowActions]; rename does nothing until U7 connects it.
+ * passed on as the same instance inside one remembered [LayerRowActions]. A row's rename opens the rename dialog
+ * (U7) for that layer; the target is plain `remember` state, and the dialog is composed only while it is open.
  * The layer notice (U6) shows at the bottom centre whether the panel is open or not; its undo goes through
  * [editorCallbacks] like the dock's.
  */
@@ -60,7 +61,8 @@ internal fun LayerOverlay(
     var open by rememberSaveable { mutableStateOf(false) }
     var returnFocus by remember { mutableStateOf(false) }
     val chipFocus = remember { FocusRequester() }
-    val actions = remember(callbacks) { LayerRowActions(callbacks, onRename = {}) }
+    val renameTarget = remember { mutableStateOf<LayerId?>(null) }
+    val actions = remember(callbacks) { LayerRowActions(callbacks, onRename = { id -> renameTarget.value = id }) }
     val onAdd = remember<() -> Unit>(callbacks) { { callbacks.onAdd() } }
     val close = {
         open = false
@@ -88,6 +90,7 @@ internal fun LayerOverlay(
         }
         LayerNoticeHost(inputs.notice, editorCallbacks, Modifier.align(Alignment.BottomCenter).noticeBounds())
     }
+    LayerRenameHost(renameTarget, inputs.rows, callbacks)
 }
 
 /** The panel margin, the width cap for a work area [workWidth] wide, and the height limit (#144 "パネル"). */

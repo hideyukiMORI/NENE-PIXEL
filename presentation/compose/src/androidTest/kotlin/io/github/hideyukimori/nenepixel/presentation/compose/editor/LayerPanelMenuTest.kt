@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import io.github.hideyukimori.nenepixel.presentation.compose.editor.LayerMenuFixture.CANCEL_TAG
 import io.github.hideyukimori.nenepixel.presentation.compose.editor.LayerMenuFixture.DELETE_TAG
 import io.github.hideyukimori.nenepixel.presentation.compose.editor.LayerMenuFixture.MOVE_DOWN_TAG
 import io.github.hideyukimori.nenepixel.presentation.compose.editor.LayerMenuFixture.MOVE_UP_TAG
@@ -43,10 +44,12 @@ internal class LayerPanelMenuTest {
         item(MOVE_UP_TAG).assertIsNotEnabled()
         item(MOVE_DOWN_TAG).assertIsEnabled()
         LayerMenuFixture.click(composeRule, RENAME_TAG)
+        LayerMenuFixture.click(composeRule, CANCEL_TAG)
         LayerMenuFixture.openMenu(composeRule, layers.last())
         item(MOVE_UP_TAG).assertIsEnabled()
         item(MOVE_DOWN_TAG).assertIsNotEnabled()
         LayerMenuFixture.click(composeRule, RENAME_TAG)
+        LayerMenuFixture.click(composeRule, CANCEL_TAG)
         assertEquals(layers, frontToBack(controller))
     }
 

@@ -32,6 +32,7 @@ import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
  */
 internal object LayerMenuFixture {
     const val RENAME_TAG: String = "editor_layer_rename"
+    const val CANCEL_TAG: String = "editor_cancel"
     const val MOVE_UP_TAG: String = "editor_layer_move_up"
     const val MOVE_DOWN_TAG: String = "editor_layer_move_down"
     const val DELETE_TAG: String = "editor_layer_delete"
