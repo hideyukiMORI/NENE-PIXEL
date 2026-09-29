@@ -11,4 +11,8 @@ public class CompositeRaster internal constructor(
     private val packedRgba: IntArray,
 ) {
     public fun copyPackedRgba8888(): IntArray = packedRgba.copyOf()
+
+    /** A new array holding [transform] of every pixel in row-major order; the backing array stays private. */
+    public fun mapPackedRgba8888(transform: PackedRgbaTransform): IntArray =
+        IntArray(packedRgba.size) { pixel -> transform.map(packedRgba[pixel]) }
 }

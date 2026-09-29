@@ -44,6 +44,23 @@ internal class DocumentCompositeTest {
     }
 
     @Test
+    fun `map transforms every pixel once in row-major order`() {
+        val image = DocumentComposite.render(document())
+        val seen = mutableListOf<Int>()
+        val mapped = image.mapPackedRgba8888 { packed -> packed.also(seen::add) xor MASK }
+        assertEquals(listOf(0x6080a0ff, 0x204060ff, 0), seen)
+        assertArrayEquals(intArrayOf(0x6080a0ff xor MASK, 0x204060ff xor MASK, MASK), mapped)
+    }
+
+    @Test
+    fun `mapped arrays are defensive`() {
+        val image = DocumentComposite.render(document())
+        image.mapPackedRgba8888 { it }.fill(1)
+        assertArrayEquals(intArrayOf(0x6080a0ff, 0x204060ff, 0), image.mapPackedRgba8888 { it })
+        assertArrayEquals(intArrayOf(0x6080a0ff, 0x204060ff, 0), image.copyPackedRgba8888())
+    }
+
+    @Test
     fun `draft definition recolors the document layers`() {
         val document = document()
         val draft = definition(0x000000ff, 0xffffff00.toInt(), 0x123456ff)
@@ -103,4 +120,8 @@ internal class DocumentCompositeTest {
             is DomainValueResult.Created -> result.value
             is DomainValueResult.Rejected -> error("Unexpected fixture rejection: ${result.rejection}")
         }
+
+    private companion object {
+        const val MASK: Int = 0x0F0F0F0F
+    }
 }

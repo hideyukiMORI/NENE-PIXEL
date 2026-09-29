@@ -37,6 +37,5 @@ public object DocumentComposite {
             -> error("Document composite invariant was rejected: $rejection")
         }
 
-    private fun CompositeResult.Composited.image(): DocumentCompositeImage =
-        DocumentCompositeImage(raster.size, raster.copyPackedRgba8888())
+    private fun CompositeResult.Composited.image(): DocumentCompositeImage = DocumentCompositeImage(raster)
 }
