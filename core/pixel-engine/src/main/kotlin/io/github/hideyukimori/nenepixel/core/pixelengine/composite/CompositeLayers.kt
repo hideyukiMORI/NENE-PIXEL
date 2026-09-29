@@ -24,7 +24,7 @@ public fun compositeLayers(
         else -> CompositeResult.Rejected(rejection)
     }
 
-private fun compositeRejection(
+internal fun compositeRejection(
     size: CanvasSize,
     layers: List<Layer>,
     entryCount: Int,
@@ -66,7 +66,7 @@ private fun composite(
     return accumulator.packedRgba
 }
 
-private fun paletteRgba(definition: PaletteDefinition): IntArray {
+internal fun paletteRgba(definition: PaletteDefinition): IntArray {
     val entries = definition.palette.entries()
     return IntArray(entries.size) { entries[it].color.toPackedRgba8888() }
 }
@@ -93,12 +93,8 @@ private class CompositeAccumulator(
         pixel: Int,
         sourceRgba: Int,
     ) {
-        if (contributed[pixel]) {
-            packedRgba[pixel] = blendOver(packedRgba[pixel], sourceRgba)
-        } else {
-            packedRgba[pixel] = sourceRgba
-            contributed[pixel] = true
-        }
+        packedRgba[pixel] = contributeOver(contributed[pixel], packedRgba[pixel], sourceRgba)
+        contributed[pixel] = true
     }
 
     private fun ByteArray.isCoveredAt(pixel: Int): Boolean =
