@@ -94,8 +94,9 @@ composite path has not been measured.
 ### What follows
 
 Issue #142 stays open and PR #146 is not merged on this evidence. The M5 budget and the Lane 3
-tolerances are unchanged. A further collection needs a revised plan in the Issue first: a named
-change to the commit path or to the profile, its expected effect, and a new experiment identity.
+tolerances are unchanged. A further collection runs under the third bounded rule of
+[the P4 protocol](P4_INDEXED_CUTOVER_PROTOCOL.md): a revised plan in the Issue first, with a named
+change to the commit path or to the profile, its expected effect and a new experiment id.
 
 ## Device functional evidence — 2026-09-29
 

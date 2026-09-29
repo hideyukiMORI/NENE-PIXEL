@@ -153,8 +153,8 @@ measurement, incomplete capture, wrong row order/count, ambiguous association,
 device-condition drift, exception, crash/ANR/fatal signal, or timeout is
 `INVALID`. A complete numeric threshold miss is `PERFORMANCE_FAIL`. Both are
 preserved and stop every dependent later slot. No sample is removed or
-replaced. Every slot has maximum attempt 1; any further collection requires a
-new protocol identity and review.
+replaced. Every slot has maximum attempt 1; apart from the three bounded rules
+below, any further collection requires a new protocol identity and review.
 
 One bounded recovery exists for a defect that is not a measurement. When an
 `INVALID` is caused by a harness, analyzer or wrapper contract defect that is
@@ -167,9 +167,10 @@ selected, discarded, replaced, repaired or pooled across experiment ids, no
 population, threshold, budget or order changes, and the preserved `INVALID`
 remains reported. Once any slot under an experiment identity has produced a
 `PERFORMANCE_PASS` or `PERFORMANCE_FAIL`, this recovery is unavailable and
-further collection again requires a new protocol identity and review. A defect
-in the measured production behaviour, in the device or in the collection
-conditions is not a harness contract defect and is not recoverable this way.
+further collection again requires a new protocol identity and review unless the
+third bounded rule below applies. A defect in the measured production
+behaviour, in the device or in the collection conditions is not a harness
+contract defect and is not recoverable this way.
 
 A second bounded rule covers the same class of defect found one step earlier.
 When a harness, analyzer or wrapper contract defect is found by review before
@@ -189,6 +190,34 @@ unavailable once any slot under an experiment identity has produced a
 `p4-indexed-v4-20260916-run3` is the first application: its five host slots are
 preserved as complete `valid-descriptive` captures, no device slot ran, and the
 v5 frame and command bound corrections restart the fixed order under a new
+experiment id.
+
+A third bounded rule covers a revised candidate. A `PERFORMANCE_FAIL` judges
+one candidate production tree. When the production change under judgment is
+revised after a `PERFORMANCE_FAIL`, a further collection may run under the same
+protocol identity as a new experiment if every one of the following holds:
+
+- the candidate production tree differs from every candidate production tree
+  that has produced a PERFORMANCE verdict under the binding's Issue, and the
+  difference is production source, not measurement source;
+- before collection the Issue records the revised plan that QLT-015 requires:
+  the named production change, the retained observation it answers, its
+  expected effect and the new experiment id;
+- a reviewed change on `main` names the new collection in the binding table of
+  its lane before the reservation is written;
+- the fixed slot order restarts from its first slot under the new experiment
+  id, every slot with attempt 1, so the baseline is collected again inside the
+  new experiment; and
+- no metric, population, threshold, budget, slot, order, schema or verdict rule
+  changes.
+
+The failed experiment stays preserved and reported as `PERFORMANCE_FAIL`.
+Nothing is pooled, selected, discarded, replaced or re-judged across experiment
+ids, and the verdict of the new experiment stands on its own samples. An
+unchanged candidate is never collected again under this rule, and the rule does
+not recover an `INVALID`. Experiment `p4-indexed-v7-20260929-layered1` of Issue
+#142 is the first application: its `PERFORMANCE_FAIL` is retained, the commit
+path of the candidate was revised, and the fixed order restarts under a new
 experiment id.
 
 ## Lane 1: production command latency and ART blocking GC
@@ -437,7 +466,8 @@ reservation takes the Issue/protocol agreement from the current binding's Issue.
 | Collection | Agreement Issue | Baseline production commit | Evidence root |
 | --- | --- | --- | --- |
 | Frame budget of main, collected 2026-09-23 as `p4-indexed-v7-20260923-frame1` | #120 | `2f0b617e56f7bcf3d71b5a258a48e0edead354d9` (main on 2026-09-23) | `build/reports/issue-120/` |
-| Single-layer non-regression of the layered cutover, Issue #142 (current binding) | #142 | `8120c06fae1a372b23d2a7af4f50aa2b9cdfeff9` (main on 2026-09-29) | `build/reports/issue-142/` |
+| Single-layer non-regression of the layered cutover, Issue #142, collected 2026-09-29 as `p4-indexed-v7-20260929-layered1` (`PERFORMANCE_FAIL`, retained) | #142 | `8120c06fae1a372b23d2a7af4f50aa2b9cdfeff9` (main on 2026-09-29) | `build/reports/issue-142/` |
+| Single-layer non-regression of the layered cutover after the commit-path revision, Issue #142, under the third bounded rule (current binding) | #142 | `8120c06fae1a372b23d2a7af4f50aa2b9cdfeff9` (the production tree of main is unchanged since 2026-09-29) | `evidence/142-latency/issue-142/` of the development lab |
 
 A binding changes no metric, population, threshold, slot, schema or verdict rule. A collection under
 a past binding is complete; it is neither collected again nor judged again.
