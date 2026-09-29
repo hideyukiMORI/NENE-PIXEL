@@ -12,6 +12,7 @@ import androidx.test.uiautomator.Until
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.util.regex.Pattern
 import kotlin.math.floor
 
 @RunWith(AndroidJUnit4::class)
@@ -33,6 +34,7 @@ internal class PencilUndoBaselineProfile {
             startActivityAndWait()
 
             val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+            device.declineRecoveryOffer()
             device.awaitObject(By.res(CLEAN_LABEL))
             device.awaitObject(By.res(PENCIL_DESCRIPTION))
             device.awaitObject(undoButton(enabled = false))
@@ -62,6 +64,15 @@ internal class PencilUndoBaselineProfile {
         }
     }
 
+    /**
+     * The previous iteration is stopped inside the autosave window, so the next launch may offer
+     * its recovery record. The offer replaces the clean label until it is declined.
+     */
+    private fun UiDevice.declineRecoveryOffer() {
+        val first = awaitObject(By.res(CLEAN_OR_DISCARD))
+        if (first.resourceName == DISCARD_RECOVERY) first.click()
+    }
+
     private fun UiDevice.awaitObject(selector: BySelector): UiObject2 =
         checkNotNull(wait(Until.findObject(selector), UI_TIMEOUT_MILLIS)) {
             "Timed out waiting for UI object matching $selector."
@@ -75,6 +86,8 @@ internal class PencilUndoBaselineProfile {
         const val PENCIL_DESCRIPTION = "editor_pencil_tool"
         const val CLEAN_LABEL = "editor_clean_document"
         const val DIRTY_LABEL = "editor_dirty_document"
+        const val DISCARD_RECOVERY = "editor_discard_unsaved"
+        val CLEAN_OR_DISCARD: Pattern = Pattern.compile("$CLEAN_LABEL|$DISCARD_RECOVERY")
         const val UNDO_LABEL = "editor_undo"
         const val CANVAS_WIDTH = 16
         const val CANVAS_HEIGHT = 16

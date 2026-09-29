@@ -75,8 +75,10 @@ accessibility semantics. It derives the top-left pixel center from the reported 
 the initial-fit, centered projection that the editor applies to a new document (the same
 `initial-fit-centered-v1` geometry as the frame collector): the canvas node describes the whole
 work surface, and the document occupies the largest centered rectangle of its aspect ratio inside
-it (Issue #151; dividing the surface itself by the document size taps the margin). It then
-performs the Pencil mutation, verifies the dirty state, performs Undo, and verifies the clean state.
+it (Issue #151; dividing the surface itself by the document size taps the margin). Each iteration
+is stopped inside the autosave window, so the next launch can offer the recovery record of the
+previous iteration; the producer declines that offer through the visible discard control before it
+waits for the clean state, and never clears application data. It then performs the Pencil mutation, verifies the dirty state, performs Undo, and verifies the clean state.
 Those actions exercise the one production UI-to-command path. Fixed screen coordinates and direct
 state access are prohibited.
 
