@@ -198,6 +198,34 @@ and compares two JSON files while allowing only the listed fields to differ. `co
 returns the bounding rectangle of the pixel difference between two PNGs and whether it lies inside a
 given rectangle. The design seat runs these directly and accepts on their actual output.
 
+## Keep development folders in the lab beside the repository
+
+Everything development needs outside the repository lives in one folder beside it, the development
+lab, named `NENE-PIXEL-LAB` (Issue #149). Its root holds the marker file `.nene-pixel-lab`.
+
+| Folder | Holds | May it be deleted |
+| --- | --- | --- |
+| `evidence/` | Raw evidence that documents, protocols or validators refer to: measurement collections, Baseline Profile generation evidence, device-check records | Never as part of a cleanup |
+| `clones/` | Measurement role clones (`n<Issue>-baseline`, `n<Issue>-candidate`) and the tooling root (`tooling`) | Only after confirming that no collection is in progress and its evidence was moved to `evidence/` |
+| `worktrees/` | One Git worktree per Issue (`issue-<n>`) | After the Issue is merged, its branch is on the remote and its reports were collected |
+
+Rules:
+
+- Create no clone, worktree or evidence directory at a drive root, under a temporary directory, or
+  anywhere else outside the lab.
+- A finished collection does not stay in the `build/` directory of a clone. Move it to
+  `evidence/<Issue>-<short name>/` and name that location in the evidence document.
+- Git state alone never decides a cleanup. `evidence/` is excluded; for `clones/` and `worktrees/`
+  check the ignored `build/reports/` and the latest handoff first, and show the list to the owner
+  before deleting.
+- Tracked scripts resolve the lab with `Get-NenePixelLabRoot` from
+  `docs/quality/measurements/nene-pixel-lab.ps1`: the environment variable `NENE_PIXEL_LAB`, else the
+  nearest ancestor directory holding `.nene-pixel-lab`, else the folder `NENE-PIXEL-LAB` beside the
+  repository. No tracked file names the lab by an absolute path.
+- Older evidence documents and recorded manifests keep the paths they were written with.
+  [Evidence Locations](quality/EVIDENCE_LOCATIONS.md) maps those paths to the lab and lists the
+  evidence that was lost before the move.
+
 ## Update dependencies reproducibly
 
 Dependency or plugin upgrades belong in a focused change. Edit exact versions only in `gradle/libs.versions.toml`, review primary-source release notes, and regenerate all dependency evidence with:

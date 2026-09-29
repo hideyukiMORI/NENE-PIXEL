@@ -300,3 +300,8 @@ verification or measurement route (QLT-018):
   arguments, output shape, and exit codes in its header, runs under `pwsh -NoProfile -File`, adds no
   dependency, and has a self-test under `tools/selftest/`. The scripts prepare and check; they never
   launch the app, start a measurement, or delete anything on a device.
+
+Clones, Issue worktrees and raw evidence live outside the repository in the development lab, one
+folder beside the repository ([Development Setup](DEVELOPMENT_SETUP.md)). Nothing under the lab is a
+Gradle module or a second source of truth; tracked scripts find it through
+`docs/quality/measurements/nene-pixel-lab.ps1` and never name it by an absolute path.
