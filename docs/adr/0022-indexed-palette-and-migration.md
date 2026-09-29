@@ -106,7 +106,8 @@ and the actual-size window draw the Composite of the unchanged document in which
 palette index takes the colour of the draft entry that the session's composed mapping leads to, so
 the picture equals the Composite of the document an Apply would produce. `:core:application` computes
 it, because the mapping stays inside the session. The presentation passes the session and keys its
-bitmap by the document and session references, so one draft edit rebuilds the bitmap once. A pending
+bitmap by the document and session references, so one change of the session (a draft edit, its undo
+or redo, or a step of a pending import) rebuilds the bitmap once and no frame does. A pending
 import is shown only after it is confirmed into the draft. When the document's palette is not the
 palette the session started from, the display falls back to the document's own palette.
 
