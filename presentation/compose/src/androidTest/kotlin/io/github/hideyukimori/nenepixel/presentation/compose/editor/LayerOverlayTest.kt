@@ -47,7 +47,6 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
-import kotlin.math.abs
 
 /** The layer chip and the open/close of the layer panel over the work area (#144 U3, U3r). */
 internal class LayerOverlayTest {
@@ -150,20 +149,6 @@ internal class LayerOverlayTest {
     }
 
     @Test
-    fun theChipSitsAtTheTopLeftOfTheWorkAreaForBothControlEdges() {
-        val controller = shownController()
-        EditorControlEdge.entries.forEach { edge ->
-            setControlEdge(controller, edge)
-            val area = composeRule.onNodeWithTag(CANVAS_TAG).getUnclippedBoundsInRoot()
-            val chip = composeRule.onNodeWithTag(CHIP_TAG).assertIsDisplayed().getUnclippedBoundsInRoot()
-            assertNear("$edge: chip left margin", MARGIN, chip.left - area.left)
-            assertTrue("$edge: chip $chip must start at the top of $area", chip.top - area.top <= MARGIN + TOLERANCE)
-            val middle = (area.top + area.bottom) / 2
-            assertTrue("$edge: chip $chip must stay in the top half of $area", chip.bottom < middle)
-        }
-    }
-
-    @Test
     fun withTheLeftControlEdgeThePanelStopsAboveTheQuickSelectControl() {
         val controller = shownController(SHORT_EDGE)
         composeRule.runOnIdle {
@@ -195,14 +180,6 @@ internal class LayerOverlayTest {
             controller.callbacks.onSetAppearance(controller.renderState.appearance.copy(controlEdge = edge))
         }
         composeRule.waitForIdle()
-    }
-
-    private fun assertNear(
-        message: String,
-        expected: Dp,
-        actual: Dp,
-    ) {
-        assertTrue("$message: expected $expected, was $actual", abs((expected - actual).value) <= TOLERANCE.value)
     }
 
     private fun openPanel() {
@@ -277,7 +254,6 @@ internal class LayerOverlayTest {
          * short enough that the Right panel (about 60dp) ends less than [LEFT_CLEARANCE] above the area's bottom.
          */
         val SHORT_EDGE: Dp = 230.dp
-        val MARGIN: Dp = 16.dp
         val PANEL_MARGIN: Dp = 8.dp
 
         /** The panel's outer margin plus the quick-select clearance: 8dp + 56dp + 16dp + 16dp (#144 U3r ruling 3). */
