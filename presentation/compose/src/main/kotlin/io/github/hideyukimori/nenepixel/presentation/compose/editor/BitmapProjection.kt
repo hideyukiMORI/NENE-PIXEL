@@ -1,23 +1,22 @@
 package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
 import android.graphics.Bitmap
+import io.github.hideyukimori.nenepixel.core.application.render.CompositePixelTransform
 import io.github.hideyukimori.nenepixel.core.application.render.DocumentCompositeImage
 
 internal fun DocumentCompositeImage.toRenderedBitmap(): Bitmap {
-    val rgba = copyPackedRgba8888()
-    val colors = IntArray(rgba.size) { index -> rgba[index].rgbaToArgb8888() }
+    val colors = mapPackedRgba8888(CompositePixelTransform { packedRgba8888 -> packedRgba8888.rgbaToArgb8888() })
     return Bitmap.createBitmap(colors, size.width.value, size.height.value, Bitmap.Config.ARGB_8888)
 }
 
 internal fun DocumentCompositeImage.toOpaqueRenderedBitmap(backgroundArgb: Int): Bitmap {
-    val rgba = copyPackedRgba8888()
-    val colors = IntArray(rgba.size) { index -> rgba[index].rgbaOverOpaqueArgb(backgroundArgb) }
+    val colors = mapPackedRgba8888(OpaqueCompositeColor(backgroundArgb))
     return Bitmap.createBitmap(colors, size.width.value, size.height.value, Bitmap.Config.ARGB_8888)
 }
 
 private fun Int.rgbaToArgb8888(): Int = ((this and CHANNEL_MASK) shl ALPHA_SHIFT) or (this ushr CHANNEL_SHIFT)
 
-private fun Int.rgbaOverOpaqueArgb(backgroundArgb: Int): Int {
+internal fun Int.rgbaOverOpaqueArgb(backgroundArgb: Int): Int {
     val sourceAlpha = this and CHANNEL_MASK
     val red = compositeChannel(this ushr RED_SHIFT, backgroundArgb ushr ARGB_RED_SHIFT, sourceAlpha)
     val green = compositeChannel(this ushr GREEN_SHIFT, backgroundArgb ushr ARGB_GREEN_SHIFT, sourceAlpha)
