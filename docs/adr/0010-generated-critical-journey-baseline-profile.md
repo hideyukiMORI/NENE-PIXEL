@@ -101,6 +101,12 @@ CRLF and LF encodings of the same ordered rules have one canonical hash; a chang
 order, duplicate, malformed UTF-8 input, or bare CR separator does not. No package or framework
 rule is excluded from this comparison.
 
+The producer task receives `-Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true`
+(Issue #151). Without it the connected-test task uninstalls the tested application after each
+invocation, which erases the application's private data on the device, including the preservation
+guards that later device work relies on. The property changes only what happens after the producer
+finished; it does not change the journey, the collected rules or the freshness conditions.
+
 The one documented generation command runs exactly two producer invocations. Before starting the
 second invocation it stores the first invocation's fresh raw producer output, merged/source output,
 available instrumentation results and logs, task outcomes, source revision, tested APK hashes, and

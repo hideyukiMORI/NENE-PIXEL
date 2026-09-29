@@ -304,7 +304,8 @@ function Invoke-GenerationInvocation {
     if ($failures.Count -eq 0) {
         try {
             $gradle = & $GradleInvoker -RepositoryRoot $RepositoryRoot -LogPath $logPath `
-                -GradleArguments @(':app:android:generateBaselineProfile', '--console=plain')
+                -GradleArguments @(':app:android:generateBaselineProfile', '--console=plain',
+                    '-Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true')
         }
         catch {
             $failures.Add("native invocation: $($_.Exception.Message)")

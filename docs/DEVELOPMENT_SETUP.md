@@ -62,6 +62,12 @@ clone whose exact Git revision can be embedded in later release-like artifacts, 
 .\docs\quality\generate-baseline-profile.ps1 -EvidenceId "issue-NNN-YYYYMMDD-HHMM"
 ```
 
+Preserve the device's application data first (the same preservation step every device collection
+uses). The command passes `-Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true`, so the
+tested application and its private data stay on the device after each producer invocation. The
+installed application is then the non-debuggable `nonMinifiedRelease` build; install the debug build
+over it before restoring the preserved data.
+
 The evidence identity is unique and caller-selected; the command refuses an existing directory.
 It runs the producer exactly twice and writes ignored, versioned evidence to
 `build/reports/baseline-profile-generation/<evidence-id>/`. Each invocation is preserved before the
@@ -104,6 +110,12 @@ The command does not hand-edit generated rules, filter framework code, build a s
 APK, or start a performance run.
 Ordinary builds and CI verify the committed canonical artifact and never start connected-device
 generation automatically.
+
+After acceptance, move the evidence directory from the clone's `build/reports/` to
+`evidence/<Issue>-baseline-profile/<evidence-id>/` in the development lab, confirm that every file
+has the same SHA-256 as before the move, and record the location in
+[Evidence Locations](quality/EVIDENCE_LOCATIONS.md). The evidence records name their files relative
+to the evidence directory, so the moved directory still validates.
 
 ## Run the canonical quality gate
 
