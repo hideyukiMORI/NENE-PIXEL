@@ -205,7 +205,7 @@ internal class ActualSizeWindowTest {
         val controller = controller()
         setEditorContent(controller, WIDE_EDGE, TALL_EDGE)
         showWindow(controller, ActualSizeScale.X4)
-        setAnchor(controller, 0.0, 0.0)
+        setAnchor(controller, 0.0, 1.0)
         val before = boundsPixels(WINDOW_TAG)
         composeRule
             .onNodeWithTag(CHIP_TAG)
@@ -217,10 +217,10 @@ internal class ActualSizeWindowTest {
         composeRule.onNodeWithTag(CHIP_TAG).performClick()
         composeRule.waitForIdle()
         assertEquals(ActualSizeScale.X16, controller.renderState.actualSizeWindow.scale)
-        assertEquals(WindowAnchor.create(0.0, 0.0), controller.renderState.actualSizeWindow.anchor)
+        assertEquals(WindowAnchor.create(0.0, 1.0), controller.renderState.actualSizeWindow.anchor)
         val after = boundsPixels(WINDOW_TAG)
         assertNear("The chip must not move the window", before.left, after.left)
-        assertNear("The chip must not move the window", before.top, after.top)
+        assertNear("The chip must not move the window", before.bottom, after.bottom)
         val chip = boundsPixels(CHIP_TAG)
         val content = boundsPixels(CONTENT_TAG)
         assertTrue("The chip stays below the content: $chip under $content", chip.top >= content.bottom)
@@ -288,15 +288,15 @@ internal class ActualSizeWindowTest {
         val controller = controller()
         setEditorContent(controller, WIDE_EDGE, TALL_EDGE)
         showWindow(controller, ActualSizeScale.X2)
-        setAnchor(controller, 0.0, 0.0)
+        setAnchor(controller, 0.0, 1.0)
         val canvas = boundsPixels(CANVAS_TAG)
         composeRule.onNodeWithTag(WINDOW_TAG).performClick()
         composeRule.waitForIdle()
         assertEquals(ActualSizeScale.X4, controller.renderState.actualSizeWindow.scale)
-        assertEquals(WindowAnchor.create(0.0, 0.0), controller.renderState.actualSizeWindow.anchor)
+        assertEquals(WindowAnchor.create(0.0, 1.0), controller.renderState.actualSizeWindow.anchor)
         val window = boundsPixels(WINDOW_TAG)
         assertNear("An anchored window keeps its left edge", canvas.left, window.left)
-        assertNear("An anchored window keeps its top edge", canvas.top, window.top)
+        assertNear("An anchored window keeps its bottom edge", canvas.bottom, window.bottom)
     }
 
     @Test
@@ -304,7 +304,7 @@ internal class ActualSizeWindowTest {
         val controller = controller()
         setEditorContent(controller, WIDE_EDGE, TALL_EDGE)
         showWindow(controller, ActualSizeScale.X4)
-        setAnchor(controller, 0.0, 0.0)
+        setAnchor(controller, 0.0, 1.0)
         val canvas = boundsPixels(CANVAS_TAG)
         composeRule.onNodeWithTag(WINDOW_TAG).performTouchInput {
             down(center)
@@ -314,10 +314,10 @@ internal class ActualSizeWindowTest {
         }
         composeRule.waitForIdle()
         assertEquals(ActualSizeScale.X8, controller.renderState.actualSizeWindow.scale)
-        assertEquals(WindowAnchor.create(0.0, 0.0), controller.renderState.actualSizeWindow.anchor)
+        assertEquals(WindowAnchor.create(0.0, 1.0), controller.renderState.actualSizeWindow.anchor)
         val window = boundsPixels(WINDOW_TAG)
         assertNear("A jittering tap must not shift the window", canvas.left, window.left)
-        assertNear("A jittering tap must not shift the window", canvas.top, window.top)
+        assertNear("A jittering tap must not shift the window", canvas.bottom, window.bottom)
     }
 
     private fun assertCentreCellIsShownFirst(
