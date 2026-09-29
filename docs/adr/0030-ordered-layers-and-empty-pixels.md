@@ -77,7 +77,9 @@ layer is rejected; partial-alpha overlaps may produce composite colors outside t
 
 One composite function in `:core:pixel-engine` defines the visible image. The committed canvas,
 actual-size window, stroke preview, palette remap preview and PNG export all use it. Android canvas
-blending never substitutes for it.
+blending never substitutes for it. Showing the finished Composite over the display-only
+transparency backdrop of [ADR 0026](0026-actual-size-window.md) is not compositing: the backdrop
+is no layer and never reaches export.
 
 While a gesture runs, every position it has touched shows the composite that committing the gesture
 would produce: the layers below, the cell the stroke writes in place of the target layer's cell,
