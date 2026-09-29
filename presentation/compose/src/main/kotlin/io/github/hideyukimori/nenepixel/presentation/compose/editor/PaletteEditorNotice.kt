@@ -60,6 +60,8 @@ private fun WorkspaceActionRejection.noticeResource(): Int =
         is WorkspaceActionRejection.PickPositionOutsideCanvas,
         is WorkspaceActionRejection.PickEmptyCell,
         is WorkspaceActionRejection.ActiveLayerNotFound,
+        is WorkspaceActionRejection.LayerNotFound,
+        is WorkspaceActionRejection.ActiveLayerHidden,
         -> R.string.palette_editor_rejected
     }
 
@@ -123,6 +125,12 @@ private fun RejectionReason.noticeResource(): Int =
         is RejectionReason.HistoryEntryAboveRetainedPayloadMaximum,
         is RejectionReason.LayerSnapshotMismatch,
         is RejectionReason.LayerNotFound,
+        is RejectionReason.LayerHidden,
+        is RejectionReason.LayerStructureMismatch,
+        RejectionReason.LayerLimitReached,
+        RejectionReason.LayerIdOverflow,
+        RejectionReason.LastLayerNotDeletable,
+        is RejectionReason.LayerPositionOutOfRange,
         -> R.string.palette_editor_apply_failed
     }
 

@@ -31,6 +31,9 @@ public sealed interface PersistenceRequestResult {
 
     /** A palette draft is open; document switches wait until it closes (ADR 0022). */
     public data object PaletteSessionActive : PersistenceRequestResult
+
+    /** PNG export refused before any destination is chosen: every layer is hidden (ADR 0030). */
+    public data object NoVisibleLayer : PersistenceRequestResult
 }
 
 public sealed interface PersistenceCancellationResult {

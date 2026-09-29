@@ -49,6 +49,7 @@
     <string name="save_as">Save As</string>
     <string name="load">Load</string>
     <string name="export_png">Export PNG</string>
+    <string name="export_png_no_visible_layer">Export is unavailable because no layer is visible</string>
     <string name="cancel_operation">Cancel operation</string>
     <string name="discard_current_title">Discard current work?</string>
     <string name="discard_continue">Discard and continue</string>

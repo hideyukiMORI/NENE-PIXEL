@@ -26,6 +26,7 @@ internal class CommittedBitmapCache {
     private var sourceDefinition: PaletteDefinition? = null
     private var sourceBackgroundArgb: Int? = null
     private var rendered: Bitmap? = null
+    private var renderedArgb: IntArray? = null
 
     fun render(
         document: DocumentState,
@@ -36,9 +37,19 @@ internal class CommittedBitmapCache {
             source = document
             sourceDefinition = definition
             sourceBackgroundArgb = backgroundArgb
-            rendered = composite(document, definition).toOpaqueRenderedBitmap(backgroundArgb)
+            val argb = composite(document, definition).toOpaqueArgb(backgroundArgb)
+            renderedArgb = argb
+            val size = document.size
+            rendered = Bitmap.createBitmap(argb, size.width.value, size.height.value, Bitmap.Config.ARGB_8888)
         }
         return requireNotNull(rendered)
+    }
+
+    /** Copies the opaque ARGB of the latest [render] into [target] (row-major); the array stays private. */
+    fun copyRenderedArgbInto(target: IntArray) {
+        val argb = requireNotNull(renderedArgb) { "Nothing has been rendered yet" }
+        require(target.size == argb.size) { "Target holds ${target.size} pixels, the rendering ${argb.size}" }
+        System.arraycopy(argb, 0, target, 0, argb.size)
     }
 
     private fun composite(

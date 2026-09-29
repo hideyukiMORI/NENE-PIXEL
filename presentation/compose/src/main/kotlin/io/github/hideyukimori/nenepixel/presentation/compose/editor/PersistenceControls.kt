@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -22,13 +23,14 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.Persistence
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationPhase
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationProjection
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryStatus
-import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
+import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
+import io.github.hideyukimori.nenepixel.core.domain.layer.LayerVisibility
 import io.github.hideyukimori.nenepixel.presentation.compose.R
 
 @Composable
 internal fun PersistenceControls(
     operation: PersistenceOperationProjection,
-    canvasSize: CanvasSize,
+    document: DocumentState,
     callbacks: EditorPersistenceCallbacks,
     submitted: () -> Unit,
 ) {
@@ -43,10 +45,18 @@ internal fun PersistenceControls(
             callbacks.onLoad()
             submitted()
         }
-        NewDocumentControls(canvasSize, callbacks, switchAvailable, submitted)
-        EditorActionButton(R.string.export_png, idle) {
+        NewDocumentControls(document.size, callbacks, switchAvailable, submitted)
+        val exportable = document.hasVisibleLayer()
+        EditorActionButton(R.string.export_png, idle && exportable) {
             callbacks.onExportPng()
             submitted()
+        }
+        if (!exportable) {
+            Text(
+                stringResource(R.string.export_png_no_visible_layer),
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.editorDescription(R.string.export_png_no_visible_layer),
+            )
         }
         operation.phase.cancellableOperation()?.let { handle ->
             EditorActionButton(R.string.cancel_operation) { callbacks.onCancel(handle) }
@@ -124,6 +134,12 @@ private fun PersistenceOperationPhase.cancellableOperation(): PersistenceOperati
         is PersistenceOperationPhase.PreparingLegacyAdoption,
         -> null
     }
+
+/**
+ * Display-only guard for the export button. The application still refuses the export with
+ * `PersistenceRequestResult.NoVisibleLayer` (ADR 0030); this only keeps the button from inviting it.
+ */
+internal fun DocumentState.hasVisibleLayer(): Boolean = layers.any { it.visibility == LayerVisibility.Visible }
 
 internal fun RecoveryStatus.isAvailableForDocumentSwitch(): Boolean =
     this is RecoveryStatus.Clear || this is RecoveryStatus.UnadoptedCandidate

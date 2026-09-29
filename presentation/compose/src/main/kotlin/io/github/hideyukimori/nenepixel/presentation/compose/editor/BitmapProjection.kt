@@ -9,13 +9,16 @@ internal fun DocumentCompositeImage.toRenderedBitmap(): Bitmap {
     return Bitmap.createBitmap(colors, size.width.value, size.height.value, Bitmap.Config.ARGB_8888)
 }
 
-internal fun DocumentCompositeImage.toOpaqueRenderedBitmap(backgroundArgb: Int): Bitmap {
-    val colors = mapPackedRgba8888(OpaqueCompositeColor(backgroundArgb))
-    return Bitmap.createBitmap(colors, size.width.value, size.height.value, Bitmap.Config.ARGB_8888)
-}
+internal fun DocumentCompositeImage.toOpaqueRenderedBitmap(backgroundArgb: Int): Bitmap =
+    Bitmap.createBitmap(toOpaqueArgb(backgroundArgb), size.width.value, size.height.value, Bitmap.Config.ARGB_8888)
+
+/** Row-major opaque ARGB of the composite over [backgroundArgb]; the one place the canvas colour is applied. */
+internal fun DocumentCompositeImage.toOpaqueArgb(backgroundArgb: Int): IntArray =
+    mapPackedRgba8888(OpaqueCompositeColor(backgroundArgb))
 
 private fun Int.rgbaToArgb8888(): Int = ((this and CHANNEL_MASK) shl ALPHA_SHIFT) or (this ushr CHANNEL_SHIFT)
 
+/** Packed RGBA8888 composited over the opaque [backgroundArgb], as opaque ARGB8888. */
 internal fun Int.rgbaOverOpaqueArgb(backgroundArgb: Int): Int {
     val sourceAlpha = this and CHANNEL_MASK
     val red = compositeChannel(this ushr RED_SHIFT, backgroundArgb ushr ARGB_RED_SHIFT, sourceAlpha)

@@ -23,10 +23,7 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.View
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportSurface
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportTransform
 import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
-import io.github.hideyukimori.nenepixel.core.domain.drawing.StrokeEffect
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
-import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
-import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import io.github.hideyukimori.nenepixel.presentation.compose.R
 import io.github.hideyukimori.nenepixel.presentation.compose.input.viewportPointerInput
 
@@ -59,10 +56,10 @@ internal fun PixelCanvas(
         drawCanvasMargins(geometry.destination, PresentationPalette.canvasSurround(current.appearance.theme))
         drawPixels(
             geometry.destination,
-            committed.render(current.document, current.definition, background),
+            previews.render(current, committed, background)
+                ?: committed.render(current.document, current.definition, background),
             committed.paint,
         )
-        previews.renderPreview(current)?.let { preview -> drawPixels(geometry.destination, preview, committed.paint) }
         drawGrid(geometry)
     }
 }
@@ -208,39 +205,6 @@ private fun DrawScope.drawPixels(
     }
 }
 
-private fun PreviewBitmapCache.renderPreview(state: EditorRenderState): Bitmap? {
-    val preview = state.preview ?: return null
-    return render(
-        preview,
-        state.document.size.width.value,
-        state.document.size.height.value,
-        preview.effect
-            .previewColor(state.definition)
-            .toArgb(),
-    )
-}
-
-private fun StrokeEffect.previewColor(definition: PaletteDefinition): Color =
-    when (this) {
-        is StrokeEffect.Paint -> {
-            when (val entry = definition.palette.entryAt(targetIndex)) {
-                is DomainValueResult.Created -> {
-                    entry.value.color
-                        .toComposeColor()
-                        .copy(alpha = PREVIEW_ALPHA)
-                }
-
-                is DomainValueResult.Rejected -> {
-                    error("Render preview target is invalid: ${entry.rejection}")
-                }
-            }
-        }
-
-        StrokeEffect.Erase -> {
-            PresentationPalette.eraserPreview
-        }
-    }
-
 private fun DrawScope.drawGrid(geometry: CanvasGeometry) {
     val path = geometry.gridPath ?: return
     drawPath(path, PresentationPalette.grid, style = GRID_STROKE)
@@ -249,6 +213,5 @@ private fun DrawScope.drawGrid(geometry: CanvasGeometry) {
 internal fun PixelColor.toComposeColor(): Color =
     Color(red.value.toInt(), green.value.toInt(), blue.value.toInt(), alpha.value.toInt())
 
-private const val PREVIEW_ALPHA: Float = 0.55f
 private const val GRID_WIDTH: Float = 1.0f
 private val GRID_STROKE = Stroke(width = GRID_WIDTH)

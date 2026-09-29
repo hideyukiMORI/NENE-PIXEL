@@ -79,6 +79,13 @@ One composite function in `:core:pixel-engine` defines the visible image. The co
 actual-size window, stroke preview, palette remap preview and PNG export all use it. Android canvas
 blending never substitutes for it.
 
+While a gesture runs, every position it has touched shows the composite that committing the gesture
+would produce: the layers below, the cell the stroke writes in place of the target layer's cell,
+and the layers above. Untouched positions show the committed image. No preview-only tint or eraser
+colour exists (owner decision, 2026-09-29), so a stroke hidden by an upper layer stays hidden while
+it is drawn and an erased cell shows what lies below it. The per-position evaluation uses the same
+validation, the same first-contribution rule and the same blend as the whole-image composite.
+
 For each pixel the result starts with no contribution. Visible layers are visited bottom to top.
 An `Empty` cell or a covered color with alpha 0 contributes nothing once a contribution exists.
 The first covered color is copied exactly, hidden RGB included. After that, a color with alpha 255
@@ -100,6 +107,8 @@ palette. PNG stays RGBA truecolor (ADR 0019). Export when no layer is visible re
 - `WorkspaceState.activeLayerId` names the drawing, erasing and eyedropper target. It is not saved.
   Load and new start at the top layer. `WorkspaceAction.SelectLayer` is the only selection route;
   selecting a missing id is a typed rejection.
+- When an applied change inserts a layer (a successful add, the redo of an add, or the undo of a
+  delete), the inserted layer becomes the active layer.
 - When a document change removes the active layer, the reconciliation that already runs inside the
   runtime lock for palettes (`ReconcileDocumentPalette`) also moves the selection. It picks the
   layer now at the removed position, clamped to the top, so the result is deterministic.
@@ -119,8 +128,8 @@ palette. PNG stays RGBA truecolor (ADR 0019). Export when no layer is visible re
   (CMD-003). Identical values are typed `NoEffectiveChange` with no revision, history or dirty change.
 - `ApplyStrokeCommand` carries its target `LayerId`. `ReplacePaletteCommand` remaps every layer,
   hidden layers included. Drawing, palette and layer operations share one linear history
-  (CMD-008). A successful add selects the new layer through the same post-command workspace path
-  that palette application already uses.
+  (CMD-008). An inserted layer is selected through the same post-command workspace path that
+  palette application already uses, whether it arrives by an add, a redo or an undo.
 - `ChangeSet` records one layer-structure transition (none, added, deleted, renamed, moved or
   visibility) and per-layer `IndexChanges`. The deleted layer's snapshot, id, name, visibility and
   position are retained so that undo restores it exactly.
