@@ -1,8 +1,10 @@
 # Evidence Locations
 
 Issue #149 (2026-09-29) moved every development clone, worktree and raw evidence directory into one
-folder beside the repository, the development lab (`NENE-PIXEL-LAB`, see
-[Development Setup](../DEVELOPMENT_SETUP.md)). This document is the single map from the locations
+folder, the development lab (see [Development Setup](../DEVELOPMENT_SETUP.md)). The lab was first
+created beside the repository as `NENE-PIXEL-LAB` and was copied the same day to a short path
+directly under a drive root, because device pulls fail beyond 259 characters (Issue #151); both
+moves kept every file byte-identical. This document is the single map from the locations
 that older evidence documents, handoffs and recorded manifests name to the current locations. Those
 older records are history and are not rewritten: read a path they name through this map.
 
@@ -64,6 +66,13 @@ move and the two inventories are identical. Clones and worktrees were compared b
 | `~/.codex/tmp/nene-pixel-sol-20260928/worktrees/issue-108`, `issue-140`, `issue-142`, `issue-143` | `worktrees/issue-108`, `issue-140`, `issue-142`, `issue-143` |
 | `~/.codex/tmp/nene-pixel-sol-20260929/worktrees/issue-142-latency` | `worktrees/issue-142-latency` |
 
+## Collected after the move
+
+| Evidence | Location |
+| --- | --- |
+| Accepted Baseline Profile generation of Issue #151 (`issue-151-20260929-1953`) | `evidence/151-baseline-profile/issue-151-20260929-1953` |
+| Invalid generation attempts of Issue #151 (`-1825`, `-1830`, `-1833`) | `evidence/151-baseline-profile/invalid` |
+
 ## Lost before the move
 
 A disk cleanup on 2026-09-28 judged directories by Git state alone and deleted clones whose ignored
@@ -78,5 +87,6 @@ be read again.
 | `C:/n89-mvp/build/reports/issue-89/` | Raw durable-MVP acceptance evidence of Issue #89 | The summary in [M3 exit proof](M3_EXIT_PROOF.md) |
 | `C:/n102-i18n/build/reports/issue-102/` | Raw localization evidence of Issue #102 | The summary in [M3 localization evidence](M3_LOCALIZATION_EVIDENCE.md) |
 
-A preflight that requires the Issue #62 generation evidence as files cannot pass until the Baseline
-Profile is generated again under [ADR 0010](../adr/0010-generated-critical-journey-baseline-profile.md).
+A preflight cannot bind the Issue #62 generation evidence as files. Issue #151 generated the
+Baseline Profile again under [ADR 0010](../adr/0010-generated-critical-journey-baseline-profile.md);
+its accepted evidence is listed above and recorded in [M2 frame follow-up](M2_FRAME_FOLLOW_UP.md).

@@ -71,8 +71,14 @@ regenerated, and the `QLT-004` SHA-256 verification of that artifact is unchange
 ### Generated artifact
 
 The producer launches the installed application and finds the canonical editor through stable
-accessibility semantics. It derives the top-left pixel center from the reported canvas bounds,
-performs the Pencil mutation, verifies the dirty state, performs Undo, and verifies the clean state.
+accessibility semantics. It derives the top-left pixel center from the reported canvas bounds with
+the initial-fit, centered projection that the editor applies to a new document (the same
+`initial-fit-centered-v1` geometry as the frame collector): the canvas node describes the whole
+work surface, and the document occupies the largest centered rectangle of its aspect ratio inside
+it (Issue #151; dividing the surface itself by the document size taps the margin). Each iteration
+is stopped inside the autosave window, so the next launch can offer the recovery record of the
+previous iteration; the producer declines that offer through the visible discard control before it
+waits for the clean state, and never clears application data. It then performs the Pencil mutation, verifies the dirty state, performs Undo, and verifies the clean state.
 Those actions exercise the one production UI-to-command path. Fixed screen coordinates and direct
 state access are prohibited.
 
@@ -100,6 +106,12 @@ deterministic rule order, and preserves every complete rule including its `H`, `
 CRLF and LF encodings of the same ordered rules have one canonical hash; a changed rule, flag,
 order, duplicate, malformed UTF-8 input, or bare CR separator does not. No package or framework
 rule is excluded from this comparison.
+
+The producer task receives `-Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true`
+(Issue #151). Without it the connected-test task uninstalls the tested application after each
+invocation, which erases the application's private data on the device, including the preservation
+guards that later device work relies on. The property changes only what happens after the producer
+finished; it does not change the journey, the collected rules or the freshness conditions.
 
 The one documented generation command runs exactly two producer invocations. Before starting the
 second invocation it stores the first invocation's fresh raw producer output, merged/source output,
