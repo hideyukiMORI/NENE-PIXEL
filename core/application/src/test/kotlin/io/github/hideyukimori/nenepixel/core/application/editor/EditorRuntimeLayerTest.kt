@@ -5,6 +5,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.command.ApplyS
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandResultAssertions.applied
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandResultAssertions.rejected
 import io.github.hideyukimori.nenepixel.core.application.document.command.DeleteLayerCommand
+import io.github.hideyukimori.nenepixel.core.application.document.command.RedoCommand
 import io.github.hideyukimori.nenepixel.core.application.document.command.RejectionReason
 import io.github.hideyukimori.nenepixel.core.application.document.command.SetLayerVisibilityCommand
 import io.github.hideyukimori.nenepixel.core.application.document.command.UndoCommand
@@ -93,8 +94,33 @@ internal class EditorRuntimeLayerTest {
         add(runtime, above = 1)
         assertEquals(layerId(4), active(runtime))
 
-        val document = runtime.state.documentState
-        applied(runtime.execute(UndoCommand.create(document.id, document.revision)))
+        undo(runtime)
+
+        assertEquals(listOf(1, 2, 3), ids(runtime))
+        assertEquals(layerId(2), active(runtime))
+    }
+
+    @Test
+    fun `redoing an add selects the added layer again`() {
+        val runtime = runtimeWithLayers(3)
+        select(runtime, 1)
+        add(runtime, above = 1)
+        undo(runtime)
+
+        redo(runtime)
+
+        assertEquals(listOf(1, 4, 2, 3), ids(runtime))
+        assertEquals(layerId(4), active(runtime))
+    }
+
+    @Test
+    fun `undoing a delete selects the restored layer`() {
+        val runtime = runtimeWithLayers(3)
+        select(runtime, 2)
+        delete(runtime, 2)
+        assertEquals(layerId(3), active(runtime))
+
+        undo(runtime)
 
         assertEquals(listOf(1, 2, 3), ids(runtime))
         assertEquals(layerId(2), active(runtime))
@@ -200,6 +226,16 @@ internal class EditorRuntimeLayerTest {
         visibility: LayerVisibility,
     ) {
         applied(runtime.execute(SetLayerVisibilityCommand.create(runtime.captureSource(), layerId(id), visibility)))
+    }
+
+    private fun undo(runtime: EditorRuntime) {
+        val document = runtime.state.documentState
+        applied(runtime.execute(UndoCommand.create(document.id, document.revision)))
+    }
+
+    private fun redo(runtime: EditorRuntime) {
+        val document = runtime.state.documentState
+        applied(runtime.execute(RedoCommand.create(document.id, document.revision)))
     }
 
     private fun select(
