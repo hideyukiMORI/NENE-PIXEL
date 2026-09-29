@@ -147,5 +147,7 @@ private data class LayerOverlayInputs(
     val notice: LayerNotice?,
 ) {
     val active: LayerRowModel
-        get() = rows.first { row -> row.id == activeLayerId }
+        get() =
+            rows.firstOrNull { row -> row.id == activeLayerId }
+                ?: error("Active layer ${activeLayerId.value} is not among rows ${rows.map { row -> row.id.value }}")
 }

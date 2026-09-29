@@ -15,7 +15,10 @@ internal class LayerNoticeSlot {
     private var current: LayerNotice? = null
     private var lastSerial: Int = 0
 
-    /** A layer command ran on [document]: a deletion raises its notice, other successes clear, refusals raise. */
+    /**
+     * A layer command ran on [document]: a success clears the notice (a deletion replaces it with its own), a refusal
+     * or failure raises one, and a `RejectionReason.NoEffectiveChange` refusal keeps the current notice.
+     */
     fun recordCommand(
         result: CommandResult,
         deletion: Boolean,

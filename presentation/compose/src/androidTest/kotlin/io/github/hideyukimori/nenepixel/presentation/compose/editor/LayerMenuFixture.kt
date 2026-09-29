@@ -1,5 +1,7 @@
 package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
+import androidx.activity.OnBackPressedDispatcher
+import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -40,13 +42,18 @@ internal object LayerMenuFixture {
     const val LIMIT_TAG: String = "editor_layer_limit"
     const val MAX_LAYERS: Int = 16
 
-    /** Shows the editor and adds layers until there are [layers]; the last one added is the active, front layer. */
+    /**
+     * Shows the editor and adds layers until there are [layers]; the last one added is the active, front layer.
+     * [onBackDispatcher] receives the test activity's back dispatcher, for the tests that press Back.
+     */
     fun show(
         rule: ComposeContentTestRule,
         layers: Int,
+        onBackDispatcher: (OnBackPressedDispatcher?) -> Unit = {},
     ): EditorController {
         val controller = controller()
         rule.setContent {
+            onBackDispatcher(LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher)
             Box(Modifier.requiredSize(EDGE, EDGE).consumeWindowInsets(WindowInsets.safeDrawing)) {
                 TestNenePixelEditor(controller, Modifier.requiredSize(EDGE, EDGE))
             }
