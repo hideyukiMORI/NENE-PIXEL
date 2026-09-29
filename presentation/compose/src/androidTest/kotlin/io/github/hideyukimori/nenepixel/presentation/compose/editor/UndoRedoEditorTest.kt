@@ -30,6 +30,7 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasWidth
 import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import io.github.hideyukimori.nenepixel.presentation.compose.R
 import org.junit.Assert.assertEquals
@@ -202,12 +203,13 @@ internal class UndoRedoEditorTest {
 
         val drawn = controller.renderState
         assertEquals(1L, controller.documentState.revision.value)
-        val drawnIndices =
+        val blank = PixelSnapshot.createEmpty(drawn.document.size)
+        assertNotEquals(
+            blank,
             drawn.document.layers
                 .single()
-                .snapshot
-                .copyPackedIndices()
-        assertTrue(drawnIndices.any { index -> index.toInt() and UBYTE_MASK != DEFAULT_INDEX })
+                .snapshot,
+        )
 
         composeRule.onNodeWithTag("editor_eraser_tool").performClick()
         composeRule.waitForIdle()
@@ -226,12 +228,11 @@ internal class UndoRedoEditorTest {
         composeRule.waitForIdle()
 
         assertEquals(2L, controller.documentState.revision.value)
-        assertTrue(
+        assertEquals(
+            blank,
             controller.renderState.document.layers
                 .single()
-                .snapshot
-                .copyPackedIndices()
-                .all { index -> index.toInt() and UBYTE_MASK == DEFAULT_INDEX },
+                .snapshot,
         )
     }
 

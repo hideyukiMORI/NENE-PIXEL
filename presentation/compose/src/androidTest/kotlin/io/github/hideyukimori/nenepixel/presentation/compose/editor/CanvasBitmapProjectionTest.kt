@@ -104,7 +104,7 @@ internal class CanvasBitmapProjectionTest {
 
     @Test
     fun emptyPixelsShowTheCanvasColor() {
-        val definition = definition(intArrayOf(OPAQUE_RED))
+        val definition = definition(intArrayOf(OPAQUE_RED, OPAQUE_WHITE))
         val source = document(definition, cellLayer(intArrayOf(0, 0, 0, 0), coveredMask = 0, id = 1))
 
         val rendered = CommittedBitmapCache().render(source, definition, CANVAS_COLOR)
