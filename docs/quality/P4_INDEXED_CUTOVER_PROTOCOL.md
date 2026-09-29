@@ -342,8 +342,9 @@ and are not re-judged: `frame-1-baseline-diagnostic` and `frame-2-candidate-diag
 `canvas16_tap` all-frame overrun p95 of 1.012 ms, and `frame-4-baseline-decision` was never run. The
 v6 text under which those three records were collected is preserved unedited in the
 [v6 historical contract](P4_INDEXED_CUTOVER_PROTOCOL_V6_HISTORICAL.md). The contract below is the
-Lane 3 revision of 2026-09-23 under #120; it is #120's collection route, and every collection under
-it is identified by frame experiment schema `nene-pixel-p4-indexed-frame-experiment-v5`.
+Lane 3 revision of 2026-09-23 under #120. It was first collected under #120; a later collection binds
+to its own Issue in the binding table below, and every collection under it is identified by frame
+experiment schema `nene-pixel-p4-indexed-frame-experiment-v5`.
 
 Geometry admission is `initial-fit-centered-v1`. The Canvas semantics node describes its complete
 surface, which may include margins around the document. Four mandatory preflight fields pin exact
@@ -429,12 +430,22 @@ matches are zero. A `PERFORMANCE_FAIL` on slot 2 does not stop slots 3 and 4. To
 population is 260 operations (200 decision, 60 diagnostic); every associated preview and commit
 frame remains in the raw frame population. Baseline is the `main` production commit at collection
 time; candidate is that commit plus the change under judgment, named in the experiment manifest.
-For the collection under Issue #120 that baseline production commit is
-`2f0b617e56f7bcf3d71b5a258a48e0edead354d9` (main on 2026-09-23), and the preflight and the frame
-collector pin it as the accepted baseline production commit. Each role's measurement build is an
-immutable overlay commit whose production tree equals its production commit, so a build commit may
-carry the Lane 3 tooling and the accepted protocol bytes while the production tree stays the one
-under judgment. The preserved run5 evidence keeps Issue #106's baseline binding to `2dd4e01`.
+The contract is bound to one collection at a time. The preflight and the frame collector pin the
+current binding's baseline production commit as the accepted baseline production commit, and the
+reservation takes the Issue/protocol agreement from the current binding's Issue.
+
+| Collection | Agreement Issue | Baseline production commit | Evidence root |
+| --- | --- | --- | --- |
+| Frame budget of main, collected 2026-09-23 as `p4-indexed-v7-20260923-frame1` | #120 | `2f0b617e56f7bcf3d71b5a258a48e0edead354d9` (main on 2026-09-23) | `build/reports/issue-120/` |
+| Single-layer non-regression of the layered cutover, Issue #142 (current binding) | #142 | `8120c06fae1a372b23d2a7af4f50aa2b9cdfeff9` (main on 2026-09-29) | `build/reports/issue-142/` |
+
+A binding changes no metric, population, threshold, slot, schema or verdict rule. A collection under
+a past binding is complete; it is neither collected again nor judged again.
+
+Each role's measurement build is an immutable overlay commit whose production tree equals its
+production commit, so a build commit may carry the Lane 3 tooling and the accepted protocol bytes
+while the production tree stays the one under judgment. The preserved run5 evidence keeps Issue
+#106's baseline binding to `2dd4e01`.
 
 The verdict is computed by the analyzer only. The collector records completeness and gross
 regression and never a pass or fail. For the decision baseline slot, the analyzer records per family
@@ -493,10 +504,11 @@ kill-on-close Job; timeout terminates its tree, records partial output and
 run-state as invalid, allows at most 10 seconds for process absence and 5 seconds
 for capture drain, and verifies restoration of rotation/stay-awake state.
 
-Collections under this revision live under `build/reports/issue-120/` of the evidence worktree, one
-experiment root per run, and reuse nothing from run5's frame slots except as historical reference.
-The v8/v5 implementation is mandatory before collection. Preflight rejects the v8/v4 executable as
-a #120 collector, while still recognizing it as the historical source of the unchanged metrics.
+Collections under this revision live under the evidence root of their binding in the evidence
+worktree, one experiment root per run, and reuse nothing from run5's frame slots except as
+historical reference. The v8/v5 implementation is mandatory before collection. Preflight rejects the
+v8/v4 executable as a #120 collector, while still recognizing it as the historical source of the
+unchanged metrics.
 
 ## Lane 4: host format, recovery, and legacy-import latency
 
