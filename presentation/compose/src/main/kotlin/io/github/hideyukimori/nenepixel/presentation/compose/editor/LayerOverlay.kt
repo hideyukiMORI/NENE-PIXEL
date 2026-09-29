@@ -29,6 +29,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
 import io.github.hideyukimori.nenepixel.core.application.workspace.EditorControlEdge
@@ -41,10 +42,14 @@ import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
  * It reads only the row list, the active layer and the control edge through one `derivedStateOf`; a stroke in
  * progress or a committed stroke leaves those structurally equal, so neither the chip nor the panel recomposes.
  * Open or closed is local, saveable Compose state (ADR 0020), not workspace state. Back closes the panel, and
- * closing returns focus to the chip. The overlay takes no pointer itself: only the chip and the panel do.
+ * closing returns focus to the chip. The overlay takes no pointer itself: only the chip and the panel do. The
+ * panel rows send their selection and visibility changes through [callbacks], passed on as the same instance.
  */
 @Composable
-internal fun LayerOverlay(state: State<EditorRenderState>) {
+internal fun LayerOverlay(
+    state: State<EditorRenderState>,
+    callbacks: EditorLayerCallbacks,
+) {
     val inputs by remember(state) {
         derivedStateOf {
             val render = state.value
@@ -72,17 +77,23 @@ internal fun LayerOverlay(state: State<EditorRenderState>) {
             val chip = Modifier.align(corner).padding(LayerGeometry.CHIP_MARGINS).focusRequester(chipFocus)
             LayerChip(inputs.active, onClick = { open = true }, modifier = chip)
         }
-        val margins = LayerGeometry.PANEL_MARGIN * 2
         AnimatedVisibility(open, Modifier.align(corner), panelEnter(density), PANEL_EXIT) {
-            val panel =
-                Modifier
-                    .padding(LayerGeometry.PANEL_MARGIN)
-                    .width(min(LayerGeometry.PANEL_WIDTH, (maxWidth - margins).coerceAtLeast(0.dp)))
-                    .heightIn(max = LayerGeometry.panelMaxHeight(maxHeight, inputs.edge))
-            LayerPanel(inputs.rows.size, close, panel)
+            LayerPanel(inputs.rows.size, close, Modifier.panelBounds(maxWidth, maxHeight, inputs.edge)) {
+                LayerPanelRows(inputs.rows, inputs.activeLayerId, callbacks, Modifier.weight(1f, fill = false))
+            }
         }
     }
 }
+
+/** The panel margin, the width cap for a work area [workWidth] wide, and the height limit (#144 "パネル"). */
+private fun Modifier.panelBounds(
+    workWidth: Dp,
+    workHeight: Dp,
+    edge: EditorControlEdge,
+): Modifier =
+    padding(LayerGeometry.PANEL_MARGIN)
+        .width(min(LayerGeometry.PANEL_WIDTH, (workWidth - LayerGeometry.PANEL_MARGIN * 2).coerceAtLeast(0.dp)))
+        .heightIn(max = LayerGeometry.panelMaxHeight(workHeight, edge))
 
 private fun panelEnter(density: Density): EnterTransition {
     val offset = with(density) { LayerGeometry.PANEL_ENTRY_OFFSET.roundToPx() } * LayerGeometry.ENTRY_SIGN

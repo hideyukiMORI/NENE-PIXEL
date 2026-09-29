@@ -173,7 +173,7 @@ private fun EditorCanvas(
     val size by remember(state) { derivedStateOf { state.value.document.size } }
     PixelCanvas(state, size, callbacks, committed, Modifier.fillMaxSize())
     ActualSizeWindowOverlay(state, committed, callbacks)
-    LayerOverlay(state)
+    LayerOverlay(state, callbacks.layers)
     QuickSelectOverlay(state, callbacks)
 }
 
