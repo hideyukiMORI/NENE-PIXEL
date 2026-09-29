@@ -2638,3 +2638,44 @@ and the candidate decision verdict `pass` under the relative rule. Main **passes
 drawing-latency budget on this evidence. A later collection that fails any of the four items is a
 failed exit criterion, not a reason to change the budget; changing the budget is again a product
 decision recorded here. No production edit or device collection is authorized by this section.
+
+## Baseline Profile regeneration — accepted 2026-09-29 (Issue #151)
+
+The accepted generation evidence of Issue #62 was lost on 2026-09-28
+([Evidence Locations](EVIDENCE_LOCATIONS.md)), so no preflight could bind the packaged profile to
+an acceptance record. Issue #151 generated the profile again under
+[ADR 0010](../adr/0010-generated-critical-journey-baseline-profile.md) on the named physical
+profile `NENE-P2-ALLDOCUBE-IPL80MP-A16-API36`.
+
+Three generation commands stopped at their first invocation and stay retained as invalid evidence
+under `evidence/151-baseline-profile/invalid/` of the development lab:
+
+| Evidence identity | Source | Invalid because |
+| --- | --- | --- |
+| `issue-151-20260929-1825` | `be02195` | The producer divided the whole canvas surface by the document size and tapped the margin, so the dirty state never appeared. The canvas node has described the whole work surface since the tablet shell of 2026-09-12 |
+| `issue-151-20260929-1830` | `cad1e66` | The second iteration launched into the recovery offer left by the first, which replaces the clean label. Durable recovery has existed since 2026-09-12 |
+| `issue-151-20260929-1833` | `2caf7f3` | The producer passed; the output pull failed because its destination path was 281 characters long |
+
+Each cause was identified from the retained evidence and the device screen, fixed in its own commit
+and run under a new identity. The fourth command was accepted:
+
+| Item | Value |
+| --- | --- |
+| Evidence identity | `issue-151-20260929-1953` |
+| Evidence location | `evidence/151-baseline-profile/issue-151-20260929-1953/` of the development lab |
+| Generation source | `c4cf2b4fc7e718a81f58667efd575250ab1ca2c6` |
+| Invocations | 2026-09-29 10:53:40Z to 10:56:59Z and 10:57:02Z to 10:59:48Z, both `valid` |
+| Generation app APK SHA-256 | `9c2dea5b6c713496181dc973a3042724f8192722f08e53e234205cdc56e911d6` |
+| Generation test APK SHA-256 | `c2b2a8b2d85ba0574022d4de30fd6641b7ece92f3a4980d267e4f3998697b61e` |
+| Source profile | 1,833,250 bytes, SHA-256 `4b6650fcd23b8fa712b3be4bec9f0695ce1321327508603f441c6a4f1eb8f588` in both invocations |
+| Canonical profile | 16,737 rules, 1,816,514 bytes, SHA-256 `3f195727a018eb2a64a2609c473e6423dae3635a738e8b976b2d8065024805ce` |
+| Pair manifest | `matched`, SHA-256 `8b6146517bb4b566f7fd6c3c181dce160dd49e6b1b4fcd61bff513157692e973` |
+| Acceptance manifest | `accepted`, SHA-256 `4172c8072c47e5c7159e23e164379e27e72f2c7ce931523f350080a94c9e09d9` |
+| Final validation | `validateBaselineProfile` succeeded |
+
+The previous canonical profile (Issue #62, 13,514 rules, SHA-256 `3be9f24e…`) is replaced. It was
+generated on 2026-09-06, before the tablet shell, durable save and recovery, the palette editor and
+the quick-select control existed; the regenerated profile covers the editor as `main` carries it at
+the generation source. It does not cover the layered composite of Issue #142, which is not on
+`main` yet. No performance collection was part of this Issue, and the device measurements recorded
+above this section were taken with the previous profile and are not re-judged.
