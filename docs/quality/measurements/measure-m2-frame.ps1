@@ -244,7 +244,7 @@ $physicalPresentSchema = "nene-pixel-m2-physical-present-v2"
 $frameSchema = "nene-pixel-p4-indexed-actual-app-frame-v8"
 $experimentSchema = "nene-pixel-p4-indexed-frame-experiment-v5"
 $noSampleInspectionSchema = "nene-pixel-p4-no-sample-inspection-v1"
-$baselineProductionCommitRequired = "2f0b617e56f7bcf3d71b5a258a48e0edead354d9"
+$baselineProductionCommitRequired = "8120c06fae1a372b23d2a7af4f50aa2b9cdfeff9"
 $workloadCatalog = @(
     [ordered]@{
         workload = "canvas16_tap"
