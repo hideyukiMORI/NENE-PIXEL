@@ -113,6 +113,7 @@ internal class EditorRuntimeAdapter(
             paletteEditSession = state.workspaceState.paletteEditSession,
             paletteNotice = paletteNotice,
             quickSelection = state.workspaceState.quickSelection,
+            activeLayerId = state.workspaceState.activeLayerId,
         )
     }
 
