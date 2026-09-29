@@ -5,22 +5,28 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.painterResource
 import io.github.hideyukimori.nenepixel.presentation.compose.R
 
-internal enum class EditorIcon { Pencil, Eraser, Undo, Redo, Palette, ActualSize, File, Settings, Close, Eyedropper }
+/** One editor symbol and the vector drawable that draws it. */
+internal enum class EditorIcon(
+    val drawable: Int,
+) {
+    Pencil(R.drawable.editor_pencil),
+    Eraser(R.drawable.editor_eraser),
+    Undo(R.drawable.editor_undo),
+    Redo(R.drawable.editor_redo),
+    Palette(R.drawable.editor_palette),
+    ActualSize(R.drawable.editor_actual_size),
+    File(R.drawable.editor_file),
+    Settings(R.drawable.editor_settings),
+    Close(R.drawable.editor_close),
+    Eyedropper(R.drawable.editor_eyedropper),
+    Layers(R.drawable.editor_layers),
+    Visible(R.drawable.editor_visible),
+    Hidden(R.drawable.editor_hidden),
+    Add(R.drawable.editor_add),
+    More(R.drawable.editor_more),
+}
 
 @Composable
 internal fun EditorSymbol(icon: EditorIcon) {
-    val resource =
-        when (icon) {
-            EditorIcon.Pencil -> R.drawable.editor_pencil
-            EditorIcon.Eraser -> R.drawable.editor_eraser
-            EditorIcon.Undo -> R.drawable.editor_undo
-            EditorIcon.Redo -> R.drawable.editor_redo
-            EditorIcon.Palette -> R.drawable.editor_palette
-            EditorIcon.ActualSize -> R.drawable.editor_actual_size
-            EditorIcon.File -> R.drawable.editor_file
-            EditorIcon.Settings -> R.drawable.editor_settings
-            EditorIcon.Close -> R.drawable.editor_close
-            EditorIcon.Eyedropper -> R.drawable.editor_eyedropper
-        }
-    Icon(painter = painterResource(resource), contentDescription = null)
+    Icon(painter = painterResource(icon.drawable), contentDescription = null)
 }
