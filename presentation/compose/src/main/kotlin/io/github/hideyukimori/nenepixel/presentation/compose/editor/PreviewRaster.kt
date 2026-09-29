@@ -3,17 +3,19 @@ package io.github.hideyukimori.nenepixel.presentation.compose.editor
 import io.github.hideyukimori.nenepixel.core.application.workspace.ToolGesture
 
 /**
- * Canvas-sized ARGB raster of the running gesture preview (Issue #124). It is derived, disposable
- * workspace rendering state, never a document owner. Painting replaces the previous preview and
- * only the rows touched by the previous or current preview are reported as changed.
+ * Canvas-sized ARGB raster of the committed picture with the running gesture's positions replaced
+ * (Issues #124, #143). It is derived, disposable workspace rendering state, never a document owner.
+ * Painting replaces the previous preview and only the rows touched by the previous or current
+ * preview, or by a base replacement, are reported as changed.
  */
 internal class PreviewRaster(
     val width: Int,
     val height: Int,
 ) {
+    private val base: IntArray = IntArray(width * height)
     private val buffer: IntArray = IntArray(width * height)
 
-    /** Read-only view of the raster in row-major order; `0` is transparent. */
+    /** Read-only view of the raster in row-major order. */
     val pixels: List<Int> = buffer.asList()
 
     private var paintedLeft: Int = EMPTY_START
@@ -27,23 +29,33 @@ internal class PreviewRaster(
         require(width > 0 && height > 0) { "Preview raster requires a positive size: ${width}x$height" }
     }
 
-    /** Resets only the bounding box painted since the previous clear. */
-    fun clear() {
-        if (paintedTop > paintedBottom) return
-        for (y in paintedTop..paintedBottom) {
-            buffer.fill(0, y * width + paintedLeft, y * width + paintedRight + 1)
-        }
-        markChangedRows(paintedTop, paintedBottom)
-        paintedLeft = EMPTY_START
-        paintedTop = EMPTY_START
-        paintedRight = EMPTY_END
-        paintedBottom = EMPTY_END
+    /**
+     * Lets [source] overwrite the committed picture (row-major, stride [width]); the raster then shows
+     * the new base everywhere and reports every row as changed.
+     */
+    fun replaceBase(source: (base: IntArray) -> Unit) {
+        source(base)
+        base.copyInto(buffer)
+        forgetPainted()
+        markChangedRows(0, height - 1)
     }
 
-    /** Replaces the previous preview with every position of [gesture] written as [argb]. */
+    /** Restores only the bounding box painted since the previous clear to the base values. */
+    fun clear() {
+        if (paintedTop > paintedBottom) return
+        val span = paintedRight - paintedLeft + 1
+        for (y in paintedTop..paintedBottom) {
+            val start = y * width + paintedLeft
+            System.arraycopy(base, start, buffer, start, span)
+        }
+        markChangedRows(paintedTop, paintedBottom)
+        forgetPainted()
+    }
+
+    /** Replaces the previous preview with every position of [gesture] written in its colour from [colors]. */
     fun paint(
         gesture: ToolGesture,
-        argb: Int,
+        colors: PreviewColorSource,
     ) {
         clear()
         gesture.forEachPosition { position ->
@@ -52,7 +64,7 @@ internal class PreviewRaster(
             check(x in 0 until width && y in 0 until height) {
                 "Preview position ($x, $y) is outside the ${width}x$height raster"
             }
-            buffer[y * width + x] = argb
+            buffer[y * width + x] = colors.argbAt(position)
             paintedLeft = minOf(paintedLeft, x)
             paintedTop = minOf(paintedTop, y)
             paintedRight = maxOf(paintedRight, x)
@@ -71,6 +83,13 @@ internal class PreviewRaster(
         changedTop = EMPTY_START
         changedBottom = EMPTY_END
         target(buffer, rows)
+    }
+
+    private fun forgetPainted() {
+        paintedLeft = EMPTY_START
+        paintedTop = EMPTY_START
+        paintedRight = EMPTY_END
+        paintedBottom = EMPTY_END
     }
 
     private fun markChangedRows(

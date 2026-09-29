@@ -20,7 +20,7 @@ internal class PreviewRasterTest {
         val gesture = gesture(listOf(position(0, 0), position(5, 2)))
         val raster = PreviewRaster(WIDTH, HEIGHT)
 
-        raster.paint(gesture, ARGB)
+        raster.paint(gesture, solid(ARGB))
 
         val expected = positionsOf(gesture)
         assertTrue(expected.size > 2, "Two samples must interpolate intermediate positions")
@@ -32,9 +32,9 @@ internal class PreviewRasterTest {
         val first = gesture(listOf(position(0, 0), position(5, 2)))
         val second = gesture(listOf(position(1, 3), position(4, 3)))
         val raster = PreviewRaster(WIDTH, HEIGHT)
-        raster.paint(first, ARGB)
+        raster.paint(first, solid(ARGB))
 
-        raster.paint(second, OTHER_ARGB)
+        raster.paint(second, solid(OTHER_ARGB))
 
         assertRaster(raster, positionsOf(second), OTHER_ARGB)
     }
@@ -44,8 +44,8 @@ internal class PreviewRasterTest {
         val gesture = gesture(listOf(position(0, 1), position(4, 1), position(0, 1), position(4, 1)))
         val raster = PreviewRaster(WIDTH, HEIGHT)
 
-        raster.paint(gesture, ARGB)
-        raster.paint(gesture, ARGB)
+        raster.paint(gesture, solid(ARGB))
+        raster.paint(gesture, solid(ARGB))
 
         assertTrue(gesture.positionCount > positionsOf(gesture).size, "The gesture must revisit positions")
         assertRaster(raster, positionsOf(gesture), ARGB)
@@ -55,7 +55,7 @@ internal class PreviewRasterTest {
     fun `clear resets painted positions and reports only the rows it touched`() {
         val gesture = gesture(listOf(position(1, 1), position(3, 2)))
         val raster = PreviewRaster(WIDTH, HEIGHT)
-        raster.paint(gesture, ARGB)
+        raster.paint(gesture, solid(ARGB))
         raster.transferChangedRows { _, _ -> }
 
         raster.clear()
@@ -64,6 +64,58 @@ internal class PreviewRasterTest {
         raster.transferChangedRows { _, rows -> changed = rows }
         assertEquals(1..2, changed)
         assertRaster(raster, emptySet(), ARGB)
+    }
+
+    @Test
+    fun `each position is written in the colour its source returns for it`() {
+        val gesture = gesture(listOf(position(0, 0), position(5, 2)))
+        val raster = PreviewRaster(WIDTH, HEIGHT)
+
+        raster.paint(gesture, PreviewColorSource(::positionArgb))
+
+        val painted = positionsOf(gesture)
+        assertRaster(raster) { x, y -> if ((x to y) in painted) positionArgb(position(x, y)) else 0 }
+    }
+
+    @Test
+    fun `the next paint restores positions it no longer touches to the base`() {
+        val first = gesture(listOf(position(0, 0), position(5, 2)))
+        val second = gesture(listOf(position(1, 3), position(4, 3)))
+        val raster = PreviewRaster(WIDTH, HEIGHT)
+        raster.replaceBase { base -> base.indices.forEach { base[it] = baseArgb(it) } }
+        raster.paint(first, solid(ARGB))
+
+        raster.paint(second, solid(OTHER_ARGB))
+
+        val painted = positionsOf(second)
+        assertRaster(raster) { x, y -> if ((x to y) in painted) OTHER_ARGB else baseArgb(y * WIDTH + x) }
+    }
+
+    @Test
+    fun `clear restores the painted positions to the base`() {
+        val gesture = gesture(listOf(position(1, 1), position(3, 2)))
+        val raster = PreviewRaster(WIDTH, HEIGHT)
+        raster.replaceBase { base -> base.indices.forEach { base[it] = baseArgb(it) } }
+        raster.paint(gesture, solid(ARGB))
+
+        raster.clear()
+
+        assertRaster(raster) { x, y -> baseArgb(y * WIDTH + x) }
+    }
+
+    @Test
+    fun `replacing the base shows it everywhere and hands over every row`() {
+        val gesture = gesture(listOf(position(1, 1), position(3, 1)))
+        val raster = PreviewRaster(WIDTH, HEIGHT)
+        raster.paint(gesture, solid(ARGB))
+        raster.transferChangedRows { _, _ -> }
+
+        raster.replaceBase { base -> base.indices.forEach { base[it] = baseArgb(it) } }
+
+        var changed: IntRange? = null
+        raster.transferChangedRows { _, rows -> changed = rows }
+        assertEquals(0 until HEIGHT, changed)
+        assertRaster(raster) { x, y -> baseArgb(y * WIDTH + x) }
     }
 
     private fun gesture(samples: List<PixelPosition>): ToolGesture {
@@ -91,18 +143,33 @@ internal class PreviewRasterTest {
         painted: Set<Pair<Int, Int>>,
         argb: Int,
     ) {
+        assertRaster(raster) { x, y -> if ((x to y) in painted) argb else 0 }
+    }
+
+    private fun assertRaster(
+        raster: PreviewRaster,
+        expected: (x: Int, y: Int) -> Int,
+    ) {
         for (y in 0 until HEIGHT) {
             for (x in 0 until WIDTH) {
-                val expected = if ((x to y) in painted) argb else 0
-                assertEquals(expected, raster.pixels[y * WIDTH + x], "pixel ($x, $y)")
+                assertEquals(expected(x, y), raster.pixels[y * WIDTH + x], "pixel ($x, $y)")
             }
         }
     }
+
+    private fun solid(argb: Int): PreviewColorSource = PreviewColorSource { argb }
+
+    private fun positionArgb(position: PixelPosition): Int =
+        POSITION_ARGB_BASE + position.y.value * WIDTH + position.x.value
+
+    private fun baseArgb(pixel: Int): Int = BASE_ARGB + pixel
 
     private companion object {
         const val WIDTH: Int = 6
         const val HEIGHT: Int = 4
         const val ARGB: Int = 0x8CFF0000.toInt()
         const val OTHER_ARGB: Int = 0x8C00FF00.toInt()
+        const val POSITION_ARGB_BASE: Int = 0xFF102030.toInt()
+        const val BASE_ARGB: Int = 0xFFA0B0C0.toInt()
     }
 }
