@@ -45,12 +45,12 @@ internal class StrokePreviewBitmapTest {
         val committed = CommittedBitmapCache()
         val previews = PreviewBitmapCache()
         scene.begin(scene.layers[1], DrawingTool.Pencil, path)
-        previews.render(scene.adapter.renderState, committed, BACKGROUND)
+        previews.render(scene.adapter.renderState, committed)
         scene.runtime.reduce(WorkspaceAction.CancelGesturePreview)
-        assertNull(previews.render(scene.adapter.renderState, committed, BACKGROUND))
+        assertNull(previews.render(scene.adapter.renderState, committed))
 
         scene.begin(scene.layers[0], DrawingTool.Eraser, shortPath)
-        val preview = requireNotNull(previews.render(scene.adapter.renderState, committed, BACKGROUND)).pixels()
+        val preview = requireNotNull(previews.render(scene.adapter.renderState, committed)).pixels()
         scene.commit()
 
         assertArrayEquals("cancelled then erased", scene.committedPixels(), preview)
@@ -65,7 +65,7 @@ internal class StrokePreviewBitmapTest {
         val committed = CommittedBitmapCache()
         scene.begin(scene.layers[target], tool, positions)
         val preview =
-            requireNotNull(PreviewBitmapCache().render(scene.adapter.renderState, committed, BACKGROUND)).pixels()
+            requireNotNull(PreviewBitmapCache().render(scene.adapter.renderState, committed)).pixels()
         scene.commit()
 
         assertArrayEquals("target=$target $tool", scene.committedPixels(), preview)
@@ -134,14 +134,13 @@ internal class StrokePreviewBitmapTest {
 
         fun committedPixels(): IntArray {
             val document = runtime.state.documentState
-            return CommittedBitmapCache().render(document, document.definition, BACKGROUND).pixels()
+            return CommittedBitmapCache().render(document, document.definition).pixels()
         }
     }
 
     private companion object {
         const val WIDTH: Int = 4
         const val HEIGHT: Int = 2
-        const val BACKGROUND: Int = -0xefdfd0
 
         val palette: List<PixelColor> =
             listOf(0x204060ff, 0xa0c0e080.toInt(), 0xff000040.toInt(), 0x00ff00ff)

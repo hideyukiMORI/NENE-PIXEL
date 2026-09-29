@@ -24,20 +24,18 @@ internal class CommittedBitmapCache {
 
     private var source: DocumentState? = null
     private var sourceDefinition: PaletteDefinition? = null
-    private var sourceBackgroundArgb: Int? = null
     private var rendered: Bitmap? = null
     private var renderedArgb: IntArray? = null
 
+    /** The committed picture with its alpha; rebuilt only when the document or definition reference changes. */
     fun render(
         document: DocumentState,
         definition: PaletteDefinition,
-        backgroundArgb: Int,
     ): Bitmap {
-        if (source !== document || sourceDefinition !== definition || sourceBackgroundArgb != backgroundArgb) {
+        if (source !== document || sourceDefinition !== definition) {
             source = document
             sourceDefinition = definition
-            sourceBackgroundArgb = backgroundArgb
-            val argb = composite(document, definition).toOpaqueArgb(backgroundArgb)
+            val argb = composite(document, definition).toStraightArgb()
             renderedArgb = argb
             val size = document.size
             rendered = Bitmap.createBitmap(argb, size.width.value, size.height.value, Bitmap.Config.ARGB_8888)
@@ -45,7 +43,7 @@ internal class CommittedBitmapCache {
         return requireNotNull(rendered)
     }
 
-    /** Copies the opaque ARGB of the latest [render] into [target] (row-major); the array stays private. */
+    /** Copies the straight-alpha ARGB of the latest [render] into [target] (row-major); the array stays private. */
     fun copyRenderedArgbInto(target: IntArray) {
         val argb = requireNotNull(renderedArgb) { "Nothing has been rendered yet" }
         require(target.size == argb.size) { "Target holds ${target.size} pixels, the rendering ${argb.size}" }

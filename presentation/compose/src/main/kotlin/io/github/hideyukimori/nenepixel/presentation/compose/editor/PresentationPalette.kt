@@ -12,7 +12,6 @@ internal object PresentationPalette {
             EditorTheme.Light -> lightSurround
         }
 
-    val canvasBackground: Color = Color.White
     private val darkSurround: Color = Color(0xFF292929)
     private val lightSurround: Color = Color(0xFFBDBDBD)
     val grid: Color = Color.Black.copy(alpha = GRID_ALPHA)

@@ -17,7 +17,6 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.ui.graphics.toArgb
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportGridVisibility
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportState
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportSurface
@@ -35,7 +34,6 @@ internal fun PixelCanvas(
     committed: CommittedBitmapCache,
     modifier: Modifier,
 ) {
-    val background = PresentationPalette.canvasBackground.toArgb()
     val geometries = remember { CanvasGeometryCache() }
     val previews = remember { PreviewBitmapCache() }
     val backdrop = remember { TransparencyBackdrop() }
@@ -58,8 +56,8 @@ internal fun PixelCanvas(
         drawTransparencyBackdrop(backdrop, geometry.destination)
         drawPixels(
             geometry.destination,
-            previews.render(current, committed, background)
-                ?: committed.render(current.document, current.definition, background),
+            previews.render(current, committed)
+                ?: committed.render(current.document, current.definition),
             committed.paint,
         )
         drawGrid(geometry)
