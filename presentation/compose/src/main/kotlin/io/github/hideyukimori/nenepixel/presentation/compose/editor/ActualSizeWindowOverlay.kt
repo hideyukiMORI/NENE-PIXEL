@@ -147,13 +147,17 @@ private fun ActualSizeWindowContent(
     modifier: Modifier = Modifier,
 ) {
     val background = PresentationPalette.canvasBackground.toArgb()
+    val backdrop = remember { TransparencyBackdrop() }
+    val content = remember { RectF() }
     Box(modifier.exactSize(geometry.width, geometry.contentHeight), contentAlignment = Alignment.Center) {
         Canvas(Modifier.exactSize(geometry.contentWidth, geometry.contentHeight).testTag(CONTENT_TAG)) {
+            content.set(0f, 0f, geometry.contentWidth.toFloat(), geometry.contentHeight.toFloat())
+            drawTransparencyBackdrop(backdrop, content)
             drawIntoCanvas { canvas ->
                 canvas.nativeCanvas.drawBitmap(
                     committed.render(inputs.document, inputs.definition, background),
                     geometry.source,
-                    RectF(0f, 0f, geometry.contentWidth.toFloat(), geometry.contentHeight.toFloat()),
+                    content,
                     committed.paint,
                 )
             }
