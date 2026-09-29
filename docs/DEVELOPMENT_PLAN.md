@@ -93,10 +93,10 @@ ADR 0030 / #140 adds the ordered-layer portion (P4-05); frames remain unplanned.
 | P4-03 | Add palette draft editor/history, remap preview and JSON SAF UI (#107) | P4-02 | Atomic apply/cancel/stale contracts, bounded transport, localized tablet/lifecycle verification |
 | P4-04 | Add exact-slot eyedropper and extensible long-press selection (#108) | P4-02, P4-03 integration | Typed workspace ownership, gesture arbitration, one-finger and accessible alternate selection evidence |
 | P4-05 | Accept ordered layers, `Empty` cells, composite and project v3 contract (#140) | P4-04 | Accepted ADR 0030, updated governing documents and focused Issues |
-| P4-05a | Cut over document/engine/history/rendering/storage to layered documents with `Empty` cells and v3 | P4-05 | Every consumer at once; composite golden vectors and single-layer byte equality with v2 export; v3/envelope 3 golden, round-trip and rejection tests; history accounting; affected single-layer latency evidence |
+| P4-05a | Cut over document/engine/history/rendering/storage to layered documents with `Empty` cells and v3 | P4-05 | Every consumer at once; composite golden vectors and single-layer byte equality with v2 export; v3/envelope 3 golden, round-trip and rejection tests; history accounting; per-commit cost statement, with the single-layer latency workloads registered with P4-05d (QLT-019) |
 | P4-05b | Add the five layer commands, active-layer selection and hidden-layer rules | P4-05a | Command/undo/reconcile contracts, typed rejections, `NoVisibleLayer` export |
 | P4-05c | Add the opening layer panel | P4-05b | UI spec first; localized tablet and accessibility verification |
-| P4-05d | Accept the 16-layer worst case | P4-05a, P4-05b | Protocol fixed before collection; M5 drawing latency, retained memory, autosave/save write time, full-remap history bytes |
+| P4-05d | Gate of the layer phase (QLT-019): accept the 16-layer worst case and the registered single-layer workloads in one collection | P4-05a, P4-05b, P4-05c | Protocol fixed before collection; M5 drawing latency for the single-layer and 16-layer workloads, retained memory, autosave/save write time, full-remap history bytes |
 
 Preparation keeps the sole M3 editable path. P4-02 changes every live consumer together, with no
 parallel editable RGBA document or provisional indexed-to-v1 writer. P4-05a likewise moves every

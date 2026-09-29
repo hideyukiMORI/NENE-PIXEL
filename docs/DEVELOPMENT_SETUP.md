@@ -119,7 +119,7 @@ to the evidence directory, so the moved directory still validates.
 
 ## Run the canonical quality gate
 
-Execution frequency is mandatory under [QLT-011 through QLT-018](QUALITY_GATES.md#verification-execution-policy).
+Execution frequency is mandatory under [QLT-011 through QLT-019](QUALITY_GATES.md#verification-execution-policy).
 Select each command from the diff and name the regression it detects before running it.
 During a core application iteration, for example, run:
 

@@ -69,3 +69,4 @@ An ADR must include:
 | [0028](0028-implementation-seat-shape.md) | accepted | One implementation seat per stage (probe, implementation, each rework), small tool output in the instruction form, S-size tasks; Opus 5.5 as a measured trial |
 | [0029](0029-quick-select-and-exact-eyedropper.md) | accepted | Floating quick-select control with recent painted slots, workspace-owned menu and one-shot exact-slot eyedropper |
 | [0030](0030-ordered-layers-and-empty-pixels.md) | accepted | Up to 16 ordered layers, palette-independent `Empty` cells, one integer composite, project v3 and recovery envelope 3 |
+| [0031](0031-phase-gate-device-performance.md) | accepted | Device performance collection once per phase in a gate Issue; feature Issues state per-operation cost and register workloads |
