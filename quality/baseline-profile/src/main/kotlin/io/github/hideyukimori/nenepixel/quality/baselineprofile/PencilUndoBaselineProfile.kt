@@ -12,6 +12,7 @@ import androidx.test.uiautomator.Until
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import kotlin.math.floor
 
 @RunWith(AndroidJUnit4::class)
 internal class PencilUndoBaselineProfile {
@@ -39,8 +40,11 @@ internal class PencilUndoBaselineProfile {
             val bounds = canvas.visibleBounds
             check(bounds.width() > 0 && bounds.height() > 0) { "Canvas bounds must be non-empty: $bounds" }
 
-            val x = bounds.left + bounds.width() / (CANVAS_WIDTH * 2)
-            val y = bounds.top + bounds.height() / (CANVAS_HEIGHT * 2)
+            val fit = minOf(bounds.width().toDouble() / CANVAS_WIDTH, bounds.height().toDouble() / CANVAS_HEIGHT)
+            val originX = bounds.left + (bounds.width() - fit * CANVAS_WIDTH) / CENTERING_DIVISOR
+            val originY = bounds.top + (bounds.height() - fit * CANVAS_HEIGHT) / CENTERING_DIVISOR
+            val x = floor(originX + fit / CENTERING_DIVISOR).toInt()
+            val y = floor(originY + fit / CENTERING_DIVISOR).toInt()
             check(device.click(x, y)) { "Pencil input was not accepted at ($x, $y)." }
 
             device.awaitObject(By.res(DIRTY_LABEL))
@@ -74,6 +78,7 @@ internal class PencilUndoBaselineProfile {
         const val UNDO_LABEL = "editor_undo"
         const val CANVAS_WIDTH = 16
         const val CANVAS_HEIGHT = 16
+        const val CENTERING_DIVISOR = 2.0
         const val UI_TIMEOUT_MILLIS = 5_000L
         const val CANONICAL_UNDO_TAP_DURATION_MILLIS = 100L
         const val MAX_ITERATIONS = 15

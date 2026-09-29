@@ -71,7 +71,11 @@ regenerated, and the `QLT-004` SHA-256 verification of that artifact is unchange
 ### Generated artifact
 
 The producer launches the installed application and finds the canonical editor through stable
-accessibility semantics. It derives the top-left pixel center from the reported canvas bounds,
+accessibility semantics. It derives the top-left pixel center from the reported canvas bounds with
+the initial-fit, centered projection that the editor applies to a new document (the same
+`initial-fit-centered-v1` geometry as the frame collector): the canvas node describes the whole
+work surface, and the document occupies the largest centered rectangle of its aspect ratio inside
+it (Issue #151; dividing the surface itself by the document size taps the margin). It then
 performs the Pencil mutation, verifies the dirty state, performs Undo, and verifies the clean state.
 Those actions exercise the one production UI-to-command path. Fixed screen coordinates and direct
 state access are prohibited.
