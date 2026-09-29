@@ -17,8 +17,8 @@ import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.hideyukimori.nenepixel.core.application.document.command.ApplyStrokeCommand
-import io.github.hideyukimori.nenepixel.core.application.render.PaletteDraftComposite
-import io.github.hideyukimori.nenepixel.core.application.render.PaletteDraftCompositeResult
+import io.github.hideyukimori.nenepixel.core.application.render.DocumentComposite
+import io.github.hideyukimori.nenepixel.core.application.render.DocumentCompositeRenderResult
 import io.github.hideyukimori.nenepixel.core.domain.color.ColorChannel
 import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.drawing.Stroke
@@ -34,6 +34,7 @@ import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestVal
 import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestValues.canvas
 import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestValues.fixture
 import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertNull
@@ -44,7 +45,8 @@ import org.junit.Test
 /**
  * Issue #148 P2: while the palette editor is open, the committed bitmap shows the picture the draft
  * would give once applied (ADR 0022), rendered through the one application Composite. The document
- * itself is unchanged until Apply; Cancel returns to the document's own picture.
+ * itself is unchanged until Apply; Cancel returns to the document's own picture. Each draft picture is
+ * compared with the picture the real Apply leaves in the document (P2t).
  */
 internal class PaletteDraftDisplayTest {
     @get:Rule
@@ -58,18 +60,21 @@ internal class PaletteDraftDisplayTest {
         editorNode("editor_palette_editor_slot_2").performClick()
         enterHex(EDITED_HEX)
 
-        assertDraftShown(editor)
-        assertFalse("The recolour must change the picture", original.contentEquals(shownPixels(editor)))
+        val drafted = assertDraftEqualsApply(editor)
+        assertFalse("The recolour must change the picture", original.contentEquals(drafted))
     }
 
     @Test
     fun aRemovedSlotIsShownFromTheDraft() {
         val editor = paintedEditor()
+        val original = shownPixels(editor)
         openPaletteEditor(editor)
         editorNode("editor_palette_editor_slot_2").performClick()
         editorNode("editor_palette_editor_remove").performClick()
 
-        assertDraftShown(editor)
+        val drafted = assertDraftEqualsApply(editor)
+        assertEquals("Slot 2 was green before the removal", OPAQUE_GREEN, original[GREEN_PIXEL])
+        assertEquals("Slot 2's pixel moves to the default slot's red", OPAQUE_RED, drafted[GREEN_PIXEL])
     }
 
     @Test
@@ -79,9 +84,11 @@ internal class PaletteDraftDisplayTest {
         openPaletteEditor(editor)
         editorNode("editor_palette_editor_slot_2").performClick()
         editorNode("editor_palette_editor_move_down").performClick()
+        val unmapped = draftDefinitionWithoutRemap(editor)
 
-        assertDraftShown(editor)
-        assertArrayEquals("A reorder keeps every pixel's colour", original, shownPixels(editor))
+        val drafted = assertDraftEqualsApply(editor)
+        assertArrayEquals("A reorder keeps every pixel's colour", original, drafted)
+        assertFalse("The draft must be remapped, not only recoloured", unmapped.contentEquals(drafted))
     }
 
     @Test
@@ -130,16 +137,29 @@ internal class PaletteDraftDisplayTest {
         assertNotSame("A new draft session rebuilds the bitmap", first, rebuilt)
     }
 
-    /** The committed bitmap equals the P1 draft Composite reordered to ARGB. */
-    private fun assertDraftShown(editor: EditorFixture) {
+    /**
+     * The committed bitmap while the draft is open equals the committed bitmap of the document after the
+     * real Apply (no session). Returns the draft picture.
+     */
+    private fun assertDraftEqualsApply(editor: EditorFixture): IntArray {
+        requireNotNull(editor.controller.renderState.paletteEditSession) { "No palette edit session" }
+        val drafted = shownPixels(editor)
+        editorNode("editor_palette_editor_apply").performClick()
+        composeRule.onNodeWithTag("editor_palette_editor_apply").assertDoesNotExist()
+
+        assertNull(editor.controller.renderState.paletteEditSession)
+        assertArrayEquals("The draft shows the applied picture", shownPixels(editor), drafted)
+        return drafted
+    }
+
+    /** The document drawn with the draft's definition but its own indices: a draft that ignores the remap. */
+    private fun draftDefinitionWithoutRemap(editor: EditorFixture): IntArray {
         val state = editor.controller.renderState
         val session = requireNotNull(state.paletteEditSession) { "No palette edit session" }
-        val expected =
-            when (val result = PaletteDraftComposite.render(state.document, session)) {
-                is PaletteDraftCompositeResult.Rendered -> result.image.toStraightArgb()
-                PaletteDraftCompositeResult.SourceMismatch -> error("The draft must start from the document palette")
-            }
-        assertArrayEquals("The canvas shows the draft picture", expected, shownPixels(editor))
+        return when (val result = DocumentComposite.render(state.document, session.draft)) {
+            is DocumentCompositeRenderResult.Rendered -> result.image.toStraightArgb()
+            DocumentCompositeRenderResult.IndexOutsidePalette -> error("The draft keeps every index")
+        }
     }
 
     private fun shownPixels(editor: EditorFixture): IntArray {
@@ -199,6 +219,9 @@ internal class PaletteDraftDisplayTest {
         const val WIDTH: Int = 3
         const val HEIGHT: Int = 2
         const val EDITED_HEX: String = "#FF00FF80"
+        const val GREEN_PIXEL: Int = 1
+        const val OPAQUE_RED: Int = 0xFFFF0000.toInt()
+        const val OPAQUE_GREEN: Int = 0xFF00FF00.toInt()
         val EDGE_WIDTH: Dp = 720.dp
         val EDGE_HEIGHT: Dp = 600.dp
         val BLUE: PixelColor =

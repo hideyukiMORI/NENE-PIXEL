@@ -1,33 +1,34 @@
 package io.github.hideyukimori.nenepixel.core.application.render
 
-import io.github.hideyukimori.nenepixel.core.application.document.command.AddLayerCommand
-import io.github.hideyukimori.nenepixel.core.application.document.command.ApplyStrokeCommand
-import io.github.hideyukimori.nenepixel.core.application.document.command.CommandResult
 import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryPosition
-import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.canvas
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.defaultDocumentId
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.definition
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.paletteIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.position
-import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.stroke
-import io.github.hideyukimori.nenepixel.core.application.editor.DocumentIdSource
-import io.github.hideyukimori.nenepixel.core.application.editor.EditorRuntime
-import io.github.hideyukimori.nenepixel.core.application.editor.PaletteApplyResult
 import io.github.hideyukimori.nenepixel.core.application.editor.RuntimeSourceToken
+import io.github.hideyukimori.nenepixel.core.application.render.PaletteDraftCompositeFixture.HEIGHT
+import io.github.hideyukimori.nenepixel.core.application.render.PaletteDraftCompositeFixture.WIDTH
+import io.github.hideyukimori.nenepixel.core.application.render.PaletteDraftCompositeFixture.begin
+import io.github.hideyukimori.nenepixel.core.application.render.PaletteDraftCompositeFixture.black
+import io.github.hideyukimori.nenepixel.core.application.render.PaletteDraftCompositeFixture.documentPixels
+import io.github.hideyukimori.nenepixel.core.application.render.PaletteDraftCompositeFixture.draftPixels
+import io.github.hideyukimori.nenepixel.core.application.render.PaletteDraftCompositeFixture.drawnRuntime
+import io.github.hideyukimori.nenepixel.core.application.render.PaletteDraftCompositeFixture.edit
+import io.github.hideyukimori.nenepixel.core.application.render.PaletteDraftCompositeFixture.green
+import io.github.hideyukimori.nenepixel.core.application.render.PaletteDraftCompositeFixture.halfRed
+import io.github.hideyukimori.nenepixel.core.application.render.PaletteDraftCompositeFixture.opaqueBlue
+import io.github.hideyukimori.nenepixel.core.application.render.PaletteDraftCompositeFixture.quarterBlue
+import io.github.hideyukimori.nenepixel.core.application.render.PaletteDraftCompositeFixture.reduce
+import io.github.hideyukimori.nenepixel.core.application.render.PaletteDraftCompositeFixture.sourceDefinition
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceAction
-import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReductionResult
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteDraftOperation
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteEditSession
-import io.github.hideyukimori.nenepixel.core.domain.color.ColorChannel
-import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
-import io.github.hideyukimori.nenepixel.core.domain.document.DocumentId
-import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
-import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
+import io.github.hideyukimori.nenepixel.core.domain.layer.Layer
+import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelCell
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Test
@@ -134,121 +135,48 @@ internal class PaletteDraftCompositeTest {
     @Test
     fun `the fixture has two layers empty cells and translucent overlaps`() {
         val runtime = drawnRuntime()
-
-        assertEquals(2, runtime.state.documentState.layers.size)
+        val layers = runtime.state.documentState.layers
+        val cells = 0 until WIDTH * HEIGHT
+        val coveredBy = cells.map { cell -> layers.count { cellOf(it, cell) is PixelCell.Covered } }
+        val overlaps = cells.filter { coveredBy[it] == layers.size }
         val pixels = documentPixels(runtime)
-        assertEquals(0, pixels[EMPTY_CELL])
-        assertFalse(pixels.all { it and ALPHA_MASK == ALPHA_MASK || it == 0 })
+        val translucentTops = overlaps.filter { alphaOf(cellOf(layers.last(), it)) in 1 until OPAQUE }
+
+        assertEquals(2, layers.size)
+        assertEquals(listOf(4, 5), cells.filter { coveredBy[it] == 0 })
+        assertEquals(listOf(4, 5), cells.filter { pixels[it] == 0 })
+        assertEquals(listOf(0, 1, 3), overlaps)
+        assertEquals(listOf(0, 1), translucentTops)
+        assertEquals(listOf(0, 1), translucentTops.filter { pixels[it] != colorOf(cellOf(layers.last(), it)) })
+        assertEquals(listOf(0), overlaps.filter { pixels[it] and OPAQUE in 1 until OPAQUE })
     }
 
     private fun assertDraftEqualsApply(
         vararg actions: WorkspaceAction,
         changes: Boolean,
     ) {
-        val runtime = drawnRuntime()
-        val original = documentPixels(runtime)
-        begin(runtime)
-        actions.forEach { action -> reduce(runtime, action) }
-        val draft = draftPixels(runtime)
-
-        assertSame(PaletteApplyResult.Applied, runtime.paletteOperations.applyPaletteDraft())
-
-        assertArrayEquals(documentPixels(runtime), draft)
-        assertEquals(changes, !original.contentEquals(draft))
+        PaletteDraftCompositeFixture.assertDraftEqualsApply(drawnRuntime(), actions.toList(), changes)
     }
 
-    private fun draftPixels(runtime: EditorRuntime): IntArray {
-        val session = runtime.state.workspaceState.paletteEditSession ?: fail("Palette session was closed")
-        val result = PaletteDraftComposite.render(runtime.state.documentState, session)
-        return assertInstanceOf(PaletteDraftCompositeResult.Rendered::class.java, result).image.copyPackedRgba8888()
-    }
-
-    private fun documentPixels(runtime: EditorRuntime): IntArray =
-        DocumentComposite.render(runtime.state.documentState).copyPackedRgba8888()
-
-    /**
-     * Two layers on a 3x2 canvas: cells 4 and 5 stay Empty in both, cell 2 is bottom-only, and translucent
-     * colours overlap at cells 0 and 1.
-     */
-    private fun drawnRuntime(): EditorRuntime {
-        val runtime = EditorRuntime.create(canvas(WIDTH, HEIGHT), sourceDefinition, FixedDocumentIdSource())
-        paint(runtime, LayerId.first(), listOf(0 to 1, 1 to 2, 2 to 3, 3 to 0))
-        applied(runtime.execute(AddLayerCommand.create(runtime.captureSource(), LayerId.first())))
-        val layers = runtime.state.documentState.layers
-        paint(runtime, layers.last().id, listOf(0 to 3, 1 to 1, 3 to 2))
-        return runtime
-    }
-
-    private fun paint(
-        runtime: EditorRuntime,
-        layerId: LayerId,
-        cells: List<Pair<Int, Int>>,
-    ) {
-        cells.forEach { (cell, index) ->
-            val size = runtime.state.documentState.size
-            val stroke = stroke(size, listOf(cellPosition(cell)), paletteIndex(index))
-            applied(runtime.execute(ApplyStrokeCommand.create(runtime.captureSource(), layerId, stroke)))
+    private fun cellOf(
+        layer: Layer,
+        cell: Int,
+    ): PixelCell =
+        when (val result = layer.snapshot.cellAt(position(cell % WIDTH, cell / WIDTH))) {
+            is DomainValueResult.Created -> result.value
+            is DomainValueResult.Rejected -> fail("Fixture cell was rejected: ${result.rejection}")
         }
+
+    /** The packed RGBA8888 of a covered cell's source palette colour. */
+    private fun colorOf(cell: PixelCell): Int {
+        val covered = cell as? PixelCell.Covered ?: fail("Fixture cell is Empty")
+        val entry = sourceDefinition.palette.entries()[covered.index.value]
+        return entry.color.toPackedRgba8888()
     }
 
-    private fun cellPosition(cell: Int): PixelPosition = position(cell % WIDTH, cell / WIDTH)
-
-    private fun applied(result: CommandResult) {
-        assertInstanceOf(CommandResult.Applied::class.java, result)
-    }
-
-    private fun begin(runtime: EditorRuntime) {
-        assertInstanceOf(WorkspaceReductionResult.Reduced::class.java, runtime.paletteOperations.beginPaletteEdit())
-    }
-
-    private fun reduce(
-        runtime: EditorRuntime,
-        action: WorkspaceAction,
-    ) {
-        assertInstanceOf(WorkspaceReductionResult.Reduced::class.java, runtime.reduce(action))
-    }
-
-    private fun edit(operation: PaletteDraftOperation): WorkspaceAction = WorkspaceAction.EditPaletteDraft(operation)
+    private fun alphaOf(cell: PixelCell): Int = colorOf(cell) and OPAQUE
 
     private companion object {
-        const val WIDTH: Int = 3
-        const val HEIGHT: Int = 2
-        const val EMPTY_CELL: Int = 4
-        const val ALPHA_MASK: Int = 0xff
-        val black: PixelColor = color(0, 0, 0, 255)
-        val halfRed: PixelColor = color(255, 0, 0, 128)
-        val green: PixelColor = color(0, 255, 0, 255)
-        val quarterBlue: PixelColor = color(0, 0, 255, 64)
-        val opaqueBlue: PixelColor = color(0, 0, 255, 255)
-        val sourceDefinition = definition(paletteIndex(0), black, halfRed, green, quarterBlue)
-
-        fun color(
-            red: Int,
-            green: Int,
-            blue: Int,
-            alpha: Int,
-        ): PixelColor =
-            PixelColor.create(
-                red = ColorChannel.create(red).created(),
-                green = ColorChannel.create(green).created(),
-                blue = ColorChannel.create(blue).created(),
-                alpha = ColorChannel.create(alpha).created(),
-            )
-
-        fun <T> DomainValueResult<T>.created(): T =
-            when (this) {
-                is DomainValueResult.Created -> value
-                is DomainValueResult.Rejected -> fail("Test value was rejected: $rejection")
-            }
+        const val OPAQUE: Int = 0xff
     }
 }
-
-private class FixedDocumentIdSource : DocumentIdSource {
-    override fun nextDocumentId(): DocumentId =
-        when (val result = DocumentId.create("2".repeat(DOCUMENT_ID_LENGTH))) {
-            is DomainValueResult.Created -> result.value
-            is DomainValueResult.Rejected -> fail("Document ID fixture was rejected: ${result.rejection}")
-        }
-}
-
-private const val DOCUMENT_ID_LENGTH: Int = 32
