@@ -31,7 +31,8 @@ public class EditorRenderState internal constructor(
     public val paletteEditSession: PaletteEditSession?,
     public val paletteNotice: PaletteEditorNotice?,
     public val quickSelection: QuickSelection,
-    public val activeLayerId: LayerId,
+    internal val activeLayerId: LayerId,
+    internal val layerNotice: LayerNotice?,
 ) {
     public val palette: Palette
         get() = definition.palette
@@ -67,6 +68,7 @@ public class EditorRenderState internal constructor(
             paletteNotice,
             quickSelection,
             activeLayerId,
+            layerNotice,
         )
 
     override fun toString(): String =
@@ -75,7 +77,8 @@ public class EditorRenderState internal constructor(
             "preview=$preview, viewport=$viewport, " +
             "canUndo=$canUndo, canRedo=$canRedo, dirtyState=$dirtyState, appearance=$appearance, " +
             "actualSizeWindow=$actualSizeWindow, paletteEditSession=$paletteEditSession, " +
-            "paletteNotice=$paletteNotice, quickSelection=$quickSelection, activeLayerId=$activeLayerId)"
+            "paletteNotice=$paletteNotice, quickSelection=$quickSelection, activeLayerId=$activeLayerId, " +
+            "layerNotice=$layerNotice)"
 
     private companion object {
         const val INITIAL_HASH: Int = 1

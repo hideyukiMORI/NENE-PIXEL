@@ -18,9 +18,15 @@ internal class EditorRuntimeAdapter(
     /** The latest palette-editor notice; the palette route clears it on its next success (S6a, S6b). */
     var paletteNotice: PaletteEditorNotice? = null
 
+    /** The layer notice and its serials (#144 U6); a render state carries it only while it still holds. */
+    val layerNotices: LayerNoticeSlot = LayerNoticeSlot()
+
     fun reduce(action: WorkspaceAction): PointerInputAcknowledgement {
         val hadPreview = runtime.state.workspaceState.preview != null
         val reduction = runtime.reduce(action)
+        if (reduction is WorkspaceReductionResult.Rejected) {
+            layerNotices.recordCanvasRejection(reduction.rejection, runtime.state.documentState)
+        }
         val nextRenderState = createRenderState()
         return when (reduction) {
             is WorkspaceReductionResult.Reduced -> {
@@ -114,6 +120,7 @@ internal class EditorRuntimeAdapter(
             paletteNotice = paletteNotice,
             quickSelection = state.workspaceState.quickSelection,
             activeLayerId = state.workspaceState.activeLayerId,
+            layerNotice = layerNotices.validFor(state.documentState, state.workspaceState.activeLayerId),
         )
     }
 

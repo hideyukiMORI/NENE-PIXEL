@@ -33,6 +33,10 @@ internal object LayerGeometry {
     /** Room below the panel for the bottom-left quick-select control: 56dp control + 16dp margin + 16dp gap. */
     val QUICK_SELECT_CLEARANCE: Dp = 88.dp
 
+    /** The layer notice keeps the same 88dp from each side, clear of the quick-select control in either corner. */
+    val NOTICE_SIDE_MARGIN: Dp = QUICK_SELECT_CLEARANCE
+    val NOTICE_MAX_WIDTH: Dp = 360.dp
+
     /**
      * The chip's and the panel's corner is always the physical top left, whatever the control edge: the actual-size
      * window starts at the physical top right, so the two never meet (#144 U3r ruling 1). A right-to-left layout does

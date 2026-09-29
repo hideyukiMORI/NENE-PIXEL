@@ -1,14 +1,12 @@
 package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
-import io.github.hideyukimori.nenepixel.core.application.document.command.CommandResult
-import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReductionResult
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerName
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerVisibility
 import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestValues.fixture
 import io.github.hideyukimori.nenepixel.presentation.compose.requiredValue
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertInstanceOf
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Test
 
@@ -20,11 +18,10 @@ internal class EditorLayerCallbacksTest {
 
         val added = layers.onAdd()
 
-        val executed = assertInstanceOf(EditorLayerOutcome.Executed::class.java, added)
-        assertInstanceOf(CommandResult.Applied::class.java, executed.result)
-        assertEquals(listOf(layerId(2), LayerId.first()), layerRowsOf(added.renderState.document).map { it.id })
-        assertEquals(layerId(2), added.renderState.activeLayerId)
-        assertSame(added.renderState, fixture.controller.renderState)
+        assertNull(added.layerNotice)
+        assertEquals(listOf(layerId(2), LayerId.first()), layerRowsOf(added.document).map { it.id })
+        assertEquals(layerId(2), added.activeLayerId)
+        assertSame(added, fixture.controller.renderState)
     }
 
     @Test
@@ -35,10 +32,9 @@ internal class EditorLayerCallbacksTest {
 
         val selected = layers.onSelect(LayerId.first())
 
-        val reduced = assertInstanceOf(EditorLayerOutcome.Reduced::class.java, selected)
-        assertInstanceOf(WorkspaceReductionResult.Reduced::class.java, reduced.result)
-        assertEquals(LayerId.first(), selected.renderState.activeLayerId)
-        assertSame(selected.renderState, fixture.controller.renderState)
+        assertNull(selected.layerNotice)
+        assertEquals(LayerId.first(), selected.activeLayerId)
+        assertSame(selected, fixture.controller.renderState)
     }
 
     @Test
@@ -52,8 +48,7 @@ internal class EditorLayerCallbacksTest {
         layers.onRename(LayerId.first(), name)
         val moved = layers.onMove(LayerId.first(), 1)
 
-        val executed = assertInstanceOf(EditorLayerOutcome.Executed::class.java, moved)
-        assertInstanceOf(CommandResult.Applied::class.java, executed.result)
+        assertNull(moved.layerNotice)
         assertEquals(
             listOf(
                 LayerRowModel(LayerId.first(), name, LayerVisibility.Hidden),
@@ -70,11 +65,10 @@ internal class EditorLayerCallbacksTest {
 
         val refused = layers.onDelete(LayerId.first())
 
-        val executed = assertInstanceOf(EditorLayerOutcome.Executed::class.java, refused)
-        assertInstanceOf(CommandResult.Rejected::class.java, executed.result)
-        assertSame(fixture.initialDocument, refused.renderState.document)
+        assertEquals(LayerNotice.Kind.Failed, refused.layerNotice?.kind)
+        assertSame(fixture.initialDocument, refused.document)
         // An equal render state leaves the StateFlow's instance in place, so a refusal compares by value.
-        assertEquals(refused.renderState, fixture.controller.renderState)
+        assertEquals(refused, fixture.controller.renderState)
     }
 
     private fun layerId(value: Int): LayerId = LayerId.create(value).requiredValue()
