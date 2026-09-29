@@ -210,10 +210,17 @@ and compares two JSON files while allowing only the listed fields to differ. `co
 returns the bounding rectangle of the pixel difference between two PNGs and whether it lies inside a
 given rectangle. The design seat runs these directly and accepts on their actual output.
 
-## Keep development folders in the lab beside the repository
+## Keep development folders in the development lab
 
-Everything development needs outside the repository lives in one folder beside it, the development
-lab, named `NENE-PIXEL-LAB` (Issue #149). Its root holds the marker file `.nene-pixel-lab`.
+Everything development needs outside the repository lives in one folder, the development lab
+(Issue #149). The owner chooses its location; its root holds the marker file `.nene-pixel-lab`.
+
+The lab root must be short. Device collections pull files with `adb`, which cannot write a
+destination path longer than 259 characters, and the Baseline Profile producer output alone needs
+225 characters below the clone root. A clone root, `<lab>/clones/<name>/`, therefore stays within
+34 characters: keep the lab in a short folder directly under a drive root and name measurement and
+generation clones `n<Issue>` or `n<Issue>-baseline` / `n<Issue>-candidate`. Gradle itself builds
+in longer paths, so a successful build does not show that a location is short enough (Issue #151).
 
 | Folder | Holds | May it be deleted |
 | --- | --- | --- |
@@ -233,7 +240,9 @@ Rules:
 - Tracked scripts resolve the lab with `Get-NenePixelLabRoot` from
   `docs/quality/measurements/nene-pixel-lab.ps1`: the environment variable `NENE_PIXEL_LAB`, else the
   nearest ancestor directory holding `.nene-pixel-lab`, else the folder `NENE-PIXEL-LAB` beside the
-  repository. No tracked file names the lab by an absolute path.
+  repository. Clones and worktrees inside the lab find it through the marker; set `NENE_PIXEL_LAB`
+  for a script that runs from a repository outside the lab. No tracked file names the lab by an
+  absolute path.
 - Older evidence documents and recorded manifests keep the paths they were written with.
   [Evidence Locations](quality/EVIDENCE_LOCATIONS.md) maps those paths to the lab and lists the
   evidence that was lost before the move.

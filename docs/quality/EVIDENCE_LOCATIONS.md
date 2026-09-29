@@ -1,8 +1,10 @@
 # Evidence Locations
 
 Issue #149 (2026-09-29) moved every development clone, worktree and raw evidence directory into one
-folder beside the repository, the development lab (`NENE-PIXEL-LAB`, see
-[Development Setup](../DEVELOPMENT_SETUP.md)). This document is the single map from the locations
+folder, the development lab (see [Development Setup](../DEVELOPMENT_SETUP.md)). The lab was first
+created beside the repository as `NENE-PIXEL-LAB` and was copied the same day to a short path
+directly under a drive root, because device pulls fail beyond 259 characters (Issue #151); both
+moves kept every file byte-identical. This document is the single map from the locations
 that older evidence documents, handoffs and recorded manifests name to the current locations. Those
 older records are history and are not rewritten: read a path they name through this map.
 
