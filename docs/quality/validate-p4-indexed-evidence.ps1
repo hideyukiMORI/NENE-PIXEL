@@ -3,6 +3,7 @@ param()
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'measurements/p4-indexed-preflight.ps1')
+. (Join-Path $PSScriptRoot 'measurements/nene-pixel-lab.ps1')
 . (Join-Path $PSScriptRoot 'measurements/analyze-p4-indexed-slot.ps1') -ManifestPath fixture -SlotId fixture -OutputDirectory fixture
 
 function Assert-P4TestRejects {
@@ -109,8 +110,7 @@ function New-P4MutableCopy {
 # ---------------------------------------------------------------------------
 # S1. Device state is read from the real read-only device dumps, never invented.
 # ---------------------------------------------------------------------------
-$fixtureRoot = [IO.Path]::GetFullPath(
-    (Join-Path $PSScriptRoot '../../build/reports/issue-106/device-fixtures-20260915'))
+$fixtureRoot = Get-NenePixelLabPath 'evidence/106-indexed-cutover/issue-106/device-fixtures-20260915'
 if (-not (Test-Path -LiteralPath $fixtureRoot -PathType Container)) {
     throw "The read-only device fixtures are required for the device-state contract: $fixtureRoot"
 }
@@ -205,8 +205,8 @@ Assert-P4TestRejects {
 # ---------------------------------------------------------------------------
 # S7. Inventories are bound to the role clone's Git blobs and its real file system.
 # ---------------------------------------------------------------------------
-$candidateWorktree = 'C:/n120-candidate'
-$baselineWorktree = 'C:/n120-baseline'
+$candidateWorktree = Get-NenePixelLabPath "clones/n$($script:P4AgreementIssue)-candidate"
+$baselineWorktree = Get-NenePixelLabPath "clones/n$($script:P4AgreementIssue)-baseline"
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 if (Test-Path -LiteralPath $candidateWorktree -PathType Container) {
     # The candidate measurement build commit is whatever the clean clone is checked out at; a literal
@@ -953,8 +953,7 @@ foreach ($silent in $silentAsserts) {
 # ---------------------------------------------------------------------------
 # The reserved template, filled in, is what the contract actually accepts.
 # ---------------------------------------------------------------------------
-$templatePath = [IO.Path]::GetFullPath(
-    (Join-Path $PSScriptRoot '../../build/reports/issue-106/p4-preflight-template.json'))
+$templatePath = Get-NenePixelLabPath 'evidence/106-indexed-cutover/issue-106/p4-preflight-template.json'
 if (-not (Test-Path -LiteralPath $templatePath -PathType Leaf)) {
     throw "The reserved preflight template is required: $templatePath"
 }
