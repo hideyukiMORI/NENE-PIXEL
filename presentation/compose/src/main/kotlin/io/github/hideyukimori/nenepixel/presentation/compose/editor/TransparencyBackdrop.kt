@@ -14,7 +14,8 @@ import kotlin.math.roundToInt
  * Display-only checkerboard drawn under the picture so transparent pixels are visible (ADR 0026,
  * Issue #147). One 2x2-cell bitmap is repeated by a [BitmapShader] and one rectangle is filled per
  * draw. The bitmap, shader, [Paint] and [Matrix] are kept until the cell size in pixels changes, so
- * a frame allocates nothing.
+ * a frame allocates nothing. The shader's local matrix is set again only when the origin moves, so
+ * a stroke on a still view leaves the shader untouched.
  */
 internal class TransparencyBackdrop {
     private val paint: Paint =
@@ -25,6 +26,8 @@ internal class TransparencyBackdrop {
         }
     private val localMatrix: Matrix = Matrix()
     private var shaderCellPx: Int = 0
+    private var originLeft: Float = Float.NaN
+    private var originTop: Float = Float.NaN
 
     /**
      * Fills [area] once with the checkerboard whose top-left cell (light) starts at the top-left
@@ -38,9 +41,14 @@ internal class TransparencyBackdrop {
         if (shaderCellPx != cellPx) {
             paint.shader = BitmapShader(tile(cellPx), Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
             shaderCellPx = cellPx
+            originLeft = Float.NaN
         }
-        localMatrix.setTranslate(area.left, area.top)
-        paint.shader.setLocalMatrix(localMatrix)
+        if (originLeft != area.left || originTop != area.top) {
+            originLeft = area.left
+            originTop = area.top
+            localMatrix.setTranslate(originLeft, originTop)
+            paint.shader.setLocalMatrix(localMatrix)
+        }
         canvas.drawRect(area, paint)
     }
 
