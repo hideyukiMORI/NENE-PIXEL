@@ -7,4 +7,5 @@ public data class PersistencePorts(
     public val pngExport: PngExportPort,
     public val paletteJsonExport: PaletteJsonExportPort,
     public val paletteJsonImport: PaletteJsonImportPort,
+    public val referenceImage: ReferenceImagePort,
 )

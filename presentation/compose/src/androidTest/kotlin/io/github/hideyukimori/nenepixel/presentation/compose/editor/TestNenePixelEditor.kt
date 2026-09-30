@@ -24,6 +24,8 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryIns
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryPublicationOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRecordPort
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRetirementOutcome
+import io.github.hideyukimori.nenepixel.core.application.persistence.ReferenceImageOutcome
+import io.github.hideyukimori.nenepixel.core.application.persistence.ReferenceImagePort
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.document.LegacyRgbaSource
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
@@ -40,10 +42,11 @@ internal fun TestNenePixelEditor(
     presets: LegacyPalettePresets? = null,
     recoveryRecord: RecoveryRecordPort? = null,
     paletteJson: TestPaletteJsonPorts = TestPaletteJsonPorts(),
+    referenceImage: ReferenceImagePort = ReferenceImagePort { ReferenceImageOutcome.Cancelled },
 ) {
     val scope = rememberCoroutineScope()
     val persistence =
-        remember(controller, scope, projectStorage, presets, paletteJson) {
+        remember(controller, scope, projectStorage, presets, paletteJson, referenceImage) {
             TestPersistenceHost(
                 controller,
                 scope,
@@ -51,6 +54,7 @@ internal fun TestNenePixelEditor(
                 presets ?: defaultPresets(controller),
                 recoveryRecord ?: TestRecoveryRecordPort(),
                 paletteJson,
+                referenceImage,
             )
         }
     LaunchedEffect(persistence) { persistence.initialize() }
@@ -91,6 +95,7 @@ private class TestPersistenceHost(
     presets: LegacyPalettePresets,
     recovery: RecoveryRecordPort,
     paletteJson: TestPaletteJsonPorts,
+    referenceImage: ReferenceImagePort,
 ) {
     val workflow =
         EditorPersistenceWorkflow.create(
@@ -103,6 +108,7 @@ private class TestPersistenceHost(
                 },
                 paletteJson.export,
                 paletteJson.import,
+                referenceImage,
             ),
             Dispatchers.Unconfined,
         )
@@ -114,6 +120,7 @@ private class TestPersistenceHost(
                         exportPng = {},
                         exportPaletteJson = { complete { workflow.paletteJson.export() } },
                         importPaletteJson = { complete { workflow.paletteJson.import() } },
+                        pickReferenceImage = { complete { workflow.referenceImage.pick() } },
                     ),
                 saveAs = { complete { workflow.saveAs() } },
                 load = { complete { workflow.load() } },

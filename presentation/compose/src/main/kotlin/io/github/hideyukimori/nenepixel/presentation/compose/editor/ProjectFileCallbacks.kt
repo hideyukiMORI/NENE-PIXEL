@@ -9,9 +9,13 @@ public class ProjectFileCallbacks(
     internal val createNewDocument: (NewDocumentRequestResult) -> Unit,
 )
 
-/** Files exchanged beside the project file: the PNG export and the palette JSON export / import (ADR 0022). */
+/**
+ * Files exchanged beside the project file: the PNG export and the palette JSON export / import (ADR 0022),
+ * and the reference image picked to show under the drawing (ADR 0032).
+ */
 public class FileExchangeCallbacks(
     internal val exportPng: () -> Unit,
     internal val exportPaletteJson: () -> Unit,
     internal val importPaletteJson: () -> Unit,
+    internal val pickReferenceImage: () -> Unit,
 )

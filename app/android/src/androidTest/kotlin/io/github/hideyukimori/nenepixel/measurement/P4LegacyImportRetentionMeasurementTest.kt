@@ -32,6 +32,8 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryIns
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryPublicationOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRecordPort
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRetirementOutcome
+import io.github.hideyukimori.nenepixel.core.application.persistence.ReferenceImageOutcome
+import io.github.hideyukimori.nenepixel.core.application.persistence.ReferenceImagePort
 import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentId
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentImportSource
@@ -205,6 +207,7 @@ private class P4LegacyImportRetentionWorkload {
                 P4CancelledPngExport(),
                 P4CancelledPaletteJsonExport(),
                 P4CancelledPaletteJsonImport(),
+                ReferenceImagePort { ReferenceImageOutcome.Cancelled },
             ),
             Dispatchers.Unconfined,
         )

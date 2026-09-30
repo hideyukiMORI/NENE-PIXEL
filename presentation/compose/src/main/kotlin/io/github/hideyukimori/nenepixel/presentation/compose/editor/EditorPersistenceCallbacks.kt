@@ -11,6 +11,9 @@ public class EditorPersistenceCallbacks private constructor(
     internal val conversion: LegacyConversionCallbacks,
     internal val presets: LegacyPalettePresets,
 ) {
+    /** Picks the reference image shown under the drawing (ADR 0032). */
+    internal val pickReferenceImage: () -> Unit = files.exchange.pickReferenceImage
+
     internal fun onExportPng() {
         files.exchange.exportPng()
     }

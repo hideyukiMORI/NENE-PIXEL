@@ -15,8 +15,6 @@ import org.junit.jupiter.api.fail
 
 /** ADR 0032: the pick outcomes and what each leaves on the workspace. */
 internal class ReferenceImageWorkflowTest {
-    private val port = FakeReferenceImagePort()
-
     @Test
     fun `picked image becomes the underlay fitted to the current document without touching it`() =
         runBlocking {
@@ -24,9 +22,9 @@ internal class ReferenceImageWorkflowTest {
             fixture.workflow.createNewDocument(newRequest(3, 2))
             val before = fixture.runtime.state
             val image = referenceImage(8, 4)
-            port.handler = { ReferenceImageOutcome.Picked(image) }
+            fixture.referenceImages.handler = { ReferenceImageOutcome.Picked(image) }
 
-            assertCompleted(PersistenceLastOutcome.ReferenceImagePicked, referenceImageWorkflow(fixture, port).pick())
+            assertCompleted(PersistenceLastOutcome.ReferenceImagePicked, fixture.workflow.referenceImage.pick())
 
             val after = fixture.runtime.state
             val underlay = after.workspaceState.underlay ?: fail("Underlay was not set")
@@ -38,7 +36,7 @@ internal class ReferenceImageWorkflowTest {
             assertEquals(before.dirtyState, after.dirtyState)
             assertEquals(PersistenceOperationPhase.Idle, fixture.workflow.operation.value.phase)
             assertEquals(PersistenceLastOutcome.ReferenceImagePicked, fixture.workflow.operation.value.lastOutcome)
-            assertEquals(1, port.calls)
+            assertEquals(1, fixture.referenceImages.calls)
         }
 
     @Test
@@ -51,9 +49,9 @@ internal class ReferenceImageWorkflowTest {
                     .withOpacity(UnderlayOpacity.create(10))
             fixture.runtime.reduce(WorkspaceAction.SetReferenceUnderlay(old))
             val image = referenceImage(4, 8)
-            port.handler = { ReferenceImageOutcome.Picked(image) }
+            fixture.referenceImages.handler = { ReferenceImageOutcome.Picked(image) }
 
-            assertCompleted(PersistenceLastOutcome.ReferenceImagePicked, referenceImageWorkflow(fixture, port).pick())
+            assertCompleted(PersistenceLastOutcome.ReferenceImagePicked, fixture.workflow.referenceImage.pick())
 
             assertEquals(ReferenceUnderlay.placed(image, canvas(4, 4)), fixture.runtime.state.workspaceState.underlay)
         }
@@ -63,9 +61,9 @@ internal class ReferenceImageWorkflowTest {
         runBlocking {
             val fixture = initializedFixture()
             val before = fixture.runtime.state
-            port.handler = { ReferenceImageOutcome.Cancelled }
+            fixture.referenceImages.handler = { ReferenceImageOutcome.Cancelled }
 
-            assertCompleted(PersistenceLastOutcome.Cancelled, referenceImageWorkflow(fixture, port).pick())
+            assertCompleted(PersistenceLastOutcome.Cancelled, fixture.workflow.referenceImage.pick())
 
             assertEquals(before, fixture.runtime.state)
             assertNull(fixture.runtime.state.workspaceState.underlay)
@@ -78,7 +76,7 @@ internal class ReferenceImageWorkflowTest {
             val fixture = initializedFixture()
             val existing = ReferenceUnderlay.placed(referenceImage(2, 2), canvas(4, 4))
             fixture.runtime.reduce(WorkspaceAction.SetReferenceUnderlay(existing))
-            val workflow = referenceImageWorkflow(fixture, port)
+            val workflow = fixture.workflow.referenceImage
             val reasons =
                 listOf(
                     ReferenceImageSourceRejection.TooManyBytes,
@@ -88,7 +86,7 @@ internal class ReferenceImageWorkflowTest {
 
             val failures =
                 reasons.map { reason ->
-                    port.handler = { ReferenceImageOutcome.Rejected(reason) }
+                    fixture.referenceImages.handler = { ReferenceImageOutcome.Rejected(reason) }
                     assertFailed(workflow.pick())
                 }
 
@@ -102,12 +100,14 @@ internal class ReferenceImageWorkflowTest {
         runBlocking {
             val fixture = initializedFixture()
             val before = fixture.runtime.state
-            port.handler = { ReferenceImageOutcome.Failed(ProjectStorageFailure.InvalidPickerResult) }
+            fixture.referenceImages.handler = {
+                ReferenceImageOutcome.Failed(ProjectStorageFailure.InvalidPickerResult)
+            }
 
             val failure =
                 assertInstanceOf(
                     PersistenceFailure.ReferenceImagePick::class.java,
-                    assertFailed(referenceImageWorkflow(fixture, port).pick()),
+                    assertFailed(fixture.workflow.referenceImage.pick()),
                 )
 
             assertEquals(ProjectStorageFailure.InvalidPickerResult, failure.failure)

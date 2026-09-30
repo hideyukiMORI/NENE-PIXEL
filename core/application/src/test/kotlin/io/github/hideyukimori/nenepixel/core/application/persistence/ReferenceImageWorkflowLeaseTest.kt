@@ -15,7 +15,6 @@ import org.junit.jupiter.api.Test
 
 /** ADR 0032: the pick shares the document-output lease, so busy, stale and cancel follow it. */
 internal class ReferenceImageWorkflowLeaseTest {
-    private val port = FakeReferenceImagePort()
     private val image = referenceImage(8, 4)
 
     @Test
@@ -29,9 +28,9 @@ internal class ReferenceImageWorkflowLeaseTest {
             }
             val export = async(start = CoroutineStart.UNDISPATCHED) { fixture.workflow.exportPng() }
 
-            assertEquals(PersistenceRequestResult.Busy, referenceImageWorkflow(fixture, port).pick())
+            assertEquals(PersistenceRequestResult.Busy, fixture.workflow.referenceImage.pick())
 
-            assertEquals(0, port.calls)
+            assertEquals(0, fixture.referenceImages.calls)
             gate.complete(Unit)
             assertCompleted(PersistenceLastOutcome.PngExported, export.await())
             assertNull(fixture.runtime.state.workspaceState.underlay)
@@ -42,11 +41,11 @@ internal class ReferenceImageWorkflowLeaseTest {
         runBlocking {
             val fixture = initializedFixture()
             val gate = CompletableDeferred<Unit>()
-            port.handler = {
+            fixture.referenceImages.handler = {
                 gate.await()
                 ReferenceImageOutcome.Picked(image)
             }
-            val workflow = referenceImageWorkflow(fixture, port)
+            val workflow = fixture.workflow.referenceImage
             val pending = async(start = CoroutineStart.UNDISPATCHED) { workflow.pick() }
 
             assertInstanceOf(PersistenceOperationPhase.Exporting::class.java, fixture.workflow.operation.value.phase)
@@ -58,7 +57,7 @@ internal class ReferenceImageWorkflowLeaseTest {
             gate.complete(Unit)
 
             assertCompleted(PersistenceLastOutcome.ReferenceImagePicked, pending.await())
-            assertEquals(1, port.calls)
+            assertEquals(1, fixture.referenceImages.calls)
             assertEquals(ReferenceUnderlay.placed(image, canvas(4, 4)), fixture.runtime.state.workspaceState.underlay)
         }
 
@@ -113,11 +112,11 @@ internal class ReferenceImageWorkflowLeaseTest {
         runBlocking {
             val fixture = initializedFixture()
             val gate = CompletableDeferred<Unit>()
-            port.handler = {
+            fixture.referenceImages.handler = {
                 gate.await()
                 ReferenceImageOutcome.Picked(image)
             }
-            val pending = async(start = CoroutineStart.UNDISPATCHED) { referenceImageWorkflow(fixture, port).pick() }
+            val pending = async(start = CoroutineStart.UNDISPATCHED) { fixture.workflow.referenceImage.pick() }
             val phase =
                 assertInstanceOf(
                     PersistenceOperationPhase.Exporting::class.java,
@@ -136,18 +135,18 @@ internal class ReferenceImageWorkflowLeaseTest {
     fun `coroutine cancellation releases the lease without an underlay`() =
         runBlocking {
             val fixture = initializedFixture()
-            port.handler = {
+            fixture.referenceImages.handler = {
                 CompletableDeferred<Unit>().await()
                 ReferenceImageOutcome.Picked(image)
             }
-            val pending = async(start = CoroutineStart.UNDISPATCHED) { referenceImageWorkflow(fixture, port).pick() }
+            val pending = async(start = CoroutineStart.UNDISPATCHED) { fixture.workflow.referenceImage.pick() }
 
             pending.cancelAndJoin()
 
             assertEquals(PersistenceOperationPhase.Idle, fixture.workflow.operation.value.phase)
             assertEquals(PersistenceLastOutcome.Cancelled, fixture.workflow.operation.value.lastOutcome)
             assertNull(fixture.runtime.state.workspaceState.underlay)
-            port.handler = { ReferenceImageOutcome.Picked(image) }
-            assertCompleted(PersistenceLastOutcome.ReferenceImagePicked, referenceImageWorkflow(fixture, port).pick())
+            fixture.referenceImages.handler = { ReferenceImageOutcome.Picked(image) }
+            assertCompleted(PersistenceLastOutcome.ReferenceImagePicked, fixture.workflow.referenceImage.pick())
         }
 }
