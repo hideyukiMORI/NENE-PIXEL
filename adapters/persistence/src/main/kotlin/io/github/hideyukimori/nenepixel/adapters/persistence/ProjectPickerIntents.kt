@@ -22,6 +22,11 @@ public object ProjectPickerIntents {
         Intent(Intent.ACTION_OPEN_DOCUMENT)
             .addCategory(Intent.CATEGORY_OPENABLE)
             .setType(request.format.mimeType())
+            .also { intent ->
+                if (request.format == DocumentOutputFormat.REFERENCE_IMAGE) {
+                    intent.putExtra(Intent.EXTRA_MIME_TYPES, REFERENCE_IMAGE_MIME_TYPES.toTypedArray())
+                }
+            }
 
     public fun parseResult(
         resultCode: Int,
@@ -40,22 +45,29 @@ public object ProjectPickerIntents {
             ProjectPickerResult.Selected(this)
         }
 
-    private fun DocumentCreationRequest.filename(): String {
-        val extension =
-            when (format) {
-                DocumentOutputFormat.PROJECT -> ".nenepixel"
-                DocumentOutputFormat.PNG -> ".png"
-                DocumentOutputFormat.PALETTE_JSON -> ".nenepalette.json"
-            }
-        return if (suggestedName.endsWith(extension, ignoreCase = true)) suggestedName else suggestedName + extension
-    }
+    private fun DocumentCreationRequest.filename(): String =
+        when (format) {
+            DocumentOutputFormat.PROJECT -> withExtension(".nenepixel")
+            DocumentOutputFormat.PNG -> withExtension(".png")
+            DocumentOutputFormat.PALETTE_JSON -> withExtension(".nenepalette.json")
+            DocumentOutputFormat.REFERENCE_IMAGE -> REFERENCE_IMAGE_FILENAME
+        }
+
+    private fun DocumentCreationRequest.withExtension(extension: String): String =
+        if (suggestedName.endsWith(extension, ignoreCase = true)) suggestedName else suggestedName + extension
 
     private fun DocumentOutputFormat.mimeType(): String =
         when (this) {
             DocumentOutputFormat.PROJECT -> PROJECT_MIME_TYPE
             DocumentOutputFormat.PNG -> "image/png"
             DocumentOutputFormat.PALETTE_JSON -> "application/json"
+            DocumentOutputFormat.REFERENCE_IMAGE -> "image/*"
         }
 
     private const val PROJECT_MIME_TYPE: String = "application/octet-stream"
+
+    /** Open only; never used to create a document. */
+    private const val REFERENCE_IMAGE_FILENAME: String = "reference"
+
+    private val REFERENCE_IMAGE_MIME_TYPES: List<String> = listOf("image/png", "image/jpeg", "image/webp")
 }

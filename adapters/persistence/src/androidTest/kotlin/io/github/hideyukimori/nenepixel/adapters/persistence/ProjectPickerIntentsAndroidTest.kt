@@ -6,6 +6,7 @@ import android.net.Uri
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectStorageFailure
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -72,6 +73,26 @@ public class ProjectPickerIntentsAndroidTest {
         assertEquals(Intent.ACTION_OPEN_DOCUMENT, intent.action)
         assertEquals("application/json", intent.type)
         assertTrue(intent.categories?.contains(Intent.CATEGORY_OPENABLE) == true)
+    }
+
+    @Test
+    public fun referenceImageOpenIntentOffersPngJpegAndWebp() {
+        val intent = ProjectPickerIntents.openDocument(DocumentOpenRequest(DocumentOutputFormat.REFERENCE_IMAGE))
+
+        assertEquals(Intent.ACTION_OPEN_DOCUMENT, intent.action)
+        assertEquals("image/*", intent.type)
+        assertTrue(intent.categories?.contains(Intent.CATEGORY_OPENABLE) == true)
+        assertEquals(
+            listOf("image/png", "image/jpeg", "image/webp"),
+            intent.getStringArrayExtra(Intent.EXTRA_MIME_TYPES)?.toList(),
+        )
+    }
+
+    @Test
+    public fun nonImageOpenIntentHasNoExtraMimeTypes() {
+        val intent = ProjectPickerIntents.openDocument(DocumentOpenRequest(DocumentOutputFormat.PALETTE_JSON))
+
+        assertNull(intent.getStringArrayExtra(Intent.EXTRA_MIME_TYPES))
     }
 
     @Test
