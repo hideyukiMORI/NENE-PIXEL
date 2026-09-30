@@ -24,4 +24,8 @@ public sealed interface WorkspaceNoChangeReason {
     public data object EyedropperAlreadyIdle : WorkspaceNoChangeReason
 
     public data object ActiveLayerAlreadySelected : WorkspaceNoChangeReason
+
+    public data object ReferenceUnderlayAlreadySet : WorkspaceNoChangeReason
+
+    public data object NoReferenceUnderlay : WorkspaceNoChangeReason
 }
