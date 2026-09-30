@@ -43,7 +43,8 @@ committed bitmap. No document meaning, command, or persisted payload changes.
   re-applies it to the new owners. `ActualSizeWindow.initial` is hidden, `X2`, anchored at the
   physical top-right corner (`WindowAnchor.topRight`).
 - The committed bitmap cache moves out of `PixelCanvas` into one presentation-owned
-  `CommittedBitmapCache` keyed by `(document, definition)`. The bitmap keeps the alpha of the
+  `CommittedBitmapCache` keyed by `(document, definition, palette edit session)`, the session being
+  the draft preview of ADR 0022 (Issue #148) or none. The bitmap keeps the alpha of the
   Composite; no background colour is a rendering input, because the transparency backdrop is drawn
   beneath the bitmap by the display layer (amended 2026-09-30, Issue #147, see "Transparency
   backdrop"). One instance is remembered by the work area and passed to both the canvas and the
@@ -140,8 +141,9 @@ information with no second construction route.
   into an internal `EditorViewportCallbacks` reached through one property. The public module API and
   the constructor signature are unchanged. Splitting the remaining callbacks by concern is a separate
   change with its own Issue, not a condition of this one.
-- `CommittedBitmapCache` keys the document and definition by identity: a structurally equal but
-  freshly allocated document rebuilds the bitmap. That is correct but not
+- `CommittedBitmapCache` keys the document, the definition and the palette edit session by identity:
+  a structurally equal but freshly allocated document rebuilds the bitmap. The window compares its
+  inputs the same way, so the canvas and the window always ask for the same bitmap. That is correct but not
   minimal, and the window shares the same instance, so it inherits the same behaviour.
 - `WorkspaceState.hashCode` allocates a `List` per call. It is not on a drawing path, and the shape
   matches `EditorRenderState`; a leaner form would be a separate, measured change.

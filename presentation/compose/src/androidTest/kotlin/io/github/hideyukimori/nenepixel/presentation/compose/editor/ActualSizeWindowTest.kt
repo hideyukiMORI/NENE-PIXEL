@@ -326,7 +326,7 @@ internal class ActualSizeWindowTest {
         source: WindowSource,
     ) {
         val render = controller.renderState
-        val expected = CommittedBitmapCache().render(render.document, render.definition)
+        val expected = CommittedBitmapCache().render(render.document, render.definition, null)
         val image = composeRule.onNodeWithTag(CONTENT_TAG).captureToImage().toPixelMap()
         val centre = expected.getPixel(source.left, source.top)
         assertEquals(TransparencyExpectation.shown(centre, backdropAt(0, 0)), image[0, 0].toArgb())
@@ -353,7 +353,7 @@ internal class ActualSizeWindowTest {
         scale: ActualSizeScale,
     ): WindowSource {
         val render = controller.renderState
-        val expected = CommittedBitmapCache().render(render.document, render.definition)
+        val expected = CommittedBitmapCache().render(render.document, render.definition, null)
         val factor = scale.devicePixelsPerCell
         val image = composeRule.onNodeWithTag(CONTENT_TAG).captureToImage().toPixelMap()
         assertEquals("Content width at $scale must be whole cells", 0, image.width % factor)
@@ -376,7 +376,7 @@ internal class ActualSizeWindowTest {
         source: WindowSource,
     ): Set<Int> {
         val render = controller.renderState
-        val expected = CommittedBitmapCache().render(render.document, render.definition)
+        val expected = CommittedBitmapCache().render(render.document, render.definition, null)
         return buildSet {
             repeat(source.rows) { y ->
                 repeat(source.columns) { x -> add(expected.getPixel(source.left + x, source.top + y)) }

@@ -101,6 +101,20 @@ it is active, while app language/viewport can still change. Cancelling drops the
 External changes invalidate its token rather than silently rebasing; Undo back to the exact base
 position is equivalent, a replacement branch is not.
 
+The display shows that preview (amended 2026-09-30, Issue #148). While a session exists, the canvas
+and the actual-size window draw the Composite of the unchanged document in which every original
+palette index takes the colour of the draft entry that the session's composed mapping leads to, so
+the picture equals the Composite of the document an Apply would produce. `:core:application` computes
+it, because the mapping stays inside the session. The presentation passes the session and keys its
+bitmap by the document and session references, so one change of the session (a draft edit, its undo
+or redo, or a step of a pending import) rebuilds the bitmap once and no frame does. A pending
+import is shown only after it is confirmed into the draft. When the document's palette is not the
+palette the session started from, the display falls back to the document's own palette. The
+palette editor panel stays modal, but it does not darken the work area: while that panel is open,
+the layer beside it that takes the pointers is transparent and the panel's window does not dim
+what is behind it, so the preview keeps the colours an Apply would produce. The other panels keep
+their scrim and dim.
+
 Apply validates the complete source token and mapping before allocation/commit and executes one
 ReplacePaletteCommand. Pixel indices, palette/default, recorded revisions, history entry, workspace
 selection reconciliation, preview removal, invalidation and autosave capture commit atomically.

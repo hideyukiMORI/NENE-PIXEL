@@ -134,7 +134,7 @@ internal class StrokePreviewBitmapTest {
 
         fun committedPixels(): IntArray {
             val document = runtime.state.documentState
-            return CommittedBitmapCache().render(document, document.definition).pixels()
+            return CommittedBitmapCache().render(document, document.definition, null).pixels()
         }
     }
 

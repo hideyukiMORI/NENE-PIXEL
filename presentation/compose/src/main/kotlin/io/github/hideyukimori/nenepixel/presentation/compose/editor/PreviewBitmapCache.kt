@@ -31,7 +31,7 @@ internal class PreviewBitmapCache {
         committed: CommittedBitmapCache,
     ): Bitmap? =
         state.preview?.let { preview ->
-            val committedBitmap = committed.render(state.document, state.definition)
+            val committedBitmap = committed.render(state.document, state.definition, state.paletteEditSession)
             val target = rasterFor(state.document.size.width.value, state.document.size.height.value)
             if (base !== committedBitmap) {
                 base = committedBitmap

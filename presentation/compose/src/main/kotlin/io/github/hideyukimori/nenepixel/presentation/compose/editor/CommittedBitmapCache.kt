@@ -5,13 +5,17 @@ import android.graphics.Paint
 import io.github.hideyukimori.nenepixel.core.application.render.DocumentComposite
 import io.github.hideyukimori.nenepixel.core.application.render.DocumentCompositeImage
 import io.github.hideyukimori.nenepixel.core.application.render.DocumentCompositeRenderResult
+import io.github.hideyukimori.nenepixel.core.application.render.PaletteDraftComposite
+import io.github.hideyukimori.nenepixel.core.application.render.PaletteDraftCompositeResult
+import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteEditSession
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 
 /**
  * One disposable rendering of the committed document shared by the canvas and the actual-size
  * window (ADR 0026). It is derived state keyed by every rendering input, never a second owner of
- * document semantics (QLT-016).
+ * document semantics (QLT-016). While a palette edit session is open the picture is the one its
+ * draft would give once applied (ADR 0022); the document itself is unchanged.
  */
 internal class CommittedBitmapCache {
     /** Nearest-neighbour pixel paint: exact integer multiples, no interpolation, at any scale. */
@@ -24,18 +28,24 @@ internal class CommittedBitmapCache {
 
     private var source: DocumentState? = null
     private var sourceDefinition: PaletteDefinition? = null
+    private var sourceSession: PaletteEditSession? = null
     private var rendered: Bitmap? = null
     private var renderedArgb: IntArray? = null
 
-    /** The committed picture with its alpha; rebuilt only when the document or definition reference changes. */
+    /**
+     * The committed picture with its alpha, or the draft's picture while [session] is open; rebuilt
+     * only when the document, definition or session reference changes.
+     */
     fun render(
         document: DocumentState,
         definition: PaletteDefinition,
+        session: PaletteEditSession?,
     ): Bitmap {
-        if (source !== document || sourceDefinition !== definition) {
+        if (source !== document || sourceDefinition !== definition || sourceSession !== session) {
             source = document
             sourceDefinition = definition
-            val argb = composite(document, definition).toStraightArgb()
+            sourceSession = session
+            val argb = composite(document, definition, session).toStraightArgb()
             renderedArgb = argb
             val size = document.size
             rendered = Bitmap.createBitmap(argb, size.width.value, size.height.value, Bitmap.Config.ARGB_8888)
@@ -51,6 +61,23 @@ internal class CommittedBitmapCache {
     }
 
     private fun composite(
+        document: DocumentState,
+        definition: PaletteDefinition,
+        session: PaletteEditSession?,
+    ): DocumentCompositeImage =
+        session?.let { draftComposite(document, it) } ?: committedComposite(document, definition)
+
+    /** The draft's picture, or `null` when the document's palette is not the one the session started from. */
+    private fun draftComposite(
+        document: DocumentState,
+        session: PaletteEditSession,
+    ): DocumentCompositeImage? =
+        when (val result = PaletteDraftComposite.render(document, session)) {
+            is PaletteDraftCompositeResult.Rendered -> result.image
+            PaletteDraftCompositeResult.SourceMismatch -> null
+        }
+
+    private fun committedComposite(
         document: DocumentState,
         definition: PaletteDefinition,
     ): DocumentCompositeImage =
