@@ -72,6 +72,11 @@
     <string name="png_exported">PNG exported</string>
     <string name="palette_json_exported">Palette JSON exported</string>
     <string name="palette_json_imported">Palette JSON imported</string>
+    <string name="underlay_picked">Underlay image loaded</string>
+    <string name="underlay_pick_failed">Could not load the underlay image</string>
+    <string name="underlay_too_many_bytes">The image file is too large (up to 16 MB)</string>
+    <string name="underlay_too_many_pixels">The image has too many pixels</string>
+    <string name="underlay_unsupported">This image format is not supported (PNG, JPEG, WebP)</string>
     <string name="project_saved">Project saved</string>
     <string name="project_loaded">Project loaded</string>
     <string name="new_document_created">New document created</string>

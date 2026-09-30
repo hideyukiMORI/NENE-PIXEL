@@ -72,6 +72,11 @@
     <string name="png_exported">PNGを書き出しました</string>
     <string name="palette_json_exported">パレットJSONを書き出しました</string>
     <string name="palette_json_imported">パレットJSONを読み込みました</string>
+    <string name="underlay_picked">下敷きの画像を読み込みました</string>
+    <string name="underlay_pick_failed">下敷きの画像を読み込めませんでした</string>
+    <string name="underlay_too_many_bytes">画像のファイルが大きすぎます（16 MB まで）</string>
+    <string name="underlay_too_many_pixels">画像の画素数が大きすぎます</string>
+    <string name="underlay_unsupported">この形式の画像は使えません（PNG、JPEG、WebP）</string>
     <string name="project_saved">プロジェクトを保存しました</string>
     <string name="project_loaded">プロジェクトを読み込みました</string>
     <string name="new_document_created">新しい作品を作成しました</string>
