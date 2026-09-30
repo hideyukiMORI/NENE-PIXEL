@@ -148,6 +148,8 @@ Owns behavior coordination:
 - bounded linear history, entry/change/logical-byte eviction, exact-position undo/redo, and clean-checkpoint coordination
 - query projections
 - workspace-owned session appearance, with Compose-only panel visibility and scroll/focus mechanics (ADR 0020)
+- the workspace-owned reference underlay: bounded immutable image, document-pixel placement and
+  the adjust arithmetic over the one viewport transform (ADR 0032)
 - ports for persistence, clocks, identifiers, and future external effects
 - private immutable save capture/candidate, runtime/operation identity, checked completion, and the
   one loaded/recovered runtime-install protocol
@@ -195,8 +197,8 @@ default semantics. No parallel tool-color list or raw JSON node crosses a public
 
 The #106 indexed cutover changes document ownership and all consumers together. Legacy RGBA import
 is bounded uninstalled input with a typed lossless/conversion-required outcome, never an alternative
-editable runtime. Future frames, tiles/maps and reference images use the boundaries in ADR 0022;
-no empty module or unused frame API is introduced by palette preparation.
+editable runtime. Future frames and tiles/maps use the boundaries in ADR 0022; the reference
+underlay uses ADR 0032. No empty module or unused frame API is introduced by palette preparation.
 
 ### `:presentation:compose`
 
@@ -219,7 +221,9 @@ document transition logic.
 
 ### `:adapters:persistence`
 
-Implements application ports for project storage, recovery, and PNG export (ADR 0019). The internal
+Implements application ports for project storage, recovery, and PNG export (ADR 0019), and the
+reference-image port of ADR 0032: the open-document picker for PNG, JPEG and WebP, a bounded read,
+platform decoding to at most 1024 x 1024 straight RGBA8888 pixels and typed rejection. The internal
 PNG encoder resolves the supplied immutable document's indices through its palette; PNG, project
 Save As and exact legacy-source copying share one typed
 fresh-destination picker and verified writer. It depends directly on application,

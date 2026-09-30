@@ -210,7 +210,8 @@ The document palette is shared by future frames; palette changes affect all fram
 are stable references independent of order/filename, and a future manifest can expose directory-like
 exports without making sequence filenames the editable identity. Tiles/maps reference stable assets
 and frames. No empty frame/layer/map arrays, dummy module or unused public frame API is added now.
-Reference-image pixels remain a separate source with display opacity. Temporarily dimming/hiding all
+Reference-image pixels remain a separate source with display opacity
+([ADR 0032](0032-reference-underlay.md) decides the reference underlay). Temporarily dimming/hiding all
 editable layers is workspace display state, never destruction of artwork or a palette member.
 Long-press selection uses a typed quick-menu context/action vocabulary extensible to color/tool/zoom;
 its first implementation stays separate from the indexed migration.

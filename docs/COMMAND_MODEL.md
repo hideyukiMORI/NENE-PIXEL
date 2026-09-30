@@ -38,6 +38,8 @@ Examples:
 - `SetAppearance`
 - `SetActualSizeWindow`
 - `SelectLayer`
+- `SetReferenceUnderlay`
+- `ClearReferenceUnderlay`
 
 If an editor fact must survive project save/load or participate in undo, it belongs to `DocumentState`.
 Other editor/session facts belong to `WorkspaceState`. A fact must never exist authoritatively in both.
@@ -51,6 +53,10 @@ ADR 0020 adds `WorkspaceAction.SetAppearance` for session theme, tablet layout a
 edge. `WorkspaceState.appearance` is the single owner; setting it cancels active preview atomically.
 By contrast the actual-size window is non-modal: `SetActualSizeWindow` keeps an in-progress preview
 (ADR 0026).
+The reference underlay of ADR 0032 is workspace state too: `SetReferenceUnderlay` keeps the preview,
+except that entering its adjust mode cancels the preview in the same reduction, because one pointer
+then moves the underlay instead of drawing. The underlay is undo-neutral, never saved, and cleared
+when another document is installed.
 Appearance is undo-neutral and preserved through new/load/recovery runtime installation via the
 reducer.
 Only a fresh process resets appearance to Dark/Tabletop/Right; project files never store it.
