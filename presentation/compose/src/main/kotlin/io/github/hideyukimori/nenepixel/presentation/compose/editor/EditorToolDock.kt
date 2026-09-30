@@ -183,6 +183,11 @@ private data class DockControl(
             EditorIcon.Settings,
             EditorIcon.Close,
             EditorIcon.Eyedropper,
+            EditorIcon.Layers,
+            EditorIcon.Visible,
+            EditorIcon.Hidden,
+            EditorIcon.Add,
+            EditorIcon.More,
             -> label
         }
 }

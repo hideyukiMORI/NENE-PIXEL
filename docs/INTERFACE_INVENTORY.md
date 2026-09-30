@@ -21,6 +21,7 @@ principle: understood at first sight, and used in every session.
 | always-visible | Palette button showing the active color | yes | always-visible | `EditorToolDock.kt`; opens the palette surface |
 | always-visible | Preview window toggle | yes | always-visible | `EditorToolDock.kt`; first sight: a preview-window icon labelled Preview, selected while the window is open; every session: checking the artwork at real size is part of every pixel-art session |
 | always-visible | Canvas drawing, zoom, pan | yes | always-visible | `PixelCanvas.kt`; grid visibility follows zoom and has no control |
+| always-visible | Layer chip showing the active layer name | yes | always-visible | `LayerChip.kt`; first sight: the active layer's name sits at the top corner of the work area, and pressing it opens the layer list; every session: switching the layer to draw on and checking the stacking with the eye icon, while only the name shows when the panel is closed |
 | always-visible | File button | yes | always-visible | `EditorScreen.kt` header; opens the file surface |
 | always-visible | Settings button | yes | always-visible | `EditorScreen.kt` header; opens the settings sheet |
 | always-visible | Application title text | no | move candidate: settings sheet | `EditorScreen.kt` header; identity, not an action |
@@ -42,7 +43,12 @@ principle: understood at first sight, and used in every session.
 | secondary: file surface | About this version | no | secondary | `MvpInformationControls.kt` |
 | secondary: palette surface | Palette entry grid and entry count | no | secondary reached from a primary control | `PaletteControls.kt`; the primary action is the dock palette button |
 | secondary: actual-size window | Window drag and scale cycling, shown by the top grip handle and the trailing scale chip | no | secondary reached from a primary control | `ActualSizeWindowOverlay.kt`; the primary action is the dock toggle, placement and scale stay on the window itself; the handle starts a move and the chip is a Role.Button that cycles the scale (ADR 0026 amendment #126) |
+| secondary: layer panel | Layer rows with select and visibility toggle | no | secondary reached from a primary control | `LayerPanelRows.kt`, `LayerRow.kt`; the primary action is the layer chip; tapping a row makes it the active layer, and the eye icon toggles visibility |
+| secondary: layer panel | Row more menu with Rename, Move up, Move down, and Delete | no | secondary | `LayerRowMenu.kt`; an item is disabled when its move or delete is not possible |
+| secondary: layer panel | Add layer | no | secondary | `LayerPanelAddRow.kt`; stays below the scrolling rows; disabled with a limit line at 16 layers |
 | secondary: dialog | Discard-current confirmation | no | secondary | `PersistenceControls.kt`; shown only during a confirmed document switch |
+| secondary: dialog | Layer rename | no | secondary | `LayerRenameDialog.kt`; opened from the row more menu |
+| secondary: transient | Layer notice | no | secondary | `LayerNoticeHost.kt`; transient; it offers Undo after a delete and Show after an attempt to draw on a hidden layer; the dock Undo and the panel visibility toggle keep both actions after it disappears |
 
 ## Move candidates
 

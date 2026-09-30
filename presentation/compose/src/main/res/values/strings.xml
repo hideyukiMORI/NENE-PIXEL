@@ -112,7 +112,7 @@
     <string name="mvp_information">About this version</string>
     <string name="close_information">Close</string>
     <string name="mvp_scope_title">Drawing</string>
-    <string name="mvp_scope">An offline editor for one frame and one layer. Width and height range (pixels): %1$d–%2$d. Choose colors from the document palette. You can edit the palette and export or import it as JSON. Layers, animation and PNG import are not available yet.</string>
+    <string name="mvp_scope">An offline editor for one frame. Width and height range (pixels): %1$d–%2$d. Choose colors from the document palette. You can edit the palette and export or import it as JSON. Animation and PNG import are not available yet.</string>
     <string name="mvp_save_title">Save As</string>
     <string name="mvp_save">Each save creates a new project file. Existing files are never overwritten. Keep a .nenepixel file to continue editing. A failed save may leave a newly created incomplete file; storage-provider or cloud failures can still affect saved files later.</string>
     <string name="mvp_history_title">Undo and reopening</string>
@@ -209,4 +209,40 @@
     <string name="quick_select_state_eyedropper">Eyedropper ready</string>
     <string name="quick_select_slot">Palette color %1$d</string>
     <string name="quick_select_eyedropper">Eyedropper</string>
+    <string name="layers">Layers</string>
+    <string name="layer_default_name">Layer %1$d</string>
+    <string name="layer_count">%1$d / %2$d</string>
+    <string name="layer_count_description">%1$d of %2$d</string>
+    <string name="layer_chip">Open layers</string>
+    <string name="layer_chip_state">Current layer: %1$s</string>
+    <string name="layer_chip_state_hidden">Current layer: %1$s, hidden</string>
+    <string name="layer_panel_close">Close layers</string>
+    <string name="layer_row">%1$s</string>
+    <string name="layer_row_state_current">Drawing target</string>
+    <string name="layer_show">Show %1$s</string>
+    <string name="layer_hide">Hide %1$s</string>
+    <string name="layer_more">More actions for %1$s</string>
+    <string name="layer_rename">Rename</string>
+    <string name="layer_move_up">Move up</string>
+    <string name="layer_move_down">Move down</string>
+    <string name="layer_delete">Delete</string>
+    <string name="layer_add">Add layer</string>
+    <plurals name="layer_limit">
+        <item quantity="one">A picture can have up to %1$d layer</item>
+        <item quantity="other">A picture can have up to %1$d layers</item>
+    </plurals>
+    <string name="layer_notice_deleted">Layer deleted</string>
+    <string name="layer_notice_undo">Undo</string>
+    <string name="layer_notice_hidden">You can\'t draw on a hidden layer</string>
+    <string name="layer_notice_show">Show</string>
+    <string name="layer_notice_busy">Wait until saving or loading finishes</string>
+    <string name="layer_notice_failed">The layers could not be changed. Try again</string>
+    <string name="layer_rename_title">Layer name</string>
+    <string name="layer_rename_hint">Leave empty to show “%1$s”</string>
+    <string name="layer_rename_confirm">Rename</string>
+    <plurals name="layer_rename_too_long">
+        <item quantity="one">Use %1$d character or fewer</item>
+        <item quantity="other">Use %1$d characters or fewer</item>
+    </plurals>
+    <string name="layer_rename_invalid">Remove line breaks and other control characters</string>
 </resources>

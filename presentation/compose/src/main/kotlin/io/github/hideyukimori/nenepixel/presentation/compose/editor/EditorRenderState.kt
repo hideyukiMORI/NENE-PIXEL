@@ -10,6 +10,7 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.View
 import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
+import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
@@ -30,6 +31,8 @@ public class EditorRenderState internal constructor(
     public val paletteEditSession: PaletteEditSession?,
     public val paletteNotice: PaletteEditorNotice?,
     public val quickSelection: QuickSelection,
+    internal val activeLayerId: LayerId,
+    internal val layerNotice: LayerNotice?,
 ) {
     public val palette: Palette
         get() = definition.palette
@@ -64,6 +67,8 @@ public class EditorRenderState internal constructor(
             paletteEditSession,
             paletteNotice,
             quickSelection,
+            activeLayerId,
+            layerNotice,
         )
 
     override fun toString(): String =
@@ -72,7 +77,8 @@ public class EditorRenderState internal constructor(
             "preview=$preview, viewport=$viewport, " +
             "canUndo=$canUndo, canRedo=$canRedo, dirtyState=$dirtyState, appearance=$appearance, " +
             "actualSizeWindow=$actualSizeWindow, paletteEditSession=$paletteEditSession, " +
-            "paletteNotice=$paletteNotice, quickSelection=$quickSelection)"
+            "paletteNotice=$paletteNotice, quickSelection=$quickSelection, activeLayerId=$activeLayerId, " +
+            "layerNotice=$layerNotice)"
 
     private companion object {
         const val INITIAL_HASH: Int = 1
