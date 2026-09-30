@@ -121,6 +121,7 @@ internal class EditorRuntimeAdapter(
             quickSelection = state.workspaceState.quickSelection,
             activeLayerId = state.workspaceState.activeLayerId,
             layerNotice = layerNotices.validFor(state.documentState, state.workspaceState.activeLayerId),
+            underlay = state.workspaceState.underlay,
         )
     }
 
