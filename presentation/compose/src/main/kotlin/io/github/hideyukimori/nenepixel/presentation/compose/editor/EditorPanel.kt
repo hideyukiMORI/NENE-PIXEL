@@ -19,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
@@ -48,7 +49,7 @@ internal fun EditorPanelSurface(
             Box(
                 Modifier
                     .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.45f))
+                    .background(placement.panel.scrimColor(MaterialTheme.colorScheme.scrim))
                     .clickable(onClick = dismiss)
                     .editorDescription(R.string.dismiss_panel),
             )
@@ -96,6 +97,13 @@ private fun EditorPanelPlacement.alignment(): Alignment =
         EditorControlEdge.Right -> AbsoluteAlignment.CenterRight
     }
 
+/** Issue #148: the palette editor leaves the canvas undimmed so the draft colours read true. */
+private fun EditorPanel.scrimColor(scrim: Color): Color =
+    when (this) {
+        EditorPanel.PaletteEditor -> Color.Transparent
+        EditorPanel.Palette, EditorPanel.File, EditorPanel.Appearance -> scrim.copy(alpha = PANEL_SCRIM_ALPHA)
+    }
+
 private fun EditorPanel.titleResource(): Int =
     when (this) {
         EditorPanel.Palette -> R.string.palette
@@ -103,3 +111,5 @@ private fun EditorPanel.titleResource(): Int =
         EditorPanel.File -> R.string.file
         EditorPanel.Appearance -> R.string.appearance
     }
+
+private const val PANEL_SCRIM_ALPHA: Float = 0.45f
