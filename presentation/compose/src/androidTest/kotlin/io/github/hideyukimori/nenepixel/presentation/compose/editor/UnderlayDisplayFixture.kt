@@ -53,7 +53,8 @@ internal object UnderlayDisplayFixture {
     private val TALL_EDGE: Dp = 400.dp
 
     fun paintedEditor(): EditorFixture {
-        val editor = fixture(canvas(WIDTH, HEIGHT), listOf(PresentationTestValues.red))
+        // A palette holds at least two colours; index 0 (red) paints (0, 0).
+        val editor = fixture(canvas(WIDTH, HEIGHT), listOf(PresentationTestValues.red, PresentationTestValues.green))
         val runtime = editor.runtime
         val effect = StrokeEffect.Paint(PaletteIndex.create(0).requiredValue())
         val stroke = Stroke.create(runtime.state.documentState.size, listOf(pixel(0, 0)), effect).requiredValue()

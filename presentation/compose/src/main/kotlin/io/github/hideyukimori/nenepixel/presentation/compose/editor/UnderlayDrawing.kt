@@ -59,9 +59,7 @@ private fun DrawScope.drawShownUnderlay(
     canvas: CanvasSize,
 ) {
     val bitmap = cache.render(underlay.image)
-    val document = UnderlayBounds(destination.left, destination.top, destination.right, destination.bottom)
-    val shown = underlayBounds(document, canvas, underlay.image, underlay.placement)
-    cache.shown.set(shown.left, shown.top, shown.right, shown.bottom)
+    cache.place(destination, canvas, underlay)
     cache.paint.alpha = underlay.opacity.alpha
     drawIntoCanvas { target ->
         val native = target.nativeCanvas
