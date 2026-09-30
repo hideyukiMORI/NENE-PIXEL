@@ -91,6 +91,42 @@ internal class UnderlayAdjustmentTest {
     }
 
     @Test
+    fun `a widening pinch at the largest scale keeps the image point under the centroid`() {
+        // Largest scale: shown long side 32 * 16 = 512 document px, so scale 512 / 16 = 32.
+        val largest = underlay.withPlacement(0.0, 0.0, 32.0)
+        // The centroid stays at surface (200, 200) = document (16, 4); the distance doubles.
+        val gesture = gesture(point(190.0, 200.0), point(210.0, 200.0), point(180.0, 200.0), point(220.0, 200.0))
+
+        val placement = UnderlayAdjustment.transformed(largest, gesture, zoomOne).placement
+
+        assertPlacement(placement, left = 0.0, top = 0.0, scale = 32.0)
+    }
+
+    @Test
+    fun `a narrowing pinch at the smallest scale keeps the image point under the centroid`() {
+        // Smallest scale: shown long side min(16 * 2, 32 / 8) = 4 document px, so scale 4 / 16 = 0.25.
+        val smallest = underlay.withPlacement(0.0, 0.0, 0.25)
+        val gesture = gesture(point(190.0, 200.0), point(210.0, 200.0), point(195.0, 200.0), point(205.0, 200.0))
+
+        val placement = UnderlayAdjustment.transformed(smallest, gesture, zoomOne).placement
+
+        assertPlacement(placement, left = 0.0, top = 0.0, scale = 0.25)
+    }
+
+    @Test
+    fun `a pinch clamped part of the way scales about the centroid by the effective factor`() {
+        // Requested factor 4 from scale 16 is clamped to 32, an effective factor of 2 about document (16, 4).
+        val large = underlay.withPlacement(0.0, 0.0, 16.0)
+        val gesture = gesture(point(190.0, 200.0), point(210.0, 200.0), point(160.0, 200.0), point(240.0, 200.0))
+
+        val placement = UnderlayAdjustment.transformed(large, gesture, zoomOne).placement
+
+        assertPlacement(placement, left = -16.0, top = -4.0, scale = 32.0)
+        assertEquals(1.0, (16.0 - placement.left) / placement.scale, EPSILON)
+        assertEquals(0.25, (4.0 - placement.top) / placement.scale, EPSILON)
+    }
+
+    @Test
     fun `overflowing surface distances leave a finite placement`() {
         val max = Double.MAX_VALUE
         val pinch = gesture(point(0.0, 0.0), point(1.0, 1.0), point(-max, -max), point(max, max))

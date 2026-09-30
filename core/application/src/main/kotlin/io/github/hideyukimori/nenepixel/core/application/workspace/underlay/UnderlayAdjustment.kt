@@ -48,16 +48,19 @@ public object UnderlayAdjustment {
         gesture: ViewportGesture,
         cell: ViewportSurfaceBounds,
     ): ReferenceUnderlay {
-        val factor = factor(gesture)
         val previousX = documentX(midpoint(gesture.previousFirst.xPixels, gesture.previousSecond.xPixels), cell)
         val previousY = documentY(midpoint(gesture.previousFirst.yPixels, gesture.previousSecond.yPixels), cell)
         val currentX = documentX(midpoint(gesture.currentFirst.xPixels, gesture.currentSecond.xPixels), cell)
         val currentY = documentY(midpoint(gesture.currentFirst.yPixels, gesture.currentSecond.yPixels), cell)
         val placement = underlay.placement
+        // The scale is clamped first; the offsets use the effective factor, so a clamped pinch does not slide.
+        val clamped = underlay.withPlacement(placement.left, placement.top, placement.scale * factor(gesture))
+        val scale = clamped.placement.scale
+        val effective = scale / placement.scale
         return underlay.withPlacement(
-            currentX - (previousX - placement.left) * factor,
-            currentY - (previousY - placement.top) * factor,
-            placement.scale * factor,
+            currentX - (previousX - placement.left) * effective,
+            currentY - (previousY - placement.top) * effective,
+            scale,
         )
     }
 
