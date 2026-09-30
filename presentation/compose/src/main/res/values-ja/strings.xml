@@ -161,7 +161,7 @@
     <string name="palette_editor_green">緑 (0–255)</string>
     <string name="palette_editor_blue">青 (0–255)</string>
     <string name="palette_editor_alpha">不透明度 (0–255)</string>
-    <string name="palette_editor_set_default">空白・消しゴムの色にする</string>
+    <string name="palette_editor_set_default">消した色の移り先にする</string>
     <string name="palette_editor_append">色を追加</string>
     <string name="palette_editor_remove">色を削除</string>
     <string name="palette_editor_move_up">上へ</string>
@@ -170,7 +170,7 @@
     <string name="palette_editor_redo">編集をやり直す</string>
     <string name="palette_editor_apply">適用</string>
     <string name="palette_editor_cancel">編集を破棄</string>
-    <string name="palette_editor_replacement">代わりに空白・消しゴムの色にするスロットを選んでください</string>
+    <string name="palette_editor_replacement">代わりに、消した色の移り先にするスロットを選んでください</string>
     <string name="export_palette_json">パレットJSONを書き出す</string>
     <string name="import_palette_json">パレットJSONを読み込む</string>
     <string name="palette_import_title">読み込んだパレット</string>
