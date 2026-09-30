@@ -11,7 +11,10 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
  * checked on the JVM.
  */
 internal class UnderlayBoundsCache {
-    /** How many times [underlayBounds] has run; read by tests. */
+    /**
+     * How many times [underlayBounds] has run; read by tests. It is the opening through which host
+     * tests check the cost property of this cache (QLT-019).
+     */
     var computations: Int = 0
         private set
 

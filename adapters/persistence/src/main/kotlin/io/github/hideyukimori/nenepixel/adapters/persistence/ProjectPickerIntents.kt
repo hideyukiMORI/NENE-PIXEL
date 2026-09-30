@@ -24,7 +24,7 @@ public object ProjectPickerIntents {
             .setType(request.format.mimeType())
             .also { intent ->
                 if (request.format == DocumentOutputFormat.REFERENCE_IMAGE) {
-                    intent.putExtra(Intent.EXTRA_MIME_TYPES, REFERENCE_IMAGE_MIME_TYPES.toTypedArray())
+                    intent.putExtra(Intent.EXTRA_MIME_TYPES, ReferenceImageLimits.SUPPORTED_MIME_TYPES.toTypedArray())
                 }
             }
 
@@ -68,6 +68,4 @@ public object ProjectPickerIntents {
 
     /** Open only; never used to create a document. */
     private const val REFERENCE_IMAGE_FILENAME: String = "reference"
-
-    private val REFERENCE_IMAGE_MIME_TYPES: List<String> = listOf("image/png", "image/jpeg", "image/webp")
 }

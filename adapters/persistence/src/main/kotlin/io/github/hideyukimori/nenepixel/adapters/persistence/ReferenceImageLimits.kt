@@ -15,4 +15,7 @@ internal object ReferenceImageLimits {
 
     /** The largest width or height of the decoded result. */
     const val MAX_RESULT_SIDE: Int = ReferenceImage.MAX_SIDE
+
+    /** The source types the picker offers and the decoder accepts, in the order the picker lists them. */
+    val SUPPORTED_MIME_TYPES: List<String> = listOf("image/png", "image/jpeg", "image/webp")
 }

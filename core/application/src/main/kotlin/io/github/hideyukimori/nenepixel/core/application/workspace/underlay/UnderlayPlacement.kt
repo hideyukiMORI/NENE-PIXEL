@@ -9,12 +9,17 @@ import kotlin.math.min
  *
  * [left] and [top] are the document-pixel coordinates of the image's top-left corner, and [scale]
  * is how many document pixels one image pixel covers. Every value is finite and [scale] is positive.
+ * A negative zero offset is stored as positive zero, so equal placements share one hash code.
  */
 public class UnderlayPlacement private constructor(
-    public val left: Double,
-    public val top: Double,
+    left: Double,
+    top: Double,
     public val scale: Double,
 ) {
+    // Adding positive zero turns -0.0 into 0.0 and leaves every other value unchanged.
+    public val left: Double = left + 0.0
+    public val top: Double = top + 0.0
+
     override fun equals(other: Any?): Boolean =
         this === other ||
             (

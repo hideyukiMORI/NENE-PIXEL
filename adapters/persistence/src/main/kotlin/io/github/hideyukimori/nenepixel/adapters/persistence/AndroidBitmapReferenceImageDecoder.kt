@@ -19,7 +19,6 @@ import kotlin.math.roundToInt
 internal object AndroidBitmapReferenceImageDecoder : ReferenceImageDecoder {
     private const val CHANNEL_BITS: Int = 8
     private const val ALPHA_SHIFT: Int = 24
-    private val supportedMimeTypes: Set<String> = setOf("image/png", "image/jpeg", "image/webp")
     private const val JPEG_MIME_TYPE: String = "image/jpeg"
 
     override fun decode(encoded: ByteArray): ReferenceImageDecodeResult =
@@ -50,7 +49,7 @@ internal object AndroidBitmapReferenceImageDecoder : ReferenceImageDecoder {
         val mimeType = bounds.outMimeType.orEmpty()
         val longSide = max(bounds.outWidth, bounds.outHeight)
         return when {
-            bounds.outWidth <= 0 || bounds.outHeight <= 0 || mimeType !in supportedMimeTypes -> {
+            bounds.outWidth <= 0 || bounds.outHeight <= 0 || mimeType !in ReferenceImageLimits.SUPPORTED_MIME_TYPES -> {
                 ReferenceImageDecodeResult.Unsupported
             }
 

@@ -51,7 +51,9 @@ internal class UnderlayBitmapCache {
         if (source !== image) {
             source = image
             val argb = image.copyPackedRgba8888()
-            argb.indices.forEach { index -> argb[index] = argb[index].rgbaToArgb8888() }
+            for (index in argb.indices) {
+                argb[index] = argb[index].rgbaToArgb8888()
+            }
             rendered = Bitmap.createBitmap(argb, image.width, image.height, Bitmap.Config.ARGB_8888)
         }
         return requireNotNull(rendered)

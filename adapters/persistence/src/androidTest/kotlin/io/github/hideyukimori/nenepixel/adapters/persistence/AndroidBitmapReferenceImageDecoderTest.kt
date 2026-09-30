@@ -4,6 +4,8 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import android.os.Build
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.github.hideyukimori.nenepixel.adapters.persistence.ReferenceImageTestFixtures.encoded
+import io.github.hideyukimori.nenepixel.adapters.persistence.ReferenceImageTestFixtures.withOrientation
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
@@ -131,48 +133,8 @@ public class AndroidBitmapReferenceImageDecoderTest {
         color: Int,
     ): Bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).apply { eraseColor(color) }
 
-    private fun encoded(
-        bitmap: Bitmap,
-        format: Bitmap.CompressFormat,
-    ): ByteArray =
-        try {
-            val output = ByteArrayOutputStream()
-            check(bitmap.compress(format, FULL_QUALITY, output))
-            output.toByteArray()
-        } finally {
-            bitmap.recycle()
-        }
-
     private fun webpLosslessFormat(): Bitmap.CompressFormat? =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) Bitmap.CompressFormat.WEBP_LOSSLESS else null
-
-    /**
-     * Puts an APP1 Exif segment right after the JPEG start marker. Its big-endian TIFF holds one IFD0
-     * entry: the orientation tag, type SHORT, count 1.
-     */
-    private fun withOrientation(
-        jpeg: ByteArray,
-        orientation: Int,
-    ): ByteArray {
-        val app1 =
-            ByteBuffer
-                .allocate(APP1_SEGMENT_BYTES)
-                .putShort(0xFFE1.toShort())
-                .putShort((APP1_SEGMENT_BYTES - 2).toShort())
-                .put("Exif\u0000\u0000".toByteArray(Charsets.US_ASCII))
-                .put("MM".toByteArray(Charsets.US_ASCII))
-                .putShort(TIFF_MAGIC)
-                .putInt(IFD0_OFFSET)
-                .putShort(1)
-                .putShort(ORIENTATION_TAG)
-                .putShort(SHORT_TYPE)
-                .putInt(1)
-                .putShort(orientation.toShort())
-                .putShort(0)
-                .putInt(0)
-                .array()
-        return jpeg.copyOfRange(0, 2) + app1 + jpeg.copyOfRange(2, jpeg.size)
-    }
 
     /** A PNG signature, an IHDR chunk with the given sides, a tiny IDAT chunk, and IEND. */
     private fun pngHeader(
@@ -229,13 +191,7 @@ public class AndroidBitmapReferenceImageDecoderTest {
 
     private companion object {
         const val RED_RGBA: Int = 0xFF0000FF.toInt()
-        const val FULL_QUALITY: Int = 100
         const val ROTATE_90: Int = JpegExifOrientation.ROTATE_90
-        const val APP1_SEGMENT_BYTES: Int = 36
-        const val TIFF_MAGIC: Short = 42
-        const val IFD0_OFFSET: Int = 8
-        const val ORIENTATION_TAG: Short = 0x0112
-        const val SHORT_TYPE: Short = 3
         const val TRUNCATED_BYTE_COUNT: Int = 20
         const val IHDR_LENGTH: Int = 13
         const val CHUNK_OVERHEAD: Int = 12

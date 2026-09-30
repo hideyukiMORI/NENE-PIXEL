@@ -116,6 +116,19 @@ internal class UnderlayPlacementTest {
         assertEquals("UnderlayPlacement(left=1.0, top=2.0, scale=3.0)", first.toString())
     }
 
+    @Test
+    fun `negative zero offsets equal positive zero offsets and share the hash code`() {
+        val image = image(64, 64)
+        val canvas = canvas(256, 256)
+        val negative = UnderlayPlacement.create(-0.0, -0.0, 1.0, image, canvas)
+        val positive = UnderlayPlacement.create(0.0, 0.0, 1.0, image, canvas)
+
+        assertEquals(positive, negative)
+        assertEquals(positive.hashCode(), negative.hashCode())
+        assertEquals(0.0.toRawBits(), negative.left.toRawBits())
+        assertEquals(0.0.toRawBits(), negative.top.toRawBits())
+    }
+
     private fun assertPlacement(
         left: Double,
         top: Double,
