@@ -249,4 +249,14 @@
         <item quantity="other">名称不能超过 %1$d 个字符</item>
     </plurals>
     <string name="layer_rename_invalid">名称中含有换行等无法使用的字符</string>
+    <string name="underlay">底图</string>
+    <string name="underlay_pick">选择底图</string>
+    <string name="underlay_replace">更换图片</string>
+    <string name="underlay_fit">适应画布</string>
+    <string name="underlay_remove">移除</string>
+    <string name="underlay_show">显示底图</string>
+    <string name="underlay_hide">隐藏底图</string>
+    <string name="underlay_more">底图的更多操作</string>
+    <string name="underlay_opacity">底图不透明度</string>
+    <string name="underlay_opacity_state">%1$d%%</string>
 </resources>

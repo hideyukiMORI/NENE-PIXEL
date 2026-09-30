@@ -35,26 +35,30 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
 import io.github.hideyukimori.nenepixel.core.application.workspace.EditorControlEdge
+import io.github.hideyukimori.nenepixel.core.application.workspace.underlay.ReferenceUnderlay
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 
 /**
  * The layer chip, or the open layer panel in the same corner, over the work area (#144 UI spec "Layout", U3r).
  * The corner is always the physical top left; the control edge only lowers the panel's height limit.
  *
- * It reads only the row list, the active layer, the control edge and the layer notice through one `derivedStateOf`;
- * a stroke in progress or a committed stroke leaves those structurally equal, so neither the chip nor the panel
- * recomposes. Open or closed is local, saveable Compose state (ADR 0020), not workspace state. Back closes the
- * panel, and closing returns focus to the chip. The overlay takes no pointer itself: only the chip, the panel and a
- * shown notice do. The panel rows and the add row send their changes through the layer route of [editorCallbacks],
- * passed on as the same instance inside one remembered [LayerRowActions]. A row's rename opens the rename dialog
- * (U7) for that layer; the target is plain `remember` state, and the dialog is composed only while it is open.
- * The layer notice (U6) shows at the bottom centre whether the panel is open or not; its undo goes through
- * [editorCallbacks] like the dock's.
+ * It reads only the row list, the active layer, the control edge, the layer notice and the reference underlay
+ * through one `derivedStateOf`; a stroke in progress or a committed stroke leaves those structurally equal, so
+ * neither the chip nor the panel recomposes. Open or closed is local, saveable Compose state (ADR 0020), not
+ * workspace state. Back closes the panel, and closing returns focus to the chip. The overlay takes no pointer
+ * itself: only the chip, the panel and a shown notice do. The panel rows and the add row send their changes
+ * through the layer route of [editorCallbacks], passed on as the same instance inside one remembered
+ * [LayerRowActions]. A row's rename opens the rename dialog (U7) for that layer; the target is plain `remember`
+ * state, and the dialog is composed only while it is open. The layer notice (U6) shows at the bottom centre
+ * whether the panel is open or not; its undo goes through [editorCallbacks] like the dock's. After the last row,
+ * inside the rows' scroll, sits the underlay row (#170), which sends its changes through the underlay route of
+ * [editorCallbacks] and calls [onPickUnderlay] to choose or replace the image.
  */
 @Composable
 internal fun LayerOverlay(
     state: State<EditorRenderState>,
     editorCallbacks: EditorCallbacks,
+    onPickUnderlay: () -> Unit,
 ) {
     val inputs by rememberOverlayInputs(state)
     val callbacks = editorCallbacks.layers
@@ -84,7 +88,9 @@ internal fun LayerOverlay(
         }
         AnimatedVisibility(open, Modifier.align(corner), panelEnter(density), PANEL_EXIT) {
             LayerPanel(inputs.rows.size, close, Modifier.panelBounds(maxWidth, maxHeight, inputs.edge)) {
-                LayerPanelRows(inputs.rows, inputs.activeLayerId, actions, Modifier.weight(1f, fill = false))
+                LayerPanelRows(inputs.rows, inputs.activeLayerId, actions) {
+                    LayerPanelUnderlayRow(inputs.underlay, editorCallbacks.underlay, onPickUnderlay)
+                }
                 LayerPanelAddRow(inputs.rows.size, onAdd)
             }
         }
@@ -114,6 +120,7 @@ private fun rememberOverlayInputs(state: State<EditorRenderState>): State<LayerO
                 render.activeLayerId,
                 render.appearance.controlEdge,
                 render.layerNotice,
+                render.underlay,
             )
         }
     }
@@ -138,13 +145,14 @@ private const val PANEL_EXIT_MILLIS: Int = 100
 
 /**
  * What the chip, the panel and the notice read; structurally equal across strokes because the rows never hold a
- * snapshot and a stroke leaves the notice as it was.
+ * snapshot and a stroke leaves the notice and the underlay as they were.
  */
 private data class LayerOverlayInputs(
     val rows: List<LayerRowModel>,
     val activeLayerId: LayerId,
     val edge: EditorControlEdge,
     val notice: LayerNotice?,
+    val underlay: ReferenceUnderlay?,
 ) {
     val active: LayerRowModel
         get() =
