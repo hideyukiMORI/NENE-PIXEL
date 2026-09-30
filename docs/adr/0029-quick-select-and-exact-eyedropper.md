@@ -48,7 +48,7 @@ than a tool-dock tool.
   Selecting a slot through the menu, the palette panel or the eyedropper does not record: recent means
   used for drawing.
 - `WorkspaceState.canvasPointerIntent` is a derived property with the closed enum
-  `CanvasPointerIntent { Draw, PickPaletteEntry }`. It is `PickPaletteEntry` exactly while the
+  `CanvasPointerIntent { Draw, PickPaletteEntry }` (ADR 0032 adds `AdjustUnderlay`). It is `PickPaletteEntry` exactly while the
   eyedropper is armed. Presentation translates a canvas pointer down by this intent instead of
   inspecting `QuickSelection` (CMD-010).
 - `WorkspaceState` stays within 11 functions by replacing `withPreview(ToolGesture)` and

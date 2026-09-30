@@ -4,7 +4,7 @@
 - Date: 2026-09-30
 - Issue: #169
 - Affected rules: `ARC-001`, `ARC-003`, `ARC-004`, `ARC-005`, `ARC-008`, `ARC-010`, `CMD-002`, `KOT-007`, `KOT-012`,
-  `KOT-013`, `QLT-011`, `QLT-016`, `QLT-019`
+  `KOT-013`, `QLT-011`, `QLT-016`, `QLT-019`; amends `ARC-005`
 
 ## Context
 
@@ -45,15 +45,20 @@ changes.
   immutable straight sRGB RGBA8888 raster. Each side is 1 to 1024 pixels. `ReferenceImage.create`
   is the only factory, copies its input and returns a typed result; the raster is private and is
   read through `copyPackedRgba8888()`, like `CompositeRaster`. Equality is identity: two images are
-  the same only when they are the same instance.
+  the same only when they are the same instance. The core never decodes: the adapter hands over a
+  raster with its dimensions and `create` validates it once (ARC-008). ARC-005 is amended in this
+  change to name `ReferenceImage` among the types that privately own packed storage, and the
+  reference-image read and decode among the bounded adapter buffers.
 - `UnderlayPlacement` names where the image lies in document-pixel coordinates: the position of
   its top-left corner and a scale in document pixels per image pixel, all doubles. It is the same
   at every zoom, so the underlay moves and scales with the picture. `UnderlayPlacement.create`
   clamps against the image and canvas sizes and normalizes non-finite input, and never rejects:
   the longer displayed side stays between one eighth of the longer canvas side (or the fitted
-  size, when that is smaller) and sixteen times the longer canvas side, and the image rectangle
-  always overlaps the document rectangle by at least one document pixel on each axis, so the
-  underlay cannot be lost. `UnderlayPlacement.fitted` is the largest placement that lies wholly
+  size, when that is smaller) and sixteen times the longer canvas side, and on each axis the
+  image rectangle overlaps the document rectangle by at least one document pixel, or by its whole
+  displayed side when that side is shorter than one document pixel, so the underlay cannot be
+  lost. For a 256 x 256 canvas the longer displayed side therefore ranges from 32 to 4096 document
+  pixels, and for a 16 x 16 canvas from 2 to 256. `UnderlayPlacement.fitted` is the largest placement that lies wholly
   inside the document rectangle, centred; it is always a valid placement. `ReferenceUnderlay`
   keeps the canvas size it was placed against, so its derivations clamp without further input.
 - `UnderlayOpacity` is an integer alpha from 26 to 255 (10% to 100%); `create` clamps. Hiding is
@@ -80,32 +85,43 @@ changes.
 ### Adjust mode
 
 - `CanvasPointerIntent` gains `AdjustUnderlay`, derived when the underlay is shown and adjusting.
-  It takes precedence over an armed eyedropper.
+  It takes precedence over an armed eyedropper, which stays armed and acts after the mode is left.
+  A modal panel covers the canvas, so the intent is unreachable while one is open; opening a panel
+  does not leave the mode.
 - Pointer arbitration is unchanged. In this intent a one-pointer drag translates the placement and
   a two-pointer gesture translates it and scales it uniformly about the gesture centroid. The
-  viewport does not change while adjusting, and no stroke starts.
+  viewport does not change while adjusting, and no stroke starts: pointer input reduces no
+  `SetViewport` in this intent, so the second-pointer viewport normalization of ADR 0004 does not
+  run.
 - The arithmetic is one pure function family in `core/application` that takes the placement, the
   surface points and the current `ViewportTransform`, and returns a clamped placement. Presentation
   owns no competing matrix (ARC-001). Each pointer move reduces one `SetReferenceUnderlay`.
 - Leaving the mode is a named derivation (`rested`), reached by the Done control and by Back.
-  Hiding or clearing the underlay also leaves it.
+  Hiding or clearing the underlay also leaves it. Persistence operations are allowed while
+  adjusting and do not read the underlay; an installation clears the underlay and with it the mode.
 
 ### Choosing the image
 
 - `ReferenceImagePort.pick()` in `core/application/persistence` returns a closed outcome: `Picked`
   with a `ReferenceImage`, `Cancelled`, `Rejected` with a typed reason (too many bytes, too many
   pixels, unsupported content) or `Failed` with the existing storage failure. `PersistencePorts`
-  gains the port. The pick uses the existing picker broker and the one-active-physical-operation
-  rule of the persistence workflow, like the palette JSON import.
+  gains the port. The pick is a physical operation of the persistence workflow exactly like
+  the palette JSON import of ADR 0022: it uses the existing picker broker and holds the one operation
+  lease from the request until the outcome, so a second operation answers Busy. While the picker is
+  open an autosave capture waits as the one coalesced latest capture (ADR 0014, ADR 0018) and is
+  published when the pick ends. This is the accepted behaviour of every picker of the app and is
+  not changed here.
 - `:adapters:persistence` implements it with the Storage Access Framework open-document picker for
   `image/png`, `image/jpeg` and `image/webp`. It reads at most 16,777,216 encoded bytes through the
   maximum-plus-one bounded reader, probes the dimensions before allocating, rejects a side above
   16,384 pixels, decodes with the platform `BitmapFactory` using power-of-two subsampling followed
-  by one filtered resize so the result fits 1024 x 1024 without upscaling, applies the EXIF
-  orientation through the platform `ExifInterface`, and converts to straight RGBA8888. No
+  by one filtered resize so the result fits 1024 x 1024 without upscaling, decodes without
+  premultiplication into sRGB, applies the EXIF orientation through the platform `ExifInterface`,
+  and converts to straight RGBA8888. No
   dependency is added. The adapter keeps no URI permission: the pixels are copied into the state.
 - The application applies a `Picked` image only when the document that was open at the request is
-  still installed; otherwise the result is dropped. The new underlay replaces any existing one.
+  still installed, judged by the same runtime source token the palette import uses; otherwise the
+  result is dropped. The new underlay replaces any existing one.
 - This is not the PNG importer that [ADR 0025](0025-indexed-project-compatibility.md) excluded: a
   reference image never becomes artwork, palette entries or a document source.
 
@@ -119,7 +135,8 @@ changes.
   and visibility are drawing parameters.
 - The controls are one fixed row at the bottom of the layer panel, above Add layer: a visibility
   toggle, the label, a more menu (choose or replace the image, adjust, fit to picture, remove) and
-  an opacity slider. With no underlay the row offers only the choice of an image. While adjusting,
+  an opacity slider, which is disabled while the underlay is hidden. With no underlay the row
+  offers only the choice of an image. While adjusting,
   one bar over the work area shows the mode, the opacity slider, Fit to picture and Done.
 - UI wording: `Underlay` / `下敷き` / `底图`. The glossary term is "reference underlay".
 
@@ -185,6 +202,9 @@ adjust arithmetic together and is decided with its own Issue.
   more than before. With no underlay, or a hidden one, the frame is unchanged.
 - An underlay retains up to 4 MiB of raster in the workspace state and up to 4 MiB of bitmap in the
   presentation cache. Both are released when it is cleared.
+- One pick transiently holds the encoded bytes (up to 16 MiB) and one subsampled bitmap (up to
+  2048 x 2048 pixels, 16 MiB) inside the adapter until the outcome is returned.
+- The picker holds the operation lease while it is open, as every picker of the app does.
 - The underlay is lost when the process dies or another document is installed, until P4-06c.
 - A partially transparent underlay lets the checkerboard show through; this is accepted and
   judged on the device.
@@ -205,8 +225,9 @@ adjust arithmetic together and is decided with its own Issue.
   locales; instrumented tests that the underlay shows only through transparent cells, that a
   hidden or cleared underlay draws nothing, that adjusting changes neither the document nor the
   viewport, and that the actual-size window never shows it.
-- `docs/GLOSSARY.md`, `docs/COMMAND_MODEL.md`, `docs/PROJECT_LAYOUT.md`,
-  `docs/DEVELOPMENT_PLAN.md`, `docs/MILESTONES.md` and `docs/ROADMAP.md` in this change;
+- `docs/ARCHITECTURE_CONSTITUTION.md` (ARC-005), `docs/GLOSSARY.md`, `docs/COMMAND_MODEL.md`,
+  `docs/PROJECT_LAYOUT.md`, `docs/DEVELOPMENT_PLAN.md`, `docs/MILESTONES.md`, `docs/ROADMAP.md` and
+  the cross-references in ADR 0022 and ADR 0029 in this change;
   `docs/INTERFACE_INVENTORY.md` rows with the Issues that add the controls.
 - Performance (QLT-019): P4-06a and P4-06b state the per-frame cost above in their completion
   reports and register one workload with the layer phase gate (#145): the underlay shown at alpha

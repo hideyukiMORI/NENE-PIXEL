@@ -19,13 +19,14 @@ One concept has one canonical name. New synonyms in code are prohibited. Add or 
 | `ActualSizeWindow` | Workspace-owned visibility, ActualSizeScale and WindowAnchor of the one actual-size window | Compose visibility flag, saved preference |
 | reference underlay | One image chosen from the device that is drawn beneath every layer for tracing, owned by WorkspaceState, changed through SetReferenceUnderlay and ClearReferenceUnderlay, and never part of the document, its export or its history; its UI label is Underlay (ADR 0032) | reference layer, background layer, tracing layer, imported image |
 | `ReferenceImage` | Immutable straight RGBA8888 raster of at most 1024 x 1024 pixels decoded once from the chosen file | Bitmap, content URI, document layer |
+| `UnderlayOpacity` | Integer alpha from 26 to 255 with which the reference underlay is drawn; hiding is the visibility, not a zero opacity | layer opacity, Float alpha |
 | `UnderlayPlacement` | Top-left corner and scale of the reference underlay in document-pixel coordinates, clamped against the image and canvas sizes | surface offset, viewport, matrix |
 | `ReferenceUnderlay` | Workspace-owned ReferenceImage, UnderlayPlacement, UnderlayOpacity, visibility and resting/adjusting interaction of the one reference underlay | saved preference, layer |
 | quick select | Floating work-area control whose press-drag-release or tap-mode menu chooses one `QuickSelectItem` through `QuickSelectAction`; menu and highlight are workspace state (ADR 0029) | long-press canvas menu, palette panel, radial tool menu |
 | `QuickSelection` | Workspace-owned recent painted slots (at most 8, most recent first), eyedropper state and open `QuickSelectMenu` | saved preference, colour history by RGBA, Compose menu state |
 | `QuickSelectItem` | Closed menu item vocabulary: `PaletteSlot(index)` or `Eyedropper`; later tool or zoom items add a case with their consuming feature | menu string id, palette-specific pointer phase |
 | eyedropper | One-shot armed workspace state whose next canvas pointer down reads the exact palette slot at that pixel through `PickPaletteEntryAt` | DrawingTool, RGBA colour sampling, composited or reference-image sampling |
-| `CanvasPointerIntent` | Derived closed `Draw` / `PickPaletteEntry` meaning of the next canvas pointer down, read by presentation to translate input | DrawingTool, pointer phase |
+| `CanvasPointerIntent` | Derived closed `Draw` / `PickPaletteEntry` / `AdjustUnderlay` meaning of the next canvas pointer down, read by presentation to translate input | DrawingTool, pointer phase |
 | `WindowAnchor` | Normalized 0..1 top-left placement of a floating window inside the free space of the editor work area, on physical left/right and top/bottom axes | pixel offset, drag state, ViewportCenter |
 | `EditorRuntime` | Application owner of the current CommandGateway, WorkspaceState, clean checkpoint, persistence coordination, and derived projections | view model, controller, session |
 | `NewDocumentRequest` | Validated canvas request created once from raw width and height text before allocation | width/height integers, form state |
