@@ -161,7 +161,7 @@
     <string name="palette_editor_green">绿 (0–255)</string>
     <string name="palette_editor_blue">蓝 (0–255)</string>
     <string name="palette_editor_alpha">不透明度 (0–255)</string>
-    <string name="palette_editor_set_default">设为空白和橡皮擦颜色</string>
+    <string name="palette_editor_set_default">设为已删除颜色的替代色</string>
     <string name="palette_editor_append">添加颜色</string>
     <string name="palette_editor_remove">删除颜色</string>
     <string name="palette_editor_move_up">上移</string>
@@ -170,7 +170,7 @@
     <string name="palette_editor_redo">重做编辑</string>
     <string name="palette_editor_apply">应用</string>
     <string name="palette_editor_cancel">放弃编辑</string>
-    <string name="palette_editor_replacement">请选择作为新的空白和橡皮擦颜色的槽位</string>
+    <string name="palette_editor_replacement">请选择作为已删除颜色替代色的新槽位</string>
     <string name="export_palette_json">导出调色板JSON</string>
     <string name="import_palette_json">导入调色板JSON</string>
     <string name="palette_import_title">导入的调色板</string>

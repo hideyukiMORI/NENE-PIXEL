@@ -162,7 +162,7 @@
     <string name="palette_editor_green">Green (0–255)</string>
     <string name="palette_editor_blue">Blue (0–255)</string>
     <string name="palette_editor_alpha">Alpha (0–255)</string>
-    <string name="palette_editor_set_default">Use as blank / eraser color</string>
+    <string name="palette_editor_set_default">Use as fallback for deleted colors</string>
     <string name="palette_editor_append">Add color</string>
     <string name="palette_editor_remove">Remove color</string>
     <string name="palette_editor_move_up">Move up</string>
@@ -171,7 +171,7 @@
     <string name="palette_editor_redo">Redo edit</string>
     <string name="palette_editor_apply">Apply</string>
     <string name="palette_editor_cancel">Discard edits</string>
-    <string name="palette_editor_replacement">Choose the slot that becomes the blank / eraser color</string>
+    <string name="palette_editor_replacement">Choose the slot that becomes the fallback for deleted colors</string>
     <string name="export_palette_json">Export palette JSON</string>
     <string name="import_palette_json">Import palette JSON</string>
     <string name="palette_import_title">Imported palette</string>
