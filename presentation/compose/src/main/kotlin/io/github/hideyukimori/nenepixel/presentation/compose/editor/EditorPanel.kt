@@ -16,10 +16,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
@@ -27,6 +30,7 @@ import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
 import io.github.hideyukimori.nenepixel.core.application.workspace.EditorControlEdge
 import io.github.hideyukimori.nenepixel.presentation.compose.R
 
@@ -45,6 +49,7 @@ internal fun EditorPanelSurface(
 ) {
     val title = stringResource(placement.panel.titleResource())
     Dialog(onDismissRequest = dismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        PanelWindowDim(placement.panel)
         Box(modifier = Modifier.fillMaxSize().semantics { testTagsAsResourceId = true }) {
             Box(
                 Modifier
@@ -91,6 +96,21 @@ private fun PanelHeader(
     }
 }
 
+/**
+ * Issue #148 P3b: the Dialog window's own dim follows [panel]. The window's original dim amount is read
+ * once per window and restored when the same Dialog switches to another panel. No window, no change.
+ */
+@Composable
+private fun PanelWindowDim(panel: EditorPanel) {
+    val window = (LocalView.current.parent as? DialogWindowProvider)?.window
+    val originalDim = remember(window) { window?.attributes?.dimAmount }
+    SideEffect {
+        if (window != null && originalDim != null) {
+            window.setDimAmount(panel.windowDim(originalDim))
+        }
+    }
+}
+
 private fun EditorPanelPlacement.alignment(): Alignment =
     when (edge) {
         EditorControlEdge.Left -> AbsoluteAlignment.CenterLeft
@@ -102,6 +122,13 @@ private fun EditorPanel.scrimColor(scrim: Color): Color =
     when (this) {
         EditorPanel.PaletteEditor -> Color.Transparent
         EditorPanel.Palette, EditorPanel.File, EditorPanel.Appearance -> scrim.copy(alpha = PANEL_SCRIM_ALPHA)
+    }
+
+/** Issue #148 P3b: the palette editor's window does not dim what is behind it either. */
+private fun EditorPanel.windowDim(originalDim: Float): Float =
+    when (this) {
+        EditorPanel.PaletteEditor -> 0f
+        EditorPanel.Palette, EditorPanel.File, EditorPanel.Appearance -> originalDim
     }
 
 private fun EditorPanel.titleResource(): Int =

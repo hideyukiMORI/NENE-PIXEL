@@ -111,8 +111,9 @@ or redo, or a step of a pending import) rebuilds the bitmap once and no frame do
 import is shown only after it is confirmed into the draft. When the document's palette is not the
 palette the session started from, the display falls back to the document's own palette. The
 palette editor panel stays modal, but it does not darken the work area: while that panel is open,
-the layer beside it that takes the pointers is transparent, so the preview keeps the colours an
-Apply would produce. The other panels keep their scrim.
+the layer beside it that takes the pointers is transparent and the panel's window does not dim
+what is behind it, so the preview keeps the colours an Apply would produce. The other panels keep
+their scrim and dim.
 
 Apply validates the complete source token and mapping before allocation/commit and executes one
 ReplacePaletteCommand. Pixel indices, palette/default, recorded revisions, history entry, workspace
