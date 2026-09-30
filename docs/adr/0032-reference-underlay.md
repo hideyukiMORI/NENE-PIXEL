@@ -139,11 +139,13 @@ changes.
 - `:presentation:compose` owns one disposable `UnderlayBitmapCache` keyed by the `ReferenceImage`
   instance. It builds one `Bitmap` when the image changes and on nothing else; placement, opacity
   and visibility are drawing parameters.
-- The controls are one fixed row at the bottom of the layer panel, above Add layer: a visibility
-  toggle, the label, a more menu (choose or replace the image, adjust, fit to picture, remove) and
-  an opacity slider, which is disabled while the underlay is hidden. With no underlay the row
-  offers only the choice of an image. While adjusting,
-  one bar over the work area shows the mode, the opacity slider, Fit to picture and Done.
+- The controls are one row after the layer rows, above Add layer: a visibility toggle, the label,
+  a more menu (choose or replace the image, adjust, fit to picture, remove) and an opacity slider,
+  which is disabled while the underlay is hidden. With no underlay the row offers only the choice
+  of an image. The row scrolls with the layer rows (amended 2026-09-30, Issue #170): a fixed row
+  left too little height for the layers on a short screen, and the instrumented layer-row tests
+  failed on a 400 dp tall window. Only the heading and Add layer stay fixed. While adjusting, one
+  bar over the work area shows the mode, the opacity slider, Fit to picture and Done.
 - UI wording: `Underlay` / `下敷き` / `底图`. The glossary term is "reference underlay".
 
 ### Not decided here
