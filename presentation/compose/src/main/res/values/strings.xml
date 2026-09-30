@@ -171,6 +171,9 @@
     <string name="palette_editor_redo">Redo edit</string>
     <string name="palette_editor_apply">Apply</string>
     <string name="palette_editor_cancel">Discard edits</string>
+    <string name="palette_editor_discard_title">Discard palette edits?</string>
+    <string name="palette_editor_discard_text">Your color changes will be lost.</string>
+    <string name="palette_editor_keep_editing">Keep editing</string>
     <string name="palette_editor_replacement">Choose the slot that becomes the fallback for deleted colors</string>
     <string name="export_palette_json">Export palette JSON</string>
     <string name="import_palette_json">Import palette JSON</string>
