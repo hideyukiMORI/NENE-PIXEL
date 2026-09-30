@@ -72,7 +72,8 @@ import kotlin.math.roundToInt
  * draws, rather than against a capture of `PixelCanvas`: the canvas fits the document to the work
  * area at a fractional scale and draws grid lines over it, so its own pixels are not a per-cell
  * reference. `CanvasBitmapProjectionTest` owns the composite-to-bitmap contract; this class owns the
- * bitmap-to-window contract.
+ * bitmap-to-window contract. Transparent cells show the transparency backdrop, whose origin is the
+ * content corner (ADR 0026, Issue #147).
  */
 internal class ActualSizeWindowTest {
     @get:Rule
@@ -325,9 +326,10 @@ internal class ActualSizeWindowTest {
         source: WindowSource,
     ) {
         val render = controller.renderState
-        val expected = CommittedBitmapCache().render(render.document, render.definition, canvasBackgroundArgb())
+        val expected = CommittedBitmapCache().render(render.document, render.definition)
         val image = composeRule.onNodeWithTag(CONTENT_TAG).captureToImage().toPixelMap()
-        assertEquals(expected.getPixel(source.left, source.top), image[0, 0].toArgb())
+        val centre = expected.getPixel(source.left, source.top)
+        assertEquals(TransparencyExpectation.shown(centre, backdropAt(0, 0)), image[0, 0].toArgb())
         assertFalse(
             "The clipped centre must differ from the painted first row",
             expected.getPixel(source.left, source.top) == expected.getPixel(source.left, 0),
@@ -351,7 +353,7 @@ internal class ActualSizeWindowTest {
         scale: ActualSizeScale,
     ): WindowSource {
         val render = controller.renderState
-        val expected = CommittedBitmapCache().render(render.document, render.definition, canvasBackgroundArgb())
+        val expected = CommittedBitmapCache().render(render.document, render.definition)
         val factor = scale.devicePixelsPerCell
         val image = composeRule.onNodeWithTag(CONTENT_TAG).captureToImage().toPixelMap()
         assertEquals("Content width at $scale must be whole cells", 0, image.width % factor)
@@ -374,7 +376,7 @@ internal class ActualSizeWindowTest {
         source: WindowSource,
     ): Set<Int> {
         val render = controller.renderState
-        val expected = CommittedBitmapCache().render(render.document, render.definition, canvasBackgroundArgb())
+        val expected = CommittedBitmapCache().render(render.document, render.definition)
         return buildSet {
             repeat(source.rows) { y ->
                 repeat(source.columns) { x -> add(expected.getPixel(source.left + x, source.top + y)) }
@@ -399,15 +401,24 @@ internal class ActualSizeWindowTest {
         top: Int,
         cell: ScaledCell,
     ) {
+        val tolerance = TransparencyExpectation.toleranceFor(cell.color)
         repeat(cell.scale) { dy ->
             repeat(cell.scale) { dx ->
+                val shown = TransparencyExpectation.shown(cell.color, backdropAt(left + dx, top + dy))
                 val actual = image[left + dx, top + dy].toArgb()
-                if (actual != cell.color) {
-                    assertEquals("Window pixel (${left + dx}, ${top + dy})", cell.color, actual)
+                if (actual != shown) {
+                    val at = "Window pixel (${left + dx}, ${top + dy})"
+                    TransparencyExpectation.assertArgbNear(at, shown, actual, tolerance)
                 }
             }
         }
     }
+
+    /** The backdrop colour at a content pixel; the window's backdrop starts at the content corner (ADR 0026). */
+    private fun backdropAt(
+        x: Int,
+        y: Int,
+    ): Int = TransparencyBackdrop.colorAt(x, y, TransparencyBackdrop.cellPx(composeRule.density.density))
 
     private fun assertContained(
         outer: DpRect,
@@ -443,8 +454,6 @@ internal class ActualSizeWindowTest {
     }
 
     private fun chromePixels(band: Dp): Int = with(composeRule.density) { band.roundToPx() }
-
-    private fun canvasBackgroundArgb(): Int = PresentationPalette.canvasBackground.toArgb()
 
     private fun setAnchor(
         controller: EditorController,

@@ -1,6 +1,7 @@
 package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
 import android.graphics.Bitmap
+import android.graphics.RectF
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
@@ -75,20 +76,11 @@ private fun LegacyPreviewImage(
 
 @Composable
 private fun LegacyTransparencyGrid() {
-    val light = MaterialTheme.colorScheme.surfaceContainer
-    val dark = MaterialTheme.colorScheme.surfaceContainerHighest
+    val backdrop = remember { TransparencyBackdrop() }
+    val area = remember { RectF() }
     Canvas(Modifier.fillMaxSize()) {
-        drawRect(light)
-        val edge = 8.dp.toPx()
-        val columns = (size.width / edge).toInt() + 1
-        val rows = (size.height / edge).toInt() + 1
-        for (row in 0 until rows) {
-            for (column in 0 until columns) {
-                if ((row + column) % 2 == 0) {
-                    drawRect(dark, Offset(column * edge, row * edge), Size(edge, edge))
-                }
-            }
-        }
+        area.set(0f, 0f, size.width, size.height)
+        drawTransparencyBackdrop(backdrop, area)
     }
 }
 

@@ -40,18 +40,19 @@ internal class CanvasBitmapProjectionTest {
 
         assertEquals(CANVAS_WIDTH, rendered.width)
         assertEquals(CANVAS_HEIGHT, rendered.height)
-        assertArrayEquals(expected, rendered.pixels())
+        TransparencyExpectation.assertPixelsNear("projection", expected, rendered.pixels())
     }
 
     @Test
-    fun opaqueBitmapProjectionCompositesDisplayAlphaOverCanvasColor() {
+    fun committedBitmapKeepsTheDisplayAlphaOfTheComposite() {
         val definition = definition(intArrayOf(OPAQUE_RED, OPAQUE_GREEN, HALF_ALPHA_BLUE, TRANSPARENT_BLACK))
-        val image = composite(document(definition, coveredLayer(intArrayOf(0, 1, 2, 3))))
+        val source = document(definition, coveredLayer(intArrayOf(0, 1, 2, 3)))
 
-        val rendered = image.toOpaqueRenderedBitmap(OPAQUE_WHITE)
+        val rendered = CommittedBitmapCache().render(source, definition)
 
-        assertArrayEquals(
-            intArrayOf(OPAQUE_RED, OPAQUE_GREEN, HALF_ALPHA_BLUE_OVER_WHITE, OPAQUE_WHITE),
+        TransparencyExpectation.assertPixelsNear(
+            "committed",
+            intArrayOf(OPAQUE_RED, OPAQUE_GREEN, HALF_ALPHA_BLUE, TRANSPARENT_BLACK),
             rendered.pixels(),
         )
     }
@@ -63,17 +64,18 @@ internal class CanvasBitmapProjectionTest {
         val source = document(first, coveredLayer(intArrayOf(0, 0, 0, 0)))
         val cache = CommittedBitmapCache()
 
-        assertEquals(OPAQUE_RED, cache.render(source, first, OPAQUE_WHITE).getPixel(0, 0))
-        assertEquals(OPAQUE_GREEN, cache.render(source, second, OPAQUE_WHITE).getPixel(0, 0))
+        assertEquals(OPAQUE_RED, cache.render(source, first).getPixel(0, 0))
+        assertEquals(OPAQUE_GREEN, cache.render(source, second).getPixel(0, 0))
     }
 
     @Test
-    fun transparentCoveredColorPreservesAlphaAndOpaqueProjectionCompositesIt() {
+    fun transparentCoveredColorPreservesAlphaInBothProjections() {
         val definition = definition(intArrayOf(OPAQUE_RED, TRANSPARENT_BLACK))
-        val image = composite(document(definition, coveredLayer(intArrayOf(1, 1, 1, 1))))
+        val source = document(definition, coveredLayer(intArrayOf(1, 1, 1, 1)))
+        val image = composite(source)
 
         assertEquals(TRANSPARENT_BLACK, image.toRenderedBitmap().getPixel(0, 0))
-        assertEquals(OPAQUE_WHITE, image.toOpaqueRenderedBitmap(OPAQUE_WHITE).getPixel(0, 0))
+        assertEquals(TRANSPARENT_BLACK, CommittedBitmapCache().render(source, definition).getPixel(0, 0))
     }
 
     /**
@@ -81,10 +83,10 @@ internal class CanvasBitmapProjectionTest {
      * green layer covers everything above both. ADR 0030 blend of half blue over opaque red:
      * weights 128*255 = 32640 and 255*127 = 32385 (total 65025), alpha (65025 + 127) / 255 = 255,
      * red (2 * 255 * 32385 + 65025) / 130050 = 127, blue (2 * 255 * 32640 + 65025) / 130050 = 128.
-     * Half blue alone stays (0, 0, 255, 128) and becomes 0xFF7F7FFF over white; Empty is white.
+     * Half blue alone stays (0, 0, 255, 128) with its alpha; Empty stays fully transparent.
      */
     @Test
-    fun committedBitmapCompositesVisibleLayersOverTheCanvasColor() {
+    fun committedBitmapCompositesVisibleLayersAndKeepsTheirAlpha() {
         val definition = definition(intArrayOf(OPAQUE_RED, HALF_ALPHA_BLUE, OPAQUE_GREEN))
         val source =
             document(
@@ -94,22 +96,23 @@ internal class CanvasBitmapProjectionTest {
                 coveredLayer(intArrayOf(2, 2, 2, 2), id = 3, visibility = LayerVisibility.Hidden),
             )
 
-        val rendered = CommittedBitmapCache().render(source, definition, OPAQUE_WHITE)
+        val rendered = CommittedBitmapCache().render(source, definition)
 
-        assertArrayEquals(
-            intArrayOf(HALF_BLUE_OVER_RED, OPAQUE_RED, HALF_ALPHA_BLUE_OVER_WHITE, OPAQUE_WHITE),
+        TransparencyExpectation.assertPixelsNear(
+            "visible layers",
+            intArrayOf(HALF_BLUE_OVER_RED, OPAQUE_RED, HALF_ALPHA_BLUE, TRANSPARENT_BLACK),
             rendered.pixels(),
         )
     }
 
     @Test
-    fun emptyPixelsShowTheCanvasColor() {
+    fun emptyPixelsStayFullyTransparent() {
         val definition = definition(intArrayOf(OPAQUE_RED, OPAQUE_WHITE))
         val source = document(definition, cellLayer(intArrayOf(0, 0, 0, 0), coveredMask = 0, id = 1))
 
-        val rendered = CommittedBitmapCache().render(source, definition, CANVAS_COLOR)
+        val rendered = CommittedBitmapCache().render(source, definition)
 
-        assertArrayEquals(IntArray(PIXEL_COUNT) { CANVAS_COLOR }, rendered.pixels())
+        assertArrayEquals(IntArray(PIXEL_COUNT) { TRANSPARENT_BLACK }, rendered.pixels())
     }
 
     @Test
@@ -122,7 +125,7 @@ internal class CanvasBitmapProjectionTest {
                 coveredLayer(intArrayOf(1, 1, 1, 1), id = 2, visibility = LayerVisibility.Hidden),
             )
 
-        val rendered = CommittedBitmapCache().render(source, definition, OPAQUE_WHITE)
+        val rendered = CommittedBitmapCache().render(source, definition)
 
         assertArrayEquals(IntArray(PIXEL_COUNT) { OPAQUE_RED }, rendered.pixels())
     }
@@ -135,14 +138,14 @@ internal class CanvasBitmapProjectionTest {
         val changed = document(definition, coveredLayer(intArrayOf(1, 1, 1, 1)))
         val cache = CommittedBitmapCache()
 
-        val initial = cache.render(first, definition, OPAQUE_WHITE)
+        val initial = cache.render(first, definition)
 
-        assertSame(initial, cache.render(first, definition, OPAQUE_WHITE))
+        assertSame(initial, cache.render(first, definition))
         assertEquals(first, equalCopy)
-        assertNotSame(initial, cache.render(equalCopy, definition, OPAQUE_WHITE))
+        assertNotSame(initial, cache.render(equalCopy, definition))
         assertArrayEquals(
             IntArray(PIXEL_COUNT) { OPAQUE_GREEN },
-            cache.render(changed, definition, OPAQUE_WHITE).pixels(),
+            cache.render(changed, definition).pixels(),
         )
     }
 
@@ -236,9 +239,7 @@ internal class CanvasBitmapProjectionTest {
         const val OPAQUE_GREEN: Int = -0xff0100
         const val HALF_ALPHA_BLUE: Int = -0x7fffff01
         const val TRANSPARENT_BLACK: Int = 0x00000000
-        const val HALF_ALPHA_BLUE_OVER_WHITE: Int = -0x808001
         const val HALF_BLUE_OVER_RED: Int = -0x80ff80
-        const val CANVAS_COLOR: Int = -0xefdfd0
         const val OPAQUE_WHITE: Int = -0x1
     }
 }

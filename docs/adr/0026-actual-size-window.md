@@ -43,9 +43,10 @@ committed bitmap. No document meaning, command, or persisted payload changes.
   re-applies it to the new owners. `ActualSizeWindow.initial` is hidden, `X2`, anchored at the
   physical top-right corner (`WindowAnchor.topRight`).
 - The committed bitmap cache moves out of `PixelCanvas` into one presentation-owned
-  `CommittedBitmapCache` keyed by `(snapshot, definition, backgroundArgb)`, the background being a
-  render argument so a later transparency-display change cannot silently reuse a stale bitmap
-  (ADR 0020). One instance is remembered by the work area and passed to both the canvas and the
+  `CommittedBitmapCache` keyed by `(document, definition)`. The bitmap keeps the alpha of the
+  Composite; no background colour is a rendering input, because the transparency backdrop is drawn
+  beneath the bitmap by the display layer (amended 2026-09-30, Issue #147, see "Transparency
+  backdrop"). One instance is remembered by the work area and passed to both the canvas and the
   window, which also share its nearest-neighbour `Paint`; the window only changes the source and
   destination rectangles. The window reads `snapshot`, `definition` and the window state through one
   `derivedStateOf`, so a stroke in progress never redraws it; a commit redraws it once with the canvas
@@ -139,11 +140,33 @@ information with no second construction route.
   into an internal `EditorViewportCallbacks` reached through one property. The public module API and
   the constructor signature are unchanged. Splitting the remaining callbacks by concern is a separate
   change with its own Issue, not a condition of this one.
-- `CommittedBitmapCache` keys the snapshot and definition by identity and the background by value: a
-  structurally equal but freshly allocated snapshot rebuilds the bitmap. That is correct but not
+- `CommittedBitmapCache` keys the document and definition by identity: a structurally equal but
+  freshly allocated document rebuilds the bitmap. That is correct but not
   minimal, and the window shares the same instance, so it inherits the same behaviour.
 - `WorkspaceState.hashCode` allocates a `List` per call. It is not on a drawing path, and the shape
   matches `EditorRenderState`; a leaner form would be a separate, measured change.
+
+## Transparency backdrop (amended 2026-09-30, Issue #147)
+
+Until Issue #147 the committed bitmap was flattened over an opaque white canvas colour, so an erased
+or untouched cell looked the same as a white one. The owner decided on 2026-09-29 to show
+transparency as a checkerboard that is fixed to the screen.
+
+- The canvas and the actual-size window draw in this order: the surround, the backdrop inside the
+  rectangle the document occupies, one bitmap with its alpha (the committed bitmap, or the working
+  bitmap of ADR 0030 while a gesture runs), then the grid.
+- The backdrop is a checkerboard of 8 dp cells, rounded to whole pixels with a minimum of 2 px. Zoom
+  does not change the cell size. Its origin is the top-left corner of the document rectangle on the
+  canvas and of the content area in the window, so it moves with the picture when the view pans.
+- Its two colours are fixed, `#FFFFFF` and `#D9D9D9`, in both themes, so a theme never changes how
+  the colours of a picture look. The colours and the cell size live in `PresentationPalette`.
+- It is drawn as one rectangle filled with one repeated shader, which is kept until the cell size in
+  pixels changes. No per-cell drawing runs in a frame.
+- It is display only. The document, PNG export, the project format and history do not know it.
+- A partially transparent pixel of the Composite is shown by the platform canvas drawing the
+  finished bitmap over the backdrop. The shown colour may differ from the integer source-over of
+  ADR 0030 by one step per channel. Layers are still composited by `:core:pixel-engine` only.
+- The legacy import comparison shows transparency with the same backdrop.
 
 ## Enforcement impact
 

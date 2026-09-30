@@ -36,7 +36,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.AwaitPointerEventScope
 import androidx.compose.ui.input.pointer.PointerId
 import androidx.compose.ui.input.pointer.PointerInputScope
@@ -146,14 +145,17 @@ private fun ActualSizeWindowContent(
     committed: CommittedBitmapCache,
     modifier: Modifier = Modifier,
 ) {
-    val background = PresentationPalette.canvasBackground.toArgb()
+    val backdrop = remember { TransparencyBackdrop() }
+    val content = remember { RectF() }
     Box(modifier.exactSize(geometry.width, geometry.contentHeight), contentAlignment = Alignment.Center) {
         Canvas(Modifier.exactSize(geometry.contentWidth, geometry.contentHeight).testTag(CONTENT_TAG)) {
+            content.set(0f, 0f, geometry.contentWidth.toFloat(), geometry.contentHeight.toFloat())
+            drawTransparencyBackdrop(backdrop, content)
             drawIntoCanvas { canvas ->
                 canvas.nativeCanvas.drawBitmap(
-                    committed.render(inputs.document, inputs.definition, background),
+                    committed.render(inputs.document, inputs.definition),
                     geometry.source,
-                    RectF(0f, 0f, geometry.contentWidth.toFloat(), geometry.contentHeight.toFloat()),
+                    content,
                     committed.paint,
                 )
             }

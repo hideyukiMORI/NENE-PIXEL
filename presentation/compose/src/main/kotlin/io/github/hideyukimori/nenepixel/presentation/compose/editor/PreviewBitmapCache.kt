@@ -29,10 +29,9 @@ internal class PreviewBitmapCache {
     fun render(
         state: EditorRenderState,
         committed: CommittedBitmapCache,
-        backgroundArgb: Int,
     ): Bitmap? =
         state.preview?.let { preview ->
-            val committedBitmap = committed.render(state.document, state.definition, backgroundArgb)
+            val committedBitmap = committed.render(state.document, state.definition)
             val target = rasterFor(state.document.size.width.value, state.document.size.height.value)
             if (base !== committedBitmap) {
                 base = committedBitmap
@@ -43,9 +42,7 @@ internal class PreviewBitmapCache {
             if (source !== preview || sourceComposite !== colors) {
                 source = preview
                 sourceComposite = colors
-                target.paint(preview) { position ->
-                    colors.packedRgba8888At(position).rgbaOverOpaqueArgb(backgroundArgb)
-                }
+                target.paint(preview) { position -> colors.packedRgba8888At(position).rgbaToArgb8888() }
             }
             transfer(target)
             requireNotNull(rendered)
@@ -111,7 +108,8 @@ internal class PreviewBitmapCache {
 
 /**
  * Uses the platform colour-array factory already used by the committed projection and copies it
- * once into a mutable bitmap, so no undeclared KTX dependency is introduced (Issue #124).
+ * once into a mutable bitmap, so no undeclared KTX dependency is introduced (Issue #124). The bitmap
+ * is marked as having alpha so the backdrop shows through transparent positions (Issue #147).
  */
 private fun blankMutableBitmap(
     width: Int,
@@ -120,3 +118,4 @@ private fun blankMutableBitmap(
     Bitmap
         .createBitmap(IntArray(width * height), width, height, Bitmap.Config.ARGB_8888)
         .copy(Bitmap.Config.ARGB_8888, true)
+        .apply { setHasAlpha(true) }
