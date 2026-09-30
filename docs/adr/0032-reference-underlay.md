@@ -115,9 +115,11 @@ changes.
   `image/png`, `image/jpeg` and `image/webp`. It reads at most 16,777,216 encoded bytes through the
   maximum-plus-one bounded reader, probes the dimensions before allocating, rejects a side above
   16,384 pixels, decodes with the platform `BitmapFactory` using power-of-two subsampling followed
-  by one filtered resize so the result fits 1024 x 1024 without upscaling, decodes without
-  premultiplication into sRGB, applies the EXIF orientation through the platform `ExifInterface`,
-  and converts to straight RGBA8888. No
+  by one filtered resize so the result fits 1024 x 1024 without upscaling, decodes into sRGB,
+  applies the EXIF orientation through the platform `ExifInterface`, and reads the pixels back as
+  straight (non-premultiplied) RGBA8888. The platform resizes and rotates premultiplied bitmaps
+  only, so a nearly transparent pixel can lose colour precision; that is accepted for a picture
+  that is only looked at. No
   dependency is added. The adapter keeps no URI permission: the pixels are copied into the state.
 - The application applies a `Picked` image only when the document that was open at the request is
   still installed, judged by the same runtime source token the palette import uses; otherwise the
