@@ -2,6 +2,7 @@ package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
 import android.graphics.RectF
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import io.github.hideyukimori.nenepixel.core.application.workspace.underlay.ReferenceImage
@@ -61,11 +62,7 @@ private fun DrawScope.drawShownUnderlay(
     val bitmap = cache.render(underlay.image)
     cache.place(destination, canvas, underlay)
     cache.paint.alpha = underlay.opacity.alpha
-    drawIntoCanvas { target ->
-        val native = target.nativeCanvas
-        val saved = native.save()
-        native.clipRect(destination)
-        native.drawBitmap(bitmap, null, cache.shown, cache.paint)
-        native.restoreToCount(saved)
+    clipRect(destination.left, destination.top, destination.right, destination.bottom) {
+        drawIntoCanvas { it.nativeCanvas.drawBitmap(bitmap, null, cache.shown, cache.paint) }
     }
 }
