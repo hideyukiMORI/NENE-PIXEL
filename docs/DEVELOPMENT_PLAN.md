@@ -83,6 +83,7 @@ M3 entry evidence is [the durable MVP exit proof](quality/M3_EXIT_PROOF.md), #89
 ADR 0022 / #101 accepts this first palette-oriented portion of M4 after that gate; it does not
 claim M4 layers/frames are already planned in implementation detail or complete.
 ADR 0030 / #140 adds the ordered-layer portion (P4-05); frames remain unplanned.
+ADR 0032 / #169 adds the reference underlay (P4-06), which the owner placed before the layer gate.
 
 | ID | Work package | Depends on | Required evidence |
 | --- | --- | --- | --- |
@@ -96,13 +97,18 @@ ADR 0030 / #140 adds the ordered-layer portion (P4-05); frames remain unplanned.
 | P4-05a | Cut over document/engine/history/rendering/storage to layered documents with `Empty` cells and v3 (#142) | P4-05 | Every consumer at once; composite golden vectors and single-layer byte equality with v2 export; v3/envelope 3 golden, round-trip and rejection tests; history accounting; per-commit cost statement, with the single-layer latency workloads registered with P4-05d (QLT-019) |
 | P4-05b | Add the five layer commands, active-layer selection and hidden-layer rules (#143) | P4-05a | Command/undo/reconcile contracts, typed rejections, `NoVisibleLayer` export |
 | P4-05c | Add the opening layer panel (#144) | P4-05b | UI spec first; localized tablet and accessibility verification |
-| P4-05d | Gate of the layer phase (QLT-019): accept the 16-layer worst case and the registered single-layer workloads in one collection (#145) | P4-05a, P4-05b, P4-05c | Protocol fixed before collection; M5 drawing latency for the single-layer and 16-layer workloads, retained memory, autosave/save write time, full-remap history bytes |
+| P4-05d | Gate of the layer phase (QLT-019): accept the 16-layer worst case and the registered single-layer workloads in one collection (#145) | P4-05a, P4-05b, P4-05c, P4-06a, P4-06b | Protocol fixed before collection; M5 drawing latency for the single-layer and 16-layer workloads, retained memory, autosave/save write time, full-remap history bytes |
+| P4-06 | Accept the reference underlay contract (#169) | P4-05c | Accepted ADR 0032, updated governing documents and focused Issues |
+| P4-06a | Choose an image and show it beneath the layers, with visibility, opacity and removal (#170) | P4-06 | Value/action contracts, bounded decode and typed rejection tests, pixel tests of the draw order, localized panel row; per-frame cost statement and the underlay workload registered with P4-05d (QLT-019) |
+| P4-06b | Add the underlay adjust mode: move, scale, fit to picture (#171) | P4-06a | Adjust arithmetic and clamp tests, mode entry/exit and document/viewport neutrality tests, localized adjust bar; cost statement |
+| P4-06c | Remember the underlay of each work across processes (#172) | P4-06b | ARC-004 and ADR 0021 amended first; bounded app-private store, restore and eviction tests |
 
 Preparation keeps the sole M3 editable path. P4-02 changes every live consumer together, with no
 parallel editable RGBA document or provisional indexed-to-v1 writer. P4-05a likewise moves every
 consumer to layered documents at once. Layer duplicate/merge, saved layer opacity (planned for v4)
-and frames are refined after the P4-05 results; PNG import, animation, tiles/maps and
-reference-image requirements remain recorded in ADR 0022 without unused APIs.
+and frames are refined after the P4-05 results; PNG import, animation and tiles/maps
+requirements remain recorded in ADR 0022 without unused APIs. Underlay rotation, numeric placement
+and colour sampling from the underlay are not planned.
 
 ## Later work packages
 

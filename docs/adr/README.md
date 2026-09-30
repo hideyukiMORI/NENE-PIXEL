@@ -70,3 +70,4 @@ An ADR must include:
 | [0029](0029-quick-select-and-exact-eyedropper.md) | accepted | Floating quick-select control with recent painted slots, workspace-owned menu and one-shot exact-slot eyedropper |
 | [0030](0030-ordered-layers-and-empty-pixels.md) | accepted | Up to 16 ordered layers, palette-independent `Empty` cells, one integer composite, project v3 and recovery envelope 3 |
 | [0031](0031-phase-gate-device-performance.md) | accepted | Device performance collection once per phase in a gate Issue; feature Issues state per-operation cost and register workloads |
+| [0032](0032-reference-underlay.md) | accepted | One workspace-owned reference underlay beneath the layers: bounded decoded image, document-pixel placement, adjust mode, display only |

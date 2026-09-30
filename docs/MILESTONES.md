@@ -130,6 +130,7 @@ Expand the proven durable document model for structured pixel-art work.
 - frame duration/playback mode types
 - selection, move, copy, and bounded transform operations
 - palette editing and replacement policies
+- one reference underlay for tracing, kept outside the document (ADR 0032)
 - sprite-sheet or animation export chosen by focused Issues
 
 ### Exit criteria
