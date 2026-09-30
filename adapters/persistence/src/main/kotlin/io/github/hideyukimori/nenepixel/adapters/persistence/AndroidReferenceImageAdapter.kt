@@ -1,5 +1,6 @@
 package io.github.hideyukimori.nenepixel.adapters.persistence
 
+import android.content.ContentResolver
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectStorageFailure
 import io.github.hideyukimori.nenepixel.core.application.persistence.ReferenceImageOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.ReferenceImagePort
@@ -70,6 +71,18 @@ public class AndroidReferenceImageAdapter private constructor(
         ReferenceImageOutcome.Rejected(reason)
 
     public companion object {
+        public fun create(
+            contentResolver: ContentResolver,
+            picker: ProjectDocumentPicker,
+            ioDispatcher: CoroutineDispatcher,
+        ): ReferenceImagePort =
+            create(
+                ContentResolverProjectContentAccess(contentResolver),
+                AndroidProjectPickerAccess(picker),
+                ioDispatcher,
+                AndroidBitmapReferenceImageDecoder,
+            )
+
         internal fun create(
             content: ProjectContentAccess,
             picker: ProjectPickerAccess,

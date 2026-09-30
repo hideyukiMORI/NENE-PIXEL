@@ -116,8 +116,12 @@ changes.
   maximum-plus-one bounded reader, probes the dimensions before allocating, rejects a side above
   16,384 pixels, decodes with the platform `BitmapFactory` using power-of-two subsampling followed
   by one filtered resize so the result fits 1024 x 1024 without upscaling, decodes into sRGB,
-  applies the EXIF orientation through the platform `ExifInterface`, and reads the pixels back as
-  straight (non-premultiplied) RGBA8888. The platform resizes and rotates premultiplied bitmaps
+  applies the EXIF orientation of a JPEG file, and reads the pixels back as straight
+  (non-premultiplied) RGBA8888. The orientation is read by a bounded parser of the adapter's own
+  that looks only for tag 0x0112 in the first Exif segment (amended 2026-09-30, Issue #170): the
+  lint gate rejects the platform `ExifInterface`, and `androidx.exifinterface` would be a new
+  dependency for one integer. A file whose tag cannot be read is shown unrotated; PNG and WebP
+  orientation metadata is ignored. The platform resizes and rotates premultiplied bitmaps
   only, so a nearly transparent pixel can lose colour precision; that is accepted for a picture
   that is only looked at. No
   dependency is added. The adapter keeps no URI permission: the pixels are copied into the state.
