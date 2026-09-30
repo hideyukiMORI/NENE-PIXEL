@@ -35,6 +35,8 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.Persistence
 import io.github.hideyukimori.nenepixel.core.application.workspace.EditorAppearance
 import io.github.hideyukimori.nenepixel.core.application.workspace.EditorControlEdge
 import io.github.hideyukimori.nenepixel.core.application.workspace.EditorLayout
+import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteEditSession
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.presentation.compose.R
 
 @Composable
@@ -72,14 +74,11 @@ internal fun EditorScreen(
                 }
                 EditorStatus(renderState, storage)
             }
-            panel?.let { current ->
-                EditorPanelSurface(EditorPanelPlacement(current, appearance.controlEdge), { panel = null }) {
-                    PanelContent(current, EditorPanelInputs(renderState, callbacks, storage, settings), openPanel) {
-                        panel = null
-                    }
-                }
-            }
-            FollowPaletteEditSession(renderState, panel) { panel = it }
+            EditorPanelLayer(
+                panel?.let { EditorPanelPlacement(it, appearance.controlEdge) },
+                EditorPanelInputs(renderState, callbacks, storage, settings),
+                openPanel,
+            ) { panel = it }
             PersistenceConfirmation(persistenceOperation, persistenceCallbacks)
             LegacyConversionDialog(persistenceOperation, renderState.value.definition, persistenceCallbacks)
         }
@@ -187,6 +186,50 @@ private fun EditorStatus(
         DocumentStatusRow(dirty, storage.operation, storage.autosave, storage.callbacks)
     }
 }
+
+/**
+ * The open panel and the palette editor's discard confirmation (#165). Closing the palette editor panel (its close
+ * button, the scrim or Back) is a close request: an unchanged draft is cancelled through the existing Cancel route,
+ * a changed one asks first. Every other panel closes directly.
+ */
+@Composable
+private fun EditorPanelLayer(
+    placement: EditorPanelPlacement?,
+    inputs: EditorPanelInputs,
+    openPanel: (EditorPanel) -> Unit,
+    show: (EditorPanel?) -> Unit,
+) {
+    var confirmingDiscard by rememberSaveable { mutableStateOf(false) }
+    val palette = inputs.callbacks.palette
+    placement?.let { current ->
+        val dismiss: () -> Unit = {
+            if (current.panel == EditorPanel.PaletteEditor) {
+                requestPaletteEditorClose(inputs.state.value, palette) { confirmingDiscard = true }
+            } else {
+                show(null)
+            }
+        }
+        EditorPanelSurface(current, dismiss) {
+            PanelContent(current.panel, inputs, openPanel) { show(null) }
+        }
+    }
+    FollowPaletteEditSession(inputs.state, placement?.panel, show)
+    PaletteEditorDiscardConfirmation(inputs.state, confirmingDiscard, palette) { confirmingDiscard = false }
+}
+
+/** An unchanged draft is cancelled at once; a changed one opens the confirmation. The panel follows the session. */
+private fun requestPaletteEditorClose(
+    state: EditorRenderState,
+    callbacks: EditorPaletteCallbacks,
+    confirm: () -> Unit,
+) {
+    val session = state.paletteEditSession ?: return
+    if (session.hasDraftChanges(state.definition)) confirm() else callbacks.onCancel()
+}
+
+/** Any draft difference, draft history or pending import counts as a change; doubt falls on the confirming side. */
+private fun PaletteEditSession.hasDraftChanges(definition: PaletteDefinition): Boolean =
+    draft != definition || canUndoDraft || canRedoDraft || pendingImport != null
 
 @Composable
 private fun PanelContent(

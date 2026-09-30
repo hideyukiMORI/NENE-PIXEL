@@ -170,6 +170,9 @@
     <string name="palette_editor_redo">編集をやり直す</string>
     <string name="palette_editor_apply">適用</string>
     <string name="palette_editor_cancel">編集を破棄</string>
+    <string name="palette_editor_discard_title">パレットの編集を破棄しますか？</string>
+    <string name="palette_editor_discard_text">変更した色は元に戻ります。</string>
+    <string name="palette_editor_keep_editing">編集を続ける</string>
     <string name="palette_editor_replacement">代わりに、消した色の移り先にするスロットを選んでください</string>
     <string name="export_palette_json">パレットJSONを書き出す</string>
     <string name="import_palette_json">パレットJSONを読み込む</string>
