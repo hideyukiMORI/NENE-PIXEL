@@ -50,10 +50,12 @@ changes.
   its top-left corner and a scale in document pixels per image pixel, all doubles. It is the same
   at every zoom, so the underlay moves and scales with the picture. `UnderlayPlacement.create`
   clamps against the image and canvas sizes and normalizes non-finite input, and never rejects:
-  the longer displayed side stays between one eighth and sixteen times the longer canvas side,
-  and the image rectangle always overlaps the document rectangle by at least one document pixel
-  on each axis, so the underlay cannot be lost. `UnderlayPlacement.fitted` is the largest placement
-  that lies wholly inside the document rectangle, centred.
+  the longer displayed side stays between one eighth of the longer canvas side (or the fitted
+  size, when that is smaller) and sixteen times the longer canvas side, and the image rectangle
+  always overlaps the document rectangle by at least one document pixel on each axis, so the
+  underlay cannot be lost. `UnderlayPlacement.fitted` is the largest placement that lies wholly
+  inside the document rectangle, centred; it is always a valid placement. `ReferenceUnderlay`
+  keeps the canvas size it was placed against, so its derivations clamp without further input.
 - `UnderlayOpacity` is an integer alpha from 26 to 255 (10% to 100%); `create` clamps. Hiding is
   the visibility, not an opacity of zero.
 - `ReferenceUnderlay` carries the image, the placement, the opacity, a visibility and an
