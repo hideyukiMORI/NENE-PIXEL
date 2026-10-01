@@ -83,6 +83,14 @@ public sealed interface DomainValueRejection {
         public val actualPixelCount: Int,
     ) : DomainValueRejection
 
+    public data class NegativeImportCount internal constructor(
+        public val attemptedValue: Int,
+    ) : DomainValueRejection
+
+    public data object LayerImportPlanPaletteNotExtended : DomainValueRejection
+
+    public data object LayerImportPlanWithoutPixels : DomainValueRejection
+
     public data class PixelPositionOutsideCanvas internal constructor(
         public val canvas: CanvasSize,
         public val position: PixelPosition,
