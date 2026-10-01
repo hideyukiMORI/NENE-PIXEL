@@ -10,6 +10,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import io.github.hideyukimori.nenepixel.adapters.persistence.AndroidPaletteJsonExportAdapter
 import io.github.hideyukimori.nenepixel.adapters.persistence.AndroidPaletteJsonImportAdapter
 import io.github.hideyukimori.nenepixel.adapters.persistence.AndroidPngExportAdapter
+import io.github.hideyukimori.nenepixel.adapters.persistence.AndroidPngImportAdapter
 import io.github.hideyukimori.nenepixel.adapters.persistence.AndroidProjectStorageAdapter
 import io.github.hideyukimori.nenepixel.adapters.persistence.AndroidRecoveryRecordAdapter
 import io.github.hideyukimori.nenepixel.adapters.persistence.AndroidReferenceImageAdapter
@@ -149,6 +150,7 @@ internal class EditorRuntimeViewModel private constructor(
                         AndroidPaletteJsonExportAdapter.create(application.contentResolver, pickerBroker, ioDispatcher),
                         AndroidPaletteJsonImportAdapter.create(application.contentResolver, pickerBroker, ioDispatcher),
                         AndroidReferenceImageAdapter.create(application.contentResolver, pickerBroker, ioDispatcher),
+                        AndroidPngImportAdapter.create(application.contentResolver, pickerBroker, ioDispatcher),
                     ),
                     Dispatchers.Default,
                 )

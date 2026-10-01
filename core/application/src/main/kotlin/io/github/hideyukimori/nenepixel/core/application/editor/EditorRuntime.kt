@@ -40,6 +40,7 @@ public class EditorRuntime private constructor(
     internal val paletteJsonOperations: RuntimePaletteJsonOperations = RuntimePaletteJsonOperations(this)
     internal val referenceImageOperations: RuntimeReferenceImageOperations =
         RuntimeReferenceImageOperations(this)
+    internal val pngImportOperations: RuntimePngImportOperations = RuntimePngImportOperations(this)
 
     internal val saveOperations: RuntimeSaveOperations = RuntimeSaveOperations(this)
     internal val switchOperations: RuntimeSwitchOperations = RuntimeSwitchOperations(this)
