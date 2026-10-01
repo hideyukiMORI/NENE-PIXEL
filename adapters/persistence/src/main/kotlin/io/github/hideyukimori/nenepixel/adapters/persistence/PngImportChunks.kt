@@ -51,6 +51,25 @@ internal object PngImportChunks {
         return unsigned(encoded, chunk.dataOffset + chunk.length) == crc.value
     }
 
+    /**
+     * Calls [action] with the data offset and length of each `IDAT` chunk in [span], in order,
+     * including chunks of length 0. The walk has already checked every length and CRC in [span], so
+     * only the lengths are read here and nothing is copied.
+     */
+    fun forEachData(
+        encoded: ByteArray,
+        span: PngImportDataSpan,
+        action: (dataOffset: Int, length: Int) -> Unit,
+    ) {
+        var offset = span.start
+        while (offset < span.end) {
+            val length = checkNotNull(unsigned(encoded, offset)).toInt()
+            val dataOffset = offset + LENGTH_BYTES + TYPE_BYTES
+            action(dataOffset, length)
+            offset = dataOffset + length + INT_BYTES
+        }
+    }
+
     /** The unsigned big-endian four-byte value at [offset], or null when it does not lie inside [bytes]. */
     private fun unsigned(
         bytes: ByteArray,

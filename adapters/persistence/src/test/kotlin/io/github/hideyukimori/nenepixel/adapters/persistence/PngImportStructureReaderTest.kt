@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
+import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 
 internal class PngImportStructureReaderTest {
@@ -51,11 +52,26 @@ internal class PngImportStructureReaderTest {
     }
 
     @Test
-    fun `three IDAT chunks are joined in order`() {
+    fun `the data visited in three IDAT chunks joins into the zlib stream`() {
         val compressed = deflate(rows(4, 2))
         val chunks = listOf(header(5, 4, 2, 3), chunk("PLTE", palette(4))) + dataChunks(compressed, 3) + end()
-        val parsed = parsed(png(chunks))
-        assertArrayEquals(compressed, parsed.compressed)
+        val bytes = png(chunks)
+        assertArrayEquals(compressed, joinedData(bytes, parsed(bytes)))
+    }
+
+    @Test
+    fun `IDAT chunks of length 0 are visited between the others`() {
+        val compressed = deflate(rows(2, 4))
+        val parts = dataChunks(compressed, 2)
+        val empty = chunk("IDAT")
+        val chunks = listOf(header(1, 2, 8, 6), empty, parts[0], empty, parts[1], empty, end())
+        val bytes = png(chunks)
+        val structure = parsed(bytes)
+        val lengths = mutableListOf<Int>()
+        PngImportChunks.forEachData(bytes, structure.data) { _, length -> lengths += length }
+        assertEquals(5, lengths.size)
+        assertEquals(listOf(0, 0, 0), listOf(lengths[0], lengths[2], lengths[4]))
+        assertArrayEquals(compressed, joinedData(bytes, structure))
     }
 
     @Test
@@ -85,7 +101,8 @@ internal class PngImportStructureReaderTest {
                 chunk("abCd", ByteArray(3)) +
                 dataChunks(compressed) +
                 listOf(chunk("tEXt", "k\u0000v".toByteArray(Charsets.ISO_8859_1)), end())
-        assertArrayEquals(compressed, parsed(png(chunks)).compressed)
+        val bytes = png(chunks)
+        assertArrayEquals(compressed, joinedData(bytes, parsed(bytes)))
     }
 
     @Test
@@ -290,7 +307,17 @@ internal class PngImportStructureReaderTest {
     )
 
     private fun fields(header: PngImportHeader): List<Int> =
-        listOf(header.width, header.height, header.bitDepth, header.colorType)
+        listOf(header.width, header.height, header.bitDepth, header.colorType.code)
+
+    /** The data of every `IDAT` chunk that [PngImportChunks.forEachData] visits, joined in order. */
+    private fun joinedData(
+        bytes: ByteArray,
+        structure: PngImportStructure,
+    ): ByteArray {
+        val out = ByteArrayOutputStream()
+        PngImportChunks.forEachData(bytes, structure.data) { offset, length -> out.write(bytes, offset, length) }
+        return out.toByteArray()
+    }
 
     private fun rows(
         height: Int,

@@ -1,10 +1,9 @@
 package io.github.hideyukimori.nenepixel.adapters.persistence
 
-import java.io.ByteArrayOutputStream
-
 /**
  * Applies the chunk-order rules of ADR 0033 to the chunks after `IHDR`, one at a time, and collects
- * `PLTE`, `tRNS` and the joined `IDAT` data. One walk reads one file; it is never shared.
+ * `PLTE`, `tRNS` and where the consecutive `IDAT` chunks lie. One walk reads one file; it is never
+ * shared.
  */
 internal class PngImportChunkWalk(
     private val encoded: ByteArray,
@@ -13,9 +12,9 @@ internal class PngImportChunkWalk(
     private var paletteSeen: Boolean = false
     private var palette: ByteArray? = null
     private var transparency: ByteArray? = null
-    private var dataSeen: Boolean = false
-    private var dataOpen: Boolean = false
-    private val compressed: ByteArrayOutputStream = ByteArrayOutputStream()
+    private var phase: DataPhase = DataPhase.BEFORE_DATA
+    private var dataStart: Int = 0
+    private var dataEnd: Int = 0
 
     /** True when [chunk], which is not `IEND`, is accepted at this position. */
     fun accept(chunk: PngImportChunk): Boolean {
@@ -37,15 +36,17 @@ internal class PngImportChunkWalk(
                     !chunk.isCritical
                 }
             }
-        dataOpen = chunk.type == PngImportChunk.DATA
+        if (chunk.type != PngImportChunk.DATA && phase == DataPhase.IN_DATA) {
+            phase = DataPhase.AFTER_DATA
+        }
         return accepted
     }
 
     /** The structure that ends with [end], an `IEND` chunk. */
     fun finish(end: PngImportChunk): PngImportStructureResult =
-        if (end.length == 0 && dataSeen) {
+        if (end.length == 0 && phase != DataPhase.BEFORE_DATA) {
             PngImportStructureResult.Parsed(
-                PngImportStructure(header, palette, transparency, compressed.toByteArray()),
+                PngImportStructure(header, palette, transparency, PngImportDataSpan(dataStart, dataEnd)),
             )
         } else {
             PngImportStructureResult.Unsupported
@@ -54,12 +55,12 @@ internal class PngImportChunkWalk(
     private fun acceptPalette(chunk: PngImportChunk): Boolean {
         val entries = chunk.length / PALETTE_ENTRY_BYTES
         val accepted =
-            !dataSeen &&
+            phase == DataPhase.BEFORE_DATA &&
                 !paletteSeen &&
                 chunk.length % PALETTE_ENTRY_BYTES == 0 &&
                 entries in 1..maxPaletteEntries()
         paletteSeen = true
-        if (accepted && header.colorType == PngImportHeader.INDEXED) {
+        if (accepted && header.colorType == PngImportColorType.INDEXED) {
             palette = chunk.dataOf(encoded)
         }
         return accepted
@@ -68,21 +69,21 @@ internal class PngImportChunkWalk(
     /** The most `PLTE` entries for the colour type; 0 where `PLTE` is not allowed. */
     private fun maxPaletteEntries(): Int =
         when (header.colorType) {
-            PngImportHeader.INDEXED -> {
+            PngImportColorType.INDEXED -> {
                 minOf(MAX_PALETTE_ENTRIES, 1 shl header.bitDepth)
             }
 
-            PngImportHeader.TRUECOLOUR, PngImportHeader.TRUECOLOUR_ALPHA -> {
+            PngImportColorType.TRUECOLOUR, PngImportColorType.TRUECOLOUR_ALPHA -> {
                 MAX_PALETTE_ENTRIES
             }
 
-            else -> {
+            PngImportColorType.GREY, PngImportColorType.GREY_ALPHA -> {
                 0
             }
         }
 
     private fun acceptTransparency(chunk: PngImportChunk): Boolean {
-        val accepted = !dataSeen && transparency == null && transparencyFits(chunk.length)
+        val accepted = phase == DataPhase.BEFORE_DATA && transparency == null && transparencyFits(chunk.length)
         if (accepted) {
             transparency = chunk.dataOf(encoded)
         }
@@ -92,30 +93,33 @@ internal class PngImportChunkWalk(
     /** True when a `tRNS` of [length] bytes suits the colour type and, for type 3, the palette before it. */
     private fun transparencyFits(length: Int): Boolean =
         when (header.colorType) {
-            PngImportHeader.INDEXED -> {
+            PngImportColorType.INDEXED -> {
                 palette.let { it != null && length <= it.size / PALETTE_ENTRY_BYTES }
             }
 
-            PngImportHeader.GREY -> {
+            PngImportColorType.GREY -> {
                 length == GREY_TRANSPARENCY_BYTES
             }
 
-            PngImportHeader.TRUECOLOUR -> {
+            PngImportColorType.TRUECOLOUR -> {
                 length == TRUECOLOUR_TRANSPARENCY_BYTES
             }
 
-            else -> {
+            PngImportColorType.GREY_ALPHA, PngImportColorType.TRUECOLOUR_ALPHA -> {
                 false
             }
         }
 
     private fun acceptData(chunk: PngImportChunk): Boolean {
         val accepted =
-            (!dataSeen || dataOpen) &&
-                (header.colorType != PngImportHeader.INDEXED || palette != null)
+            phase != DataPhase.AFTER_DATA &&
+                (header.colorType != PngImportColorType.INDEXED || palette != null)
         if (accepted) {
-            compressed.write(encoded, chunk.dataOffset, chunk.length)
-            dataSeen = true
+            if (phase == DataPhase.BEFORE_DATA) {
+                dataStart = chunk.dataOffset - LENGTH_AND_TYPE_BYTES
+            }
+            dataEnd = chunk.end
+            phase = DataPhase.IN_DATA
         }
         return accepted
     }
@@ -125,5 +129,13 @@ internal class PngImportChunkWalk(
         const val MAX_PALETTE_ENTRIES: Int = 256
         const val GREY_TRANSPARENCY_BYTES: Int = 2
         const val TRUECOLOUR_TRANSPARENCY_BYTES: Int = 6
+        const val LENGTH_AND_TYPE_BYTES: Int = 8
     }
+}
+
+/** Where the walk is relative to the consecutive `IDAT` chunks. */
+private enum class DataPhase {
+    BEFORE_DATA,
+    IN_DATA,
+    AFTER_DATA,
 }

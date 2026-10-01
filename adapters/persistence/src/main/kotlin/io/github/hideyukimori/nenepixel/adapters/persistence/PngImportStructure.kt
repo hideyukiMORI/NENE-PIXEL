@@ -8,11 +8,12 @@ package io.github.hideyukimori.nenepixel.adapters.persistence
  *
  * @property palette the data of `PLTE`, three bytes per entry, for colour type 3 only.
  * @property transparency the data of `tRNS`, when present.
- * @property compressed the data of every `IDAT` chunk in order, joined into one zlib stream.
+ * @property data where the `IDAT` chunks lie in the encoded bytes; their data, visited in order with
+ *   [PngImportChunks.forEachData], is one zlib stream. Nothing is copied.
  */
 internal class PngImportStructure(
     val header: PngImportHeader,
     val palette: ByteArray?,
     val transparency: ByteArray?,
-    val compressed: ByteArray,
+    val data: PngImportDataSpan,
 )

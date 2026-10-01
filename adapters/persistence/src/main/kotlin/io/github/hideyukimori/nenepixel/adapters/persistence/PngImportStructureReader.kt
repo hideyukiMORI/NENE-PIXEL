@@ -4,7 +4,7 @@ import io.github.hideyukimori.nenepixel.core.domain.importing.ImportRaster
 
 /**
  * Reads the structure of a PNG file to import with a bounded parser of its own (ADR 0033): the
- * signature, `IHDR`, `PLTE`, `tRNS`, the joined `IDAT` data and `IEND`. Nothing is inflated here.
+ * signature, `IHDR`, `PLTE`, `tRNS`, where the `IDAT` chunks lie and `IEND`. Nothing is inflated here.
  *
  * Every chunk length is compared with the bytes that remain before the chunk is read, and the CRC
  * of every chunk is verified. The sides are checked as soon as `IHDR` is read. Bytes after `IEND`
@@ -43,15 +43,17 @@ internal object PngImportStructureReader {
         val width = intAt(encoded, at)
         val height = intAt(encoded, at + HEIGHT_POSITION)
         val bitDepth = encoded[at + DEPTH_POSITION].toInt() and BYTE_MASK
-        val colorType = encoded[at + COLOR_TYPE_POSITION].toInt() and BYTE_MASK
         val methodsAreZero = (at + METHODS_POSITION until at + HEADER_BYTES).all { encoded[it] == 0.toByte() }
-        val isSupported = methodsAreZero && PngImportHeader.isSupported(colorType, bitDepth)
+        val colorType =
+            PngImportColorType
+                .fromCode(encoded[at + COLOR_TYPE_POSITION].toInt() and BYTE_MASK)
+                ?.takeIf { methodsAreZero && bitDepth in it.bitDepths }
         return when {
             width > ImportRaster.MAX_SIDE || height > ImportRaster.MAX_SIDE -> {
                 PngImportStructureResult.TooManyPixels
             }
 
-            width < 1 || height < 1 || !isSupported -> {
+            width < 1 || height < 1 || colorType == null -> {
                 PngImportStructureResult.Unsupported
             }
 
