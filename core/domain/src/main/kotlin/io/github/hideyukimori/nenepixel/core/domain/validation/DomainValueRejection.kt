@@ -73,6 +73,16 @@ public sealed interface DomainValueRejection {
         public val actualPixelCount: Int,
     ) : DomainValueRejection
 
+    public data class ImportRasterSideOutOfRange internal constructor(
+        public val width: Int,
+        public val height: Int,
+    ) : DomainValueRejection
+
+    public data class ImportRasterSizeMismatch internal constructor(
+        public val expectedPixelCount: Int,
+        public val actualPixelCount: Int,
+    ) : DomainValueRejection
+
     public data class PixelPositionOutsideCanvas internal constructor(
         public val canvas: CanvasSize,
         public val position: PixelPosition,
