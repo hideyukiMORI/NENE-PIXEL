@@ -82,6 +82,25 @@
     <string name="png_import_too_many_bytes">PNG文件过大（最大 8 MB）</string>
     <string name="png_import_too_many_pixels">PNG尺寸过大（最大 1024 × 1024 像素）</string>
     <string name="png_import_unsupported">无法读取此PNG（不支持 16 位和隔行扫描的PNG）</string>
+    <string name="png_import_title">导入PNG</string>
+    <string name="png_import_size">尺寸：%1$d × %2$d 像素</string>
+    <plurals name="png_import_colors">
+        <item quantity="other">颜色数：%1$d</item>
+    </plurals>
+    <string name="png_import_append">添加为新图层（将颜色加入调色板）</string>
+    <string name="png_import_convert">添加为新图层（转换为当前调色板的颜色）</string>
+    <plurals name="png_import_appended">
+        <item quantity="other">向调色板添加 %1$d 种颜色</item>
+    </plurals>
+    <string name="png_import_palette_unchanged">调色板不变</string>
+    <plurals name="png_import_nearest">
+        <item quantity="other">%1$d 种颜色将替换为最接近的颜色</item>
+    </plurals>
+    <string name="png_import_exact">所有颜色保持原样</string>
+    <plurals name="png_import_dropped">
+        <item quantity="other">超出画面的 %1$d 个像素不会导入</item>
+    </plurals>
+    <string name="png_import_nothing">没有可导入的内容（画面范围内全部透明）</string>
     <string name="project_saved">已保存项目</string>
     <string name="project_loaded">已读取项目</string>
     <string name="new_document_created">已创建新作品</string>
@@ -121,7 +140,7 @@
     <string name="mvp_information">关于此版本</string>
     <string name="close_information">关闭</string>
     <string name="mvp_scope_title">绘画范围</string>
-    <string name="mvp_scope">可离线使用，支持单帧。画布宽高各为%1$d～%2$d像素。颜色从作品的调色板中选择；可以编辑调色板，并以JSON导出或导入。动画和PNG导入尚未提供。</string>
+    <string name="mvp_scope">可离线使用，支持单帧。画布宽高各为%1$d～%2$d像素。颜色从作品的调色板中选择；可以编辑调色板，并以JSON导出或导入。可以将PNG导入为新图层。动画尚未提供。</string>
     <string name="mvp_save_title">另存为</string>
     <string name="mvp_save">每次保存都会创建新的项目文件，不覆盖已有文件。要继续编辑，请保留 .nenepixel 文件。保存失败时可能留下新建的不完整文件；保存位置或云端后续发生的故障仍可能影响文件。</string>
     <string name="mvp_history_title">历史记录与重新打开</string>

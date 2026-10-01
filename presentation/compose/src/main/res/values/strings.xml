@@ -82,6 +82,29 @@
     <string name="png_import_too_many_bytes">The PNG file is too large (up to 8 MB)</string>
     <string name="png_import_too_many_pixels">The PNG is too large (up to 1024 × 1024 pixels)</string>
     <string name="png_import_unsupported">This PNG cannot be read (16-bit and interlaced PNG files are not supported)</string>
+    <string name="png_import_title">Import PNG</string>
+    <string name="png_import_size">Size (pixels): %1$d × %2$d</string>
+    <plurals name="png_import_colors">
+        <item quantity="one">%1$d color</item>
+        <item quantity="other">%1$d colors</item>
+    </plurals>
+    <string name="png_import_append">Add as a new layer and add its colors to the palette</string>
+    <string name="png_import_convert">Add as a new layer and convert to the current palette</string>
+    <plurals name="png_import_appended">
+        <item quantity="one">%1$d color is added to the palette</item>
+        <item quantity="other">%1$d colors are added to the palette</item>
+    </plurals>
+    <string name="png_import_palette_unchanged">The palette does not change</string>
+    <plurals name="png_import_nearest">
+        <item quantity="one">%1$d color is replaced by the nearest color</item>
+        <item quantity="other">%1$d colors are replaced by the nearest color</item>
+    </plurals>
+    <string name="png_import_exact">Every color keeps its exact value</string>
+    <plurals name="png_import_dropped">
+        <item quantity="one">%1$d pixel outside the picture is not imported</item>
+        <item quantity="other">%1$d pixels outside the picture are not imported</item>
+    </plurals>
+    <string name="png_import_nothing">Nothing to import: every pixel inside the picture is transparent</string>
     <string name="project_saved">Project saved</string>
     <string name="project_loaded">Project loaded</string>
     <string name="new_document_created">New document created</string>
@@ -122,7 +145,7 @@
     <string name="mvp_information">About this version</string>
     <string name="close_information">Close</string>
     <string name="mvp_scope_title">Drawing</string>
-    <string name="mvp_scope">An offline editor for one frame. Width and height range (pixels): %1$d–%2$d. Choose colors from the document palette. You can edit the palette and export or import it as JSON. Animation and PNG import are not available yet.</string>
+    <string name="mvp_scope">An offline editor for one frame. Width and height range (pixels): %1$d–%2$d. Choose colors from the document palette. You can edit the palette and export or import it as JSON. You can import a PNG file as a new layer. Animation is not available yet.</string>
     <string name="mvp_save_title">Save As</string>
     <string name="mvp_save">Each save creates a new project file. Existing files are never overwritten. Keep a .nenepixel file to continue editing. A failed save may leave a newly created incomplete file; storage-provider or cloud failures can still affect saved files later.</string>
     <string name="mvp_history_title">Undo and reopening</string>

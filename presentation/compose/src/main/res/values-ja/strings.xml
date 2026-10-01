@@ -82,6 +82,25 @@
     <string name="png_import_too_many_bytes">PNGのファイルが大きすぎます（8 MB まで）</string>
     <string name="png_import_too_many_pixels">PNGの大きさが大きすぎます（1024 × 1024 ドットまで）</string>
     <string name="png_import_unsupported">このPNGは読めません（16 bit とインターレースのPNGには対応していません）</string>
+    <string name="png_import_title">PNGを取り込む</string>
+    <string name="png_import_size">大きさ: %1$d × %2$d ドット</string>
+    <plurals name="png_import_colors">
+        <item quantity="other">色の数: %1$d 色</item>
+    </plurals>
+    <string name="png_import_append">新しいレイヤーとして足す（色をパレットに足す）</string>
+    <string name="png_import_convert">新しいレイヤーとして足す（今のパレットの色に変換）</string>
+    <plurals name="png_import_appended">
+        <item quantity="other">パレットに %1$d 色を足します</item>
+    </plurals>
+    <string name="png_import_palette_unchanged">パレットは変わりません</string>
+    <plurals name="png_import_nearest">
+        <item quantity="other">%1$d 色は、近い色に置き換わります</item>
+    </plurals>
+    <string name="png_import_exact">全部の色が、そのままの色で入ります</string>
+    <plurals name="png_import_dropped">
+        <item quantity="other">絵の外にはみ出す %1$d ドットは入りません</item>
+    </plurals>
+    <string name="png_import_nothing">入れるドットが有りません（絵の範囲が全部透明です）</string>
     <string name="project_saved">プロジェクトを保存しました</string>
     <string name="project_loaded">プロジェクトを読み込みました</string>
     <string name="new_document_created">新しい作品を作成しました</string>
@@ -121,7 +140,7 @@
     <string name="mvp_information">このバージョンについて</string>
     <string name="close_information">閉じる</string>
     <string name="mvp_scope_title">描画できる範囲</string>
-    <string name="mvp_scope">オフラインで使える、1フレームの編集ツールです。縦・横それぞれ%1$d～%2$dピクセルで作成できます。色は作品のパレットから選びます。パレットの編集とJSONでの書き出し・読み込みができます。アニメーション、PNG読み込みは今後の対応です。</string>
+    <string name="mvp_scope">オフラインで使える、1フレームの編集ツールです。縦・横それぞれ%1$d～%2$dピクセルで作成できます。色は作品のパレットから選びます。パレットの編集とJSONでの書き出し・読み込みができます。PNGを新しいレイヤーとして取り込めます。アニメーションは今後の対応です。</string>
     <string name="mvp_save_title">別名で保存</string>
     <string name="mvp_save">保存するたびに新しい作品ファイルを作成し、既存のファイルは上書きしません。編集を続けるには .nenepixel ファイルを残してください。保存に失敗すると、新しく作られた不完全なファイルが残る場合があります。保存先やクラウドの後の障害までは防げません。</string>
     <string name="mvp_history_title">履歴と開き直し</string>

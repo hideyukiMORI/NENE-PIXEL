@@ -18,6 +18,10 @@ internal class LocalizedResourceContractTest {
                 "palette_import_unresolved/one",
                 "layer_limit/one",
                 "layer_rename_too_long/one",
+                "png_import_colors/one",
+                "png_import_appended/one",
+                "png_import_nearest/one",
+                "png_import_dropped/one",
             )
         englishOnlyQuantities.forEach { key ->
             assertEquals(
