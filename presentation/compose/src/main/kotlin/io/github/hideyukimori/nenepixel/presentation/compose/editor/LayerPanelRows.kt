@@ -1,6 +1,7 @@
 package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
@@ -20,13 +21,17 @@ import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
  * each with its "more" menu. Only this list scrolls. It is composed each time the panel opens; after the first
  * layout it moves focus to the active layer's row. Whenever the active layer changes (opening, add, a row tap,
  * undo / redo) it scrolls that row into view after the next layout (#144 U5 ruling).
+ *
+ * [trailing] follows the last (back-most) row inside the same scroll (#170 A7 revised ruling: the underlay row), so
+ * the rows keep their positions and only the scroll range grows. The list takes the remaining height of the panel's
+ * column without filling it, as before.
  */
 @Composable
-internal fun LayerPanelRows(
+internal fun ColumnScope.LayerPanelRows(
     rows: List<LayerRowModel>,
     activeLayerId: LayerId,
     actions: LayerRowActions,
-    modifier: Modifier = Modifier,
+    trailing: @Composable ColumnScope.() -> Unit,
 ) {
     val activeFocus = remember { FocusRequester() }
     val activeView = remember { BringIntoViewRequester() }
@@ -38,7 +43,7 @@ internal fun LayerPanelRows(
         withFrameNanos { }
         activeView.bringIntoView()
     }
-    Column(modifier.verticalScroll(rememberScrollState())) {
+    Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
         rows.forEachIndexed { index, row ->
             key(row.id.value) {
                 val current = row.id == activeLayerId
@@ -48,5 +53,6 @@ internal fun LayerPanelRows(
                 LayerRow(entry, actions.callbacks, target) { LayerRowMenu(entry, actions) }
             }
         }
+        trailing()
     }
 }

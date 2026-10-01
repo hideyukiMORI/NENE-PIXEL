@@ -59,6 +59,7 @@ internal fun EditorScreen(
         remember(persistenceOperation, autosave, persistenceCallbacks) {
             EditorStorageInputs(persistenceOperation, autosave, persistenceCallbacks)
         }
+    val workArea = remember(openPanel, persistenceCallbacks) { EditorWorkAreaActions(openPanel, persistenceCallbacks) }
     MaterialTheme(colorScheme = appearance.theme.colorScheme(), typography = localizedTypography()) {
         Surface(
             modifier =
@@ -70,7 +71,7 @@ internal fun EditorScreen(
             Column(Modifier.safeDrawingPadding()) {
                 EditorHeader(renderState, openPanel)
                 Box(Modifier.weight(1f)) {
-                    EditorWorkArea(renderState, appearance, callbacks) { openPanel(EditorPanel.Palette) }
+                    EditorWorkArea(renderState, appearance, callbacks, workArea)
                 }
                 EditorStatus(renderState, storage)
             }
@@ -124,12 +125,14 @@ private fun EditorWorkArea(
     state: State<EditorRenderState>,
     appearance: EditorAppearance,
     callbacks: EditorCallbacks,
-    openPalette: () -> Unit,
+    actions: EditorWorkAreaActions,
 ) {
+    val openPalette = actions.openPalette
+    val pickUnderlay = actions.pickUnderlay
     val committed = remember { CommittedBitmapCache() }
     if (appearance.layout == EditorLayout.Tabletop) {
         Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(Modifier.weight(1f).fillMaxWidth()) { EditorCanvas(state, callbacks, committed) }
+            Box(Modifier.weight(1f).fillMaxWidth()) { EditorCanvas(state, callbacks, committed, pickUnderlay) }
             Surface(color = appearance.theme.railColor(), modifier = Modifier.fillMaxWidth()) {
                 Box(contentAlignment = Alignment.Center) { EditorToolDock(state, callbacks, openPalette) }
             }
@@ -139,7 +142,7 @@ private fun EditorWorkArea(
             if (appearance.controlEdge == EditorControlEdge.Left) {
                 SideDock(state, callbacks, openPalette)
             }
-            Box(Modifier.weight(1f)) { EditorCanvas(state, callbacks, committed) }
+            Box(Modifier.weight(1f)) { EditorCanvas(state, callbacks, committed, pickUnderlay) }
             if (appearance.controlEdge == EditorControlEdge.Right) {
                 SideDock(state, callbacks, openPalette)
             }
@@ -168,11 +171,12 @@ private fun EditorCanvas(
     state: State<EditorRenderState>,
     callbacks: EditorCallbacks,
     committed: CommittedBitmapCache,
+    pickUnderlay: () -> Unit,
 ) {
     val size by remember(state) { derivedStateOf { state.value.document.size } }
     PixelCanvas(state, size, callbacks, committed, Modifier.fillMaxSize())
     ActualSizeWindowOverlay(state, committed, callbacks)
-    LayerOverlay(state, callbacks)
+    LayerOverlay(state, callbacks, pickUnderlay)
     QuickSelectOverlay(state, callbacks)
 }
 
@@ -303,3 +307,12 @@ private data class EditorPanelInputs(
     val storage: EditorStorageInputs,
     val settings: EditorSettingsInputs,
 )
+
+/** What the work area hands on besides the render state: opening the palette, and choosing the underlay (#170). */
+private class EditorWorkAreaActions(
+    openPanel: (EditorPanel) -> Unit,
+    persistenceCallbacks: EditorPersistenceCallbacks,
+) {
+    val openPalette: () -> Unit = { openPanel(EditorPanel.Palette) }
+    val pickUnderlay: () -> Unit = persistenceCallbacks.pickReferenceImage
+}

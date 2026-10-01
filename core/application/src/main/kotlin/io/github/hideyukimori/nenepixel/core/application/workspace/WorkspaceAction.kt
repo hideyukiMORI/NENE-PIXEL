@@ -3,6 +3,7 @@ package io.github.hideyukimori.nenepixel.core.application.workspace
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteDraftOperation
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteImportMode
 import io.github.hideyukimori.nenepixel.core.application.workspace.quickselect.QuickSelectItem
+import io.github.hideyukimori.nenepixel.core.application.workspace.underlay.ReferenceUnderlay
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportState
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
@@ -28,18 +29,21 @@ public sealed interface WorkspaceAction {
         public val tool: DrawingTool,
     ) : WorkspaceAction
 
+    /** Every gesture preview action; the reducer hands the whole family to one reduction. */
+    public sealed interface GesturePreviewAction : WorkspaceAction
+
     public data class BeginGesturePreview(
         public val canvas: CanvasSize,
         public val position: PixelPosition,
-    ) : WorkspaceAction
+    ) : GesturePreviewAction
 
     public data class ExtendGesturePreview(
         public val position: PixelPosition,
-    ) : WorkspaceAction
+    ) : GesturePreviewAction
 
-    public data object CancelGesturePreview : WorkspaceAction
+    public data object CancelGesturePreview : GesturePreviewAction
 
-    public data object PrepareGestureCommit : WorkspaceAction
+    public data object PrepareGestureCommit : GesturePreviewAction
 
     public data class SetViewport(
         public val viewport: ViewportState,
@@ -109,6 +113,17 @@ public sealed interface WorkspaceAction {
     public data class SelectLayer(
         public val layerId: LayerId,
     ) : LayerAction
+
+    /** Every reference-underlay action (ADR 0032); the reducer hands the whole family to one reduction. */
+    public sealed interface ReferenceUnderlayAction : WorkspaceAction
+
+    /** Replaces the whole reference underlay with [underlay]; never rejected. */
+    public data class SetReferenceUnderlay(
+        public val underlay: ReferenceUnderlay,
+    ) : ReferenceUnderlayAction
+
+    /** Removes the reference underlay; never rejected. */
+    public data object ClearReferenceUnderlay : ReferenceUnderlayAction
 }
 
 /**
@@ -127,6 +142,7 @@ internal fun WorkspaceAction.isAllowedDuringPaletteSession(): Boolean =
         is DocumentReconciliation,
         WorkspaceAction.CancelQuickSelect,
         WorkspaceAction.DisarmEyedropper,
+        is WorkspaceAction.ReferenceUnderlayAction,
         -> true
 
         is WorkspaceAction.SelectTool,

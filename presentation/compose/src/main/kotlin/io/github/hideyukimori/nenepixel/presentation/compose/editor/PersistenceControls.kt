@@ -159,7 +159,7 @@ internal fun PersistenceOperationProjection.statusResource(autosave: AutosavePro
     }
 
 private fun PersistenceOperationProjection.idleStatusResource(autosave: AutosaveProjection): Int =
-    when {
+    lastOutcome.underlayFailureResource() ?: when {
         (lastOutcome as? PersistenceLastOutcome.Failed)?.failure is PersistenceFailure.PngExport -> {
             R.string.png_export_failed
         }
@@ -200,6 +200,8 @@ private fun PersistenceLastOutcome.completedStatusResource(): Int =
         PersistenceLastOutcome.PaletteJsonExported -> R.string.palette_json_exported
 
         PersistenceLastOutcome.PaletteJsonImported -> R.string.palette_json_imported
+
+        PersistenceLastOutcome.ReferenceImagePicked -> R.string.underlay_picked
 
         is PersistenceLastOutcome.Saved -> R.string.project_saved
 

@@ -12,6 +12,7 @@ import io.github.hideyukimori.nenepixel.adapters.persistence.AndroidPaletteJsonI
 import io.github.hideyukimori.nenepixel.adapters.persistence.AndroidPngExportAdapter
 import io.github.hideyukimori.nenepixel.adapters.persistence.AndroidProjectStorageAdapter
 import io.github.hideyukimori.nenepixel.adapters.persistence.AndroidRecoveryRecordAdapter
+import io.github.hideyukimori.nenepixel.adapters.persistence.AndroidReferenceImageAdapter
 import io.github.hideyukimori.nenepixel.core.application.editor.EditorRuntime
 import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveProjection
 import io.github.hideyukimori.nenepixel.core.application.persistence.EditorPersistenceWorkflow
@@ -50,6 +51,7 @@ internal class EditorRuntimeViewModel private constructor(
                         exportPng = { launchOperation(persistence::exportPng) },
                         exportPaletteJson = { launchOperation { persistence.paletteJson.export() } },
                         importPaletteJson = { launchOperation { persistence.paletteJson.import() } },
+                        pickReferenceImage = { launchOperation { persistence.referenceImage.pick() } },
                     ),
                 saveAs = { launchOperation(persistence::saveAs) },
                 load = { launchOperation(persistence::load) },
@@ -146,6 +148,7 @@ internal class EditorRuntimeViewModel private constructor(
                         AndroidPngExportAdapter.create(application.contentResolver, pickerBroker, ioDispatcher),
                         AndroidPaletteJsonExportAdapter.create(application.contentResolver, pickerBroker, ioDispatcher),
                         AndroidPaletteJsonImportAdapter.create(application.contentResolver, pickerBroker, ioDispatcher),
+                        AndroidReferenceImageAdapter.create(application.contentResolver, pickerBroker, ioDispatcher),
                     ),
                     Dispatchers.Default,
                 )

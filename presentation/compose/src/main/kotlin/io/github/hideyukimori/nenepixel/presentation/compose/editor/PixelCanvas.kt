@@ -37,6 +37,7 @@ internal fun PixelCanvas(
     val geometries = remember { CanvasGeometryCache() }
     val previews = remember { PreviewBitmapCache() }
     val backdrop = remember { TransparencyBackdrop() }
+    val underlayBitmap = remember { UnderlayBitmapCache() }
     Canvas(
         modifier =
             modifier
@@ -54,6 +55,7 @@ internal fun PixelCanvas(
         val geometry = geometries.resolve(canvas, surface, current.viewport) ?: return@Canvas
         drawCanvasMargins(geometry.destination, PresentationPalette.canvasSurround(current.appearance.theme))
         drawTransparencyBackdrop(backdrop, geometry.destination)
+        drawUnderlay(underlayBitmap, current.underlay, geometry.destination, canvas)
         drawPixels(
             geometry.destination,
             previews.render(current, committed)

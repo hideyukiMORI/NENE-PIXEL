@@ -52,7 +52,13 @@ internal class NewDocumentEditorControllerTest {
     private fun callbacks(createNewDocument: (NewDocumentRequestResult) -> Unit): EditorPersistenceCallbacks =
         EditorPersistenceCallbacks.create(
             ProjectFileCallbacks(
-                exchange = FileExchangeCallbacks(exportPng = {}, exportPaletteJson = {}, importPaletteJson = {}),
+                exchange =
+                    FileExchangeCallbacks(
+                        exportPng = {},
+                        exportPaletteJson = {},
+                        importPaletteJson = {},
+                        pickReferenceImage = {},
+                    ),
                 saveAs = {},
                 load = {},
                 createNewDocument = createNewDocument,

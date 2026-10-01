@@ -111,6 +111,8 @@ public sealed interface PersistenceLastOutcome {
 
     public data object PaletteJsonImported : PersistenceLastOutcome
 
+    public data object ReferenceImagePicked : PersistenceLastOutcome
+
     public data object Loaded : PersistenceLastOutcome
 
     public data object NewDocumentCreated : PersistenceLastOutcome
@@ -197,6 +199,14 @@ public sealed interface PersistenceFailure {
 
     public data class PaletteJsonImport internal constructor(
         public val failure: ProjectStorageFailure,
+    ) : PersistenceFailure
+
+    public data class ReferenceImagePick internal constructor(
+        public val failure: ProjectStorageFailure,
+    ) : PersistenceFailure
+
+    public data class ReferenceImageRejected internal constructor(
+        public val reason: ReferenceImageSourceRejection,
     ) : PersistenceFailure
 
     public data class Storage internal constructor(

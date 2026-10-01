@@ -116,8 +116,12 @@ changes.
   maximum-plus-one bounded reader, probes the dimensions before allocating, rejects a side above
   16,384 pixels, decodes with the platform `BitmapFactory` using power-of-two subsampling followed
   by one filtered resize so the result fits 1024 x 1024 without upscaling, decodes into sRGB,
-  applies the EXIF orientation through the platform `ExifInterface`, and reads the pixels back as
-  straight (non-premultiplied) RGBA8888. The platform resizes and rotates premultiplied bitmaps
+  applies the EXIF orientation of a JPEG file, and reads the pixels back as straight
+  (non-premultiplied) RGBA8888. The orientation is read by a bounded parser of the adapter's own
+  that looks only for tag 0x0112 in the first Exif segment (amended 2026-09-30, Issue #170): the
+  lint gate rejects the platform `ExifInterface`, and `androidx.exifinterface` would be a new
+  dependency for one integer. A file whose tag cannot be read is shown unrotated; PNG and WebP
+  orientation metadata is ignored. The platform resizes and rotates premultiplied bitmaps
   only, so a nearly transparent pixel can lose colour precision; that is accepted for a picture
   that is only looked at. No
   dependency is added. The adapter keeps no URI permission: the pixels are copied into the state.
@@ -135,11 +139,13 @@ changes.
 - `:presentation:compose` owns one disposable `UnderlayBitmapCache` keyed by the `ReferenceImage`
   instance. It builds one `Bitmap` when the image changes and on nothing else; placement, opacity
   and visibility are drawing parameters.
-- The controls are one fixed row at the bottom of the layer panel, above Add layer: a visibility
-  toggle, the label, a more menu (choose or replace the image, adjust, fit to picture, remove) and
-  an opacity slider, which is disabled while the underlay is hidden. With no underlay the row
-  offers only the choice of an image. While adjusting,
-  one bar over the work area shows the mode, the opacity slider, Fit to picture and Done.
+- The controls are one row after the layer rows, above Add layer: a visibility toggle, the label,
+  a more menu (choose or replace the image, adjust, fit to picture, remove) and an opacity slider,
+  which is disabled while the underlay is hidden. With no underlay the row offers only the choice
+  of an image. The row scrolls with the layer rows (amended 2026-09-30, Issue #170): a fixed row
+  left too little height for the layers on a short screen, and the instrumented layer-row tests
+  failed on a 400 dp tall window. Only the heading and Add layer stay fixed. While adjusting, one
+  bar over the work area shows the mode, the opacity slider, Fit to picture and Done.
 - UI wording: `Underlay` / `下敷き` / `底图`. The glossary term is "reference underlay".
 
 ### Not decided here
