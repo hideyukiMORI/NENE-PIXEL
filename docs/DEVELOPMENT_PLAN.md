@@ -84,6 +84,7 @@ ADR 0022 / #101 accepts this first palette-oriented portion of M4 after that gat
 claim M4 layers/frames are already planned in implementation detail or complete.
 ADR 0030 / #140 adds the ordered-layer portion (P4-05); frames remain unplanned.
 ADR 0032 / #169 adds the reference underlay (P4-06), which the owner placed before the layer gate.
+ADR 0033 / #176 adds PNG import (P4-07), requested by the owner on 2026-10-01.
 
 | ID | Work package | Depends on | Required evidence |
 | --- | --- | --- | --- |
@@ -102,12 +103,16 @@ ADR 0032 / #169 adds the reference underlay (P4-06), which the owner placed befo
 | P4-06a | Choose an image and show it beneath the layers, with visibility, opacity and removal (#170) | P4-06 | Value/action contracts, bounded decode and typed rejection tests, pixel tests of the draw order, localized panel row; per-frame cost statement and the underlay workload registered with P4-05d (QLT-019) |
 | P4-06b | Add the underlay adjust mode: move, scale, fit to picture (#171) | P4-06a | Adjust arithmetic and clamp tests, mode entry/exit and document/viewport neutrality tests, localized adjust bar; cost statement |
 | P4-06c | Remember the underlay of each work across processes (#172) | P4-06b | ARC-004 and ADR 0021 amended first; bounded app-private store, restore and eviction tests |
+| P4-07 | Accept the PNG import contract (#176) | P4-05b, P4-03 | Accepted ADR 0033, updated governing documents and focused Issues |
+| P4-07a | Pick a PNG and add it as a new layer, appending or converting colours (#177) | P4-07 | Raster and planner golden tests, command/undo/stale-plan/accounting contracts, bounded PNG reader JVM tests including the export round trip, localized dialog; per-operation cost statement (QLT-019) |
+| P4-07b | Open a PNG as a new work (#178) | P4-07a | New-work planner golden tests, confirmation/installation/dirtiness contracts, localized dialog form; cost statement |
 
 Preparation keeps the sole M3 editable path. P4-02 changes every live consumer together, with no
 parallel editable RGBA document or provisional indexed-to-v1 writer. P4-05a likewise moves every
 consumer to layered documents at once. Layer duplicate/merge, saved layer opacity (planned for v4)
-and frames are refined after the P4-05 results; PNG import, animation and tiles/maps
-requirements remain recorded in ADR 0022 without unused APIs. Underlay rotation, numeric placement
+and frames are refined after the P4-05 results; animation and tiles/maps
+requirements remain recorded in ADR 0022 without unused APIs. Palette generation from an image and
+dithering stay undecided (ADR 0033). Underlay rotation, numeric placement
 and colour sampling from the underlay are not planned.
 
 ## Later work packages

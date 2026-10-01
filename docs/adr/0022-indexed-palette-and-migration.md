@@ -89,6 +89,9 @@ colorimetric claim. Fully transparent colors retain hidden RGB in exact matches;
 may lose it and is explicitly lossy. Dithering is a separate import option, never implicit in palette
 replacement, reorder or v1 migration. Image-generated quantization/dithering algorithms require their
 own focused decision and golden tests before PNG import ships.
+[ADR 0033](0033-png-import.md) is that decision for PNG import (amended 2026-10-01, Issue #176): it
+generates no palette from an image and dithers nothing; exact matching, appending and the nearest
+metric above are its whole algorithm. Quantization and dithering remain undecided.
 
 ### Draft, command and history ownership
 
@@ -173,8 +176,11 @@ lossless migration:
 
 The nonrepresentable source is an immutable uninstalled import candidate, never another mutable
 DocumentState or palette authority. DTO bytes remain in format/adapter; application ports carry
-typed immutable import-domain values rather than JSON nodes or format classes. PNG import later
-reuses this conversion boundary. The source is capped at the already-supported v1 dimensions and
+typed immutable import-domain values rather than JSON nodes or format classes. PNG import keeps
+the principle of this boundary but not its types (amended 2026-10-01, Issue #176,
+[ADR 0033](0033-png-import.md): a PNG has no project identity and its transparent pixels become
+`Empty` cells, so it uses `ImportRaster` and its own planner). The legacy source is capped at the
+already-supported v1 dimensions and
 byte limit; no unbounded preview buffer or recursive container is authorized.
 
 V2 is reserved for indexed document/default/palette persistence. Its exact byte table, carrier

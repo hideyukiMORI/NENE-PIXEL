@@ -131,6 +131,7 @@ Expand the proven durable document model for structured pixel-art work.
 - selection, move, copy, and bounded transform operations
 - palette editing and replacement policies
 - one reference underlay for tracing, kept outside the document (ADR 0032)
+- PNG import as a new work or as a new layer, with exact colours and no generated palette (ADR 0033)
 - sprite-sheet or animation export chosen by focused Issues
 
 ### Exit criteria

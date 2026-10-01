@@ -129,7 +129,8 @@ changes.
   still installed, judged by the same runtime source token the palette import uses; otherwise the
   result is dropped. The new underlay replaces any existing one.
 - This is not the PNG importer that [ADR 0025](0025-indexed-project-compatibility.md) excluded: a
-  reference image never becomes artwork, palette entries or a document source.
+  reference image never becomes artwork, palette entries or a document source. PNG import is
+  [ADR 0033](0033-png-import.md) and shares no decoder with the underlay.
 
 ### Display
 

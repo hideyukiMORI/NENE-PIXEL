@@ -53,14 +53,15 @@ commands/actions or authorize unrelated preferences.
 ### ARC-005 — Controlled mutation enclave
 
 Externally visible domain and application state MUST be immutable. `PixelSnapshot`, `Stroke`,
-`PaletteRemap`, the bounded uninstalled `LegacyRgbaSource` of ADR 0025 and the bounded
-`ReferenceImage` of ADR 0032 MAY
+`PaletteRemap`, the bounded uninstalled `LegacyRgbaSource` of ADR 0025, the bounded
+`ReferenceImage` of ADR 0032 and the bounded uninstalled `ImportRaster` of ADR 0033 MAY
 privately own defensive packed primitive storage that is never mutated after construction and is
 never exposed; any bulk read returns a copy. `:core:project-format` codecs and
 `:adapters:persistence` transports MAY use bounded, privately owned mutable byte buffers only for one
-project file, versioned recovery record, bounded PNG export under ADR 0019, or bounded
-reference-image read and decode under ADR 0032 at the declared codec/transport boundary. PNG and
-reference-image scratch is confined to `:adapters:persistence`. Untrusted bytes
+project file, versioned recovery record, bounded PNG export under ADR 0019, bounded
+reference-image read and decode under ADR 0032, or bounded PNG-import read and decode under ADR 0033
+at the declared codec/transport boundary. PNG-export, reference-image and PNG-import scratch is
+confined to `:adapters:persistence`. Untrusted bytes
 remain local to that boundary until typed validation succeeds. An encoded value owns immutable bytes
 after construction, caller-owned arrays are copied, and owned buffers never escape. These byte
 buffers are not document or pixel truth and MUST NOT become a pixel-operation work surface, shared

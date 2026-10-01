@@ -147,7 +147,9 @@ current source/operation and remains sufficient when the chosen destination pale
 Original copying preserves the raw source id/revision and every RGBA value, not a reduced preview.
 
 Optional original PNG export, if offered, derives exact RGBA through the existing PNG policy and
-does not substitute for the required exact project original copy. No new PNG importer is included.
+does not substitute for the required exact project original copy. No new PNG importer is included in
+this cutover; PNG import was decided later in [ADR 0033](0033-png-import.md) (amended 2026-10-01,
+Issue #176) and does not pass through `DocumentImportSource`.
 
 ### Conversion coordination, confirmation and cancellation
 
