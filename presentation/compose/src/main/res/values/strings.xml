@@ -77,6 +77,10 @@
     <string name="underlay_too_many_bytes">The image file is too large (up to 16 MB)</string>
     <string name="underlay_too_many_pixels">The image has too many pixels</string>
     <string name="underlay_unsupported">This image format is not supported (PNG, JPEG, WebP)</string>
+    <string name="png_import_failed">Could not read the PNG file</string>
+    <string name="png_import_too_many_bytes">The PNG file is too large (up to 8 MB)</string>
+    <string name="png_import_too_many_pixels">The PNG is too large (up to 1024 × 1024 pixels)</string>
+    <string name="png_import_unsupported">This PNG cannot be read (16-bit and interlaced PNG files are not supported)</string>
     <string name="project_saved">Project saved</string>
     <string name="project_loaded">Project loaded</string>
     <string name="new_document_created">New document created</string>

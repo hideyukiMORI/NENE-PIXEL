@@ -77,6 +77,10 @@
     <string name="underlay_too_many_bytes">画像のファイルが大きすぎます（16 MB まで）</string>
     <string name="underlay_too_many_pixels">画像の画素数が大きすぎます</string>
     <string name="underlay_unsupported">この形式の画像は使えません（PNG、JPEG、WebP）</string>
+    <string name="png_import_failed">PNGを読み込めませんでした</string>
+    <string name="png_import_too_many_bytes">PNGのファイルが大きすぎます（8 MB まで）</string>
+    <string name="png_import_too_many_pixels">PNGの大きさが大きすぎます（1024 × 1024 ドットまで）</string>
+    <string name="png_import_unsupported">このPNGは読めません（16 bit とインターレースのPNGには対応していません）</string>
     <string name="project_saved">プロジェクトを保存しました</string>
     <string name="project_loaded">プロジェクトを読み込みました</string>
     <string name="new_document_created">新しい作品を作成しました</string>

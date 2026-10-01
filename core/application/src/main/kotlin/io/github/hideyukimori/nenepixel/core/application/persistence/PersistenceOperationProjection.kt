@@ -113,6 +113,8 @@ public sealed interface PersistenceLastOutcome {
 
     public data object ReferenceImagePicked : PersistenceLastOutcome
 
+    public data object PngImportRead : PersistenceLastOutcome
+
     public data object Loaded : PersistenceLastOutcome
 
     public data object NewDocumentCreated : PersistenceLastOutcome
@@ -207,6 +209,14 @@ public sealed interface PersistenceFailure {
 
     public data class ReferenceImageRejected internal constructor(
         public val reason: ReferenceImageSourceRejection,
+    ) : PersistenceFailure
+
+    public data class PngImportPick internal constructor(
+        public val failure: ProjectStorageFailure,
+    ) : PersistenceFailure
+
+    public data class PngImportRejected internal constructor(
+        public val reason: PngImportSourceRejection,
     ) : PersistenceFailure
 
     public data class Storage internal constructor(
