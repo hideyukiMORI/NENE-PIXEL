@@ -1,5 +1,6 @@
 package io.github.hideyukimori.nenepixel.core.application.workspace
 
+import io.github.hideyukimori.nenepixel.core.application.workspace.importing.PendingRasterImport
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteDraftOperation
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteImportMode
 import io.github.hideyukimori.nenepixel.core.application.workspace.quickselect.QuickSelectItem
@@ -124,6 +125,17 @@ public sealed interface WorkspaceAction {
 
     /** Removes the reference underlay; never rejected. */
     public data object ClearReferenceUnderlay : ReferenceUnderlayAction
+
+    /** Every pending PNG import action (ADR 0033); the reducer hands the whole family to one reduction. */
+    public sealed interface RasterImportAction : WorkspaceAction
+
+    /** Replaces the pending import with [pending]; never rejected. */
+    public data class SetPendingRasterImport(
+        public val pending: PendingRasterImport,
+    ) : RasterImportAction
+
+    /** Removes the pending import; never rejected, and passes during a palette session (ADR 0033). */
+    public data object ClearPendingRasterImport : RasterImportAction
 }
 
 /**
@@ -143,6 +155,7 @@ internal fun WorkspaceAction.isAllowedDuringPaletteSession(): Boolean =
         WorkspaceAction.CancelQuickSelect,
         WorkspaceAction.DisarmEyedropper,
         is WorkspaceAction.ReferenceUnderlayAction,
+        WorkspaceAction.ClearPendingRasterImport,
         -> true
 
         is WorkspaceAction.SelectTool,
@@ -154,5 +167,6 @@ internal fun WorkspaceAction.isAllowedDuringPaletteSession(): Boolean =
         WorkspaceAction.ConfirmQuickSelect,
         is WorkspaceAction.PickPaletteEntryAt,
         is WorkspaceAction.LayerAction,
+        is WorkspaceAction.SetPendingRasterImport,
         -> false
     }

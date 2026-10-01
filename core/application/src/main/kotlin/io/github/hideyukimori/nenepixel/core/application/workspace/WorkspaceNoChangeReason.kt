@@ -28,4 +28,8 @@ public sealed interface WorkspaceNoChangeReason {
     public data object ReferenceUnderlayAlreadySet : WorkspaceNoChangeReason
 
     public data object NoReferenceUnderlay : WorkspaceNoChangeReason
+
+    public data object PendingRasterImportAlreadySet : WorkspaceNoChangeReason
+
+    public data object NoPendingRasterImport : WorkspaceNoChangeReason
 }
