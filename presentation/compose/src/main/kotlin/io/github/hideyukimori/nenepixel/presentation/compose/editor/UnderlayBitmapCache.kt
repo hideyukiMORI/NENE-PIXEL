@@ -10,15 +10,19 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 /**
  * The reference underlay's image as one bitmap for the canvas (ADR 0032, Issue #170). It is derived
  * state keyed by the image's identity, never a second owner of the underlay (QLT-016). The paint is
- * the underlay's own bilinear one; the committed picture keeps its nearest-neighbour paint.
+ * the underlay's own nearest-neighbour one (ADR 0032, Issue #175), kept apart from the committed
+ * picture's paint because its alpha changes on every draw.
  */
 internal class UnderlayBitmapCache {
-    /** Bilinear paint; its alpha is set to the underlay's opacity on every draw. */
+    /**
+     * Nearest-neighbour paint, so an enlarged or reduced underlay shows its pixels without
+     * interpolation (ADR 0032, Issue #175); its alpha is set to the underlay's opacity on every draw.
+     */
     val paint: Paint =
         Paint().apply {
             isAntiAlias = false
             isDither = false
-            isFilterBitmap = true
+            isFilterBitmap = false
         }
 
     /** Reused target rectangle of the shown image, so drawing allocates no `RectF`. */

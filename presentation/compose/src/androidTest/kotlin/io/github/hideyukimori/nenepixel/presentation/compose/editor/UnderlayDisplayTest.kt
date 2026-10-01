@@ -13,10 +13,12 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.presentation.compose.EditorFixture
 import io.github.hideyukimori.nenepixel.presentation.compose.editor.UnderlayDisplayFixture.CONTENT_TAG
 import io.github.hideyukimori.nenepixel.presentation.compose.editor.UnderlayDisplayFixture.HEIGHT
+import io.github.hideyukimori.nenepixel.presentation.compose.editor.UnderlayDisplayFixture.OPAQUE_BLUE
 import io.github.hideyukimori.nenepixel.presentation.compose.editor.UnderlayDisplayFixture.OPAQUE_GREEN
 import io.github.hideyukimori.nenepixel.presentation.compose.editor.UnderlayDisplayFixture.OPAQUE_RED
 import io.github.hideyukimori.nenepixel.presentation.compose.editor.UnderlayDisplayFixture.WIDTH
 import io.github.hideyukimori.nenepixel.presentation.compose.editor.UnderlayDisplayFixture.forEachDocumentPixel
+import io.github.hideyukimori.nenepixel.presentation.compose.editor.UnderlayDisplayFixture.greenBlueColumnsImage
 import io.github.hideyukimori.nenepixel.presentation.compose.editor.UnderlayDisplayFixture.greenImage
 import io.github.hideyukimori.nenepixel.presentation.compose.editor.UnderlayDisplayFixture.paintedEditor
 import io.github.hideyukimori.nenepixel.presentation.compose.editor.UnderlayDisplayFixture.readCanvas
@@ -31,8 +33,9 @@ import org.junit.Test
  * Issue #170 A6: the canvas draws the reference underlay between the transparency backdrop and the
  * picture, clipped to the document rectangle, and the actual-size window never shows it (ADR 0032).
  * The 4 x 3 fixture holds opaque red at (0, 0); every other pixel is Empty. Tolerances per channel:
- * [OPAQUE_TOLERANCE] for an opaque underlay under bilinear filtering, [BLEND_TOLERANCE] for the
- * half-opacity blend (paint alpha and premultiplication each round), 0 where no underlay is drawn.
+ * 0 for an opaque underlay, which is sampled nearest-neighbour (Issue #175), [BLEND_TOLERANCE] for
+ * the half-opacity blend (paint alpha and premultiplication each round), 0 where no underlay is
+ * drawn.
  */
 internal class UnderlayDisplayTest {
     @get:Rule
@@ -44,7 +47,19 @@ internal class UnderlayDisplayTest {
         val reading = readCanvas(composeRule, editor)
 
         forEachEmptyPixel { x, y ->
-            TransparencyExpectation.assertArgbNear("($x, $y)", OPAQUE_GREEN, reading.shownAt(x, y), OPAQUE_TOLERANCE)
+            TransparencyExpectation.assertArgbNear("($x, $y)", OPAQUE_GREEN, reading.shownAt(x, y), 0)
+        }
+    }
+
+    @Test
+    fun anEnlargedUnderlayShowsItsPixelsWithoutInterpolation() {
+        // At scale 2 each image pixel covers 2 x 2 document pixels: columns 0-1 green, 2-3 blue.
+        val editor = shownEditor { size -> opaque(greenBlueColumnsImage(), size).withPlacement(0.0, 0.0, 2.0) }
+        val reading = readCanvas(composeRule, editor)
+
+        forEachEmptyPixel { x, y ->
+            val expected = if (x < 2) OPAQUE_GREEN else OPAQUE_BLUE
+            TransparencyExpectation.assertArgbNear("($x, $y)", expected, reading.shownAt(x, y), 0)
         }
     }
 
@@ -102,8 +117,7 @@ internal class UnderlayDisplayTest {
 
         forEachEmptyPixel { x, y ->
             val expected = if (y == 1) OPAQUE_GREEN else reading.backdropAt(x, y)
-            val tolerance = if (y == 1) OPAQUE_TOLERANCE else 0
-            TransparencyExpectation.assertArgbNear("($x, $y)", expected, reading.shownAt(x, y), tolerance)
+            TransparencyExpectation.assertArgbNear("($x, $y)", expected, reading.shownAt(x, y), 0)
         }
     }
 
@@ -123,7 +137,7 @@ internal class UnderlayDisplayTest {
                 (after.centreX(WIDTH - 1) to after.beyondBottom).takeIf { it.second < after.height },
             )
 
-        TransparencyExpectation.assertArgbNear("inside", OPAQUE_GREEN, after.shownAt(WIDTH - 1, HEIGHT - 1), 1)
+        TransparencyExpectation.assertArgbNear("inside", OPAQUE_GREEN, after.shownAt(WIDTH - 1, HEIGHT - 1), 0)
         assertTrue("The canvas must show surround right of or below the document", samples.isNotEmpty())
         samples.forEach { (px, py) ->
             TransparencyExpectation.assertArgbNear("surround ($px, $py)", before.at(px, py), after.at(px, py), 0)
@@ -172,7 +186,6 @@ internal class UnderlayDisplayTest {
     private companion object {
         const val HALF: Int = 128
         const val HALF_GREEN: Int = 0x8000FF00.toInt()
-        const val OPAQUE_TOLERANCE: Int = 1
         const val BLEND_TOLERANCE: Int = 2
 
         fun opaque(
