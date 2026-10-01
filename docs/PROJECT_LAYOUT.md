@@ -104,7 +104,8 @@ Owns semantic truth:
 - one `PaletteDefinition` owned by `DocumentState`, with cross-value index membership validation
 - bounded immutable uninstalled `LegacyRgbaSource` with private exact RGBA storage and the closed
   `DocumentImportSource` admission vocabulary of ADR 0025
-- bounded immutable uninstalled `ImportRaster` with private exact RGBA storage (ADR 0033)
+- bounded immutable uninstalled `ImportRaster` with private exact RGBA storage, and the validated
+  `NewWorkImportPlan` / `LayerImportPlan` values the planner returns (ADR 0033)
 - immutable `Stroke` value with private row-major integer samples, a closed pencil/eraser effect,
   and semantic position iteration
 - typed rejection/failure vocabulary shared by core modules

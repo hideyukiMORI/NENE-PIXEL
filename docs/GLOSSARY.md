@@ -140,6 +140,8 @@ editing remains #107; target-only session types are introduced with their consum
 | PNG import | Reading one picked PNG exactly and adding it as a new work or as a new layer under ADR 0033; no palette is generated and nothing is dithered | reference underlay, legacy v1 conversion, PNG export |
 | `ImportRaster` | Bounded immutable uninstalled straight RGBA8888 raster of at most 1024 x 1024 pixels read exactly from a picked PNG | ReferenceImage, LegacyRgbaSource, DocumentState, Bitmap |
 | `RasterImportPlanner` | Pixel-engine algorithm mapping an ImportRaster to a new-work plan or a layer plan by exact match, append and the nearest metric, with Empty cells for transparent pixels | quantizer, LegacyImportPlanner, adapter conversion |
+| `LayerImportPlan` | Validated domain value binding one planned layer snapshot and its counts to the source and resulting palette definitions | PaletteRemap, pixel patch, pending UI state |
+| `NewWorkImportPlan` | Validated domain value holding the canvas size, palette definition and one layer snapshot of a work to be opened from a PNG | DocumentState, DocumentImportSource, LegacyReductionPreview |
 | `ImportLayerCommand` | Atomic source-admitted command adding one layer that already holds planned pixels, with the plan's palette transition, as one history entry | AddLayerCommand, ReplacePaletteCommand, immediate import side effect |
 | `PendingRasterImport` | Workspace-owned facts and plans of one picked PNG awaiting the choice of a form | persistence operation, document state, retained raster |
 | `PngImportPort` | Application-owned pick of one PNG returning an ImportRaster or a typed cancellation, rejection or failure | ReferenceImagePort, ProjectStoragePort.load |

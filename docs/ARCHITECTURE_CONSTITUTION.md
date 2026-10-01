@@ -60,8 +60,8 @@ never exposed; any bulk read returns a copy. `:core:project-format` codecs and
 `:adapters:persistence` transports MAY use bounded, privately owned mutable byte buffers only for one
 project file, versioned recovery record, bounded PNG export under ADR 0019, bounded
 reference-image read and decode under ADR 0032, or bounded PNG-import read and decode under ADR 0033
-at the declared codec/transport boundary. PNG, reference-image and PNG-import scratch is confined to
-`:adapters:persistence`. Untrusted bytes
+at the declared codec/transport boundary. PNG-export, reference-image and PNG-import scratch is
+confined to `:adapters:persistence`. Untrusted bytes
 remain local to that boundary until typed validation succeeds. An encoded value owns immutable bytes
 after construction, caller-owned arrays are copied, and owned buffers never escape. These byte
 buffers are not document or pixel truth and MUST NOT become a pixel-operation work surface, shared

@@ -179,7 +179,8 @@ DocumentState or palette authority. DTO bytes remain in format/adapter; applicat
 typed immutable import-domain values rather than JSON nodes or format classes. PNG import keeps
 the principle of this boundary but not its types (amended 2026-10-01, Issue #176,
 [ADR 0033](0033-png-import.md): a PNG has no project identity and its transparent pixels become
-`Empty` cells, so it uses `ImportRaster` and its own planner). The legacy source is capped at the already-supported v1 dimensions and
+`Empty` cells, so it uses `ImportRaster` and its own planner). The legacy source is capped at the
+already-supported v1 dimensions and
 byte limit; no unbounded preview buffer or recursive container is authorized.
 
 V2 is reserved for indexed document/default/palette persistence. Its exact byte table, carrier

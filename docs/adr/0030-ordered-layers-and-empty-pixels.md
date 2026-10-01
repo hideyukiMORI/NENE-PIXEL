@@ -144,7 +144,8 @@ palette. PNG stays RGBA truecolor (ADR 0019). Export when no layer is visible re
   existing palette-transition formula, `pixelCount + ceil(pixelCount / 8)` plus name bytes for a
   deleted layer, and name bytes for an add or rename. An added layer that holds at least one covered
   cell is charged like a deleted layer (amended 2026-10-01, Issue #176,
-  [ADR 0033](0033-png-import.md)); an added all-`Empty` layer keeps the name-only charge. A worst-case remap of 16 full 256 by 256
+  [ADR 0033](0033-png-import.md)); an added all-`Empty` layer keeps the name-only charge. A
+  worst-case remap of 16 full 256 by 256
   layers charges 2,359,296 pixel bytes, inside the bound.
   This amends the ADR 0005, ADR 0009 and ADR 0022 accounting.
 

@@ -26,7 +26,7 @@ import ships". The probes of 2026-10-01 found:
   layer-structure transition together, but no factory builds both, and an added layer is charged
   its name bytes only ([ADR 0030](0030-ordered-layers-and-empty-pixels.md)).
 - `PaletteDefinition` has no append, and the nearest metric of ADR 0022 is internal to the pixel
-  engine.
+  engine. `:presentation:compose` sees `:core:application` and `:core:domain`, not the pixel engine.
 
 The owner decided on 2026-10-01:
 
@@ -52,63 +52,92 @@ planner in `:core:pixel-engine`, one document command for the two layer forms, a
 switch for the new-work form. No RGBA document, second editable runtime, project-format change or
 dependency is added.
 
+Throughout this decision a **colour** is one complete RGBA value of a pixel whose alpha is not 0,
+and a **transparent pixel** is a pixel whose alpha is 0, whatever its RGB is.
+
 ### Reading the file
 
 - `PngImportPort.pick()` in `core/application/persistence` returns a closed outcome: `Picked` with
-  an `ImportRaster`, `Cancelled`, `Rejected` with a typed reason (too many bytes, too many pixels,
-  unsupported content) or `Failed` with the existing storage failure. `PersistencePorts` gains the
-  port.
-- `ImportRaster` in `core/domain` carries a width, a height and an immutable straight sRGB RGBA8888
-  raster. Each side is 1 to 1024 pixels. `ImportRaster.create` is the only factory, copies its
-  input and returns a typed result; the raster is private and bulk reads return a copy. It is an
-  uninstalled import value like `LegacyRgbaSource`: never a document, never editable. ARC-005 is
-  amended in this change to name it among the types that privately own packed storage, and the
-  PNG-import read and decode among the bounded adapter buffers.
+  an `ImportRaster`, `Cancelled`, `Rejected` with a typed reason or `Failed` with the existing
+  storage failure. The reasons are `TooManyBytes`, `TooManyPixels` (a side above 1024) and
+  `Unsupported`, which covers both a well-formed file outside the accepted content and malformed
+  data. `Failed` is only a failure of the picker or the provider. `PersistencePorts` gains the port.
+- `ImportRaster` in `core/domain` carries a width and a height as plain integers and an immutable
+  straight sRGB RGBA8888 raster. Each side is 1 to 1024 pixels, which a `CanvasSize` cannot
+  express. `ImportRaster.create` is the only factory, copies its input and returns a typed result;
+  the raster is private and bulk reads return a copy. It is an uninstalled import value like
+  `LegacyRgbaSource`: never a document, never editable. ARC-005 is amended in this change to name
+  it among the types that privately own packed storage, and the PNG-import read and decode among
+  the bounded adapter buffers.
 - `:adapters:persistence` implements the port with the Storage Access Framework open-document
   picker for `image/png` and a PNG reader of its own. It reads at most 8,388,608 encoded bytes
-  through the maximum-plus-one bounded reader, validates the signature, chunk lengths and CRCs,
-  reads the header before inflating, rejects a side above 1024, and inflates into a buffer whose
-  size is fixed by the header, so no input can make it allocate more.
-- Accepted content: bit depths up to 8 of colour types 0 (grey), 2 (truecolour), 3 (palette), 4
-  (grey with alpha) and 6 (truecolour with alpha), with `PLTE` and `tRNS`, the five row filters,
-  and no interlace. Sixteen-bit samples and Adam7 interlace are rejected as unsupported content.
-  Sample values are taken as sRGB as they are stored: `gAMA`, `cHRM`, `iCCP`, `sRGB` and every other
-  ancillary chunk are skipped and no colour is converted. A sample of fewer than 8 bits is scaled
-  to 8 bits by bit replication, as the PNG specification describes. An unknown critical chunk is
-  unsupported content.
+  through the maximum-plus-one bounded reader. Every allocation of the reader is bounded before it
+  is made: a chunk length is compared with the bytes that remain before the chunk is read, the
+  header is read and its sides are checked before anything is inflated, and the inflated data goes
+  into one buffer of exactly `height * (1 + rowBytes)` bytes, at most 4,195,328. Inflation stops at
+  that length; data that would exceed it, or that ends before it, is `Unsupported`.
+- Accepted content:
+  - The signature, then `IHDR` as the first chunk and only once, with compression 0, filter 0 and
+    interlace 0, and one of: colour type 0 (grey) at depth 1, 2, 4 or 8; type 2 (truecolour) at
+    depth 8; type 3 (palette) at depth 1, 2, 4 or 8; type 4 (grey with alpha) at depth 8; type 6
+    (truecolour with alpha) at depth 8. Sixteen-bit samples and Adam7 interlace are `Unsupported`.
+  - The CRC of every chunk is verified, also of the chunks that are skipped.
+  - `PLTE` is required for type 3 before the first `IDAT`, holds 1 to 256 entries and at most
+    `2^depth`; a pixel index beyond its entries is `Unsupported`. `PLTE` is ignored for types 2 and
+    6 and is `Unsupported` for types 0 and 4.
+  - `tRNS` must precede the first `IDAT`. For type 3 it gives the alpha of the first entries and
+    may be shorter than `PLTE` (the rest are opaque) but not longer. For types 0 and 2 it names one
+    sample value that is fully transparent, compared with the stored samples before any scaling.
+    For types 4 and 6 it is `Unsupported`.
+  - The `IDAT` chunks must be consecutive; their data is one zlib stream. Row filters 0 to 4 are
+    accepted. `IEND` must be present; bytes after it are ignored.
+  - A grey sample becomes equal red, green and blue. A grey sample of fewer than 8 bits is scaled
+    to 8 bits by bit replication, as the PNG specification describes.
+  - `gAMA`, `cHRM`, `iCCP`, `sRGB` and every other ancillary chunk are skipped and no colour is
+    converted: sample values are taken as sRGB as they are stored. An unknown critical chunk (an
+    upper-case first letter) is `Unsupported`.
 - The platform decoder is not used. It premultiplies, converts colour spaces and reduces 16-bit
   samples in ways that differ by OS version, and it can be verified only on a device. The reader
   is verified on the JVM against the repository's own PNG writer (ADR 0019) and an independent
   decoder.
-- The pick is a physical operation of the persistence workflow exactly like the reference-image
-  pick of ADR 0032: it uses the picker broker and holds the one operation lease from the request
-  until the outcome, so a second operation answers Busy. It cannot start while a palette edit
-  session exists. The adapter keeps no URI permission.
+- The pick is a physical operation of the persistence workflow like the reference-image pick of
+  ADR 0032: it uses the picker broker and holds the one operation lease from the request until the
+  pending choice below is stored, so a second operation answers Busy. Unlike that pick, its request
+  is refused while a palette edit session exists; the pick's own begin checks this, as the palette
+  JSON operations do. The adapter keeps no URI permission.
 
 ### Mapping colours
 
 `RasterImportPlanner` in `core/pixel-engine/importing` is the only owner of the mapping. It is
-pure and deterministic, and its plan values are constructed only there.
+pure and deterministic. Its outputs are two plan values of `core/domain`, `NewWorkImportPlan` and
+`LayerImportPlan`, each created through one domain factory that validates it, like `PaletteRemap`;
+the planner is their only production caller. Its rejections are translated into application-owned
+vocabulary before they are stored, because presentation cannot see pixel-engine types.
 
-- A pixel whose alpha is 0 becomes an `Empty` cell whatever its RGB is, and is not counted as a
-  colour (ADR 0030). Every other pixel is a colour by its complete RGBA value.
+- A transparent pixel becomes an `Empty` cell and is not a colour (ADR 0030). The number of colours
+  of a raster is the number of distinct colours in the whole raster. It is counted exactly without
+  a boxed set, on one sorted primitive copy.
 - **New work.** The canvas is the raster's size, which must fit the document limits (256 per
   side). The palette lists the colours in order of first row-major occurrence. One colour gets a
   second duplicate slot, because a palette definition holds at least two entries (ADR 0022). The
-  default slot is slot 0. No transparent or blank slot is added. More than 256 colours is a typed
-  rejection that carries the count.
+  default slot is slot 0. No transparent or blank slot is added. A side above 256 is one typed
+  rejection; otherwise more than 256 colours is another, and the pending choice carries the count.
 - **Layer forms.** Only the part of the raster that lies on the canvas, top-left aligned, takes
-  part. A raster cell outside the canvas is dropped; the plan counts the dropped cells that are not
-  `Empty`. Canvas cells the raster does not reach are `Empty`.
+  part. A raster pixel outside the canvas is dropped; the plan counts the dropped pixels that are
+  not transparent. Canvas cells the raster does not reach are `Empty`.
   - *Adding colours.* A colour equal to a palette entry takes the lowest such slot. Every other
     colour is appended in order of first row-major occurrence while the palette has fewer than 256
-    entries. A colour that no longer fits takes the nearest entry of the resulting palette by the
-    nearest metric v1 of ADR 0022. Existing slots, their order and the default slot are unchanged.
-    The plan counts the appended colours and the colours that took a nearest entry.
+    entries. A colour that no longer fits takes the nearest entry of the resulting palette, that
+    is, the palette after the last append, by the nearest metric v1 of ADR 0022. Existing slots,
+    their order and the default slot are unchanged. The plan carries the source and resulting
+    definitions and counts the colours that took a nearest entry.
   - *Converting colours.* Every colour takes the entry of the current palette that the nearest
     metric v1 selects (an exact match first). The palette is unchanged. The plan counts the colours
     without an exact match.
-- A raster from which no covered cell would be imported is a typed rejection in every form.
+  - The nearest metric can select an entry whose alpha is 0. That cell is covered and invisible;
+    this is the metric's result and is accepted.
+- A raster from which no pixel that is not transparent would be imported is a typed rejection in
+  every form. Adding an empty layer is what Add layer does.
 - This is the focused decision ADR 0022 required before PNG import: no palette is generated from
   an image and nothing is dithered. Exact matching, appending and the existing nearest metric are
   the whole algorithm, and golden tests fix its output. Quantization and dithering remain
@@ -117,17 +146,20 @@ pure and deterministic, and its plan values are constructed only there.
 ### Adding a layer
 
 - `ImportLayerCommand` is a new `DocumentCommand`. It carries the usual source admission, the layer
-  the new one goes above, and a layer plan. The plan is bound to the palette definition and canvas
-  size it was computed for; the handler rejects it when the document's definition or size differs,
-  when the named layer is missing, and at 16 layers. It never recomputes colours.
+  the new one goes above, and a `LayerImportPlan`. The plan is bound to the palette definition and
+  canvas size it was computed for; the handler rejects it when the document's definition or size
+  differs, when the named layer is missing, at 16 layers and when the layer ids are exhausted. It
+  never recomputes colours.
 - One command produces one `ChangeSet` with the palette transition (unchanged for the converting
-  form) and one added layer that already holds its pixels, and therefore one history entry: one
-  undo removes the layer and restores the palette. The new layer has the next layer id, an empty
-  name and is visible; it becomes the active layer by the existing rule for inserted layers.
+  form, and for the adding form when nothing was appended) and one added layer that already holds
+  its pixels, and therefore one history entry: one undo removes the layer and restores the
+  palette. The new layer has the next layer id, an empty name and is visible; it becomes the active
+  layer by the existing rule for inserted layers.
 - Accounting (amends ADR 0030): an added layer that holds at least one covered cell is charged
-  `pixelCount + ceil(pixelCount / 8)` bytes plus its name bytes, like a deleted layer. An added
-  all-`Empty` layer keeps the name-only charge. The palette transition keeps its formula. The
-  largest import charges 73,728 pixel bytes and 2,056 palette bytes.
+  `pixelCount + ceil(pixelCount / 8)` bytes plus its name bytes, like a deleted layer, so an add
+  and its inverse charge the same. An added all-`Empty` layer keeps the name-only charge. The
+  palette transition keeps its formula. One import is bounded by 32 transition bytes, 73,728 pixel
+  bytes and 2,056 palette bytes: 75,816 bytes of the 8 MiB payload bound.
 - Existing cells of other layers are not remapped: appended slots do not move any index.
 
 ### Opening a new work
@@ -135,10 +167,12 @@ pure and deterministic, and its plan values are constructed only there.
 - The new-work form is a document switch like New and Load. It goes through the same confirmation
   policy (unsaved changes, an unadopted recovery candidate), the same commit and the same
   installation: a new `DocumentId`, revision zero, an empty history, one visible layer with an
-  empty name, and a fresh workspace, so the underlay and the palette session rules of the
-  installation apply unchanged.
+  empty name, and the workspace every installation creates, so the underlay is cleared and the
+  session-only editor choices are carried as ADR 0032 and ADR 0026 describe.
 - The installed work is unsaved (dirty): a PNG is not a project checkpoint, so autosave and the
   discard confirmation protect it from the first moment.
+- A new-work plan does not depend on the current document, so it does not become stale; the
+  switch's existing consent and source rules decide whether it may still replace the current work.
 - `DocumentImportSource` stays the closed `Current` / `Legacy` value of project and recovery
   ports. A PNG never passes through it and `LegacyRgbaSource` is not reused: its identity,
   full coverage and default-slot rule belong to project v1. PNG import keeps the principle of that
@@ -147,27 +181,35 @@ pure and deterministic, and its plan values are constructed only there.
 
 ### Pending choice
 
-- After a pick the application plans all three forms once, off the main thread, against the
-  document that is installed, and stores one `PendingRasterImport` in `WorkspaceState`: the raster's
-  size, its number of colours, and for each form either its plan or the typed reason it is not
-  available. The raster itself is not retained. The field is absent by default, is set and cleared
-  only through `WorkspaceAction`, is undo-neutral and dirty-neutral, and disappears with the
-  workspace when another document is installed.
-- A result that arrives after another document was installed is dropped, by the same lease rule as
-  the reference-image pick.
+- After a pick, and before the lease is released, the application plans all three forms once, off
+  the main thread, against the palette definition and canvas size of the installed document. It
+  then releases the lease and stores one `PendingRasterImport` in `WorkspaceState` in the same
+  runtime transaction: the raster's width and height, its number of colours, and for each form
+  either its plan or the application-owned reason it is not available. The raster itself is not
+  retained. A result that arrives after another document was installed is dropped by the lease
+  rule of the reference-image pick.
+- The field is absent by default, is set and cleared only through `WorkspaceAction`, is
+  undo-neutral and dirty-neutral, and disappears with the workspace when another document is
+  installed. Clearing it is allowed in every state in which a workspace action can be reduced,
+  including a palette edit session, so the choice can always be cancelled.
 - Choosing a layer form executes `ImportLayerCommand` through the normal command path and clears
-  the pending value. Choosing the new-work form starts the switch, which then owns the plan, and
-  clears the pending value. Cancelling clears it. A plan that has become stale is rejected by the
-  command or the switch and changes nothing.
+  the pending value. A layer plan whose document has changed since the pick is rejected by the
+  command and changes nothing.
+- Choosing the new-work form asks the persistence workflow to open the pending new-work plan. The
+  request reads the plan from the workspace and clears the pending value in the transaction that
+  starts the switch, so the switch owns the plan from then on; a request answered Busy leaves the
+  pending value in place.
+- Cancelling clears the pending value.
 
 ### Controls
 
 - The file surface gains Import PNG beside Export PNG.
-- While a pending import exists, one modal dialog shows the size and the number of colours and
-  offers the three forms and Cancel. Each form states what it will do: the colours it appends, the
-  colours that take a nearest colour, the pixels outside the picture that are not imported, or why
-  it is unavailable (more than 256 colours or larger than 256 per side for a new work; 16 layers
-  for the layer forms). Pressing a form acts at once: the layer forms can be undone, and the
+- While a pending import exists, one modal dialog shows the PNG's size and number of colours and
+  offers the three forms and Cancel. Each form states what it will do: the number of colours it
+  appends, the number of colours that take a nearest colour, the number of pixels outside the
+  picture that are not imported, or why it is unavailable. For a new work the reasons are, in this
+  order, a side above 256 and more than 256 colours; for the layer forms, 16 layers; for every
+  form, nothing to import. Pressing a form acts at once: the layer forms can be undone, and the
   new-work form asks before discarding unsaved changes. The first form shows no picture preview.
 - UI wording: `Import PNG` / `PNG を取り込む` / `导入 PNG`.
 
@@ -236,36 +278,40 @@ ADR 0022 keeps quantization a separate decision.
 - A PNG with an embedded colour profile is read without conversion, so its colours can differ from
   a colour-managed viewer's rendering. This is accepted for pixel art, where the stored values are
   the artwork.
-- One pick transiently holds the encoded bytes (up to 8 MiB), the inflated scanlines and one raster
-  (up to 1024 x 1024 pixels, 4 MiB) until the plans exist. The pending value retains at most three
-  canvas-sized snapshots and one palette.
-- Planning costs at most one nearest search per distinct colour (65,536 colours by 256 entries in
-  the worst case) and runs once per pick, off the main thread.
+- One pick transiently holds the encoded bytes (up to 8 MiB), the inflated scanlines (up to about
+  4 MiB), the decoded raster and its defensive copy (4 MiB each) and one sorted copy for the colour
+  count (4 MiB): about 24 MiB at the largest accepted PNG, released when the plans exist. The
+  pending value retains at most three canvas-sized snapshots and two palette definitions.
+- Planning costs at most one nearest search per distinct colour on the canvas (65,536 colours by
+  256 entries in the worst case) and one sort of the raster, and runs once per pick, off the main
+  thread.
 - `WorkspaceState` gains a tenth field, `PersistencePorts` a seventh port that every construction
   site must supply, and `DocumentCommand` a sixth kind.
 - A work opened from a PNG is unsaved until the user saves it.
 
 ## Enforcement impact
 
-- `core/domain`: `ImportRaster` and its rejection; contract tests for the bounds, the copy and the
-  read.
-- `core/pixel-engine`: `RasterImportPlanner`, its plans and rejections; golden tests for the slot
-  order, the duplicate slot, `Empty` for transparent pixels, exact matching on duplicate entries,
-  appending up to 256, overflow to the nearest entry of the resulting palette, ties, clipping
-  counts, determinism and every rejection.
+- `core/domain`: `ImportRaster`, the two plan values and their rejections; contract tests for the
+  bounds, the copies, the reads and every invariant the plan factories check.
+- `core/pixel-engine`: `RasterImportPlanner` and its rejections; golden tests for the slot order,
+  the duplicate slot, `Empty` for transparent pixels, exact matching on duplicate entries,
+  appending up to 256, overflow to the nearest entry of the resulting palette, ties, dropped-pixel
+  counts, the colour count, determinism and every rejection.
 - `core/application`: `ImportLayerCommand` and its handler, the `ChangeSet` factory, the amended
-  retained-byte charge, the pending value, its actions and reducer branches, the port, the pick
-  flow and the switch kind; tests for undo and redo of both layer forms, stale plans, the layer
-  limit, history accounting, dropping a stale pick, clearing on installation, and the confirmation
-  and dirtiness of the new work.
-- `:adapters:persistence`: the picker contract, the bounded reader and the PNG reader; JVM tests for
-  every accepted colour type and bit depth, each filter, `tRNS`, every limit, truncated and corrupt
-  input, and a round trip of the repository's own PNG export.
+  retained-byte charge with equal charges for an add and its inverse, the pending value, its
+  actions and reducer branches, the port, the pick flow and the switch kind; tests for undo and
+  redo of both layer forms, stale plans, the layer limit, history accounting, the refusal during a
+  palette edit session, dropping a stale pick, clearing on installation, and the confirmation and
+  dirtiness of the new work.
+- `:adapters:persistence`: the picker contract, the bounded reader and the PNG reader; JVM tests
+  with one case for each accepted colour type and bit depth, each filter, each `PLTE` and `tRNS`
+  rule above, split `IDAT`, every limit, every chunk-order and CRC violation, truncated and
+  over-long inflated data, and a round trip of the repository's own PNG export.
 - `:presentation:compose`: the file-surface control, the dialog and three locales; instrumented
   tests of the dialog's facts, each form and Cancel.
 - `docs/ARCHITECTURE_CONSTITUTION.md` (ARC-005), `docs/GLOSSARY.md`, `docs/COMMAND_MODEL.md`,
   `docs/PROJECT_LAYOUT.md`, `docs/DEVELOPMENT_PLAN.md`, `docs/MILESTONES.md`, `docs/ROADMAP.md`,
-  and the amended sentences of ADR 0022, ADR 0025 and ADR 0030 in this change;
+  and the amended sentences of ADR 0022, ADR 0025, ADR 0030 and ADR 0032 in this change;
   `docs/INTERFACE_INVENTORY.md` rows with the Issues that add the controls.
 - Performance (QLT-019): P4-07a and P4-07b state the per-operation cost above in their completion
   reports. No drawing path changes, no workload is registered and no feature Issue collects on the
@@ -286,6 +332,7 @@ valid project v3.
 - [ADR 0019](0019-exact-png-export.md)
 - [ADR 0022](0022-indexed-palette-and-migration.md)
 - [ADR 0025](0025-indexed-project-compatibility.md)
+- [ADR 0026](0026-actual-size-window.md)
 - [ADR 0030](0030-ordered-layers-and-empty-pixels.md)
 - [ADR 0032](0032-reference-underlay.md)
 - Supersedes: none
