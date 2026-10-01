@@ -103,7 +103,7 @@ internal class LayerImportPlanTest {
         val empty = PixelSnapshot.createEmpty(canvasSize(3, 2))
 
         assertEquals(
-            DomainValueRejection.LayerImportPlanWithoutPixels,
+            DomainValueRejection.ImportPlanWithoutPixels,
             rejected(LayerImportPlan.create(source, source, empty, loss)),
         )
     }

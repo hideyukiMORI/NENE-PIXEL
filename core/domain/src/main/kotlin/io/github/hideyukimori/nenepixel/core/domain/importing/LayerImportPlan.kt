@@ -41,7 +41,7 @@ public class LayerImportPlan private constructor(
                 }
 
                 snapshot.copyCoverage().none { it != NO_COVERAGE } -> {
-                    rejected(DomainValueRejection.LayerImportPlanWithoutPixels)
+                    rejected(DomainValueRejection.ImportPlanWithoutPixels)
                 }
 
                 snapshot.maximumIndex.value >= target.palette.entryCount -> {

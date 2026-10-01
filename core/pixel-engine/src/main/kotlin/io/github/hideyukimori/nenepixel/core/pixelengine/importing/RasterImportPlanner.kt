@@ -18,6 +18,9 @@ public object RasterImportPlanner {
     /** The number of distinct colours of the whole raster; transparent pixels are not colours. */
     public fun colorCount(raster: ImportRaster): Int = RasterColors.sortDistinct(raster.copyPackedRgba8888())
 
+    /** Plans [raster] as a new work whose canvas is the raster's size. */
+    public fun newWork(raster: ImportRaster): NewWorkImportResult = planNewWork(raster)
+
     /** Plans a layer that appends its new colours to [source] while the palette has room. */
     public fun appending(
         raster: ImportRaster,
@@ -130,10 +133,11 @@ public object RasterImportPlanner {
             .toIntArray()
 
     private const val PENDING: Int = -1
-
-    private fun <T> DomainValueResult<T>.requiredValue(): T =
-        when (this) {
-            is DomainValueResult.Created -> value
-            is DomainValueResult.Rejected -> error("A validated layer-import invariant was rejected: $rejection")
-        }
 }
+
+/** Unwraps a value the planner has already validated; a rejection is a planner bug. */
+internal fun <T> DomainValueResult<T>.requiredValue(): T =
+    when (this) {
+        is DomainValueResult.Created -> value
+        is DomainValueResult.Rejected -> error("A validated picture-import invariant was rejected: $rejection")
+    }
