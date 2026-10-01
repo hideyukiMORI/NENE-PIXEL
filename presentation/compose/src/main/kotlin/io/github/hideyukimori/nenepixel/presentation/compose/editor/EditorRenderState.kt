@@ -4,6 +4,7 @@ import io.github.hideyukimori.nenepixel.core.application.editor.DocumentDirtySta
 import io.github.hideyukimori.nenepixel.core.application.workspace.ActualSizeWindow
 import io.github.hideyukimori.nenepixel.core.application.workspace.EditorAppearance
 import io.github.hideyukimori.nenepixel.core.application.workspace.ToolGesture
+import io.github.hideyukimori.nenepixel.core.application.workspace.importing.PendingRasterImport
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteEditSession
 import io.github.hideyukimori.nenepixel.core.application.workspace.quickselect.QuickSelection
 import io.github.hideyukimori.nenepixel.core.application.workspace.underlay.ReferenceUnderlay
@@ -35,6 +36,7 @@ public class EditorRenderState internal constructor(
     internal val activeLayerId: LayerId,
     internal val layerNotice: LayerNotice?,
     internal val underlay: ReferenceUnderlay?,
+    internal val pendingImport: PendingRasterImport?,
 ) {
     public val palette: Palette
         get() = definition.palette
@@ -72,6 +74,7 @@ public class EditorRenderState internal constructor(
             activeLayerId,
             layerNotice,
             underlay,
+            pendingImport,
         )
 
     override fun toString(): String =
@@ -81,7 +84,8 @@ public class EditorRenderState internal constructor(
             "canUndo=$canUndo, canRedo=$canRedo, dirtyState=$dirtyState, appearance=$appearance, " +
             "actualSizeWindow=$actualSizeWindow, paletteEditSession=$paletteEditSession, " +
             "paletteNotice=$paletteNotice, quickSelection=$quickSelection, activeLayerId=$activeLayerId, " +
-            "layerNotice=$layerNotice, underlay=$underlay)"
+            "layerNotice=$layerNotice, underlay=$underlay, " +
+            "pendingImport=$pendingImport)"
 
     private companion object {
         const val INITIAL_HASH: Int = 1

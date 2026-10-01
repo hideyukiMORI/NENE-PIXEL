@@ -38,6 +38,7 @@ principle: understood at first sight, and used in every session.
 | secondary: file surface | Load | no | secondary | `PersistenceControls.kt` |
 | secondary: file surface | New document and its dimension dialog | no | secondary | `NewDocumentControls.kt` |
 | secondary: file surface | Export PNG | no | secondary | `PersistenceControls.kt` |
+| secondary: file surface | Import PNG | no | secondary | `PersistenceControls.kt` |
 | secondary: file surface | Cancel running operation | no | secondary | `PersistenceControls.kt`; shown only while an operation is cancellable |
 | secondary: file surface | Operation status text | no | single owner needed | `EditorScreen.kt`; duplicates the always-visible status text |
 | secondary: file surface | About this version | no | secondary | `MvpInformationControls.kt` |

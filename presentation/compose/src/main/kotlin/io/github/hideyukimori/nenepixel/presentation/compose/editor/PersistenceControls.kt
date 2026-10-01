@@ -58,6 +58,10 @@ internal fun PersistenceControls(
                 modifier = Modifier.editorDescription(R.string.export_png_no_visible_layer),
             )
         }
+        EditorActionButton(R.string.import_png, idle) {
+            callbacks.importPng()
+            submitted()
+        }
         operation.phase.cancellableOperation()?.let { handle ->
             EditorActionButton(R.string.cancel_operation) { callbacks.onCancel(handle) }
         }

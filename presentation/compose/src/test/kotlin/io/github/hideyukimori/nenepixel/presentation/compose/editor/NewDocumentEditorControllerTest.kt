@@ -58,6 +58,7 @@ internal class NewDocumentEditorControllerTest {
                         exportPaletteJson = {},
                         importPaletteJson = {},
                         pickReferenceImage = {},
+                        importPng = {},
                     ),
                 saveAs = {},
                 load = {},

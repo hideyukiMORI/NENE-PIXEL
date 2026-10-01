@@ -50,6 +50,7 @@
     <string name="load">打开</string>
     <string name="export_png">导出PNG</string>
     <string name="export_png_no_visible_layer">没有可见图层，无法导出</string>
+    <string name="import_png">导入PNG</string>
     <string name="cancel_operation">取消操作</string>
     <string name="discard_current_title">丢弃当前作品？</string>
     <string name="discard_continue">丢弃并继续</string>

@@ -50,6 +50,7 @@
     <string name="load">開く</string>
     <string name="export_png">PNGを書き出す</string>
     <string name="export_png_no_visible_layer">表示中のレイヤーがないため書き出せません</string>
+    <string name="import_png">PNGを取り込む</string>
     <string name="cancel_operation">処理をキャンセル</string>
     <string name="discard_current_title">現在の作業を破棄しますか？</string>
     <string name="discard_continue">破棄して続ける</string>

@@ -53,6 +53,7 @@ internal class EditorRuntimeViewModel private constructor(
                         exportPaletteJson = { launchOperation { persistence.paletteJson.export() } },
                         importPaletteJson = { launchOperation { persistence.paletteJson.import() } },
                         pickReferenceImage = { launchOperation { persistence.referenceImage.pick() } },
+                        importPng = { launchOperation { persistence.pngImport.pick() } },
                     ),
                 saveAs = { launchOperation(persistence::saveAs) },
                 load = { launchOperation(persistence::load) },

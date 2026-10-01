@@ -14,6 +14,9 @@ public class EditorPersistenceCallbacks private constructor(
     /** Picks the reference image shown under the drawing (ADR 0032). */
     internal val pickReferenceImage: () -> Unit = files.exchange.pickReferenceImage
 
+    /** Picks a PNG to import; a picked PNG waits in the workspace for the user's choice (ADR 0033). */
+    internal val importPng: () -> Unit = files.exchange.importPng
+
     internal fun onExportPng() {
         files.exchange.exportPng()
     }
