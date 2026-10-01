@@ -104,6 +104,7 @@ Owns semantic truth:
 - one `PaletteDefinition` owned by `DocumentState`, with cross-value index membership validation
 - bounded immutable uninstalled `LegacyRgbaSource` with private exact RGBA storage and the closed
   `DocumentImportSource` admission vocabulary of ADR 0025
+- bounded immutable uninstalled `ImportRaster` with private exact RGBA storage (ADR 0033)
 - immutable `Stroke` value with private row-major integer samples, a closed pencil/eraser effect,
   and semantic position iteration
 - typed rejection/failure vocabulary shared by core modules
@@ -124,6 +125,8 @@ Owns performance-sensitive raster behavior:
 - patch calculation and application
 - exact legacy color classification/conversion and explicit nearest reduction using the one
   PaletteRemapPlanner metric, never adapter or codec quantization
+- PNG import planning (`RasterImportPlanner`, ADR 0033): exact matching, appending and the same
+  nearest metric, with `Empty` cells for transparent pixels; no palette generation or dithering
 - render invalidation regions
 
 This is the only controlled mutation enclave. Its public API returns domain `PixelSnapshot` values and flat packed `PixelPatch` values with shared directional inverses and never leaks owned storage.
@@ -223,7 +226,10 @@ document transition logic.
 
 Implements application ports for project storage, recovery, and PNG export (ADR 0019), and the
 reference-image port of ADR 0032: the open-document picker for PNG, JPEG and WebP, a bounded read,
-platform decoding to at most 1024 x 1024 straight RGBA8888 pixels and typed rejection. The internal
+platform decoding to at most 1024 x 1024 straight RGBA8888 pixels and typed rejection. It also
+implements the PNG-import port of ADR 0033: the open-document picker for PNG, a bounded read and an
+internal PNG reader that returns exact straight RGBA8888 samples without colour conversion or
+scaling, never the platform decoder. The internal
 PNG encoder resolves the supplied immutable document's indices through its palette; PNG, project
 Save As and exact legacy-source copying share one typed
 fresh-destination picker and verified writer. It depends directly on application,

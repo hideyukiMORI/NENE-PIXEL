@@ -21,6 +21,7 @@ Examples:
 - `RenameLayerCommand`
 - `MoveLayerCommand`
 - `SetLayerVisibilityCommand`
+- `ImportLayerCommand`
 - `ReplacePaletteCommand`
 - `ReplaceDocumentCommand`
 
@@ -359,6 +360,21 @@ current replacement consent and any required original-preservation proof. It pre
 a new identity, revision zero, dirty state and empty history through the existing atomic install
 boundary. Preview does not consume identities. No legacy RGBA editable mode or indexed-to-v1 writer
 is allowed. [ADR 0025](adr/0025-indexed-project-compatibility.md) fixes exact lifecycle and byte rules.
+
+## PNG import (ADR 0033)
+
+A picked PNG is read by the persistence adapter into one immutable `ImportRaster` under the
+physical-operation lease. The sole pixel-engine `RasterImportPlanner` plans the new-work form and
+the two layer forms outside the runtime lock; `WorkspaceState` holds the resulting
+`PendingRasterImport` until one form is chosen or the choice is cancelled, changed only through
+`WorkspaceAction`. A layer form executes one `ImportLayerCommand`: the plan is bound to the palette
+definition and canvas size it was computed for, the handler rejects a stale plan, a missing target
+layer and the layer limit, and one `ChangeSet` carries the palette transition and the added layer
+with its pixels, so one undo reverts both. The new-work form is a document switch through the
+runtime-install boundary of ADR 0014 with the usual confirmation; it installs a new identity,
+revision zero, dirty state and empty history. A PNG never passes through `DocumentImportSource` and
+no RGBA document is ever editable. [ADR 0033](adr/0033-png-import.md) fixes the reading, mapping and
+accounting rules.
 
 ## Canonical result vocabulary
 

@@ -137,6 +137,12 @@ editing remains #107; target-only session types are introduced with their consum
 | `LegacyRgbaSource` | Bounded immutable uninstalled exact v1 identity/revision/size/RGBA raster, never an editable runtime | DocumentState, mutable import buffer, format DTO |
 | `DocumentImportSource` | Closed Current(DocumentState) or Legacy(LegacyRgbaSource) value returned by validated load/recovery ports | serialized DTO, adapter-owned conversion policy |
 | `LegacySourceCopyOutcome` | Closed Copied/Cancelled/Failed result for exact original-project copy; Copied requires complete close/read-back | save checkpoint, picker success, reduced export |
+| PNG import | Reading one picked PNG exactly and adding it as a new work or as a new layer under ADR 0033; no palette is generated and nothing is dithered | reference underlay, legacy v1 conversion, PNG export |
+| `ImportRaster` | Bounded immutable uninstalled straight RGBA8888 raster of at most 1024 x 1024 pixels read exactly from a picked PNG | ReferenceImage, LegacyRgbaSource, DocumentState, Bitmap |
+| `RasterImportPlanner` | Pixel-engine algorithm mapping an ImportRaster to a new-work plan or a layer plan by exact match, append and the nearest metric, with Empty cells for transparent pixels | quantizer, LegacyImportPlanner, adapter conversion |
+| `ImportLayerCommand` | Atomic source-admitted command adding one layer that already holds planned pixels, with the plan's palette transition, as one history entry | AddLayerCommand, ReplacePaletteCommand, immediate import side effect |
+| `PendingRasterImport` | Workspace-owned facts and plans of one picked PNG awaiting the choice of a form | persistence operation, document state, retained raster |
+| `PngImportPort` | Application-owned pick of one PNG returning an ImportRaster or a typed cancellation, rejection or failure | ReferenceImagePort, ProjectStoragePort.load |
 | `PersistencePorts` | Named composition input grouping existing project/recovery/PNG ports for one workflow | service locator, second persistence owner |
 
 Target command/session names are introduced only in their consuming implementation Issue.

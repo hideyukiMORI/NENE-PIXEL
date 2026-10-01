@@ -16,7 +16,7 @@ The roadmap grows from an executable constraint system to a minimal vertical sli
 | M1 — Minimal Vertical Slice | One stroke travels through the complete canonical path | Draw and undo on a fixed test canvas | First internal command contract |
 | M2 — Core Drawing | Coherent single-frame, single-layer editor | Create, draw, erase, choose color, pan/zoom, undo/redo | Stable core editing vocabulary |
 | M3 — Durable MVP | Documents survive process/device lifecycle and can be exported | Save, load, recover, export PNG | Project format v1 |
-| M4 — Structured Pixel Art | Indexed palettes, multi-layer and animation-oriented documents | Palette editing/JSON/recoloring, layers, reference underlay, frames, preview, selection/transform | Expanded document/command contract and compatible indexed storage |
+| M4 — Structured Pixel Art | Indexed palettes, multi-layer and animation-oriented documents | Palette editing/JSON/recoloring, layers, reference underlay, PNG import, frames, preview, selection/transform | Expanded document/command contract and compatible indexed storage |
 | M5 — Android Beta | Measured, accessible, recoverable distributable build | Installable beta suitable for real work | Compatibility and release policy |
 | M6 — Automation Boundary | Controlled external operation through the same command gateway | Optional MCP/HTTP automation with approval | Versioned external contract; OpenAPI only if HTTP exists |
 
