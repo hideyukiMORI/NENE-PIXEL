@@ -32,9 +32,15 @@ internal sealed interface LayerStructureTransition {
         val layer: Layer,
         val position: Int,
     ) : LayerStructureTransition {
-        // An added layer is rebuilt from all-Empty pixels, so only its name is retained.
-        override val retainedByteCount: Long
-            get() = layer.name.utf8ByteCount()
+        // An all-Empty added layer is rebuilt from its size, so only its name is retained. A layer covering a cell
+        // (an imported layer, or the undo of a delete) keeps its pixels like a deleted layer, so an add and its
+        // inverse charge the same (ADR 0033). Decided once at construction, not per read.
+        override val retainedByteCount: Long =
+            if (layer.snapshot.copyCoverage().any { it != NO_COVERAGE }) {
+                layer.pixelByteCount()
+            } else {
+                layer.name.utf8ByteCount()
+            }
 
         override fun inverse(): LayerStructureTransition = Deleted(layer, position)
 
@@ -52,10 +58,7 @@ internal sealed interface LayerStructureTransition {
         val position: Int,
     ) : LayerStructureTransition {
         override val retainedByteCount: Long
-            get() {
-                val pixelCount = layer.snapshot.size.pixelCount
-                return pixelCount + (pixelCount + BITS_PER_BYTE - 1L) / BITS_PER_BYTE + layer.name.utf8ByteCount()
-            }
+            get() = layer.pixelByteCount()
 
         override fun inverse(): LayerStructureTransition = Added(layer, position)
 
@@ -135,6 +138,13 @@ internal sealed interface LayerStructureTransition {
 private const val BITS_PER_BYTE: Long = 8L
 
 private fun LayerName.utf8ByteCount(): Long = value.encodeToByteArray().size.toLong()
+
+private const val NO_COVERAGE: Byte = 0
+
+private fun Layer.pixelByteCount(): Long {
+    val pixelCount = snapshot.size.pixelCount
+    return pixelCount + (pixelCount + BITS_PER_BYTE - 1L) / BITS_PER_BYTE + name.utf8ByteCount()
+}
 
 private fun MutableList<Layer>.replaceLayer(
     layerId: LayerId,
