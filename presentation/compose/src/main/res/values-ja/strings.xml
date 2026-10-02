@@ -89,6 +89,10 @@
     </plurals>
     <string name="png_import_append">新しいレイヤーとして足す（色をパレットに足す）</string>
     <string name="png_import_convert">新しいレイヤーとして足す（今のパレットの色に変換）</string>
+    <string name="png_import_new_work">新しい作品として開く</string>
+    <string name="png_import_new_work_note">今の作品を閉じます。パレットは、このPNGの色だけになります</string>
+    <string name="png_import_new_work_too_large">新しい作品にするには大きすぎます（256 × 256 ドットまで）</string>
+    <string name="png_import_new_work_too_many_colors">色が多すぎます（新しい作品は 256 色まで）</string>
     <plurals name="png_import_appended">
         <item quantity="other">パレットに %1$d 色を足します</item>
     </plurals>
@@ -140,7 +144,7 @@
     <string name="mvp_information">このバージョンについて</string>
     <string name="close_information">閉じる</string>
     <string name="mvp_scope_title">描画できる範囲</string>
-    <string name="mvp_scope">オフラインで使える、1フレームの編集ツールです。縦・横それぞれ%1$d～%2$dピクセルで作成できます。色は作品のパレットから選びます。パレットの編集とJSONでの書き出し・読み込みができます。PNGを新しいレイヤーとして取り込めます。アニメーションは今後の対応です。</string>
+    <string name="mvp_scope">オフラインで使える、1フレームの編集ツールです。縦・横それぞれ%1$d～%2$dピクセルで作成できます。色は作品のパレットから選びます。パレットの編集とJSONでの書き出し・読み込みができます。PNGを新しい作品として開いたり、新しいレイヤーとして取り込んだりできます。アニメーションは今後の対応です。</string>
     <string name="mvp_save_title">別名で保存</string>
     <string name="mvp_save">保存するたびに新しい作品ファイルを作成し、既存のファイルは上書きしません。編集を続けるには .nenepixel ファイルを残してください。保存に失敗すると、新しく作られた不完全なファイルが残る場合があります。保存先やクラウドの後の障害までは防げません。</string>
     <string name="mvp_history_title">履歴と開き直し</string>

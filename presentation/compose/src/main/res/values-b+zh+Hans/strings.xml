@@ -89,6 +89,10 @@
     </plurals>
     <string name="png_import_append">添加为新图层（将颜色加入调色板）</string>
     <string name="png_import_convert">添加为新图层（转换为当前调色板的颜色）</string>
+    <string name="png_import_new_work">作为新作品打开</string>
+    <string name="png_import_new_work_note">将关闭当前作品。调色板只包含此PNG的颜色</string>
+    <string name="png_import_new_work_too_large">尺寸过大，无法作为新作品打开（最大 256 × 256 像素）</string>
+    <string name="png_import_new_work_too_many_colors">颜色过多（新作品最多 256 色）</string>
     <plurals name="png_import_appended">
         <item quantity="other">向调色板添加 %1$d 种颜色</item>
     </plurals>
@@ -140,7 +144,7 @@
     <string name="mvp_information">关于此版本</string>
     <string name="close_information">关闭</string>
     <string name="mvp_scope_title">绘画范围</string>
-    <string name="mvp_scope">可离线使用，支持单帧。画布宽高各为%1$d～%2$d像素。颜色从作品的调色板中选择；可以编辑调色板，并以JSON导出或导入。可以将PNG导入为新图层。动画尚未提供。</string>
+    <string name="mvp_scope">可离线使用，支持单帧。画布宽高各为%1$d～%2$d像素。颜色从作品的调色板中选择；可以编辑调色板，并以JSON导出或导入。可以将PNG作为新作品打开，或导入为新图层。动画尚未提供。</string>
     <string name="mvp_save_title">另存为</string>
     <string name="mvp_save">每次保存都会创建新的项目文件，不覆盖已有文件。要继续编辑，请保留 .nenepixel 文件。保存失败时可能留下新建的不完整文件；保存位置或云端后续发生的故障仍可能影响文件。</string>
     <string name="mvp_history_title">历史记录与重新打开</string>
