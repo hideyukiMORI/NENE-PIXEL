@@ -79,7 +79,8 @@ its history and its recovery record are unchanged and never read the memory.
   `DocumentId`, returning `Remembered` with a `RememberedUnderlay` or `Absent`; `remember` of a
   `DocumentId` and a `RememberedUnderlay`; and `forget` of a `DocumentId`. `remember` and `forget`
   return a closed `Stored` / `Failed` outcome that is never projected to the user. `recall` has no
-  failure outcome: the adapter answers every I/O failure and every unreadable record as `Absent`.
+  failure outcome: the adapter answers every I/O failure, every unreadable record and a failed
+  allocation as `Absent`.
   No function of the port throws for an expected failure. `PersistencePorts` gains the port.
 - `:adapters:persistence` implements it in the directory `reference-underlays` under the
   application's no-backup files directory, the location of the recovery record: it is not included
@@ -140,7 +141,10 @@ its history and its recovery record are unchanged and never read the memory.
   and a Remove publishes a forget of the old record. A completion for another installation is
   dropped. A completion that arrives while a switch is installing another work is dropped whole:
   the store stays unknown, so the empty workspace is never mistaken for a Remove, and that
-  installation is not recalled again (amended 2026-10-03 during implementation).
+  installation is not recalled again, also when the switch then fails and the work stays
+  installed: its underlay is then neither restored nor published in that installation, and an
+  underlay action in it is still carried to the store as the departing capture of the next
+  installation (amended 2026-10-03 during implementation).
 - The projection is `PublishPending` when a departing capture exists, or when the store is
   known, the workspace underlay differs from it and the underlay is not being adjusted. While adjusting,
   nothing is requested; leaving the mode publishes the final placement once. Clearing the underlay
