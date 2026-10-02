@@ -54,6 +54,7 @@ import org.junit.jupiter.api.fail
 
 internal class Fixture(
     inspection: RecoveryInspection = RecoveryInspection.Missing,
+    val underlayMemory: FakeUnderlayMemoryPort = FakeUnderlayMemoryPort(),
 ) {
     val ids = SequentialDocumentIdSource()
     val runtime = EditorRuntime.create(canvas(4, 4), definition(blackIndex, black, red, green), ids)
@@ -75,6 +76,7 @@ internal class Fixture(
                 paletteImporter,
                 referenceImages,
                 pngImports,
+                underlayMemory,
             ),
             Dispatchers.Unconfined,
         )

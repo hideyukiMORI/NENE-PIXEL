@@ -38,14 +38,14 @@ public class AndroidUnderlayMemoryAdapterDeviceTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val parent = Files.createTempDirectory(context.noBackupFilesDir.toPath(), "underlay-memory-").toFile()
         try {
-            roundTrip(File(parent, UnderlayMemoryLayout.DIRECTORY_NAME))
+            roundTrip(parent)
         } finally {
             parent.deleteRecursively()
         }
     }
 
-    private fun roundTrip(directory: File) {
-        val adapter = AndroidUnderlayMemoryAdapter.create(directory, Dispatchers.IO)
+    private fun roundTrip(noBackupDirectory: File) {
+        val adapter = AndroidUnderlayMemoryAdapter.create(noBackupDirectory, Dispatchers.IO)
         val original = underlay()
         val rememberStart = System.nanoTime()
         val outcome = runBlocking { adapter.remember(document(), original) }

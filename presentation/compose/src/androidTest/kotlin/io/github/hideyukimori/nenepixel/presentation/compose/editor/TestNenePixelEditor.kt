@@ -115,6 +115,7 @@ private class TestPersistenceHost(
                 paletteJson.import,
                 referenceImage,
                 pngImport,
+                EmptyUnderlayMemoryPort,
             ),
             Dispatchers.Unconfined,
         )

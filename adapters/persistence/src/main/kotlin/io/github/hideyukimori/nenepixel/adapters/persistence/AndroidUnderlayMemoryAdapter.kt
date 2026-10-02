@@ -69,14 +69,16 @@ public class AndroidUnderlayMemoryAdapter internal constructor(
 
     public companion object {
         /**
-         * Creates the adapter over [directory], the directory that holds only the underlay memory records
-         * (`reference-underlays` under the no-backup files directory, ADR 0034). The directory is created on
-         * the first write. Blocking file work runs on [ioDispatcher].
+         * Creates the adapter under [noBackupDirectory], the application's no-backup files directory. The records
+         * live only in its `reference-underlays` child, which the adapter names and creates on the first write
+         * (ADR 0034). Blocking file work runs on [ioDispatcher].
          */
         public fun create(
-            directory: File,
+            noBackupDirectory: File,
             ioDispatcher: CoroutineDispatcher,
-        ): UnderlayMemoryPort =
-            AndroidUnderlayMemoryAdapter(UnderlayMemoryStore(AndroidUnderlayRecordFiles(directory)), ioDispatcher)
+        ): UnderlayMemoryPort {
+            val files = AndroidUnderlayRecordFiles(File(noBackupDirectory, UnderlayMemoryLayout.DIRECTORY_NAME))
+            return AndroidUnderlayMemoryAdapter(UnderlayMemoryStore(files), ioDispatcher)
+        }
     }
 }

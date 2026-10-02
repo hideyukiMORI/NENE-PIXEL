@@ -14,6 +14,7 @@ import io.github.hideyukimori.nenepixel.adapters.persistence.AndroidPngImportAda
 import io.github.hideyukimori.nenepixel.adapters.persistence.AndroidProjectStorageAdapter
 import io.github.hideyukimori.nenepixel.adapters.persistence.AndroidRecoveryRecordAdapter
 import io.github.hideyukimori.nenepixel.adapters.persistence.AndroidReferenceImageAdapter
+import io.github.hideyukimori.nenepixel.adapters.persistence.AndroidUnderlayMemoryAdapter
 import io.github.hideyukimori.nenepixel.core.application.editor.EditorRuntime
 import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveProjection
 import io.github.hideyukimori.nenepixel.core.application.persistence.EditorPersistenceWorkflow
@@ -135,6 +136,8 @@ internal class EditorRuntimeViewModel private constructor(
             val controller = EditorController.create(runtime)
             val pickerBroker = ProjectPickerBroker()
             val ioDispatcher = Dispatchers.IO.limitedParallelism(1)
+            // A separate serialized dispatcher: an underlay image write never queues in front of a save (ADR 0034).
+            val underlayMemoryDispatcher = Dispatchers.IO.limitedParallelism(1)
             val projectStorage =
                 AndroidProjectStorageAdapter.create(application.contentResolver, pickerBroker, ioDispatcher)
             val recoveryRecord =
@@ -153,6 +156,7 @@ internal class EditorRuntimeViewModel private constructor(
                         AndroidPaletteJsonImportAdapter.create(application.contentResolver, pickerBroker, ioDispatcher),
                         AndroidReferenceImageAdapter.create(application.contentResolver, pickerBroker, ioDispatcher),
                         AndroidPngImportAdapter.create(application.contentResolver, pickerBroker, ioDispatcher),
+                        AndroidUnderlayMemoryAdapter.create(application.noBackupFilesDir, underlayMemoryDispatcher),
                     ),
                     Dispatchers.Default,
                 )

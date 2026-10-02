@@ -9,4 +9,5 @@ public data class PersistencePorts(
     public val paletteJsonImport: PaletteJsonImportPort,
     public val referenceImage: ReferenceImagePort,
     public val pngImport: PngImportPort,
+    public val underlayMemory: UnderlayMemoryPort,
 )
