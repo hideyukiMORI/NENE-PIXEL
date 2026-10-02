@@ -63,7 +63,7 @@ internal fun LayerPanelUnderlayRow(
             UnderlayOpacitySlider(
                 opacity = underlay.opacity,
                 enabled = underlay.visibility == UnderlayVisibility.Shown,
-                onChange = { next -> callbacks.onSet(underlay.withOpacity(next)) },
+                onChange = { next -> callbacks.onUpdate { current -> current.withOpacity(next) } },
             )
         }
     }
@@ -80,7 +80,7 @@ private fun UnderlayHeading(
     val toggle = if (hidden) R.string.underlay_show else R.string.underlay_hide
     Row(Modifier.fillMaxWidth().heightIn(min = HEADING_MIN_HEIGHT), verticalAlignment = Alignment.CenterVertically) {
         IconButton(
-            onClick = { callbacks.onSet(underlay.toggledVisibility()) },
+            onClick = { callbacks.onUpdate { current -> current.toggledVisibility() } },
             modifier = Modifier.editorDescription(toggle, identity = VISIBILITY_TAG),
         ) {
             EditorSymbol(if (hidden) EditorIcon.Hidden else EditorIcon.Visible)

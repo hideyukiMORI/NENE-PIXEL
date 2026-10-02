@@ -10,8 +10,8 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.underlay.Refe
  * through the named `ReferenceUnderlay` derivations; there is no function per derivation.
  *
  * [onUpdate] applies the derivation to the underlay the runtime holds when it is called (#171), so an action never
- * writes back a value composed earlier, for example while another finger moves the underlay. [onSet] still takes a
- * whole value, for the panel row and its menu.
+ * writes back a value composed earlier, for example while another finger moves the underlay. Every UI action goes
+ * through [onUpdate]; [onSet] is the primitive that reduces a whole value, used by [onUpdate] and to seed tests.
  */
 internal class EditorUnderlayCallbacks(
     private val runtime: EditorRuntime,

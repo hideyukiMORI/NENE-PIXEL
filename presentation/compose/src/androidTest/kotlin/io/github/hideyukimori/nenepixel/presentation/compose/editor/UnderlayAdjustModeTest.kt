@@ -32,7 +32,8 @@ import org.junit.Test
 
 /**
  * The underlay adjust mode (#171, ADR 0032): entering it from the row's menu, leaving it with Done or Back, moving
- * and scaling the underlay with one and two fingers on the canvas, Fit to picture and the bar's opacity slider.
+ * and scaling the underlay with one and two fingers on the canvas, Fit to picture and the bar's opacity slider. A drag
+ * on the bar itself does not reach the canvas.
  */
 internal class UnderlayAdjustModeTest {
     @get:Rule
@@ -85,6 +86,25 @@ internal class UnderlayAdjustModeTest {
         assertTrue(after.left > before.left)
         assertTrue(after.top > before.top)
         assertEquals(before.scale, after.scale, 0.0)
+        assertEquals(0L, controller.documentState.revision.value)
+        assertFalse(controller.renderState.canUndo)
+    }
+
+    @Test
+    fun aDragOnTheBarLeavesTheUnderlayAndTheDocument() {
+        val controller = UnderlayAdjustFixture.show(composeRule)
+        enterAdjust(composeRule)
+        val before = underlay(controller).placement
+        composeRule.onNodeWithTag(BAR_TAG).performTouchInput {
+            swipe(
+                start = percentOffset(BAR_DRAG_START, BAR_DRAG_ROW),
+                end = percentOffset(BAR_DRAG_END, BAR_DRAG_ROW),
+                durationMillis = SWIPE_MILLIS,
+            )
+        }
+        composeRule.waitForIdle()
+        assertEquals(before, underlay(controller).placement)
+        assertEquals(UnderlayInteraction.Adjusting, underlay(controller).interaction)
         assertEquals(0L, controller.documentState.revision.value)
         assertFalse(controller.renderState.canUndo)
     }
@@ -166,6 +186,9 @@ internal class UnderlayAdjustModeTest {
     private companion object {
         const val DRAG_END: Float = 0.6f
         const val SWIPE_MILLIS: Long = 300
+        const val BAR_DRAG_START: Float = 0.05f
+        const val BAR_DRAG_END: Float = 0.3f
+        const val BAR_DRAG_ROW: Float = 0.2f
         const val HALF: Float = 0.5f
         const val PINCH_START: Float = 0.05f
         const val PINCH_STEP: Float = 0.03f

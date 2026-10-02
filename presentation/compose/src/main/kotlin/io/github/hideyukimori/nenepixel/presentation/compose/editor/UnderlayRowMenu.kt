@@ -45,11 +45,13 @@ internal fun UnderlayRowMenu(
             val shown = underlay.visibility == UnderlayVisibility.Shown
             UnderlayMenuItem(R.string.underlay_adjust, ADJUST_TAG, enabled = shown) {
                 choose {
-                    callbacks.onSet(underlay.adjusting())
+                    callbacks.onUpdate { current -> current.adjusting() }
                     onClosePanel()
                 }
             }
-            UnderlayMenuItem(R.string.underlay_fit, FIT_TAG) { choose { callbacks.onSet(underlay.fitted()) } }
+            UnderlayMenuItem(R.string.underlay_fit, FIT_TAG) {
+                choose { callbacks.onUpdate { current -> current.fitted() } }
+            }
             UnderlayMenuItem(R.string.underlay_remove, REMOVE_TAG) { choose { callbacks.onClear() } }
         }
     }
