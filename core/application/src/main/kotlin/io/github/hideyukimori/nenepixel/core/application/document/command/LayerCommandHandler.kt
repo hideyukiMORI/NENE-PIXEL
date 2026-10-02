@@ -7,7 +7,6 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.Lay
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.layer.Layer
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
-import io.github.hideyukimori.nenepixel.core.domain.layer.LayerLimits
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerName
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerVisibility
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
@@ -39,32 +38,18 @@ internal class LayerCommandHandler {
     private fun planAdd(
         state: DocumentState,
         aboveLayerId: LayerId,
-    ): LayerCommandPlan {
-        val below = state.layers.positionOf(aboveLayerId)
-        return when {
-            below < 0 -> {
-                LayerCommandPlan.Refused(RejectionReason.LayerNotFound(aboveLayerId))
+    ): LayerCommandPlan =
+        when (val insertion = planLayerInsertion(state.layers, aboveLayerId)) {
+            is LayerInsertion.Accepted -> {
+                val snapshot = PixelSnapshot.createEmpty(state.size)
+                val layer = Layer.create(insertion.id, LayerName.empty, LayerVisibility.Visible, snapshot)
+                LayerCommandPlan.Accepted(LayerStructureTransition.Added(layer, insertion.position))
             }
 
-            state.layers.size >= LayerLimits.MAX_LAYERS -> {
-                LayerCommandPlan.Refused(RejectionReason.LayerLimitReached)
-            }
-
-            else -> {
-                when (val next = state.layers.highestId().next()) {
-                    is DomainValueResult.Created -> {
-                        val snapshot = PixelSnapshot.createEmpty(state.size)
-                        val layer = Layer.create(next.value, LayerName.empty, LayerVisibility.Visible, snapshot)
-                        LayerCommandPlan.Accepted(LayerStructureTransition.Added(layer, below + 1))
-                    }
-
-                    is DomainValueResult.Rejected -> {
-                        LayerCommandPlan.Refused(RejectionReason.LayerIdOverflow)
-                    }
-                }
+            is LayerInsertion.Refused -> {
+                LayerCommandPlan.Refused(insertion.reason)
             }
         }
-    }
 
     private fun planDelete(
         layers: List<Layer>,
@@ -159,12 +144,4 @@ private sealed interface LayerCommandPlan {
     data class Refused(
         val reason: RejectionReason,
     ) : LayerCommandPlan
-}
-
-private fun List<Layer>.positionOf(layerId: LayerId): Int = indexOfFirst { it.id == layerId }
-
-// A new layer takes the id after the largest one present; gaps left by deleted lower ids are not filled.
-private fun List<Layer>.highestId(): LayerId {
-    val highest = maxBy { it.id.value }
-    return highest.id
 }

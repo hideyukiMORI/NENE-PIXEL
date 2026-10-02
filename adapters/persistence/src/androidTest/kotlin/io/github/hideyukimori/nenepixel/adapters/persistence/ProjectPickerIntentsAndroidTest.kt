@@ -89,6 +89,16 @@ public class ProjectPickerIntentsAndroidTest {
     }
 
     @Test
+    public fun pngOpenIntentHasExactPngMimeAndNoExtraMimeTypes() {
+        val intent = ProjectPickerIntents.openDocument(DocumentOpenRequest(DocumentOutputFormat.PNG))
+
+        assertEquals(Intent.ACTION_OPEN_DOCUMENT, intent.action)
+        assertEquals("image/png", intent.type)
+        assertTrue(intent.categories?.contains(Intent.CATEGORY_OPENABLE) == true)
+        assertNull(intent.getStringArrayExtra(Intent.EXTRA_MIME_TYPES))
+    }
+
+    @Test
     public fun nonImageOpenIntentHasNoExtraMimeTypes() {
         val intent = ProjectPickerIntents.openDocument(DocumentOpenRequest(DocumentOutputFormat.PALETTE_JSON))
 

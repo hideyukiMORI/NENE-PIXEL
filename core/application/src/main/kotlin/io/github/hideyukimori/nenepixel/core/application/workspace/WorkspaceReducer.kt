@@ -23,6 +23,7 @@ public class WorkspaceReducer private constructor() {
             is DocumentReconciliation -> reconcileDocument(state, action, source.document)
             is WorkspaceAction.LayerAction -> reduceLayer(state, action, source.document)
             is WorkspaceAction.ReferenceUnderlayAction -> reduceReferenceUnderlay(state, action)
+            is WorkspaceAction.RasterImportAction -> reduceRasterImport(state, action)
         }
 
     private fun selectPaletteEntry(

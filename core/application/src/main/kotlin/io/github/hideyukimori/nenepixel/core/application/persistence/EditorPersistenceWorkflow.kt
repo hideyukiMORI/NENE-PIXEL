@@ -11,6 +11,7 @@ public class EditorPersistenceWorkflow private constructor(
     private val pngExport: PersistencePngExportFlow,
     paletteJsonFlow: PersistencePaletteJsonFlow,
     referenceImageFlow: PersistenceReferenceImageFlow,
+    pngImportFlow: PersistencePngImportFlow,
 ) {
     public val operation: StateFlow<PersistenceOperationProjection>
         get() = runtime.persistenceOperation
@@ -23,6 +24,8 @@ public class EditorPersistenceWorkflow private constructor(
     public val paletteJson: PaletteJsonWorkflow = PaletteJsonWorkflow(paletteJsonFlow)
 
     public val referenceImage: ReferenceImageWorkflow = ReferenceImageWorkflow(referenceImageFlow)
+
+    public val pngImport: PngImportWorkflow = PngImportWorkflow(pngImportFlow)
 
     public suspend fun initializeRecovery(): RecoveryInitializationResult = flows.save.initializeRecovery()
 
@@ -80,6 +83,12 @@ public class EditorPersistenceWorkflow private constructor(
                     autosave,
                 ),
                 PersistenceReferenceImageFlow(runtime.referenceImageOperations, ports.referenceImage, autosave),
+                PersistencePngImportFlow(
+                    runtime.pngImportOperations,
+                    ports.pngImport,
+                    autosave,
+                    conversionDispatcher,
+                ),
             )
         }
     }

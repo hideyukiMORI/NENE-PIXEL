@@ -1,5 +1,6 @@
 package io.github.hideyukimori.nenepixel.core.application.workspace
 
+import io.github.hideyukimori.nenepixel.core.application.workspace.importing.PendingRasterImport
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteEditSession
 import io.github.hideyukimori.nenepixel.core.application.workspace.quickselect.CanvasPointerIntent
 import io.github.hideyukimori.nenepixel.core.application.workspace.quickselect.EyedropperState
@@ -12,8 +13,9 @@ import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 
 /**
- * The constructor is internal only for `withUnderlay` in `UnderlayReduction.kt`; no other code outside this class
- * calls it, and [create] stays the one canonical factory.
+ * The constructor is internal only for `withUnderlay` in `UnderlayReduction.kt` and `withPendingImport`
+ * in `RasterImportReduction.kt`; no other code outside this class calls it, and [create] stays the one canonical
+ * factory.
  */
 public class WorkspaceState internal constructor(
     public val editTarget: EditTarget,
@@ -25,6 +27,7 @@ public class WorkspaceState internal constructor(
     public val paletteEditSession: PaletteEditSession?,
     public val quickSelection: QuickSelection,
     public val underlay: ReferenceUnderlay?,
+    public val pendingImport: PendingRasterImport?,
 ) {
     public val activePaletteIndex: PaletteIndex
         get() = editTarget.paletteIndex
@@ -51,6 +54,7 @@ public class WorkspaceState internal constructor(
             paletteEditSession,
             quickSelection,
             underlay,
+            pendingImport,
         )
 
     internal fun withActiveTool(activeTool: DrawingTool): WorkspaceState =
@@ -64,6 +68,7 @@ public class WorkspaceState internal constructor(
             paletteEditSession,
             quickSelection,
             underlay,
+            pendingImport,
         )
 
     /** Replaces the gesture preview; `null` ends it. */
@@ -78,6 +83,7 @@ public class WorkspaceState internal constructor(
             paletteEditSession,
             quickSelection,
             underlay,
+            pendingImport,
         )
 
     internal fun withViewport(viewport: ViewportState): WorkspaceState =
@@ -91,6 +97,7 @@ public class WorkspaceState internal constructor(
             paletteEditSession,
             quickSelection,
             underlay,
+            pendingImport,
         )
 
     internal fun withAppearance(appearance: EditorAppearance): WorkspaceState =
@@ -104,6 +111,7 @@ public class WorkspaceState internal constructor(
             paletteEditSession,
             quickSelection,
             underlay,
+            pendingImport,
         )
 
     /** The actual-size window is non-modal: it never cancels an in-progress gesture (ADR 0026). */
@@ -118,6 +126,7 @@ public class WorkspaceState internal constructor(
             paletteEditSession,
             quickSelection,
             underlay,
+            pendingImport,
         )
 
     /** The palette edit session is non-modal: opening or closing it never cancels an in-progress gesture (ADR 0022). */
@@ -132,6 +141,7 @@ public class WorkspaceState internal constructor(
             paletteEditSession,
             quickSelection,
             underlay,
+            pendingImport,
         )
 
     /** Quick-select state never cancels an in-progress gesture (ADR 0029). */
@@ -146,6 +156,7 @@ public class WorkspaceState internal constructor(
             paletteEditSession,
             quickSelection,
             underlay,
+            pendingImport,
         )
 
     override fun equals(other: Any?): Boolean =
@@ -160,7 +171,8 @@ public class WorkspaceState internal constructor(
                     actualSizeWindow == other.actualSizeWindow &&
                     paletteEditSession == other.paletteEditSession &&
                     quickSelection == other.quickSelection &&
-                    underlay == other.underlay
+                    underlay == other.underlay &&
+                    pendingImport == other.pendingImport
             )
 
     override fun hashCode(): Int =
@@ -174,13 +186,15 @@ public class WorkspaceState internal constructor(
             paletteEditSession,
             quickSelection,
             underlay,
+            pendingImport,
         ).fold(INITIAL_HASH) { hash, value -> hash * HASH_MULTIPLIER + (value?.hashCode() ?: 0) }
 
     override fun toString(): String =
         "WorkspaceState(" +
             "editTarget=$editTarget, activeTool=$activeTool, viewport=$viewport, " +
             "preview=$preview, appearance=$appearance, actualSizeWindow=$actualSizeWindow, " +
-            "paletteEditSession=$paletteEditSession, quickSelection=$quickSelection, underlay=$underlay)"
+            "paletteEditSession=$paletteEditSession, quickSelection=$quickSelection, underlay=$underlay, " +
+            "pendingImport=$pendingImport)"
 
     public companion object {
         private const val INITIAL_HASH: Int = 1
@@ -196,6 +210,7 @@ public class WorkspaceState internal constructor(
                 ActualSizeWindow.initial,
                 null,
                 QuickSelection.initial,
+                null,
                 null,
             )
     }

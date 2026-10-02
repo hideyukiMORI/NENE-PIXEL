@@ -122,6 +122,7 @@ internal class EditorRuntimeAdapter(
             activeLayerId = state.workspaceState.activeLayerId,
             layerNotice = layerNotices.validFor(state.documentState, state.workspaceState.activeLayerId),
             underlay = state.workspaceState.underlay,
+            pendingImport = state.workspaceState.pendingImport,
         )
     }
 

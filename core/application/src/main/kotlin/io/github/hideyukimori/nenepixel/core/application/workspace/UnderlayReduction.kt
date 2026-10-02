@@ -15,7 +15,7 @@ internal fun reduceReferenceUnderlay(
 
 /**
  * The underlay is non-modal: replacing it keeps every other field, the gesture preview included (ADR 0032).
- * This is the only caller of the internal [WorkspaceState] constructor besides `WorkspaceState.create`.
+ * Besides `WorkspaceState.create`, only this and `withPendingImport` call the internal [WorkspaceState] constructor.
  */
 internal fun WorkspaceState.withUnderlay(underlay: ReferenceUnderlay?): WorkspaceState =
     WorkspaceState(
@@ -28,6 +28,7 @@ internal fun WorkspaceState.withUnderlay(underlay: ReferenceUnderlay?): Workspac
         paletteEditSession,
         quickSelection,
         underlay,
+        pendingImport,
     )
 
 private fun setReferenceUnderlay(

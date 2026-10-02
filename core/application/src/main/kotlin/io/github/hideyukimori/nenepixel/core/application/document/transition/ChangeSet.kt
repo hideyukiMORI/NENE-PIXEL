@@ -120,6 +120,20 @@ public class ChangeSet private constructor(
                 Layers(source.size, emptyList(), structure),
             )
 
+        /** Records an imported layer (ADR 0033): [added] carries the layer's pixels, so no layer changes. */
+        internal fun createImportedLayer(
+            source: DocumentState,
+            afterRevision: Revision,
+            paletteTransition: PaletteTransition,
+            added: LayerStructureTransition.Added,
+        ): ChangeSet =
+            ChangeSet(
+                source.revision,
+                afterRevision,
+                paletteTransition,
+                Layers(source.size, emptyList(), added),
+            )
+
         private fun <T> required(result: DomainValueResult<T>): T =
             when (result) {
                 is DomainValueResult.Created -> {

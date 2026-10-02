@@ -97,6 +97,9 @@ internal class RecoveryOfferStatusTest {
                 io.github.hideyukimori.nenepixel.core.application.persistence.ReferenceImagePort {
                     io.github.hideyukimori.nenepixel.core.application.persistence.ReferenceImageOutcome.Cancelled
                 },
+                io.github.hideyukimori.nenepixel.core.application.persistence.PngImportPort {
+                    io.github.hideyukimori.nenepixel.core.application.persistence.PngImportOutcome.Cancelled
+                },
             ),
             Dispatchers.Unconfined,
         )

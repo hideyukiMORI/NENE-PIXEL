@@ -16,6 +16,7 @@ public class CommandGateway private constructor(
     private val applyStrokeCommandHandler: ApplyStrokeCommandHandler = ApplyStrokeCommandHandler()
     private val replacePaletteCommandHandler: ReplacePaletteCommandHandler = ReplacePaletteCommandHandler()
     private val layerCommandHandler: LayerCommandHandler = LayerCommandHandler()
+    private val importLayerCommandHandler: ImportLayerCommandHandler = ImportLayerCommandHandler()
     private val undoCommandHandler: UndoCommandHandler = UndoCommandHandler()
     private val redoCommandHandler: RedoCommandHandler = RedoCommandHandler()
 
@@ -56,6 +57,12 @@ public class CommandGateway private constructor(
                 is LayerCommand -> {
                     executeAdmitted(command.admission) {
                         layerCommandHandler.execute(currentState, command)
+                    }
+                }
+
+                is ImportLayerCommand -> {
+                    executeAdmitted(command.admission) {
+                        importLayerCommandHandler.execute(currentState, command)
                     }
                 }
 

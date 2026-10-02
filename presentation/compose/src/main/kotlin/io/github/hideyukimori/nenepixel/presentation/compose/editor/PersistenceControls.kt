@@ -58,6 +58,10 @@ internal fun PersistenceControls(
                 modifier = Modifier.editorDescription(R.string.export_png_no_visible_layer),
             )
         }
+        EditorActionButton(R.string.import_png, idle) {
+            callbacks.importPng()
+            submitted()
+        }
         operation.phase.cancellableOperation()?.let { handle ->
             EditorActionButton(R.string.cancel_operation) { callbacks.onCancel(handle) }
         }
@@ -159,7 +163,7 @@ internal fun PersistenceOperationProjection.statusResource(autosave: AutosavePro
     }
 
 private fun PersistenceOperationProjection.idleStatusResource(autosave: AutosaveProjection): Int =
-    lastOutcome.underlayFailureResource() ?: when {
+    lastOutcome.underlayFailureResource() ?: lastOutcome.pngImportFailureResource() ?: when {
         (lastOutcome as? PersistenceLastOutcome.Failed)?.failure is PersistenceFailure.PngExport -> {
             R.string.png_export_failed
         }
@@ -218,6 +222,7 @@ private fun PersistenceLastOutcome.completedStatusResource(): Int =
         PersistenceLastOutcome.None,
         PersistenceLastOutcome.Recovered,
         PersistenceLastOutcome.RecoveryDeclined,
+        PersistenceLastOutcome.PngImportRead,
         -> R.string.storage_ready
     }
 

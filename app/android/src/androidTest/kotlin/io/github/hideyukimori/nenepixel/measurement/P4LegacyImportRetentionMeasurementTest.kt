@@ -24,6 +24,8 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.Persistence
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceRequestResult
 import io.github.hideyukimori.nenepixel.core.application.persistence.PngExportOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.PngExportPort
+import io.github.hideyukimori.nenepixel.core.application.persistence.PngImportOutcome
+import io.github.hideyukimori.nenepixel.core.application.persistence.PngImportPort
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectLoadOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectSaveOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectStoragePort
@@ -208,6 +210,7 @@ private class P4LegacyImportRetentionWorkload {
                 P4CancelledPaletteJsonExport(),
                 P4CancelledPaletteJsonImport(),
                 ReferenceImagePort { ReferenceImageOutcome.Cancelled },
+                PngImportPort { PngImportOutcome.Cancelled },
             ),
             Dispatchers.Unconfined,
         )

@@ -63,10 +63,19 @@ internal class Fixture(
     val paletteExporter = FakePaletteJsonExportPort()
     val paletteImporter = FakePaletteJsonImportPort()
     val referenceImages = FakeReferenceImagePort()
+    val pngImports = FakePngImportPort()
     val workflow =
         EditorPersistenceWorkflow.create(
             runtime,
-            PersistencePorts(storage, recovery, exporter, paletteExporter, paletteImporter, referenceImages),
+            PersistencePorts(
+                storage,
+                recovery,
+                exporter,
+                paletteExporter,
+                paletteImporter,
+                referenceImages,
+                pngImports,
+            ),
             Dispatchers.Unconfined,
         )
 
