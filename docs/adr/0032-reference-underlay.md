@@ -136,7 +136,10 @@ changes.
 
 - The canvas draws in this order: the surround, the transparency backdrop, **the underlay**, one
   document bitmap with its alpha, then the grid. The underlay is clipped to the document
-  rectangle, filtered (bilinear) and blended with its opacity by the platform canvas.
+  rectangle, sampled nearest-neighbour at every scale (no interpolation) and blended with its
+  opacity by the platform canvas (amended 2026-10-01, Issue #175: the owner asked that an enlarged
+  or reduced underlay show its pixels without interpolation; the first form drew it bilinear). The
+  filtered resize that fits a chosen image (Choosing the image) is unchanged.
 - `:presentation:compose` owns one disposable `UnderlayBitmapCache` keyed by the `ReferenceImage`
   instance. It builds one `Bitmap` when the image changes and on nothing else; placement, opacity
   and visibility are drawing parameters.
@@ -207,7 +210,7 @@ adjust arithmetic together and is decided with its own Issue.
 
 ### Costs and risks
 
-- While an underlay is shown, every canvas frame issues one clip and one filtered `drawBitmap`
+- While an underlay is shown, every canvas frame issues one clip and one unfiltered `drawBitmap`
   more than before. With no underlay, or a hidden one, the frame is unchanged.
 - An underlay retains up to 4 MiB of raster in the workspace state and up to 4 MiB of bitmap in the
   presentation cache. Both are released when it is cleared.
@@ -252,7 +255,8 @@ step and the controls; no document or file changes.
 - Issue: [#169](https://github.com/hideyukiMORI/NENE-PIXEL/issues/169)
 - Implementation: [#170](https://github.com/hideyukiMORI/NENE-PIXEL/issues/170) (P4-06a),
   [#171](https://github.com/hideyukiMORI/NENE-PIXEL/issues/171) (P4-06b),
-  [#172](https://github.com/hideyukiMORI/NENE-PIXEL/issues/172) (P4-06c)
+  [#172](https://github.com/hideyukiMORI/NENE-PIXEL/issues/172) (P4-06c),
+  [#175](https://github.com/hideyukiMORI/NENE-PIXEL/issues/175) (nearest-neighbour display)
 - PR:
 - [ADR 0004](0004-bounded-workspace-viewport.md)
 - [ADR 0022](0022-indexed-palette-and-migration.md)

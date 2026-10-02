@@ -13,9 +13,9 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 
 /**
  * Draws the reference underlay between the transparency backdrop and the picture (ADR 0032,
- * Issue #170): nothing without an underlay or while it is hidden, otherwise one filtered bitmap at
- * the underlay's opacity, clipped to the document rectangle [destination]. Without an underlay the
- * [cache] lets go of its bitmap.
+ * Issue #170): nothing without an underlay or while it is hidden, otherwise one bitmap sampled
+ * nearest-neighbour (Issue #175) at the underlay's opacity, clipped to the document rectangle
+ * [destination]. Without an underlay the [cache] lets go of its bitmap.
  */
 internal fun DrawScope.drawUnderlay(
     cache: UnderlayBitmapCache,

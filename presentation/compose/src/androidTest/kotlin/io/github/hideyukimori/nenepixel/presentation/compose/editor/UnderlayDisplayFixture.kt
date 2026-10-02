@@ -48,7 +48,10 @@ internal object UnderlayDisplayFixture {
     const val CONTENT_TAG: String = "editor_actual_size_window_content"
     const val OPAQUE_RED: Int = 0xFFFF0000.toInt()
     const val OPAQUE_GREEN: Int = 0xFF00FF00.toInt()
+    const val OPAQUE_BLUE: Int = 0xFF0000FF.toInt()
     private const val GREEN_RGBA: Int = 0x00FF00FF
+    private const val BLUE_RGBA: Int = 0x0000FFFF
+    private const val SPLIT_IMAGE_EDGE: Int = 2
     private val WIDE_EDGE: Dp = 600.dp
     private val TALL_EDGE: Dp = 400.dp
 
@@ -72,6 +75,18 @@ internal object UnderlayDisplayFixture {
             is ReferenceImageResult.Created -> result.image
             is ReferenceImageResult.Rejected -> error("Invalid underlay fixture: ${result.reason}")
         }
+
+    /** A 2 x 2 image whose left column is opaque green and whose right column is opaque blue. */
+    fun greenBlueColumnsImage(): ReferenceImage {
+        val rgba =
+            IntArray(SPLIT_IMAGE_EDGE * SPLIT_IMAGE_EDGE) { index ->
+                if (index % SPLIT_IMAGE_EDGE == 0) GREEN_RGBA else BLUE_RGBA
+            }
+        return when (val result = ReferenceImage.create(SPLIT_IMAGE_EDGE, SPLIT_IMAGE_EDGE, rgba)) {
+            is ReferenceImageResult.Created -> result.image
+            is ReferenceImageResult.Rejected -> error("Invalid underlay fixture: ${result.reason}")
+        }
+    }
 
     fun setContent(
         rule: ComposeContentTestRule,
