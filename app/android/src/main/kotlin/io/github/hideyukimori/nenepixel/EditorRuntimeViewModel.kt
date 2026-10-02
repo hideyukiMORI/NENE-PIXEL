@@ -43,6 +43,8 @@ internal class EditorRuntimeViewModel private constructor(
 
     private val autosave = AutosaveScheduler(persistence)
 
+    private val underlayMemory = UnderlayMemoryScheduler(persistence.underlayMemory, controller::synchronizeWithRuntime)
+
     val persistenceOperations: StateFlow<PersistenceOperationProjection> = persistence.operation
     val autosaveStates: StateFlow<AutosaveProjection> = persistence.autosave
     val persistenceCallbacks: EditorPersistenceCallbacks =
@@ -83,6 +85,7 @@ internal class EditorRuntimeViewModel private constructor(
 
     init {
         autosave.launchIn(viewModelScope)
+        underlayMemory.launchIn(viewModelScope)
         viewModelScope.launch {
             try {
                 persistence.initializeRecovery()
@@ -98,6 +101,14 @@ internal class EditorRuntimeViewModel private constructor(
      */
     fun flushAutosave() {
         autosave.flush()
+    }
+
+    /**
+     * Writes the installed work's underlay immediately, including one being adjusted (ADR 0034). Called from
+     * `MainActivity.onStop` beside [flushAutosave]; the request runs on `viewModelScope`.
+     */
+    fun flushUnderlayMemory() {
+        underlayMemory.flush()
     }
 
     private fun <T> launchOperation(block: suspend () -> T) {

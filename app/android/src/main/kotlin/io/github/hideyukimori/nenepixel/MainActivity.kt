@@ -74,11 +74,13 @@ public class MainActivity : ComponentActivity() {
 
     /**
      * ADR 0018 places the autosave lifecycle flush on `ON_STOP`, the last reliable event before a
-     * background process death. The request itself runs on the retained ViewModel scope.
+     * background process death; ADR 0034 places the underlay memory flush beside it. The requests
+     * themselves run on the retained ViewModel scope.
      */
     override fun onStop() {
         super.onStop()
         editorModel.flushAutosave()
+        editorModel.flushUnderlayMemory()
     }
 
     private fun applySystemBarTheme(theme: EditorTheme) {
