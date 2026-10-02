@@ -77,7 +77,9 @@ changes.
 - Until P4-06c the underlay belongs to the open document of the running process. Installing
   another document (new, load, recovery adoption) clears it, unlike `EditorAppearance` and the
   actual-size window, because a placement is only meaningful against the picture it was aligned
-  to. A fresh process starts without one.
+  to. A fresh process starts without one. Amended 2026-10-03 (Issue #172):
+  [ADR 0034](0034-underlay-memory.md) adds the per-work memory; an installation still clears the
+  workspace underlay, and the memory then restores the one of the installed work.
 - The underlay is undo-neutral and dirty-neutral. Save, autosave, recovery, PNG export, the
   Composite, the actual-size window, the legacy import comparison and the eyedropper do not read
   it.
@@ -159,8 +161,8 @@ changes.
 
 ### Not decided here
 
-- Remembering the underlay per work across processes (P4-06c) amends ARC-004 and ADR 0021 in its
-  own change.
+- Remembering the underlay per work across processes (P4-06c) is decided in
+  [ADR 0034](0034-underlay-memory.md).
 - Rotation, numeric placement input, more than one underlay, drawing the underlay above the
   layers, and sampling colours from it are separate Issues. No field or API is reserved for them.
 
@@ -222,7 +224,7 @@ adjust arithmetic together and is decided with its own Issue.
 - One pick transiently holds the encoded bytes (up to 16 MiB) and one subsampled bitmap (up to
   2048 x 2048 pixels, 16 MiB) inside the adapter until the outcome is returned.
 - The picker holds the operation lease while it is open, as every picker of the app does.
-- The underlay is lost when the process dies or another document is installed, until P4-06c.
+- The underlay is lost when the process dies or another document is installed, until P4-06c. ADR 0034 decides P4-06c.
 - A partially transparent underlay lets the checkerboard show through; this is accepted and
   judged on the device.
 - While adjusting, the viewport cannot be changed; the mode must be left first.
@@ -269,5 +271,6 @@ step and the controls; no document or file changes.
 - [ADR 0029](0029-quick-select-and-exact-eyedropper.md)
 - [ADR 0030](0030-ordered-layers-and-empty-pixels.md)
 - [ADR 0031](0031-phase-gate-device-performance.md)
+- [ADR 0034](0034-underlay-memory.md)
 - Supersedes: none
 - Superseded by: none

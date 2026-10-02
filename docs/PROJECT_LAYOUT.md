@@ -154,6 +154,8 @@ Owns behavior coordination:
 - workspace-owned session appearance, with Compose-only panel visibility and scroll/focus mechanics (ADR 0020)
 - the workspace-owned reference underlay: bounded immutable image, document-pixel placement and
   the adjust arithmetic over the one viewport transform (ADR 0032)
+- the underlay memory of ADR 0034: the `UnderlayMemoryPort`, the `RememberedUnderlay` value and the
+  private tracking that derives when a recall or a publication is pending
 - ports for persistence, clocks, identifiers, and future external effects
 - private immutable save capture/candidate, runtime/operation identity, checked completion, and the
   one loaded/recovered runtime-install protocol
@@ -230,7 +232,9 @@ reference-image port of ADR 0032: the open-document picker for PNG, JPEG and Web
 platform decoding to at most 1024 x 1024 straight RGBA8888 pixels and typed rejection. It also
 implements the PNG-import port of ADR 0033: the open-document picker for PNG, a bounded read and an
 internal PNG reader that returns exact straight RGBA8888 samples without colour conversion or
-scaling, never the platform decoder. The internal
+scaling, never the platform decoder. It also implements the underlay-memory port of ADR 0034: two
+bounded `AtomicFile` records per work in one app-private no-backup directory, with the 16-work and
+32 MiB limits, least-recently-used eviction and deletion of unreadable records. The internal
 PNG encoder resolves the supplied immutable document's indices through its palette; PNG, project
 Save As and exact legacy-source copying share one typed
 fresh-destination picker and verified writer. It depends directly on application,
@@ -255,7 +259,9 @@ the UI. It owns `viewModelScope`, the picker-request broker/Activity Result laun
 selection of the injected serialized IO dispatcher; it does not own persistence transition rules. It
 also owns the autosave clock: the one `AutosavePolicy` value holding the ADR 0018 quiet window and
 latency cap, the autosave scheduler that turns the read-only autosave projection into at most one
-outstanding publication request on `viewModelScope`, and the activity `ON_STOP` flush.
+outstanding publication request on `viewModelScope`, and the activity `ON_STOP` flush. It likewise owns the underlay-memory scheduler of ADR 0034, which
+turns the read-only underlay-memory projection into at most one outstanding recall or publication on
+`viewModelScope`, and the separate serialized dispatcher for that store.
 Android UUID generation implements the application `DocumentIdSource` port here. The initial
 PaletteDefinition is supplied to fresh document construction, not retained as a second runtime
 palette owner. Business rules in this module are

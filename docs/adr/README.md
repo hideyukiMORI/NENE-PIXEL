@@ -72,3 +72,4 @@ An ADR must include:
 | [0031](0031-phase-gate-device-performance.md) | accepted | Device performance collection once per phase in a gate Issue; feature Issues state per-operation cost and register workloads |
 | [0032](0032-reference-underlay.md) | accepted | One workspace-owned reference underlay beneath the layers: bounded decoded image, document-pixel placement, adjust mode, display only |
 | [0033](0033-png-import.md) | accepted | PNG import as a new work or a new layer: own bounded exact PNG reader, deterministic colour planner without quantization, one command or one switch |
+| [0034](0034-underlay-memory.md) | accepted | The device remembers the reference underlay of each work: a fifth state category, two bounded app-private records per work, least-recently-used eviction, outside the persistence lease |

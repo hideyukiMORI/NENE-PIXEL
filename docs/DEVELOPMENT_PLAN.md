@@ -85,6 +85,7 @@ claim M4 layers/frames are already planned in implementation detail or complete.
 ADR 0030 / #140 adds the ordered-layer portion (P4-05); frames remain unplanned.
 ADR 0032 / #169 adds the reference underlay (P4-06), which the owner placed before the layer gate.
 ADR 0033 / #176 adds PNG import (P4-07), requested by the owner on 2026-10-01.
+ADR 0034 / #172 decides the underlay memory (P4-06c).
 
 | ID | Work package | Depends on | Required evidence |
 | --- | --- | --- | --- |
@@ -102,7 +103,7 @@ ADR 0033 / #176 adds PNG import (P4-07), requested by the owner on 2026-10-01.
 | P4-06 | Accept the reference underlay contract (#169) | P4-05c | Accepted ADR 0032, updated governing documents and focused Issues |
 | P4-06a | Choose an image and show it beneath the layers, with visibility, opacity and removal (#170) | P4-06 | Value/action contracts, bounded decode and typed rejection tests, pixel tests of the draw order, localized panel row; per-frame cost statement and the underlay workload registered with P4-05d (QLT-019) |
 | P4-06b | Add the underlay adjust mode: move, scale, fit to picture (#171) | P4-06a | Adjust arithmetic and clamp tests, mode entry/exit and document/viewport neutrality tests, localized adjust bar; cost statement |
-| P4-06c | Remember the underlay of each work across processes (#172) | P4-06b | ARC-004 and ADR 0021 amended first; bounded app-private store, restore and eviction tests |
+| P4-06c | Remember the underlay of each work across processes (#172) | P4-06b | ADR 0034 first (ARC-004 and ADR 0021 amended); bounded app-private store, restore, eviction and unreadable-record tests; the document paths unaffected by a memory failure; cost statement |
 | P4-07 | Accept the PNG import contract (#176) | P4-05b, P4-03 | Accepted ADR 0033, updated governing documents and focused Issues |
 | P4-07a | Pick a PNG and add it as a new layer, appending or converting colours (#177) | P4-07 | Raster and planner golden tests, command/undo/stale-plan/accounting contracts, bounded PNG reader JVM tests including the export round trip, localized dialog; per-operation cost statement (QLT-019) |
 | P4-07b | Open a PNG as a new work (#178) | P4-07a | New-work planner golden tests, confirmation/installation/dirtiness contracts, localized dialog form; cost statement |
