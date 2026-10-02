@@ -81,7 +81,7 @@
     <string name="png_import_failed">Could not read the PNG file</string>
     <string name="png_import_too_many_bytes">The PNG file is too large (up to 8 MB)</string>
     <string name="png_import_too_many_pixels">The PNG is too large (up to 1024 × 1024 pixels)</string>
-    <string name="png_import_unsupported">This PNG cannot be read (16-bit and interlaced PNG files are not supported)</string>
+    <string name="png_import_unsupported">This PNG cannot be read (for example, 16-bit or interlaced PNG files are not supported)</string>
     <string name="png_import_title">Import PNG</string>
     <string name="png_import_size">Size (pixels): %1$d × %2$d</string>
     <plurals name="png_import_colors">

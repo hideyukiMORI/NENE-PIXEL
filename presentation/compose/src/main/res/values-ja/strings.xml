@@ -81,7 +81,7 @@
     <string name="png_import_failed">PNGを読み込めませんでした</string>
     <string name="png_import_too_many_bytes">PNGのファイルが大きすぎます（8 MB まで）</string>
     <string name="png_import_too_many_pixels">PNGの大きさが大きすぎます（1024 × 1024 ドットまで）</string>
-    <string name="png_import_unsupported">このPNGは読めません（16 bit とインターレースのPNGには対応していません）</string>
+    <string name="png_import_unsupported">このPNGは読めません（16 bit やインターレースのPNGなどには対応していません）</string>
     <string name="png_import_title">PNGを取り込む</string>
     <string name="png_import_size">大きさ: %1$d × %2$d ドット</string>
     <plurals name="png_import_colors">

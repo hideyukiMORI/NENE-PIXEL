@@ -81,7 +81,7 @@
     <string name="png_import_failed">无法读取PNG文件</string>
     <string name="png_import_too_many_bytes">PNG文件过大（最大 8 MB）</string>
     <string name="png_import_too_many_pixels">PNG尺寸过大（最大 1024 × 1024 像素）</string>
-    <string name="png_import_unsupported">无法读取此PNG（不支持 16 位和隔行扫描的PNG）</string>
+    <string name="png_import_unsupported">无法读取此PNG（例如，不支持 16 位或隔行扫描的PNG）</string>
     <string name="png_import_title">导入PNG</string>
     <string name="png_import_size">尺寸：%1$d × %2$d 像素</string>
     <plurals name="png_import_colors">
