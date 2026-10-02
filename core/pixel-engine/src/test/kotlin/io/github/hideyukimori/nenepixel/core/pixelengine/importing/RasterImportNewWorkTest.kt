@@ -65,13 +65,12 @@ internal class RasterImportNewWorkTest {
     }
 
     @Test
-    fun `257 colours are too many and carry the count`() {
+    fun `257 colours are too many and the planner counts them`() {
         val packed = IntArray(SIDE_32 * SIDE_9) { distinctColor(minOf(it, MAX_COLORS)) }
+        val raster = raster(SIDE_32, SIDE_9, *packed)
 
-        assertEquals(
-            NewWorkImportResult.TooManyColors(MAX_COLORS + 1),
-            RasterImportPlanner.newWork(raster(SIDE_32, SIDE_9, *packed)),
-        )
+        assertEquals(NewWorkImportResult.TooManyColors, RasterImportPlanner.newWork(raster))
+        assertEquals(MAX_COLORS + 1, RasterImportPlanner.colorCount(raster))
     }
 
     @Test

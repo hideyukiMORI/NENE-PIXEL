@@ -166,7 +166,7 @@ internal class PngImportNewWorkWorkflowTest {
         }
 }
 
-private fun assertOpenedFrom(
+internal fun assertOpenedFrom(
     fixture: Fixture,
     plan: NewWorkImportPlan,
     previousId: DocumentId,
@@ -193,7 +193,7 @@ private fun onlySnapshot(fixture: Fixture): PixelSnapshot =
         .single()
         .snapshot
 
-private fun setPendingNewWork(fixture: Fixture): NewWorkImportPlan {
+internal fun setPendingNewWork(fixture: Fixture): NewWorkImportPlan {
     val pending = pending(importRaster())
     val option = assertInstanceOf(NewWorkImportOption.Available::class.java, pending.newWork)
     fixture.runtime.reduce(WorkspaceAction.SetPendingRasterImport(pending))

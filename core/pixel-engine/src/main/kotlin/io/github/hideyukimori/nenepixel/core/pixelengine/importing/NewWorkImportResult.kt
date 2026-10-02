@@ -11,10 +11,11 @@ public sealed interface NewWorkImportResult {
     /** A side of the picture is above the canvas limit of a work. */
     public data object AboveCanvasLimit : NewWorkImportResult
 
-    /** The picture has more distinct colours than a palette holds; [colorCount] is their number. */
-    public data class TooManyColors internal constructor(
-        public val colorCount: Int,
-    ) : NewWorkImportResult
+    /**
+     * The picture has more distinct colours than a palette holds. Their number is answered by
+     * [RasterImportPlanner.colorCount], not repeated here.
+     */
+    public data object TooManyColors : NewWorkImportResult
 
     /** The picture has no pixel that is not transparent. */
     public data object NothingToImport : NewWorkImportResult

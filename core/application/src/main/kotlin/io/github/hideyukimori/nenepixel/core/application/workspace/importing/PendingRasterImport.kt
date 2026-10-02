@@ -48,7 +48,7 @@ public class PendingRasterImport internal constructor(
             when (result) {
                 is NewWorkImportResult.Planned -> NewWorkImportOption.Available(result.plan)
                 NewWorkImportResult.AboveCanvasLimit -> NewWorkImportOption.AboveCanvasLimit
-                is NewWorkImportResult.TooManyColors -> NewWorkImportOption.TooManyColors
+                NewWorkImportResult.TooManyColors -> NewWorkImportOption.TooManyColors
                 NewWorkImportResult.NothingToImport -> NewWorkImportOption.NothingToImport
             }
     }

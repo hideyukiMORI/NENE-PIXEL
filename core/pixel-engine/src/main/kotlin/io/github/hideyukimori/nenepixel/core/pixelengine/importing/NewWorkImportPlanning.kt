@@ -27,7 +27,7 @@ internal fun planNewWork(raster: ImportRaster): NewWorkImportResult {
         }
 
         colors.size > PaletteLimits.MAX_ENTRY_COUNT -> {
-            NewWorkImportResult.TooManyColors(colors.size)
+            NewWorkImportResult.TooManyColors
         }
 
         else -> {
