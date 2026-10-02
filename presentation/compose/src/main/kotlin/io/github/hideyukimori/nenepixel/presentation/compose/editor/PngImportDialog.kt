@@ -26,14 +26,16 @@ import io.github.hideyukimori.nenepixel.presentation.compose.R
 
 /**
  * The choice of form for a picked PNG (ADR 0033 "Controls"). It is shown only while a pending import exists, states
- * the PNG's size and number of colours, and offers the two layer forms and Cancel. Pressing a form acts at once (the
- * import can be undone); Cancel, a tap outside and Back clear the pending import. The content scrolls, so a small
- * window still reaches Cancel.
+ * the PNG's size and number of colours, and offers the two layer forms, opening the PNG as a new work, and Cancel.
+ * Pressing a layer form acts at once (the import can be undone); opening as a new work closes the current work, and
+ * unsaved changes ask for the switch confirmation first. Cancel, a tap outside and Back clear the pending import. The
+ * content scrolls, so a small window still reaches Cancel.
  */
 @Composable
 internal fun PngImportDialog(
     state: State<EditorRenderState>,
     callbacks: EditorImportCallbacks,
+    onOpenAsNewWork: () -> Unit,
 ) {
     val pending by remember(state) { derivedStateOf { state.value.pendingImport } }
     val layerCount by remember(state) { derivedStateOf { state.value.document.layers.size } }
@@ -45,7 +47,7 @@ internal fun PngImportDialog(
                 shape = MaterialTheme.shapes.extraLarge,
                 tonalElevation = 6.dp,
             ) {
-                PngImportContent(model, callbacks)
+                PngImportContent(model, callbacks, onOpenAsNewWork)
             }
         }
     }
@@ -55,6 +57,7 @@ internal fun PngImportDialog(
 private fun PngImportContent(
     model: PngImportDialogModel,
     callbacks: EditorImportCallbacks,
+    onOpenAsNewWork: () -> Unit,
 ) {
     val facts = model.facts
     Column(
@@ -68,6 +71,7 @@ private fun PngImportContent(
         }
         PngImportForm(R.string.png_import_append, model.append) { callbacks.onAppend() }
         PngImportForm(R.string.png_import_convert, model.convert) { callbacks.onConvert() }
+        PngImportForm(R.string.png_import_new_work, model.newWork) { onOpenAsNewWork() }
         TextButton(
             onClick = { callbacks.onCancel() },
             modifier = Modifier.heightIn(min = 48.dp).editorDescription(R.string.cancel, identity = CANCEL_TAG),

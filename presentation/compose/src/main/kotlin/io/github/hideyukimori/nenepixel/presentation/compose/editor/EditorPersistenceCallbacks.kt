@@ -17,6 +17,9 @@ public class EditorPersistenceCallbacks private constructor(
     /** Picks a PNG to import; a picked PNG waits in the workspace for the user's choice (ADR 0033). */
     internal val importPng: () -> Unit = files.exchange.importPng
 
+    /** Opens the pending PNG as a new work; unsaved changes ask for the switch confirmation first (ADR 0033). */
+    internal val openPngAsNewWork: () -> Unit = files.exchange.openPngAsNewWork
+
     internal fun onExportPng() {
         files.exchange.exportPng()
     }

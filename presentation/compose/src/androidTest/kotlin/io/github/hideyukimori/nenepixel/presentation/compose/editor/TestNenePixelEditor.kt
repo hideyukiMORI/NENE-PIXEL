@@ -128,6 +128,7 @@ private class TestPersistenceHost(
                         importPaletteJson = { complete { workflow.paletteJson.import() } },
                         pickReferenceImage = { complete { workflow.referenceImage.pick() } },
                         importPng = { complete { workflow.pngImport.pick() } },
+                        openPngAsNewWork = { complete { workflow.pngImport.openAsNewWork() } },
                     ),
                 saveAs = { complete { workflow.saveAs() } },
                 load = { complete { workflow.load() } },
