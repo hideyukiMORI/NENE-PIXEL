@@ -93,11 +93,15 @@ private fun UnderlayHeading(
     }
 }
 
-/** Speaks "Underlay opacity" and the alpha as a rounded percentage of 255. */
+/**
+ * Speaks "Underlay opacity" and the alpha as a rounded percentage of 255. The panel row and the adjust bar (#171)
+ * share it; [identity] is the test tag, `editor_underlay_opacity` when absent.
+ */
 @Composable
-private fun UnderlayOpacitySlider(
+internal fun UnderlayOpacitySlider(
     underlay: ReferenceUnderlay,
     callbacks: EditorUnderlayCallbacks,
+    identity: String? = null,
 ) {
     val alpha = underlay.opacity.alpha
     val percent = (alpha * PERCENT / UnderlayOpacity.MAX.alpha.toFloat()).roundToInt()
@@ -111,7 +115,7 @@ private fun UnderlayOpacitySlider(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .editorDescription(R.string.underlay_opacity)
+                .editorDescription(R.string.underlay_opacity, identity = identity)
                 .semantics { stateDescription = state },
         enabled = underlay.visibility == UnderlayVisibility.Shown,
         valueRange = UnderlayOpacity.MIN.alpha.toFloat()..UnderlayOpacity.MAX.alpha.toFloat(),

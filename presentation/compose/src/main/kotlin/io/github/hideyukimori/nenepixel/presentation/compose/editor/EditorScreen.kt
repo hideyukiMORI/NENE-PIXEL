@@ -164,8 +164,9 @@ private fun SideDock(
 }
 
 /**
- * The actual-size window draws over the canvas inside the same work-area box (ADR 0026); the layer chip or panel
- * draws over it (#144), and the quick-select control draws over all of them (ADR 0029).
+ * The actual-size window draws over the canvas inside the same work-area box (ADR 0026), then the underlay adjust
+ * bar (#171); the layer chip or panel draws over them (#144), so its Back closes an open panel before the bar's
+ * leaves the mode, and the quick-select control draws over all of them (ADR 0029).
  */
 @Composable
 private fun EditorCanvas(
@@ -177,6 +178,7 @@ private fun EditorCanvas(
     val size by remember(state) { derivedStateOf { state.value.document.size } }
     PixelCanvas(state, size, callbacks, committed, Modifier.fillMaxSize())
     ActualSizeWindowOverlay(state, committed, callbacks)
+    UnderlayAdjustBar(state, callbacks.underlay)
     LayerOverlay(state, callbacks, pickUnderlay)
     QuickSelectOverlay(state, callbacks)
 }
