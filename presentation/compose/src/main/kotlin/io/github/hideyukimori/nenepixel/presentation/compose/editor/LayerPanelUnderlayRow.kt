@@ -60,7 +60,11 @@ internal fun LayerPanelUnderlayRow(
             }
         } else {
             UnderlayHeading(underlay, callbacks, onPick, onClosePanel)
-            UnderlayOpacitySlider(underlay, callbacks)
+            UnderlayOpacitySlider(
+                opacity = underlay.opacity,
+                enabled = underlay.visibility == UnderlayVisibility.Shown,
+                onChange = { next -> callbacks.onSet(underlay.withOpacity(next)) },
+            )
         }
     }
 }
@@ -95,29 +99,31 @@ private fun UnderlayHeading(
 
 /**
  * Speaks "Underlay opacity" and the alpha as a rounded percentage of 255. The panel row and the adjust bar (#171)
- * share it; [identity] is the test tag, `editor_underlay_opacity` when absent.
+ * share it; each passes the [opacity] it shows and an [onChange] that derives the next underlay. [onChange] is not
+ * called for the alpha already shown. [identity] is the test tag, `editor_underlay_opacity` when absent.
  */
 @Composable
 internal fun UnderlayOpacitySlider(
-    underlay: ReferenceUnderlay,
-    callbacks: EditorUnderlayCallbacks,
+    opacity: UnderlayOpacity,
+    enabled: Boolean,
+    onChange: (UnderlayOpacity) -> Unit,
     identity: String? = null,
 ) {
-    val alpha = underlay.opacity.alpha
+    val alpha = opacity.alpha
     val percent = (alpha * PERCENT / UnderlayOpacity.MAX.alpha.toFloat()).roundToInt()
     val state = stringResource(R.string.underlay_opacity_state, percent)
     Slider(
         value = alpha.toFloat(),
         onValueChange = { value ->
             val next = value.roundToInt()
-            if (next != alpha) callbacks.onSet(underlay.withOpacity(UnderlayOpacity.create(next)))
+            if (next != alpha) onChange(UnderlayOpacity.create(next))
         },
         modifier =
             Modifier
                 .fillMaxWidth()
                 .editorDescription(R.string.underlay_opacity, identity = identity)
                 .semantics { stateDescription = state },
-        enabled = underlay.visibility == UnderlayVisibility.Shown,
+        enabled = enabled,
         valueRange = UnderlayOpacity.MIN.alpha.toFloat()..UnderlayOpacity.MAX.alpha.toFloat(),
     )
 }

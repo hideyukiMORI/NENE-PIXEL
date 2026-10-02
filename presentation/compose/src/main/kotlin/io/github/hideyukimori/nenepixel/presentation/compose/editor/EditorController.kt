@@ -49,7 +49,7 @@ public class EditorController private constructor(
             palette = EditorPaletteCallbacks(runtime, adapter, ::publish),
             quickSelect = EditorQuickSelectCallbacks(adapter, ::publish),
             layers = EditorLayerCallbacks(runtime, adapter, ::publish),
-            underlay = EditorUnderlayCallbacks(adapter, ::publish),
+            underlay = EditorUnderlayCallbacks(runtime, adapter, ::publish),
             rasterImport = EditorImportCallbacks(runtime, adapter, ::publish),
         )
 

@@ -165,8 +165,9 @@ private fun SideDock(
 
 /**
  * The actual-size window draws over the canvas inside the same work-area box (ADR 0026), then the underlay adjust
- * bar (#171); the layer chip or panel draws over them (#144), so its Back closes an open panel before the bar's
- * leaves the mode, and the quick-select control draws over all of them (ADR 0029).
+ * bar (#171), then the layer chip or panel (#144), and the quick-select control draws over all of them (ADR 0029).
+ * The bar and the overlay both register their Back handler on the first composition and only toggle `enabled`, so
+ * the overlay's, registered later, wins while a panel is open and Back closes it before Back leaves the mode.
  */
 @Composable
 private fun EditorCanvas(

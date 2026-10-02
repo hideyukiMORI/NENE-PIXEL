@@ -29,6 +29,7 @@ import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import io.github.hideyukimori.nenepixel.core.application.workspace.underlay.ReferenceUnderlay
 import io.github.hideyukimori.nenepixel.core.application.workspace.underlay.UnderlayInteraction
+import io.github.hideyukimori.nenepixel.core.application.workspace.underlay.UnderlayOpacity
 import io.github.hideyukimori.nenepixel.presentation.compose.R
 
 /**
@@ -37,19 +38,24 @@ import io.github.hideyukimori.nenepixel.presentation.compose.R
  * wide) and looks like the layer panel. The first line names the mode, then "fit to drawing", which keeps the mode,
  * and "done", which leaves it; the second line is the underlay row's opacity slider. Back also leaves the mode.
  *
- * It reads the underlay through one `derivedStateOf`, so a stroke does not recompose it. The bar is a material3
- * `Surface`, which takes the pointer like the panel and the notice do, so a tap or drag on it never reaches the
- * canvas. Composed before the layer overlay, its Back handler yields to the open panel's.
+ * It reads only the adjusting opacity through one `derivedStateOf`, so neither a stroke nor a move of the underlay
+ * recomposes it. Every action derives the next underlay through [EditorUnderlayCallbacks.onUpdate] from the value
+ * the runtime holds when it runs, never from a composed snapshot. The bar is a material3 `Surface`, which takes the
+ * pointer like the panel and the notice do, so a tap or drag on it never reaches the canvas.
+ *
+ * Its Back handler is composed on the first composition, outside the mode check, and is only enabled while
+ * adjusting, like the layer overlay's. Back handlers are tried latest registered first, so this fixed order (the bar,
+ * then the overlay) lets an open panel's Back close the panel before Back leaves the mode.
  */
 @Composable
 internal fun UnderlayAdjustBar(
     state: State<EditorRenderState>,
     callbacks: EditorUnderlayCallbacks,
 ) {
-    val adjusted by remember(state) { derivedStateOf { adjustedUnderlay(state.value.underlay) } }
-    val underlay = adjusted
-    if (underlay != null) {
-        BackHandler { callbacks.onSet(underlay.rested()) }
+    val adjusted by remember(state) { derivedStateOf { adjustedOpacity(state.value.underlay) } }
+    val opacity = adjusted
+    BackHandler(enabled = opacity != null) { callbacks.onUpdate { underlay -> underlay.rested() } }
+    if (opacity != null) {
         val scheme = MaterialTheme.colorScheme
         val title = stringResource(R.string.underlay_adjusting)
         Box(Modifier.fillMaxSize()) {
@@ -69,22 +75,26 @@ internal fun UnderlayAdjustBar(
                 border = BorderStroke(LayerGeometry.BORDER, scheme.primary),
             ) {
                 Column(Modifier.padding(LayerGeometry.PANEL_PADDING)) {
-                    UnderlayAdjustHeading(title, underlay, callbacks)
-                    UnderlayOpacitySlider(underlay, callbacks, identity = OPACITY_TAG)
+                    UnderlayAdjustHeading(title, callbacks)
+                    UnderlayOpacitySlider(
+                        opacity = opacity,
+                        enabled = true,
+                        onChange = { next -> callbacks.onUpdate { underlay -> underlay.withOpacity(next) } },
+                        identity = OPACITY_TAG,
+                    )
                 }
             }
         }
     }
 }
 
-/** The underlay to adjust: [underlay] while its interaction is adjusting, otherwise none. */
-internal fun adjustedUnderlay(underlay: ReferenceUnderlay?): ReferenceUnderlay? =
-    underlay?.takeIf { value -> value.interaction == UnderlayInteraction.Adjusting }
+/** The opacity the bar shows: [underlay]'s while its interaction is adjusting, otherwise none. */
+internal fun adjustedOpacity(underlay: ReferenceUnderlay?): UnderlayOpacity? =
+    underlay?.takeIf { value -> value.interaction == UnderlayInteraction.Adjusting }?.opacity
 
 @Composable
 private fun UnderlayAdjustHeading(
     title: String,
-    underlay: ReferenceUnderlay,
     callbacks: EditorUnderlayCallbacks,
 ) {
     Row(
@@ -93,10 +103,16 @@ private fun UnderlayAdjustHeading(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(title, style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
-        TextButton(onClick = { callbacks.onSet(underlay.fitted()) }, modifier = Modifier.testTag(FIT_TAG)) {
+        TextButton(
+            onClick = { callbacks.onUpdate { underlay -> underlay.fitted() } },
+            modifier = Modifier.testTag(FIT_TAG),
+        ) {
             Text(stringResource(R.string.underlay_fit))
         }
-        Button(onClick = { callbacks.onSet(underlay.rested()) }, modifier = Modifier.testTag(DONE_TAG)) {
+        Button(
+            onClick = { callbacks.onUpdate { underlay -> underlay.rested() } },
+            modifier = Modifier.testTag(DONE_TAG),
+        ) {
             Text(stringResource(R.string.underlay_adjust_done))
         }
     }
