@@ -200,7 +200,8 @@ vocabulary before they are stored, because presentation cannot see pixel-engine 
 - Choosing the new-work form asks the persistence workflow to open the pending new-work plan. The
   request reads the plan from the workspace and clears the pending value in the transaction that
   starts the switch, so the switch owns the plan from then on; a request answered Busy leaves the
-  pending value in place.
+  pending value in place. A switch that is then cancelled at its confirmation, or that fails,
+  keeps the current work and does not restore the pending value: the PNG is picked again.
 - Cancelling clears the pending value.
 
 ### Controls
