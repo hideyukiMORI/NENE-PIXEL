@@ -17,7 +17,9 @@ import java.io.IOException
  *
  * Every call runs on the injected dispatcher and holds one mutex, so the store never sees two calls at once.
  * File and permission failures are answered here once: [recall] as [UnderlayRecollection.Absent], [remember]
- * and [forget] as [UnderlayMemoryOutcome.Failed].
+ * and [forget] as [UnderlayMemoryOutcome.Failed]. Running out of memory is answered the same way: while [recall]
+ * reads and decodes a record, as [UnderlayRecollection.Absent] with the record kept; while [remember] encodes
+ * one, as [UnderlayMemoryOutcome.Failed].
  */
 public class AndroidUnderlayMemoryAdapter internal constructor(
     private val store: UnderlayMemoryStore,
@@ -32,6 +34,9 @@ public class AndroidUnderlayMemoryAdapter internal constructor(
             } catch (_: IOException) {
                 UnderlayRecollection.Absent
             } catch (_: SecurityException) {
+                UnderlayRecollection.Absent
+            } catch (_: OutOfMemoryError) {
+                // The read buffer and the decoded pixels are allocated here; the record is kept for a later recall.
                 UnderlayRecollection.Absent
             }
         }

@@ -2,7 +2,7 @@ package io.github.hideyukimori.nenepixel.adapters.persistence
 
 /** [UnderlayRecordFiles] whose every throwing operation throws what [failure] creates. */
 internal class ThrowingUnderlayRecordFiles(
-    private val failure: () -> Exception,
+    private val failure: () -> Throwable,
 ) : UnderlayRecordFiles {
     override fun names(): List<String> = throw failure()
 

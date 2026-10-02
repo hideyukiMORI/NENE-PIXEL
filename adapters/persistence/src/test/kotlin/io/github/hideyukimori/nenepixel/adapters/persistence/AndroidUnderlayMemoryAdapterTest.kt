@@ -59,6 +59,15 @@ internal class AndroidUnderlayMemoryAdapterTest {
     }
 
     @Test
+    fun `running out of memory while recalling answers Absent`() {
+        val adapter = adapter(ThrowingUnderlayRecordFiles { OutOfMemoryError("read buffer refused") })
+
+        val recollection = runBlocking { adapter.recall(document(1)) }
+
+        assertSame(UnderlayRecollection.Absent, recollection)
+    }
+
+    @Test
     fun `a SecurityException while remembering answers Failed`() {
         val adapter = adapter(ThrowingUnderlayRecordFiles { SecurityException("write refused") })
 

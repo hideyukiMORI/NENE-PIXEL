@@ -1,7 +1,13 @@
 package io.github.hideyukimori.nenepixel.core.application.persistence
 
+import io.github.hideyukimori.nenepixel.core.application.workspace.underlay.RememberedUnderlay
 import io.github.hideyukimori.nenepixel.core.application.workspace.underlay.UnderlayOpacity
+import io.github.hideyukimori.nenepixel.core.domain.document.DocumentId
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertSame
@@ -100,7 +106,52 @@ internal class UnderlayMemoryWorkflowOrderingTest {
         }
     }
 
+    @Test
+    fun `a publication cancelled after its write stays pending and the next one writes again`() {
+        runBlocking {
+            val fixture = initializedFixture()
+            val underlay = memoryUnderlay()
+            placeUnderlay(fixture, underlay)
+            val port = HoldingAfterRememberPort(fixture.underlayMemory)
+            val held =
+                UnderlayMemoryWorkflow(fixture.runtime.underlayMemoryOperations, port, fixture.runtime.underlayMemory)
+            val publication = launch { held.publish() }
+            port.remembered.await()
+            publication.cancelAndJoin()
+            assertPublishPending(fixture)
+
+            fixture.workflow.underlayMemory.publish()
+
+            val document = documentOf(fixture)
+            val remember = FakeUnderlayMemoryCall.Remember(document)
+            assertEquals(listOf(remember, remember), fixture.underlayMemory.calls)
+            assertEquals(remembered(underlay), fixture.underlayMemory.stored(document))
+            assertSettled(fixture)
+        }
+    }
+
     private companion object {
         const val OPACITY = 200
     }
+}
+
+/** Delegates to [inner]; each [remember] stores through [inner], then waits until its caller is cancelled. */
+private class HoldingAfterRememberPort(
+    private val inner: FakeUnderlayMemoryPort,
+) : UnderlayMemoryPort {
+    /** Completes when a [remember] has stored its value and is waiting. */
+    val remembered: CompletableDeferred<Unit> = CompletableDeferred()
+
+    override suspend fun recall(document: DocumentId): UnderlayRecollection = inner.recall(document)
+
+    override suspend fun remember(
+        document: DocumentId,
+        underlay: RememberedUnderlay,
+    ): UnderlayMemoryOutcome {
+        inner.remember(document, underlay)
+        remembered.complete(Unit)
+        awaitCancellation()
+    }
+
+    override suspend fun forget(document: DocumentId): UnderlayMemoryOutcome = inner.forget(document)
 }
