@@ -99,6 +99,11 @@ changes.
 - Leaving the mode is a named derivation (`rested`), reached by the Done control and by Back.
   Hiding or clearing the underlay also leaves it. Persistence operations are allowed while
   adjusting and do not read the underlay; an installation clears the underlay and with it the mode.
+- Entering the mode from the row's menu closes the layer panel, so the panel does not cover the
+  picture; the menu item is unavailable while the underlay is hidden. While a panel is open over
+  the mode, Back closes the panel first and the next Back leaves the mode. The bar's controls
+  derive the next underlay from the value at the moment of the press, never from an earlier
+  composition (amended 2026-10-02, Issue #171).
 
 ### Choosing the image
 
