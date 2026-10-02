@@ -281,6 +281,9 @@
     <string name="underlay_pick">下敷きの画像を選ぶ</string>
     <string name="underlay_replace">画像を替える</string>
     <string name="underlay_fit">絵に合わせる</string>
+    <string name="underlay_adjust">動かす</string>
+    <string name="underlay_adjusting">下敷きを動かしています</string>
+    <string name="underlay_adjust_done">完了</string>
     <string name="underlay_remove">外す</string>
     <string name="underlay_show">下敷きを表示する</string>
     <string name="underlay_hide">下敷きを非表示にする</string>

@@ -6,6 +6,8 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.quickselect.C
 import io.github.hideyukimori.nenepixel.core.application.workspace.quickselect.EyedropperState
 import io.github.hideyukimori.nenepixel.core.application.workspace.quickselect.QuickSelection
 import io.github.hideyukimori.nenepixel.core.application.workspace.underlay.ReferenceUnderlay
+import io.github.hideyukimori.nenepixel.core.application.workspace.underlay.UnderlayInteraction
+import io.github.hideyukimori.nenepixel.core.application.workspace.underlay.UnderlayVisibility
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportState
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
@@ -35,12 +37,19 @@ public class WorkspaceState internal constructor(
     public val activeLayerId: LayerId
         get() = editTarget.layerId
 
-    /** How presentation translates a canvas pointer down: picking exactly while the eyedropper is armed (ADR 0029). */
+    /**
+     * How presentation translates a canvas pointer down: adjusting a shown underlay first (ADR 0032; an armed
+     * eyedropper stays armed), then picking exactly while the eyedropper is armed (ADR 0029), else drawing.
+     */
     public val canvasPointerIntent: CanvasPointerIntent
         get() =
-            when (quickSelection.eyedropper) {
-                EyedropperState.Idle -> CanvasPointerIntent.Draw
-                EyedropperState.Armed -> CanvasPointerIntent.PickPaletteEntry
+            when {
+                underlay?.visibility == UnderlayVisibility.Shown &&
+                    underlay.interaction == UnderlayInteraction.Adjusting -> CanvasPointerIntent.AdjustUnderlay
+
+                quickSelection.eyedropper == EyedropperState.Armed -> CanvasPointerIntent.PickPaletteEntry
+
+                else -> CanvasPointerIntent.Draw
             }
 
     internal fun withEditTarget(editTarget: EditTarget): WorkspaceState =

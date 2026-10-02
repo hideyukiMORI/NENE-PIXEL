@@ -18,6 +18,7 @@ public class EditorController private constructor(
     private val adapter: EditorRuntimeAdapter,
 ) {
     private val mapping: ViewportGestureMapping = ViewportGestureMapping(runtime, adapter)
+    private val adjustPointer: UnderlayAdjustPointer = UnderlayAdjustPointer(runtime, adapter, mapping)
     private val mutableRenderState: MutableStateFlow<EditorRenderState> = MutableStateFlow(adapter.renderState)
 
     public val renderState: EditorRenderState
@@ -48,7 +49,7 @@ public class EditorController private constructor(
             palette = EditorPaletteCallbacks(runtime, adapter, ::publish),
             quickSelect = EditorQuickSelectCallbacks(adapter, ::publish),
             layers = EditorLayerCallbacks(runtime, adapter, ::publish),
-            underlay = EditorUnderlayCallbacks(adapter, ::publish),
+            underlay = EditorUnderlayCallbacks(runtime, adapter, ::publish),
             rasterImport = EditorImportCallbacks(runtime, adapter, ::publish),
         )
 
@@ -82,6 +83,10 @@ public class EditorController private constructor(
                             adapter.reduce(WorkspaceAction.PickPaletteEntryAt(position))
                         }.withoutDrawing()
                 }
+
+                CanvasPointerIntent.AdjustUnderlay -> {
+                    adjustPointer.down(point)
+                }
             },
         )
 
@@ -90,8 +95,12 @@ public class EditorController private constructor(
         point: ViewportSurfacePoint,
     ): PointerInputAcknowledgement =
         acknowledge(
-            mapping.withMappedPoint(surface, point, ::pointerCancel) { position ->
-                adapter.reduce(WorkspaceAction.ExtendGesturePreview(position))
+            if (adjustPointer.claims()) {
+                adjustPointer.move(surface, point)
+            } else {
+                mapping.withMappedPoint(surface, point, ::pointerCancel) { position ->
+                    adapter.reduce(WorkspaceAction.ExtendGesturePreview(position))
+                }
             },
         )
 
@@ -99,22 +108,38 @@ public class EditorController private constructor(
         surface: ViewportSurface,
         point: ViewportSurfacePoint,
     ): PointerInputAcknowledgement =
-        acknowledge(mapping.withMappedPoint(surface, point, ::pointerCancel, adapter::finishGesture))
-
-    internal fun pointerCancel(): PointerInputAcknowledgement =
         acknowledge(
-            if (runtime.state.workspaceState.preview == null) {
-                adapter.ignored()
+            if (adjustPointer.claims()) {
+                adjustPointer.end(surface, point)
             } else {
-                adapter.reduce(WorkspaceAction.CancelGesturePreview)
+                mapping.withMappedPoint(surface, point, ::pointerCancel, adapter::finishGesture)
             },
         )
 
+    internal fun pointerCancel(): PointerInputAcknowledgement =
+        acknowledge(
+            when {
+                adjustPointer.claims() -> adjustPointer.forget()
+                runtime.state.workspaceState.preview == null -> adapter.ignored()
+                else -> adapter.reduce(WorkspaceAction.CancelGesturePreview)
+            },
+        )
+
+    /** While the underlay is being adjusted, a second pointer reduces no `SetViewport` (ADR 0032). */
     internal fun viewportStarted(surface: ViewportSurface): PointerInputAcknowledgement =
         acknowledge(
-            when (val transform = mapping.createTransform(surface)) {
-                is ViewportValueResult.Created -> adapter.reduce(WorkspaceAction.SetViewport(transform.value.viewport))
-                is ViewportValueResult.Rejected -> adapter.rejected()
+            if (adjustPointer.claims()) {
+                adjustPointer.forget()
+            } else {
+                when (val transform = mapping.createTransform(surface)) {
+                    is ViewportValueResult.Created -> {
+                        adapter.reduce(WorkspaceAction.SetViewport(transform.value.viewport))
+                    }
+
+                    is ViewportValueResult.Rejected -> {
+                        adapter.rejected()
+                    }
+                }
             },
         )
 
@@ -123,9 +148,13 @@ public class EditorController private constructor(
         gesture: ViewportGesture,
     ): PointerInputAcknowledgement =
         acknowledge(
-            when (val transform = mapping.createTransform(surface)) {
-                is ViewportValueResult.Created -> mapping.applyGesture(transform.value, gesture)
-                is ViewportValueResult.Rejected -> adapter.rejected()
+            if (adjustPointer.claims()) {
+                adjustPointer.transformed(surface, gesture)
+            } else {
+                when (val transform = mapping.createTransform(surface)) {
+                    is ViewportValueResult.Created -> mapping.applyGesture(transform.value, gesture)
+                    is ViewportValueResult.Rejected -> adapter.rejected()
+                }
             },
         )
 
