@@ -4,6 +4,8 @@ import io.github.hideyukimori.nenepixel.core.application.editor.UnderlayStoreKno
 import io.github.hideyukimori.nenepixel.core.application.editor.UnderlayStoreKnowledge.Unknown
 import io.github.hideyukimori.nenepixel.core.application.editor.UnderlayStoreKnowledge.UnknownTouched
 import io.github.hideyukimori.nenepixel.core.application.persistence.UnderlayMemoryProjection
+import io.github.hideyukimori.nenepixel.core.application.persistence.UnderlayMemoryProjection.PublishPending
+import io.github.hideyukimori.nenepixel.core.application.persistence.UnderlayMemoryProjection.RecallPending
 import io.github.hideyukimori.nenepixel.core.application.persistence.UnderlayMemoryToken
 import io.github.hideyukimori.nenepixel.core.application.persistence.UnderlayRecollection
 import io.github.hideyukimori.nenepixel.core.application.workspace.underlay.ReferenceUnderlay
@@ -44,10 +46,15 @@ internal data class UnderlayMemoryTracking(
     /** Records that an underlay action was reduced while the store is unknown. */
     fun underlayReduced(): UnderlayMemoryTracking = if (store == Unknown) copy(store = UnknownTouched) else this
 
+    /**
+     * A departing capture is written before the recall of an unknown store, so reinstalling the same
+     * work cannot recall its older record over the unpublished value.
+     */
     fun projection(workspace: ReferenceUnderlay?): UnderlayMemoryProjection =
-        when (store) {
-            Unknown, UnknownTouched -> UnderlayMemoryProjection.RecallPending(UnderlayMemoryToken.recall(installation))
-            is Known -> knownProjection(store, workspace)
+        when {
+            store is Known -> knownProjection(store, workspace)
+            departing != null -> PublishPending(UnderlayMemoryToken.departingOnlyPublication(installation))
+            else -> RecallPending(UnderlayMemoryToken.recall(installation))
         }
 
     /**
@@ -71,8 +78,8 @@ internal data class UnderlayMemoryTracking(
 
     /**
      * What to write now for [document], the installed work: the departing capture first, then the
-     * current value when it differs from the store and is resting or [mode] is a flush. Nothing is
-     * written while the store is unknown.
+     * current value when it differs from the store and is resting or [mode] is a flush. While the
+     * store is unknown, only the departing capture is written; the current value never is.
      */
     fun publication(
         document: DocumentId,
@@ -80,7 +87,7 @@ internal data class UnderlayMemoryTracking(
         mode: UnderlayPublicationMode,
     ): UnderlayPublication =
         when (store) {
-            Unknown, UnknownTouched -> UnderlayPublication(installation, null, null)
+            Unknown, UnknownTouched -> UnderlayPublication(installation, departing, null)
             is Known -> UnderlayPublication(installation, departing, currentWrite(document, store, workspace, mode))
         }
 

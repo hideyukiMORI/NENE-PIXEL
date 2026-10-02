@@ -38,10 +38,11 @@ internal class UnderlayMemoryTrackingRecallTest {
     }
 
     @Test
-    fun `nothing is published while the store is unknown`() {
+    fun `nothing is published while the store is unknown and nothing departs`() {
         val touched = fresh.underlayReduced()
 
         listOf(fresh, touched).forEach { tracking ->
+            assertInstanceOf(UnderlayMemoryProjection.RecallPending::class.java, tracking.projection(underlay()))
             listOf(null, underlay(), underlay().adjusting()).forEach { workspace ->
                 UnderlayPublicationMode.entries.forEach { mode ->
                     assertTrue(tracking.publication(workA, workspace, mode).writes.isEmpty())
