@@ -2,7 +2,7 @@ package io.github.hideyukimori.nenepixel.adapters.persistence
 
 /**
  * The one place for the PNG import source limits (ADR 0033). The side limit is
- * `ImportRaster.MAX_SIDE`, which [PngImportDecoder] applies; it is not repeated here (ARC-008).
+ * `ImportRaster.MAX_SIDE`, which [PngImportStructureReader] applies; it is not repeated here (ARC-008).
  */
 internal object PngImportLimits {
     /** The largest encoded PNG file, in bytes. */

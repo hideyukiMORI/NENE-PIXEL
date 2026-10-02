@@ -36,6 +36,13 @@ internal class PngImportRejectionTest {
     }
 
     @Test
+    fun `a zlib stream that inflates far beyond the rows is unsupported`() {
+        val bomb = TestPngBuilder.deflate(ByteArray(BOMB_INFLATED_BYTE_COUNT))
+        val grey = TestPngBuilder.header(1, 1, 8, 0)
+        assertUnsupported(TestPngBuilder.png(listOf(grey) + TestPngBuilder.dataChunks(bomb) + TestPngBuilder.end()))
+    }
+
+    @Test
     fun `a broken zlib stream is unsupported`() {
         val compressed = TestPngBuilder.deflate(rows)
         val badHeader = compressed.copyOf().also { it[0] = 0 }
@@ -70,5 +77,10 @@ internal class PngImportRejectionTest {
         val filtered = rows.copyOf().also { it[rows.size / 2] = 5 }
         assertEquals(5, filtered[9].toInt())
         assertUnsupported(TestPngBuilder.image(header, filtered))
+    }
+
+    private companion object {
+        /** 16 MiB of zero bytes; a 1 x 1 grey 8-bit image takes only 2 inflated bytes. */
+        const val BOMB_INFLATED_BYTE_COUNT: Int = 16 * 1024 * 1024
     }
 }
