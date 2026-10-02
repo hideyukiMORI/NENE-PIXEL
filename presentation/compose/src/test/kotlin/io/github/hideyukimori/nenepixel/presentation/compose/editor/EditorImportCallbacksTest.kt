@@ -99,7 +99,7 @@ internal class EditorImportCallbacksTest {
         val fixture = PresentationTestValues.fixture()
         val layers = fixture.controller.callbacks.layers
         repeat(MAX_LAYERS - 1) { layers.onAdd() }
-        pick(fixture)
+        pickPngImport(fixture, raster())
         val full = fixture.runtime.state.documentState
         assertNotNull(fixture.runtime.state.workspaceState.pendingImport)
         val rasterImport = fixture.controller.callbacks.rasterImport
@@ -114,32 +114,9 @@ internal class EditorImportCallbacksTest {
 
     private fun pickedFixture(): EditorFixture {
         val fixture = PresentationTestValues.fixture()
-        pick(fixture)
+        pickPngImport(fixture, raster())
         assertNotNull(fixture.runtime.state.workspaceState.pendingImport)
         return fixture
-    }
-
-    /** Picks [raster] through the workflow's PNG import, as the file surface's Import PNG button does. */
-    private fun pick(fixture: EditorFixture) {
-        val workflow =
-            EditorPersistenceWorkflow.create(
-                fixture.runtime,
-                PersistencePorts(
-                    ImportTestProjectStoragePort,
-                    ImportTestRecoveryRecordPort,
-                    PngExportPort { PngExportOutcome.Cancelled },
-                    PaletteJsonExportPort { PaletteJsonExportOutcome.Cancelled },
-                    PaletteJsonImportPort { PaletteJsonImportOutcome.Cancelled },
-                    ReferenceImagePort { ReferenceImageOutcome.Cancelled },
-                    PngImportPort { PngImportOutcome.Picked(raster()) },
-                ),
-                Dispatchers.Unconfined,
-            )
-        runBlocking {
-            workflow.initializeRecovery()
-            workflow.pngImport.pick()
-        }
-        fixture.controller.synchronizeWithRuntime()
     }
 
     /** Red, which the fixture palette holds, blue, which it does not, and one transparent pixel. */
@@ -153,6 +130,32 @@ internal class EditorImportCallbacksTest {
         const val OPAQUE_BLUE: Int = 0x0000FFFF
         const val TRANSPARENT: Int = 0
     }
+}
+
+/** Picks [raster] through the workflow's PNG import, as the file surface's Import PNG button does. */
+internal fun pickPngImport(
+    fixture: EditorFixture,
+    raster: ImportRaster,
+) {
+    val workflow =
+        EditorPersistenceWorkflow.create(
+            fixture.runtime,
+            PersistencePorts(
+                ImportTestProjectStoragePort,
+                ImportTestRecoveryRecordPort,
+                PngExportPort { PngExportOutcome.Cancelled },
+                PaletteJsonExportPort { PaletteJsonExportOutcome.Cancelled },
+                PaletteJsonImportPort { PaletteJsonImportOutcome.Cancelled },
+                ReferenceImagePort { ReferenceImageOutcome.Cancelled },
+                PngImportPort { PngImportOutcome.Picked(raster) },
+            ),
+            Dispatchers.Unconfined,
+        )
+    runBlocking {
+        workflow.initializeRecovery()
+        workflow.pngImport.pick()
+    }
+    fixture.controller.synchronizeWithRuntime()
 }
 
 private data object ImportTestProjectStoragePort : ProjectStoragePort {

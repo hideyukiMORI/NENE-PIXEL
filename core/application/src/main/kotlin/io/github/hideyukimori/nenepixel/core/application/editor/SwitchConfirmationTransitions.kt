@@ -108,6 +108,10 @@ internal object SwitchConfirmationTransitions {
                 ready(coordination, operation.handle, context.newDocumentOwners(pending.request), context.source)
             }
 
+            is PendingSwitch.Imported -> {
+                ready(coordination, operation.handle, context.importedOwners(pending.plan), context.source)
+            }
+
             is PendingSwitch.Prepared -> {
                 prepared(coordination, operation.handle, pending, context.source)
             }

@@ -90,6 +90,10 @@
     </plurals>
     <string name="png_import_append">Add as a new layer and add its colors to the palette</string>
     <string name="png_import_convert">Add as a new layer and convert to the current palette</string>
+    <string name="png_import_new_work">Open as a new document</string>
+    <string name="png_import_new_work_note">Closes the current document. The palette will hold only the colors of this PNG</string>
+    <string name="png_import_new_work_too_large">Too large for a new document (up to 256 × 256 pixels)</string>
+    <string name="png_import_new_work_too_many_colors">Too many colors for a new document (up to 256 colors)</string>
     <plurals name="png_import_appended">
         <item quantity="one">%1$d color is added to the palette</item>
         <item quantity="other">%1$d colors are added to the palette</item>
@@ -145,7 +149,7 @@
     <string name="mvp_information">About this version</string>
     <string name="close_information">Close</string>
     <string name="mvp_scope_title">Drawing</string>
-    <string name="mvp_scope">An offline editor for one frame. Width and height range (pixels): %1$d–%2$d. Choose colors from the document palette. You can edit the palette and export or import it as JSON. You can import a PNG file as a new layer. Animation is not available yet.</string>
+    <string name="mvp_scope">An offline editor for one frame. Width and height range (pixels): %1$d–%2$d. Choose colors from the document palette. You can edit the palette and export or import it as JSON. You can open a PNG file as a new document or import it as a new layer. Animation is not available yet.</string>
     <string name="mvp_save_title">Save As</string>
     <string name="mvp_save">Each save creates a new project file. Existing files are never overwritten. Keep a .nenepixel file to continue editing. A failed save may leave a newly created incomplete file; storage-provider or cloud failures can still affect saved files later.</string>
     <string name="mvp_history_title">Undo and reopening</string>

@@ -1,5 +1,6 @@
 package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
+import io.github.hideyukimori.nenepixel.core.application.workspace.importing.NewWorkImportOption
 import io.github.hideyukimori.nenepixel.core.application.workspace.importing.PendingRasterImport
 import io.github.hideyukimori.nenepixel.core.application.workspace.importing.RasterImportFacts
 import io.github.hideyukimori.nenepixel.core.application.workspace.importing.RasterImportOption
@@ -12,9 +13,13 @@ internal data class PngImportDialogModel(
     val facts: RasterImportFacts,
     val append: PngImportFormModel,
     val convert: PngImportFormModel,
+    val newWork: PngImportFormModel,
 )
 
-/** One layer form: whether it can be chosen, and the lines that state what it does or why it is unavailable. */
+/**
+ * One import form (a layer form or the new work): whether it can be chosen, and the lines that state what it does or
+ * why it is unavailable.
+ */
 internal data class PngImportFormModel(
     val enabled: Boolean,
     val lines: List<PngImportLine>,
@@ -27,8 +32,9 @@ internal data class PngImportLine(
 )
 
 /**
- * Builds the dialog for [pending] in a document of [layerCount] layers. A form is unavailable at the layer limit
- * first, then when nothing would be imported; an unavailable form shows only its reason.
+ * Builds the dialog for [pending] in a document of [layerCount] layers. A layer form is unavailable at the layer
+ * limit first, then when nothing would be imported. The new work does not depend on [layerCount]; it is unavailable
+ * only for the reason its plan states. An unavailable form shows only its reason.
  */
 internal fun pngImportDialogModel(
     pending: PendingRasterImport,
@@ -38,6 +44,7 @@ internal fun pngImportDialogModel(
         facts = pending.facts,
         append = formModel(pending.appending, layerCount, ::appendLines),
         convert = formModel(pending.converting, layerCount, ::convertLines),
+        newWork = newWorkModel(pending.newWork),
     )
 
 private fun formModel(
@@ -55,6 +62,25 @@ private fun formModel(
         }
 
         else -> {
+            PngImportFormModel(false, listOf(PngImportLine(R.string.png_import_nothing)))
+        }
+    }
+
+private fun newWorkModel(option: NewWorkImportOption): PngImportFormModel =
+    when (option) {
+        is NewWorkImportOption.Available -> {
+            PngImportFormModel(true, listOf(PngImportLine(R.string.png_import_new_work_note)))
+        }
+
+        NewWorkImportOption.AboveCanvasLimit -> {
+            PngImportFormModel(false, listOf(PngImportLine(R.string.png_import_new_work_too_large)))
+        }
+
+        NewWorkImportOption.TooManyColors -> {
+            PngImportFormModel(false, listOf(PngImportLine(R.string.png_import_new_work_too_many_colors)))
+        }
+
+        NewWorkImportOption.NothingToImport -> {
             PngImportFormModel(false, listOf(PngImportLine(R.string.png_import_nothing)))
         }
     }

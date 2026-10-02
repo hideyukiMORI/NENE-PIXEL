@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.fail
 
-/** ADR 0033: a pick is planned once into facts and one option per layer form; the raster is not kept. */
+/** ADR 0033: a pick is planned once into facts and one option per form; the raster is not kept. */
 internal class PendingRasterImportTest {
     @Test
     fun `a raster whose colours are all in the palette plans both forms without appending or converting`() {
@@ -67,6 +67,40 @@ internal class PendingRasterImportTest {
         assertEquals("PendingRasterImport(facts=${first.facts})", first.toString())
     }
 
+    @Test
+    fun `a small raster with two colours can be opened as a new work of its size`() {
+        val pending = PendingRasterImport.planned(raster(2, 1, RED, GREEN), canvas(1, 1), defaultDefinition)
+
+        val plan = assertInstanceOf(NewWorkImportOption.Available::class.java, pending.newWork).plan
+        assertEquals(2, plan.definition.palette.entryCount)
+        assertEquals(canvas(2, 1), plan.snapshot.size)
+    }
+
+    @Test
+    fun `a raster wider than the canvas limit cannot be a new work but is cropped into a layer`() {
+        val pending =
+            PendingRasterImport.planned(raster(WIDE, 1, *IntArray(WIDE) { RED }), canvas(2, 1), defaultDefinition)
+
+        assertSame(NewWorkImportOption.AboveCanvasLimit, pending.newWork)
+        assertInstanceOf(RasterImportOption.Available::class.java, pending.appending)
+    }
+
+    @Test
+    fun `a raster with more colours than a palette holds cannot be a new work and the facts keep the count`() {
+        val colors = IntArray(2 * HALF) { index -> (minOf(index, WIDE - 1) shl 8) or OPAQUE }
+        val pending = PendingRasterImport.planned(raster(HALF, 2, *colors), canvas(2, 1), defaultDefinition)
+
+        assertSame(NewWorkImportOption.TooManyColors, pending.newWork)
+        assertEquals(WIDE, pending.facts.colorCount)
+    }
+
+    @Test
+    fun `a fully transparent raster has nothing to import as a new work`() {
+        val pending = PendingRasterImport.planned(raster(2, 1, CLEAR, CLEAR), canvas(2, 1), defaultDefinition)
+
+        assertSame(NewWorkImportOption.NothingToImport, pending.newWork)
+    }
+
     private fun plan(option: RasterImportOption): LayerImportPlan =
         assertInstanceOf(RasterImportOption.Available::class.java, option).plan
 
@@ -86,5 +120,8 @@ internal class PendingRasterImportTest {
         const val GREEN: Int = 0x00ff00ff
         const val BLUE: Int = 0x0000ffff
         const val CLEAR: Int = 0
+        const val OPAQUE: Int = 0xff
+        const val WIDE: Int = 257
+        const val HALF: Int = 129
     }
 }

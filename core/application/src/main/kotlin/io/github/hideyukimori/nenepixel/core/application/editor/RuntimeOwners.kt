@@ -6,6 +6,7 @@ import io.github.hideyukimori.nenepixel.core.domain.document.DocumentId
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.document.Revision
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
+import io.github.hideyukimori.nenepixel.core.domain.importing.NewWorkImportPlan
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
@@ -68,14 +69,25 @@ internal data class RuntimeOwners(
         fun createDerived(
             preview: LegacyReductionPreview,
             documentIdSource: DocumentIdSource,
+        ): RuntimeOwners = createUnsaved(preview.definition, preview.snapshot, documentIdSource)
+
+        fun createImported(
+            plan: NewWorkImportPlan,
+            documentIdSource: DocumentIdSource,
+        ): RuntimeOwners = createUnsaved(plan.definition, plan.snapshot, documentIdSource)
+
+        private fun createUnsaved(
+            definition: PaletteDefinition,
+            snapshot: PixelSnapshot,
+            documentIdSource: DocumentIdSource,
         ): RuntimeOwners =
             create(
                 required(
                     DocumentState.createSingleLayer(
                         documentIdSource.nextDocumentId(),
                         Revision.initial(),
-                        preview.definition,
-                        preview.snapshot,
+                        definition,
+                        snapshot,
                     ),
                 ),
             ).asUnsaved()

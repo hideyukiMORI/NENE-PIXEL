@@ -3,6 +3,7 @@ package io.github.hideyukimori.nenepixel.core.application.editor
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceConfirmationReason
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceConfirmationRequest
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationHandle
+import io.github.hideyukimori.nenepixel.core.domain.importing.NewWorkImportPlan
 
 internal sealed interface SwitchStart {
     data class Load(
@@ -28,6 +29,9 @@ internal sealed interface SwitchStart {
     data object IdentityExhausted : SwitchStart
 
     data object PaletteSessionActive : SwitchStart
+
+    /** The workspace holds no new-work plan that can be chosen (ADR 0033). */
+    data object NoPendingImport : SwitchStart
 }
 
 internal data class SwitchConfirmationStart(
@@ -57,6 +61,12 @@ internal object SwitchStartTransitions {
                 PersistenceTransition(coordination, SwitchStart.Rejected(request.rejection))
             }
         }
+
+    fun beginImportedWork(
+        coordination: PersistenceCoordination,
+        plan: NewWorkImportPlan,
+        context: SwitchContext,
+    ): PersistenceTransition<SwitchStart> = begin(coordination, SwitchIntent.Imported(plan), context)
 
     private fun begin(
         coordination: PersistenceCoordination,
@@ -124,19 +134,28 @@ internal object SwitchStartTransitions {
             }
 
             is SwitchIntent.New -> {
-                val operation =
-                    ActivePersistenceOperation.Switch.Ready(
-                        handle,
-                        context.source,
-                        PreparedSwitch(
-                            context.newDocumentOwners(intent.request),
-                            SwitchKind.NewDocument,
-                            null,
-                        ),
-                    )
-                PersistenceTransition(coordination.withActive(operation), SwitchStart.Ready(handle))
+                newWorkReady(coordination, handle, context.newDocumentOwners(intent.request), context)
+            }
+
+            is SwitchIntent.Imported -> {
+                newWorkReady(coordination, handle, context.importedOwners(intent.plan), context)
             }
         }
+
+    private fun newWorkReady(
+        coordination: PersistenceCoordination,
+        handle: PersistenceOperationHandle,
+        candidate: RuntimeOwners,
+        context: SwitchContext,
+    ): PersistenceTransition<SwitchStart> {
+        val operation =
+            ActivePersistenceOperation.Switch.Ready(
+                handle,
+                context.source,
+                PreparedSwitch(candidate, SwitchKind.NewDocument, null),
+            )
+        return PersistenceTransition(coordination.withActive(operation), SwitchStart.Ready(handle))
+    }
 
     private fun awaitConfirmation(
         coordination: PersistenceCoordination,

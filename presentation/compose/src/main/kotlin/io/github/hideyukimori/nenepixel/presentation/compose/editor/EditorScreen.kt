@@ -82,7 +82,7 @@ internal fun EditorScreen(
             ) { panel = it }
             PersistenceConfirmation(persistenceOperation, persistenceCallbacks)
             LegacyConversionDialog(persistenceOperation, renderState.value.definition, persistenceCallbacks)
-            PngImportDialog(renderState, callbacks.rasterImport)
+            PngImportDialog(renderState, callbacks.rasterImport, persistenceCallbacks.openPngAsNewWork)
         }
     }
 }

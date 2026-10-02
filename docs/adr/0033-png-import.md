@@ -169,8 +169,10 @@ vocabulary before they are stored, because presentation cannot see pixel-engine 
   installation: a new `DocumentId`, revision zero, an empty history, one visible layer with an
   empty name, and the workspace every installation creates, so the underlay is cleared and the
   session-only editor choices are carried as ADR 0032 and ADR 0026 describe.
-- The installed work is unsaved (dirty): a PNG is not a project checkpoint, so autosave and the
-  discard confirmation protect it from the first moment.
+- The installed work is unsaved (dirty) from the first moment: a PNG is not a project checkpoint,
+  so the discard confirmation of the next document switch protects it. Autosave records it from
+  its first committed change, as for every installed work; until then the picked PNG is still the
+  only copy and nothing drawn can be lost.
 - A new-work plan does not depend on the current document, so it does not become stale; the
   switch's existing consent and source rules decide whether it may still replace the current work.
 - `DocumentImportSource` stays the closed `Current` / `Legacy` value of project and recovery
@@ -198,7 +200,8 @@ vocabulary before they are stored, because presentation cannot see pixel-engine 
 - Choosing the new-work form asks the persistence workflow to open the pending new-work plan. The
   request reads the plan from the workspace and clears the pending value in the transaction that
   starts the switch, so the switch owns the plan from then on; a request answered Busy leaves the
-  pending value in place.
+  pending value in place. A switch that is then cancelled at its confirmation, or that fails,
+  keeps the current work and does not restore the pending value: the PNG is picked again.
 - Cancelling clears the pending value.
 
 ### Controls

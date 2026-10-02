@@ -25,7 +25,7 @@ public class EditorPersistenceWorkflow private constructor(
 
     public val referenceImage: ReferenceImageWorkflow = ReferenceImageWorkflow(referenceImageFlow)
 
-    public val pngImport: PngImportWorkflow = PngImportWorkflow(pngImportFlow)
+    public val pngImport: PngImportWorkflow = PngImportWorkflow(pngImportFlow, flows.switch)
 
     public suspend fun initializeRecovery(): RecoveryInitializationResult = flows.save.initializeRecovery()
 

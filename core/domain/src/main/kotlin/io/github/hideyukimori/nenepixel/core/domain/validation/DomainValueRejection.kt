@@ -89,7 +89,7 @@ public sealed interface DomainValueRejection {
 
     public data object LayerImportPlanPaletteNotExtended : DomainValueRejection
 
-    public data object LayerImportPlanWithoutPixels : DomainValueRejection
+    public data object ImportPlanWithoutPixels : DomainValueRejection
 
     public data class PixelPositionOutsideCanvas internal constructor(
         public val canvas: CanvasSize,
