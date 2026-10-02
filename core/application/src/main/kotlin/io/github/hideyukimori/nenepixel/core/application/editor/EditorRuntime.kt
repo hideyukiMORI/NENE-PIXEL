@@ -228,6 +228,7 @@ public class EditorRuntime private constructor(
                 newDocumentOwners = { request -> RuntimeOwners.create(request.canvas, definition, documentIdSource) },
                 loadedOwners = { document -> RuntimeOwners.create(document) },
                 derivedOwners = { preview -> RuntimeOwners.createDerived(preview, documentIdSource) },
+                importedOwners = { plan -> RuntimeOwners.createImported(plan, documentIdSource) },
             )
         }
     }

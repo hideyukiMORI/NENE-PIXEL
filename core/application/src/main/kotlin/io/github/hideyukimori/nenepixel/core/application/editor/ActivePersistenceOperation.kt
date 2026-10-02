@@ -12,6 +12,7 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.Persistence
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryGeneration
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.document.LegacyRgbaSource
+import io.github.hideyukimori.nenepixel.core.domain.importing.NewWorkImportPlan
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.pixelengine.importing.LegacyImportResult
 import io.github.hideyukimori.nenepixel.core.pixelengine.importing.LegacyReductionPreview
@@ -256,6 +257,10 @@ internal sealed interface SwitchIntent {
     data class New(
         val request: NewDocumentRequest,
     ) : SwitchIntent
+
+    data class Imported(
+        val plan: NewWorkImportPlan,
+    ) : SwitchIntent
 }
 
 internal sealed interface PendingSwitch {
@@ -263,6 +268,10 @@ internal sealed interface PendingSwitch {
 
     data class New(
         val request: NewDocumentRequest,
+    ) : PendingSwitch
+
+    data class Imported(
+        val plan: NewWorkImportPlan,
     ) : PendingSwitch
 
     data class Prepared(
@@ -344,4 +353,5 @@ internal fun SwitchIntent.toPendingSwitch(): PendingSwitch =
     when (this) {
         SwitchIntent.Load -> PendingSwitch.Load
         is SwitchIntent.New -> PendingSwitch.New(request)
+        is SwitchIntent.Imported -> PendingSwitch.Imported(plan)
     }

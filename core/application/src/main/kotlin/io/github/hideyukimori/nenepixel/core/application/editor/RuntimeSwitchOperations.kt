@@ -6,6 +6,8 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.Persistence
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationHandle
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceRequestResult
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRetirementOutcome
+import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceAction
+import io.github.hideyukimori.nenepixel.core.application.workspace.importing.NewWorkImportOption
 
 internal class RuntimeSwitchOperations(
     private val runtime: EditorRuntime,
@@ -31,6 +33,37 @@ internal class RuntimeSwitchOperations(
                     request,
                     transaction.switchContext(),
                 )
+            }
+        }
+
+    /**
+     * Opens the pending import's new-work plan as a switch. Once the switch is ready or awaits consent, the
+     * switch owns the plan from then on (ADR 0033), so the pending import is cleared in the same transaction.
+     */
+    fun beginImportedWork(): SwitchStart =
+        runtime.transact { transaction ->
+            val option = transaction.workspaceState().pendingImport?.newWork
+            when {
+                transaction.paletteSessionActive() -> {
+                    PersistenceTransition(transaction.coordination, SwitchStart.PaletteSessionActive)
+                }
+
+                option !is NewWorkImportOption.Available -> {
+                    PersistenceTransition(transaction.coordination, SwitchStart.NoPendingImport)
+                }
+
+                else -> {
+                    val transition =
+                        SwitchStartTransitions.beginImportedWork(
+                            transaction.coordination,
+                            option.plan,
+                            transaction.switchContext(),
+                        )
+                    if (transition.result is SwitchStart.Ready || transition.result is SwitchStart.Confirmation) {
+                        transaction.reduceWorkspace(WorkspaceAction.ClearPendingRasterImport)
+                    }
+                    transition
+                }
             }
         }
 
