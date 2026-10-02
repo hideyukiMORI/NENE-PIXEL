@@ -42,6 +42,7 @@ Every state value MUST belong to exactly one of these categories:
 | `WorkspaceState` | Ephemeral editor/session state | workspace reducer | `WorkspaceAction` only |
 | `RenderCache` | Derived, disposable acceleration data | renderer/pixel engine | internal cache API only |
 | `AppPreferences` | Platform-wide settings independent of the open document | app/platform setting boundary | typed app-setting request only |
+| `WorkMemory` | What this device remembers about a work between sessions, outside the document | app-private memory boundary behind an application port | typed remember/forget request derived from `WorkspaceState` only |
 
 The same fact MUST NOT be independently stored in more than one category. Derived state must be recomputed or cached with explicit invalidation.
 
@@ -49,6 +50,12 @@ ADR 0021 introduces only app language in `AppPreferences`. Android's app locale 
 legacy app-private preference (API26–32) is its version-selected backing. UI receives an immutable
 projection; core never reads locale or platform storage. This category does not bypass editor
 commands/actions or authorize unrelated preferences.
+
+ADR 0034 introduces only the reference underlay in `WorkMemory`. `WorkspaceState` stays the single
+live owner of the underlay; the memory is restored into it at most once per installation and is
+written only from it, so it is the resting form of the same fact and not a second owner. No
+document, command, history, export or recovery record reads it. This category does not authorize
+remembering other workspace facts.
 
 ### ARC-005 — Controlled mutation enclave
 
@@ -59,8 +66,9 @@ privately own defensive packed primitive storage that is never mutated after con
 never exposed; any bulk read returns a copy. `:core:project-format` codecs and
 `:adapters:persistence` transports MAY use bounded, privately owned mutable byte buffers only for one
 project file, versioned recovery record, bounded PNG export under ADR 0019, bounded
-reference-image read and decode under ADR 0032, or bounded PNG-import read and decode under ADR 0033
-at the declared codec/transport boundary. PNG-export, reference-image and PNG-import scratch is
+reference-image read and decode under ADR 0032, bounded PNG-import read and decode under ADR 0033,
+or one bounded underlay-memory record under ADR 0034 at the declared codec/transport boundary.
+PNG-export, reference-image, PNG-import and underlay-memory scratch is
 confined to `:adapters:persistence`. Untrusted bytes
 remain local to that boundary until typed validation succeeds. An encoded value owns immutable bytes
 after construction, caller-owned arrays are copied, and owned buffers never escape. These byte

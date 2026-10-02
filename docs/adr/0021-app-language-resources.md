@@ -24,6 +24,8 @@ for the current setting and no locale in the project schema, document commands o
 The retained app language controller publishes immutable language/status projections. Storage and
 startup inspection use its lifecycle scope and injected dispatcher; no main-thread file operation,
 global `Locale.setDefault`, unmanaged coroutine or Compose service lookup is introduced.
+Amended 2026-10-03 (Issue #172): what the device remembers about a work is the separate `WorkMemory`
+category of [ADR 0034](0034-underlay-memory.md); `AppPreferences` is not widened to per-work facts.
 
 Choices are System, English (`en`), Japanese (`ja`) and SimplifiedChinese (`zh-Hans`). The default is
 System. Write success precedes publication; a failed read/write produces a typed, retryable status.

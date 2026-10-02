@@ -56,8 +56,10 @@ By contrast the actual-size window is non-modal: `SetActualSizeWindow` keeps an 
 (ADR 0026).
 The reference underlay of ADR 0032 is workspace state too: `SetReferenceUnderlay` keeps the preview,
 except that entering its adjust mode cancels the preview in the same reduction, because one pointer
-then moves the underlay instead of drawing. The underlay is undo-neutral, never saved, and cleared
-when another document is installed.
+then moves the underlay instead of drawing. The underlay is undo-neutral, never saved in the document, and cleared
+when another document is installed; the device remembers it per work and restores it after an
+installation through the underlay memory of ADR 0034, which runs outside the persistence operation
+lease and never changes the operation projection.
 Appearance is undo-neutral and preserved through new/load/recovery runtime installation via the
 reducer.
 Only a fresh process resets appearance to Dark/Tabletop/Right; project files never store it.
