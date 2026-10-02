@@ -24,6 +24,9 @@ internal class PersistenceSwitchFlow(
     suspend fun createNewDocument(request: NewDocumentRequestResult): PersistenceRequestResult =
         autosave.retryAfterPublication { applyStart(operations.beginNewDocument(request)) }
 
+    suspend fun openImportedWork(): PersistenceRequestResult =
+        autosave.retryAfterPublication { applyStart(operations.beginImportedWork()) }
+
     suspend fun confirm(request: PersistenceConfirmationRequest): PersistenceRequestResult =
         applyContinuation(operations.confirmSwitch(request))
 
