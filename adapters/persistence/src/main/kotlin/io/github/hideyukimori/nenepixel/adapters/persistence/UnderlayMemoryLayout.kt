@@ -18,6 +18,11 @@ internal object UnderlayMemoryLayout {
     const val IMAGE_MIN_BYTE_COUNT: Int = IMAGE_HEADER_BYTE_COUNT + IMAGE_BYTES_PER_PIXEL + CHECKSUM_BYTE_COUNT
     const val IMAGE_MAX_BYTE_COUNT: Int = 4_194_318
     const val STATE_BYTE_COUNT: Int = 40
+    const val DIRECTORY_NAME: String = "reference-underlays"
+    const val IMAGE_FILE_EXTENSION: String = ".image"
+    const val STATE_FILE_EXTENSION: String = ".state"
+    const val MAX_REMEMBERED_WORKS: Int = 16
+    const val MAX_IMAGE_RECORD_TOTAL_BYTE_COUNT: Long = 33_554_544L
 
     /** Writes the magic and the version at the start of [bytes]. */
     fun writePrefix(
