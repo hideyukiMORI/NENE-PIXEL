@@ -3,7 +3,9 @@ package io.github.hideyukimori.nenepixel.presentation.compose.editor
 import io.github.hideyukimori.nenepixel.core.application.workspace.underlay.ReferenceImage
 import io.github.hideyukimori.nenepixel.core.application.workspace.underlay.ReferenceImageResult
 import io.github.hideyukimori.nenepixel.core.application.workspace.underlay.ReferenceUnderlay
+import io.github.hideyukimori.nenepixel.core.application.workspace.underlay.UnderlayInteraction
 import io.github.hideyukimori.nenepixel.core.application.workspace.underlay.UnderlayOpacity
+import io.github.hideyukimori.nenepixel.core.application.workspace.underlay.UnderlayVisibility
 import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestValues.fixture
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
@@ -73,6 +75,32 @@ internal class UnderlayControllerTest {
         val result = callbacks.onClear()
         assertEquals(before, result)
         assertNull(result.underlay)
+    }
+
+    @Test
+    fun `moving and scaling from the menu publishes an adjusting underlay without a document or history change`() {
+        val fixture = fixture()
+        val callbacks = fixture.controller.callbacks.underlay
+        val placed = underlayFor(fixture.controller)
+        val before = callbacks.onSet(placed)
+        val result = callbacks.onSet(placed.adjusting())
+        assertEquals(UnderlayInteraction.Adjusting, result.underlay?.interaction)
+        assertEquals(placed.placement, result.underlay?.placement)
+        assertEquals(placed.opacity, result.underlay?.opacity)
+        assertUntouched(before, result)
+        assertSame(fixture.initialDocument, fixture.runtime.state.documentState)
+    }
+
+    @Test
+    fun `a hidden underlay stays resting when moving and scaling is chosen`() {
+        val fixture = fixture()
+        val callbacks = fixture.controller.callbacks.underlay
+        val hidden = underlayFor(fixture.controller).toggledVisibility()
+        assertEquals(UnderlayVisibility.Hidden, hidden.visibility)
+        callbacks.onSet(hidden)
+        val result = callbacks.onSet(hidden.adjusting())
+        assertEquals(UnderlayInteraction.Resting, result.underlay?.interaction)
+        assertEquals(hidden, result.underlay)
     }
 
     private fun underlayFor(controller: EditorController): ReferenceUnderlay {

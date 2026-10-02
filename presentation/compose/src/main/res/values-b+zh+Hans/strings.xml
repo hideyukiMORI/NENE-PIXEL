@@ -281,6 +281,9 @@
     <string name="underlay_pick">选择底图</string>
     <string name="underlay_replace">更换图片</string>
     <string name="underlay_fit">适应画布</string>
+    <string name="underlay_adjust">移动和缩放</string>
+    <string name="underlay_adjusting">正在调整底图</string>
+    <string name="underlay_adjust_done">完成</string>
     <string name="underlay_remove">移除</string>
     <string name="underlay_show">显示底图</string>
     <string name="underlay_hide">隐藏底图</string>

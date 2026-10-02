@@ -32,16 +32,18 @@ import kotlin.math.roundToInt
  * the add row below stays fixed. A 1dp `outlineVariant` line separates it from the layer rows.
  *
  * Without an [underlay] it is one full-width text button that calls [onPick]. With one it is two lines: the
- * visibility toggle, the "Underlay" label and the "more" menu (replace, fit, remove), then the opacity slider over
- * alpha 26 to 255, disabled while the underlay is hidden. The row is never selectable, since the underlay is never
- * a drawing target, and has no background. Every change derives the next value from [underlay] and hands it to
- * [callbacks]; the row reads nothing else, and [underlay] is unchanged by strokes.
+ * visibility toggle, the "Underlay" label and the "more" menu (replace, move and scale, fit, remove), then the
+ * opacity slider over alpha 26 to 255, disabled while the underlay is hidden. The row is never selectable, since
+ * the underlay is never a drawing target, and has no background. Every change derives the next value from
+ * [underlay] and hands it to [callbacks]; the row reads nothing else, and [underlay] is unchanged by strokes. The
+ * menu's "move and scale" calls [onClosePanel] after it sets the adjusting underlay (#171).
  */
 @Composable
 internal fun LayerPanelUnderlayRow(
     underlay: ReferenceUnderlay?,
     callbacks: EditorUnderlayCallbacks,
     onPick: () -> Unit,
+    onClosePanel: () -> Unit,
 ) {
     Column {
         HorizontalDivider(thickness = LayerGeometry.BORDER, color = MaterialTheme.colorScheme.outlineVariant)
@@ -57,7 +59,7 @@ internal fun LayerPanelUnderlayRow(
                 Text(stringResource(R.string.underlay_pick))
             }
         } else {
-            UnderlayHeading(underlay, callbacks, onPick)
+            UnderlayHeading(underlay, callbacks, onPick, onClosePanel)
             UnderlayOpacitySlider(underlay, callbacks)
         }
     }
@@ -68,6 +70,7 @@ private fun UnderlayHeading(
     underlay: ReferenceUnderlay,
     callbacks: EditorUnderlayCallbacks,
     onPick: () -> Unit,
+    onClosePanel: () -> Unit,
 ) {
     val hidden = underlay.visibility == UnderlayVisibility.Hidden
     val toggle = if (hidden) R.string.underlay_show else R.string.underlay_hide
@@ -86,7 +89,7 @@ private fun UnderlayHeading(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f).padding(start = NAME_GAP),
         )
-        UnderlayRowMenu(underlay, callbacks, onPick)
+        UnderlayRowMenu(underlay, callbacks, onPick, onClosePanel)
     }
 }
 

@@ -52,7 +52,8 @@ import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
  * state, and the dialog is composed only while it is open. The layer notice (U6) shows at the bottom centre
  * whether the panel is open or not; its undo goes through [editorCallbacks] like the dock's. After the last row,
  * inside the rows' scroll, sits the underlay row (#170), which sends its changes through the underlay route of
- * [editorCallbacks] and calls [onPickUnderlay] to choose or replace the image.
+ * [editorCallbacks] and calls [onPickUnderlay] to choose or replace the image; its "move and scale" closes the
+ * panel like the panel's own close (#171).
  */
 @Composable
 internal fun LayerOverlay(
@@ -89,7 +90,7 @@ internal fun LayerOverlay(
         AnimatedVisibility(open, Modifier.align(corner), panelEnter(density), PANEL_EXIT) {
             LayerPanel(inputs.rows.size, close, Modifier.panelBounds(maxWidth, maxHeight, inputs.edge)) {
                 LayerPanelRows(inputs.rows, inputs.activeLayerId, actions) {
-                    LayerPanelUnderlayRow(inputs.underlay, editorCallbacks.underlay, onPickUnderlay)
+                    LayerPanelUnderlayRow(inputs.underlay, editorCallbacks.underlay, onPickUnderlay, close)
                 }
                 LayerPanelAddRow(inputs.rows.size, onAdd)
             }

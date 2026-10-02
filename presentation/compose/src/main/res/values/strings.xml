@@ -289,6 +289,9 @@
     <string name="underlay_pick">Choose underlay image</string>
     <string name="underlay_replace">Replace image</string>
     <string name="underlay_fit">Fit to picture</string>
+    <string name="underlay_adjust">Move and scale</string>
+    <string name="underlay_adjusting">Adjusting the underlay</string>
+    <string name="underlay_adjust_done">Done</string>
     <string name="underlay_remove">Remove</string>
     <string name="underlay_show">Show underlay</string>
     <string name="underlay_hide">Hide underlay</string>
