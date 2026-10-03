@@ -151,6 +151,15 @@ are retained; this decision makes no worst-case latency or process-death complet
 
 ### Evidence
 
+2026-10-03 prospective application (#145, ADR 0030/0031): the layer-phase gate applies the same
+250 ms maximum-publication decision and unchanged derivation formulas to the actual 16-layer v3
+maximum Candidate, 1,182,885 bytes. Its separate physical collection is specified in
+[P4 Layer Phase Protocol](../quality/P4_LAYER_PHASE_PROTOCOL.md#maximum-publication-and-physical-saf-save-decisions).
+The earlier v1/v2 observations and their decisions remain historical; the current one-layer v3
+74,827-byte runner group is not maximum-layer evidence. No new measurement or constant change is
+claimed by this prospective decision. SAF user-file save is a different interval and does not use
+this 250 ms boundary.
+
 Before Candidate publication code merges, one bounded device observation is collected under
 [M3 Autosave Publication Evidence](../quality/M3_AUTOSAVE_PUBLICATION_EVIDENCE.md): one invocation on
 the reference device, two fixed groups (maximum 256 × 256 document, minimum 1 × 1 document), five

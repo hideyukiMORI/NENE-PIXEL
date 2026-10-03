@@ -14,6 +14,8 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'p4-indexed-command-analysis.ps1')
 . (Join-Path $PSScriptRoot 'p4-indexed-memory-analysis.ps1')
 . (Join-Path $PSScriptRoot 'p4-indexed-frame-analysis.ps1')
+. (Join-Path $PSScriptRoot 'p4-indexed-device-lanes.ps1')
+. (Join-Path $PSScriptRoot 'p4-layer-slot-routing.ps1')
 
 function Get-P4HostGroups {
     param([string]$Runner, [string]$Role)
@@ -122,10 +124,20 @@ function Invoke-P4SlotAnalysis {
     param([string]$ManifestPath, [string]$SlotId, [string]$OutputDirectory, [string]$BaselineAnalysisPath = '')
     $manifest = Get-Content -LiteralPath $ManifestPath -Raw | ConvertFrom-Json -AsHashtable
     Assert-P4ManifestContract $manifest
-    # Frame slots belong to Issue #120's own four-slot catalog, outside Issue #106's order.
-    $slot = @(@(Get-P4SlotCatalog) + @(Get-P4FrameSlotCatalog) | Where-Object { $_.id -ceq $SlotId })
-    if ($slot.Count -ne 1) { throw 'Unknown slot.' }
-    $slot = $slot[0]
+    $slot = Get-P4ExecutionSlot $manifest.protocol.id $SlotId
+    $phase = $manifest.protocol.id -ceq 'nene-pixel-p4-layer-phase-verification-v1'
+    $manifestHash = Get-FileSha256 $ManifestPath
+    if ($phase) {
+        $expected = [IO.Path]::GetFullPath((Join-Path $manifest.output_directory $SlotId))
+        if (-not [string]::Equals([IO.Path]::GetFullPath($OutputDirectory),$expected,[StringComparison]::OrdinalIgnoreCase)) {
+            throw 'Analysis must use the canonical reserved phase directory.'
+        }
+        $seal = Read-P4VerifiedCaptureSeal -SlotDirectory $OutputDirectory -SlotId $SlotId `
+            -ExpectedSha256 (Get-FileSha256 (Join-Path $OutputDirectory 'capture-seal.json'))
+        $raw = @(Get-P4LayerRawInputs $manifest $slot $manifestHash $OutputDirectory $seal)
+        $result = Invoke-P4LayerSlotAnalysis $manifest $slot $manifestHash $OutputDirectory $BaselineAnalysisPath
+        $result.raw_inputs = $raw
+    } else {
     $BaselineAnalysisPath = Resolve-P4FrameBaselineAnalysisPath -Manifest $manifest -Slot $slot `
         -BaselineAnalysisPath $BaselineAnalysisPath
     switch ($slot.lane) {
@@ -203,6 +215,7 @@ function Invoke-P4SlotAnalysis {
         }
         default { throw 'This lane analyzer is not yet implemented; acceptance is blocked.' }
     }
+    }
     # The wrapper seals the slot before analysis (S3 step 7b, then 8). Binding the seal hash into the
     # analysis lets the completed chain prove that the analyzed bytes are the sealed bytes.
     $sealPath = Join-Path $OutputDirectory 'capture-seal.json'
@@ -210,9 +223,9 @@ function Invoke-P4SlotAnalysis {
         throw 'Analysis requires the capture seal written before the analyzer runs.'
     }
     $result.capture_seal_sha256 = Get-FileSha256 $sealPath
-    $result.protocol_id = $script:P4ProtocolId
+    $result.protocol_id = $manifest.protocol.id
     $result.slot_id = $SlotId
-    $result.preflight_sha256 = Get-FileSha256 $ManifestPath
+    $result.preflight_sha256 = $manifestHash
     $result.created_utc = [datetime]::UtcNow.ToString('o')
     Write-NewInvocationFile (Join-Path $OutputDirectory 'analysis.json') ($result | ConvertTo-Json -Depth 15)
 }

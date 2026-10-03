@@ -36,6 +36,7 @@ public class AutosavePublicationDeviceEvidence {
     private val context: Context = InstrumentationRegistry.getInstrumentation().targetContext
     private val journal: AutosavePublicationEvidenceJournal = AutosavePublicationEvidenceJournal()
     private var outputReservation: AutosavePublicationEvidenceOutputReservation? = null
+    private var layerPhase: AutosaveLayerPublicationAdmission? = null
 
     @get:Rule
     public val rules: TestRule =
@@ -47,42 +48,66 @@ public class AutosavePublicationDeviceEvidence {
                     reporter = { rows, complete ->
                         publishAutosaveEvidenceReport(checkNotNull(outputReservation), rows, complete)
                     },
-                    prepare = { outputReservation = reserveAutosavePublicationEvidenceOutputs(context) },
+                    prepare = ::prepareOutputs,
                 ),
             ).around(Timeout.seconds(OUTER_TIMEOUT_SECONDS))
 
     @Test
     public fun collectsBoundedCandidatePublicationLatency() {
         check(hasExactAdmission()) { "Collection requires exact candidate admission arguments" }
-        val directory = Files.createTempDirectory(context.noBackupFilesDir.toPath(), DIRECTORY_PREFIX).toFile()
+        val phase = layerPhase
+        val directory =
+            phase?.createWorkDirectory()
+                ?: Files.createTempDirectory(context.noBackupFilesDir.toPath(), DIRECTORY_PREFIX).toFile()
         try {
             val file = AndroidRecoveryAtomicFileAccess(AtomicFile(File(directory, RECORD_FILE_NAME)))
-            AutosavePublicationEvidenceRun(file, journal).collect()
+            AutosavePublicationEvidenceRun(file, journal, phase).collect()
         } finally {
-            directory.listFiles()?.forEach { entry -> entry.delete() }
-            directory.delete()
+            if (phase == null) {
+                directory.listFiles()?.forEach { entry -> entry.delete() }
+                directory.delete()
+            }
         }
+    }
+
+    private fun prepareOutputs() {
+        layerPhase =
+            if (layerArgument() == "publication-v1") AutosaveLayerPublicationAdmission.read(context) else null
+        outputReservation = layerPhase?.reserveOutputs() ?: reserveAutosavePublicationEvidenceOutputs(context)
     }
 
     private fun collectArgument(): String? = InstrumentationRegistry.getArguments().getString(COLLECT_ARGUMENT)
 
     private fun roleArgument(): String? = InstrumentationRegistry.getArguments().getString(ROLE_ARGUMENT)
 
-    private fun hasExactAdmission(): Boolean = collectArgument() == COLLECT_VALUE && roleArgument() == CANDIDATE_ROLE
+    private fun layerArgument(): String? = InstrumentationRegistry.getArguments().getString("p4LayerCollect")
+
+    private fun hasExactAdmission(): Boolean =
+        collectArgument() == COLLECT_VALUE && roleArgument() == CANDIDATE_ROLE &&
+            (layerArgument() == null || layerArgument() == "publication-v1")
 }
 
 private class AutosavePublicationEvidenceRun(
     file: RecoveryAtomicFileAccess,
     private val journal: AutosavePublicationEvidenceJournal,
+    private val layerPhase: AutosaveLayerPublicationAdmission? = null,
 ) {
     private val reader = RecoveryRecordReader(file)
     private val writer = RecoveryRecordWriter(file, reader)
     private var nextGeneration: Long = FIRST_GENERATION
 
     fun collect() {
-        val maximum = maximumDocument()
+        val maximum = layerPhase?.maximumDocument() ?: maximumDocument()
         val minimum = minimalDocument()
-        measureGroup(MAX_GROUP, maximum, SINGLE_LAYER_MAX_CANDIDATE_BYTE_COUNT)
+        val maximumByteCount =
+            if (layerPhase ==
+                null
+            ) {
+                SINGLE_LAYER_MAX_CANDIDATE_BYTE_COUNT
+            } else {
+                AutosaveLayerPublicationAdmission.MAXIMUM_CANDIDATE_BYTES
+            }
+        measureGroup(MAX_GROUP, maximum, maximumByteCount)
         measureGroup(MIN_GROUP, minimum, RecoveryRecordLayout.V3_MIN_CANDIDATE_BYTE_COUNT)
     }
 
@@ -129,7 +154,16 @@ private class AutosavePublicationEvidenceRun(
         kind: String,
         sample: PublicationSample,
     ) {
-        check(journal.append(AutosavePublicationEvidenceReport.sampleRow(group, index, kind, sample))) {
+        val format =
+            if (layerPhase ==
+                null
+            ) {
+                AutosavePublicationEvidenceFormat.INDEXED
+            } else {
+                AutosavePublicationEvidenceFormat.LAYER
+            }
+        val row = format.sampleRow(group, index, kind, sample)
+        check(journal.append(row)) {
             "Evidence journal is closed, interrupted, or full"
         }
     }
@@ -215,8 +249,7 @@ internal object AutosavePublicationEvidenceReport {
         index: Int,
         kind: String,
         sample: PublicationSample,
-    ): String =
-        "$SCHEMA,$CANDIDATE_ROLE,$group,$index,$kind,${sample.elapsedNanos},${sample.generation},$WRITTEN_OUTCOME"
+    ): String = AutosavePublicationEvidenceFormat.INDEXED.sampleRow(group, index, kind, sample)
 
     fun validates(row: String): Boolean {
         val fields = row.split(',')

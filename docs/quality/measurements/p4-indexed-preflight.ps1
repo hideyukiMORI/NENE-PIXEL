@@ -130,6 +130,13 @@ function Get-P4FrameWrapperBound {
 }
 
 function Get-P4SlotCatalog {
+    param([string]$ProtocolId = 'nene-pixel-p4-indexed-cutover-verification-v7')
+    if ($ProtocolId -ceq 'nene-pixel-p4-layer-phase-verification-v1') {
+        return @((Get-P4FrameSlotCatalog -ProtocolId $ProtocolId)) +
+            @((Get-P4LayerMemorySlotCatalog -ProtocolId $ProtocolId)) +
+            @((Get-P4LayerStorageSlotCatalog -ProtocolId $ProtocolId))
+    }
+    if ($ProtocolId -cne 'nene-pixel-p4-indexed-cutover-verification-v7') { throw 'Unknown P4 slot protocol.' }
     $slots = [System.Collections.Generic.List[object]]::new()
     foreach ($runner in @('project', 'recovery', 'legacy')) {
         $roles = if ($runner -eq 'legacy') { @('candidate') } else { @('baseline', 'candidate') }
@@ -160,6 +167,45 @@ function Get-P4SlotCatalog {
     return $slots.ToArray()
 }
 
+function Get-P4FrameGroupCatalog {
+    <#
+        Device-free preparation only: the phase is not admitted by Assert-P4ManifestContract.
+        Comparison roles select baseline/candidate semantics; artifact roles select immutable builds.
+        Families and comparator commits have one definition here, consumed by the phase slot catalog.
+    #>
+    param([Parameter(Mandatory = $true)][AllowEmptyString()][AllowNull()][string]$ProtocolId)
+    if ($ProtocolId -cne 'nene-pixel-p4-layer-phase-verification-v1') {
+        throw 'Unknown P4 frame group protocol.'
+    }
+    $definitions = @(
+        [ordered]@{ id = 'single'; baseline_artifact_role = 'baseline_single';
+            baseline_production_commit = '8120c06fae1a372b23d2a7af4f50aa2b9cdfeff9';
+            decision_families = @('canvas16_tap', 'canvas256_repeated_diagonal');
+            diagnostic_families = @('canvas16_tap', 'canvas256_repeated_diagonal',
+                'canvas256_repeated_diagonal_window_x2') },
+        [ordered]@{ id = 'layers16'; baseline_artifact_role = 'baseline_layers16';
+            baseline_production_commit = '169b59287ca60e77e07ac91690450dd1a44b9ba4';
+            decision_families = @('canvas256_layers16_tap', 'canvas256_layers16_repeated_diagonal');
+            diagnostic_families = @('canvas256_layers16_tap', 'canvas256_layers16_repeated_diagonal') },
+        [ordered]@{ id = 'underlay'; baseline_artifact_role = 'baseline_underlay';
+            baseline_production_commit = 'f92b1006be5f7145a32258446474f8640b14b60b';
+            decision_families = @('canvas256_underlay_repeated_diagonal');
+            diagnostic_families = @('canvas256_underlay_repeated_diagonal') }
+    )
+    for ($i = 0; $i -lt $definitions.Count; $i++) {
+        $group = $definitions[$i]
+        $group.sequence = $i + 1
+        $group.preceding_group_id = if ($i -gt 0) { $definitions[$i - 1].id } else { $null }
+        $group.following_group_id = if ($i + 1 -lt $definitions.Count) { $definitions[$i + 1].id } else { $null }
+        $group.candidate_artifact_role = 'candidate'
+        $group.protocol_id = $ProtocolId
+        $group.frame_schema = 'nene-pixel-p4-indexed-actual-app-frame-v9'
+        $group.experiment_schema = 'nene-pixel-p4-indexed-frame-experiment-v6'
+        $group.verdict_id = 'layer-phase-2026-10-03-relative-m5'
+        $group
+    }
+}
+
 function Get-P4FrameSlotCatalog {
     <#
         Protocol v7 moved Lane 3 out of Issue #106's fixed order and acceptance to Issue #120, so these
@@ -169,7 +215,48 @@ function Get-P4FrameSlotCatalog {
         carry that order. The preserved run5 records keep their v6 ids (`frame-1-baseline-diagnostic`
         ... `frame-4-baseline-decision`) as historical names only.
     #>
+    param([string]$ProtocolId = 'nene-pixel-p4-indexed-cutover-verification-v7')
+    if ($ProtocolId -cne 'nene-pixel-p4-indexed-cutover-verification-v7' -and
+        $ProtocolId -cne 'nene-pixel-p4-layer-phase-verification-v1') {
+        throw 'Unknown P4 frame slot protocol.'
+    }
     $slots = [System.Collections.Generic.List[object]]::new()
+    if ($ProtocolId -ceq 'nene-pixel-p4-layer-phase-verification-v1') {
+        foreach ($group in @(Get-P4FrameGroupCatalog -ProtocolId $ProtocolId)) {
+            $baselineSlotId = "frame-$($slots.Count + 1)-$($group.id)-baseline-decision"
+            foreach ($order in @('baseline-decision', 'candidate-decision', 'baseline-diagnostic', 'candidate-diagnostic')) {
+                $parts = $order.Split('-')
+                $role = $parts[0]
+                $runner = $parts[1]
+                $families = @($group["${runner}_families"])
+                $warmups = 5
+                $samples = if ($runner -ceq 'decision') { 50 } else { 10 }
+                $sequence = $slots.Count + 1
+                $slots.Add([ordered]@{
+                    id = "frame-$sequence-$($group.id)-$order"; lane = 'frame'; group_id = $group.id;
+                    role = $role; artifact_role = if ($role -ceq 'baseline') {
+                        $group.baseline_artifact_role
+                    } else { $group.candidate_artifact_role };
+                    runner = $runner; run = $sequence; attempt = 1;
+                    protocol_id = $group.protocol_id; frame_schema = $group.frame_schema;
+                    experiment_schema = $group.experiment_schema; verdict_id = $group.verdict_id;
+                    baseline_production_commit = $group.baseline_production_commit;
+                    families = $families;
+                    baseline_slot_id = if ($role -ceq 'candidate' -and $runner -ceq 'decision') {
+                        $baselineSlotId
+                    } else { $null };
+                    preceding_slot_id = $null; following_slot_id = $null;
+                    timeout_seconds = Get-P4FrameWrapperBound -Families $families.Count -Warmups $warmups -Samples $samples;
+                    warmups = $warmups; samples = $samples
+                })
+            }
+        }
+        for ($i = 0; $i -lt $slots.Count; $i++) {
+            $slots[$i].preceding_slot_id = if ($i -gt 0) { $slots[$i - 1].id } else { $null }
+            $slots[$i].following_slot_id = if ($i + 1 -lt $slots.Count) { $slots[$i + 1].id } else { $null }
+        }
+        return $slots.ToArray()
+    }
     $sequence = 0
     foreach ($slot in @('baseline-decision', 'candidate-decision', 'baseline-diagnostic', 'candidate-diagnostic')) {
         $sequence++
@@ -184,6 +271,334 @@ function Get-P4FrameSlotCatalog {
             warmups = $warmups; samples = $samples })
     }
     return $slots.ToArray()
+}
+
+function Get-P4LayerMemorySlotCatalog {
+    param([Parameter(Mandatory)][string]$ProtocolId)
+    $group = @(Get-P4FrameGroupCatalog -ProtocolId $ProtocolId | Where-Object { $_.id -ceq 'layers16' })[0]
+    $sequence = 0
+    foreach ($role in @('baseline', 'candidate')) {
+        foreach ($run in 1..5) {
+            $sequence++
+            [ordered]@{
+                id = "memory-layers16-$role-$run"
+                protocol_id = $ProtocolId
+                lane = 'memory'
+                role = $role
+                artifact_role = if ($role -ceq 'baseline') { $group.baseline_artifact_role } else { 'candidate' }
+                baseline_production_commit = $group.baseline_production_commit
+                family = "$role-layer-editor-retention"
+                run = $run
+                memory_sequence_index = $sequence
+                sequence_index = 12 + $sequence
+                timeout_seconds = 300
+                schema = 'nene-pixel-p4-layer-editor-retention-v1'
+                analysis_contract = 'nene-pixel-p4-layer-memory-analysis-v1'
+                profile = 'NENE-P2-ALLDOCUBE-IPL80MP-A16-API36'
+                fixture_sha256 = '165f62d180533849ce1a4ef1625cd3971e445f2dca60ef7b9b46fedaafa0b3ec'
+                checkpoints = @('empty_idle', 'maximum_loaded_idle', 'long_preview_held', 'committed_idle', 'post_cycles_idle')
+            }
+        }
+    }
+}
+
+function Get-P4LayerStorageSlotCatalog {
+    param([Parameter(Mandatory)][string]$ProtocolId)
+    [void](Get-P4FrameGroupCatalog -ProtocolId $ProtocolId)
+    [ordered]@{
+        id = 'publication-layers16-candidate'; protocol_id = $ProtocolId; sequence_index = 23
+        lane = 'publication'; role = 'candidate'; artifact_role = 'candidate'; timeout_seconds = 300
+        schema = 'nene-pixel-p4-layer-publication-device-v1'; journal_rows = 54
+        worker_timeout_seconds = 60; sample_anomaly_nanos = 5000000000L
+        warmup_count_per_group = 5; sample_count_per_group = 20
+        groups = @(
+            [ordered]@{ name = 'candidate_v3_max'; structural_byte_count = 1182885 },
+            [ordered]@{ name = 'candidate_v3_min'; structural_byte_count = 85 }
+        )
+    }
+    [ordered]@{
+        id = 'saf-save-layers16-candidate'; protocol_id = $ProtocolId; sequence_index = 24
+        lane = 'saf-save'; role = 'candidate'; artifact_role = 'candidate'; timeout_seconds = 420
+        schema = 'nene-pixel-p4-layer-saf-save-device-v1'; journal_rows = 27
+        setup_timeout_seconds = 300; worker_timeout_seconds = 60; sample_anomaly_nanos = 5000000000L
+        warmup_count = 5; sample_count = 20; structural_byte_count = 1182862
+    }
+}
+
+function Get-P4LayerArtifactCatalog {
+    param([Parameter(Mandatory)][string]$ProtocolId)
+    $groups = @(Get-P4FrameGroupCatalog -ProtocolId $ProtocolId)
+    foreach ($group in $groups) {
+        [ordered]@{ role = $group.baseline_artifact_role; production_commit = $group.baseline_production_commit
+            artifact_kinds = @('app_debug', 'test_debug', 'app_release_like') }
+    }
+    [ordered]@{ role = 'candidate'; production_commit = '1f9bb1637058d3fa4a98122f4942406211bd1c69'
+        artifact_kinds = @('app_debug', 'test_debug', 'app_release_like', 'publication_test') }
+}
+
+function Get-P4LayerFixtureCatalog {
+    param([Parameter(Mandatory)][string]$ProtocolId)
+    [void](Get-P4FrameGroupCatalog -ProtocolId $ProtocolId)
+    [ordered]@{ name = 'maximum-layered.nenepixel'; byte_count = 1182862
+        sha256 = '165f62d180533849ce1a4ef1625cd3971e445f2dca60ef7b9b46fedaafa0b3ec' }
+    [ordered]@{ name = 'underlay-grid.png'; byte_count = 184323
+        sha256 = '05efb3fc8edf43f45dc5a8b7cae3be148680c5694b47c47d1cf4eb7cbe26c6fb' }
+}
+
+function Get-P4ExecutionSlot {
+    param([Parameter(Mandatory)][string]$ProtocolId, [Parameter(Mandatory)][string]$SlotId)
+    $catalog = @(Get-P4SlotCatalog -ProtocolId $ProtocolId)
+    if ($ProtocolId -ceq 'nene-pixel-p4-indexed-cutover-verification-v7') {
+        $catalog += @(Get-P4FrameSlotCatalog -ProtocolId $ProtocolId)
+    }
+    $selected = @($catalog | Where-Object { $_.id -ceq $SlotId })
+    if ($selected.Count -ne 1) { throw 'Unknown or ambiguous execution slot.' }
+    return $selected[0]
+}
+
+function Resolve-P4ArtifactRole {
+    param([Parameter(Mandatory)][string]$ProtocolId, [Parameter(Mandatory)][string]$SlotId)
+    $slot = Get-P4ExecutionSlot $ProtocolId $SlotId
+    if ($ProtocolId -ceq 'nene-pixel-p4-layer-phase-verification-v1') { return $slot.artifact_role }
+    return $slot.role
+}
+
+function Get-P4LayerRequiredMeasurementPaths {
+    param([Parameter(Mandatory)][string]$ProtocolId)
+    $appTest = 'app/android/src/androidTest'
+    $appPackage = "$appTest/kotlin/io/github/hideyukimori/nenepixel"
+    @("$appTest/AndroidManifest.xml",
+        "$appTest/java/io/github/hideyukimori/nenepixel/acceptance/AcceptanceDocumentsProvider.java",
+        "$appTest/java/io/github/hideyukimori/nenepixel/acceptance/AcceptanceDocumentFiles.java",
+        "$appPackage/acceptance/AcceptanceDocumentsUi.kt",
+        "$appPackage/measurement/P4LayerFixtureDocuments.kt",
+        "$appPackage/measurement/P4LayerRunAdmission.kt",
+        "$appPackage/measurement/P4LayerFrameFixtureSpec.kt",
+        "$appPackage/measurement/P4LayerFrameFixturePreparationTest.kt",
+        'docs/quality/measurements/p4-layer-phase-fixture.init.gradle')
+    foreach ($fixture in @(Get-P4LayerFixtureCatalog -ProtocolId $ProtocolId)) {
+        "docs/quality/fixtures/p4-layer-phase/$($fixture.name)"
+    }
+}
+
+function Assert-P4LayerApkFixtureEntries {
+    param([Parameter(Mandatory)][string]$ProtocolId,
+        [Parameter(Mandatory)][string]$ApkPath,
+        [Parameter(Mandatory)][ValidateSet('app_debug', 'test_debug', 'app_release_like', 'publication_test')][string]$Kind)
+    $fixtures = @(Get-P4LayerFixtureCatalog -ProtocolId $ProtocolId)
+    $zip = [IO.Compression.ZipFile]::OpenRead($ApkPath)
+    try {
+        foreach ($fixture in $fixtures) {
+            $name = "assets/$($fixture.name)"
+            $entries = @($zip.Entries | Where-Object { $_.FullName -ceq $name })
+            $aliases = @($zip.Entries | Where-Object {
+                $_.FullName -cne $name -and $_.FullName.Replace('\', '/').ToLowerInvariant() -eq $name
+            })
+            if ($aliases.Count -ne 0) { throw "Aliased phase fixture APK entry: $name" }
+            if ($Kind -cin @('app_debug', 'app_release_like')) {
+                if ($entries.Count -ne 0) { throw "Phase fixture leaked into production APK: $name" }
+                continue
+            }
+            if ($entries.Count -ne 1 -or $entries[0].Length -ne $fixture.byte_count) {
+                throw "Missing, duplicate or wrong-size phase fixture APK entry: $name"
+            }
+            $stream = $entries[0].Open()
+            $sha = [Security.Cryptography.SHA256]::Create()
+            try { $hash = [Convert]::ToHexString($sha.ComputeHash($stream)).ToLowerInvariant() }
+            finally { $sha.Dispose(); $stream.Dispose() }
+            if ($hash -cne $fixture.sha256) { throw "Phase fixture APK bytes drifted: $name" }
+        }
+    } finally { $zip.Dispose() }
+}
+
+function Assert-P4LayerProviderXmlTree {
+    param([Parameter(Mandatory)][AllowEmptyString()][string]$XmlTree)
+    $normalized = $XmlTree.Replace('A: http://schemas.android.com/apk/res/android:', 'A: android:')
+    $lines = @($normalized -split '\r?\n')
+    $providers = [Collections.Generic.List[string]]::new()
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        if ($lines[$i] -cnotmatch '^(?<indent>\s*)E: provider \(line=\d+\)\s*$') { continue }
+        $indent = $Matches.indent.Length
+        $end = $i + 1
+        while ($end -lt $lines.Count) {
+            if ($lines[$end] -cmatch '^(?<indent>\s*)E: ' -and $Matches.indent.Length -le $indent) { break }
+            $end++
+        }
+        $block = $lines[$i..($end - 1)] -join "`n"
+        if ($block.Contains('"io.github.hideyukimori.nenepixel.acceptance.AcceptanceDocumentsProvider"') -or
+            $block.Contains('"io.github.hideyukimori.nenepixel.test.acceptance.documents"')) {
+            $providers.Add($block)
+        }
+    }
+    if ($providers.Count -ne 1) { throw 'Missing, duplicate or split phase DocumentsProvider declaration.' }
+    $block = $providers[0]
+    $providerIndent = [regex]::Match($block, '\A( *)E: provider').Groups[1].Value.Length
+    $expected = [ordered]@{
+        name = '"io.github.hideyukimori.nenepixel.acceptance.AcceptanceDocumentsProvider"'
+        authorities = '"io.github.hideyukimori.nenepixel.test.acceptance.documents"'
+        permission = '"android.permission.MANAGE_DOCUMENTS"'
+        exported = 'true'
+        grantUriPermissions = 'true'
+    }
+    foreach ($key in $expected.Keys) {
+        $attributes = [regex]::Matches($block, '(?m)^ {' + ($providerIndent + 2) + '}A: android:' +
+            $key + '\(0x[0-9a-f]+\)=(?<value>[^\r\n]+)$')
+        $pattern = if ($expected[$key] -ceq 'true') { '\A(?:true|\(type 0x12\)0xffffffff)\z' }
+            else { '\A' + [regex]::Escape($expected[$key]) + '(?: \(Raw: ' + [regex]::Escape($expected[$key]) + '\))?\z' }
+        if ($attributes.Count -ne 1 -or $attributes[0].Groups['value'].Value -cnotmatch $pattern) {
+            throw "Phase DocumentsProvider attribute drift: $key"
+        }
+    }
+    $nodes = [Collections.Generic.List[object]]::new()
+    $actions = 0
+    foreach ($line in @($block -split "`n")) {
+        if ($line -cmatch '^(?<indent> *)E: (?<name>[a-z-]+) \(line=\d+\)\s*$') {
+            $depth = $Matches.indent.Length; $elementName = $Matches.name
+            while ($nodes.Count -gt 0 -and $nodes[$nodes.Count - 1].indent -ge $depth) { $nodes.RemoveAt($nodes.Count - 1) }
+            $nodes.Add([ordered]@{ name = $elementName; indent = $depth })
+        } elseif ($line -cmatch '^(?<indent> *)A: android:name\(0x01010003\)="android.content.action.DOCUMENTS_PROVIDER"(?: \(Raw: "android.content.action.DOCUMENTS_PROVIDER"\))?\s*$') {
+            if ($nodes.Count -ne 3 -or ($nodes.name -join ',') -cne 'provider,intent-filter,action' -or
+                $Matches.indent.Length -ne $nodes[2].indent + 2) { throw 'DocumentsProvider action is outside its intent filter.' }
+            $actions++
+        }
+    }
+    if ($actions -ne 1) {
+        throw 'Phase DocumentsProvider action is missing or duplicated.'
+    }
+}
+
+function Get-P4FrameWorkloadCatalog {
+    # One event specification for collector and analyzer. Each invocation owns all returned records.
+    param([Parameter(Mandatory = $true)][AllowNull()][AllowEmptyCollection()][string[]]$WorkloadOrder)
+    if ($null -eq $WorkloadOrder -or $WorkloadOrder.Count -eq 0) {
+        throw 'P4 frame workload order must be nonempty.'
+    }
+    foreach ($workload in $WorkloadOrder) {
+        $tap = $false
+        $size = 256
+        switch -CaseSensitive ($workload) {
+            'canvas16_tap' { $tap = $true; $size = 16 }
+            'canvas256_layers16_tap' { $tap = $true }
+            'canvas256_repeated_diagonal' { }
+            'canvas256_repeated_diagonal_window_x2' { }
+            'canvas256_layers16_repeated_diagonal' { }
+            'canvas256_underlay_repeated_diagonal' { }
+            default { throw 'Unknown P4 frame workload.' }
+        }
+        [ordered]@{
+            workload = $workload
+            canvas_width = $size
+            canvas_height = $size
+            move_event_count = if ($tap) { 0 } else { 16 }
+            motion_event_count = if ($tap) { 2 } else { 18 }
+            preview_event_count = if ($tap) { 1 } else { 17 }
+            commit_event_count = 1
+            raw_position_count = if ($tap) { 1 } else { 4081 }
+            effective_change_count = if ($tap) { 1 } else { 256 }
+        }
+    }
+}
+
+function Get-P4FrameExecutionContract {
+    # Pure resolution is preparation, not manifest admission or permission to collect on a device.
+    param(
+        [AllowNull()][AllowEmptyString()][string]$ProtocolId = 'nene-pixel-p4-indexed-cutover-verification-v7',
+        [Parameter(Mandatory = $true)][AllowNull()][AllowEmptyString()][string]$SlotId
+    )
+    $slots = @(Get-P4FrameSlotCatalog -ProtocolId $ProtocolId)
+    $matches = @($slots | Where-Object { $_.id -ceq $SlotId })
+    if ($matches.Count -ne 1) { throw 'Unknown or mixed P4 frame execution slot.' }
+    $slot = $matches[0]
+    $phase = $ProtocolId -ceq 'nene-pixel-p4-layer-phase-verification-v1'
+    # The accepted single group names also describe the historical integer family counts.
+    $groups = @(Get-P4FrameGroupCatalog -ProtocolId 'nene-pixel-p4-layer-phase-verification-v1')
+    $group = if ($phase) { @($groups | Where-Object { $_.id -ceq $slot.group_id })[0] } else { $groups[0] }
+    $decisionOrder = @($group.decision_families)
+    $diagnosticOrder = @($group.diagnostic_families)
+    $workloadOrder = @(if ($slot.runner -ceq 'decision') { $decisionOrder } else { $diagnosticOrder })
+    $groupSlots = @(if ($phase) { $slots | Where-Object { $_.group_id -ceq $group.id } } else { $slots })
+    $groupSequence = 0
+    for ($i = 0; $i -lt $groupSlots.Count; $i++) {
+        if ($groupSlots[$i].id -ceq $SlotId) { $groupSequence = $i + 1 }
+    }
+    $comparisonOrder = @(foreach ($item in $slots) {
+        if ($phase) { "$($item.group_id):$($item.runner):$($item.role)" }
+        else { "$($item.runner):$($item.role)" }
+    })
+    $setup = [ordered]@{}
+    foreach ($workload in $diagnosticOrder) {
+        $setup[$workload] = switch -CaseSensitive ($workload) {
+            'canvas256_repeated_diagonal_window_x2' { 'window_x2' }
+            'canvas256_layers16_tap' { 'maximum_layers16' }
+            'canvas256_layers16_repeated_diagonal' { 'maximum_layers16' }
+            'canvas256_underlay_repeated_diagonal' { 'underlay' }
+            default { 'empty' }
+        }
+    }
+    $baselineSlot = @($groupSlots | Where-Object { $_.role -ceq 'baseline' -and $_.runner -ceq 'decision' })[0]
+    [ordered]@{
+        protocol_id = $ProtocolId
+        slot_id = $slot.id
+        group_id = if ($phase) { $group.id } else { $null }
+        artifact_role = if ($phase) { $slot.artifact_role } else { $slot.role }
+        role = $slot.role
+        runner = $slot.runner
+        sequence_index = $slot.run
+        group_sequence_index = $groupSequence
+        attempt = 1
+        frame_schema = if ($phase) { $group.frame_schema } else { 'nene-pixel-p4-indexed-actual-app-frame-v8' }
+        experiment_schema = if ($phase) { $group.experiment_schema } else { 'nene-pixel-p4-indexed-frame-experiment-v5' }
+        verdict_id = if ($phase) { $group.verdict_id } else { 'lane3-2026-09-23-relative' }
+        frame_directory_name = if ($phase) {
+            'slot-{0:D2}-{1}-{2}-{3}-attempt-1' -f $slot.run, $group.id, $slot.runner, $slot.role
+        } else { 'slot-{0:D2}-{1}-{2}-attempt-1' -f $slot.run, $slot.runner, $slot.role }
+        baseline_slot_id = if ($slot.role -ceq 'candidate' -and $slot.runner -ceq 'decision') { $baselineSlot.id } else { $null }
+        baseline_production_commit = if ($phase) { $group.baseline_production_commit } else { $script:P4BaselineProduction }
+        workload_order = $workloadOrder
+        decision_workload_order = $decisionOrder
+        diagnostic_workload_order = $diagnosticOrder
+        workload_catalog = @(Get-P4FrameWorkloadCatalog -WorkloadOrder $workloadOrder)
+        decision_workload_catalog = @(Get-P4FrameWorkloadCatalog -WorkloadOrder $decisionOrder)
+        diagnostic_workload_catalog = @(Get-P4FrameWorkloadCatalog -WorkloadOrder $diagnosticOrder)
+        warmups = $slot.warmups
+        samples = $slot.samples
+        timeout_seconds = $slot.timeout_seconds
+        comparison_order = $comparisonOrder
+        input_p95_gate_ms = if ($phase -and $slot.role -ceq 'candidate') { [double]16.67 } else { [double]33.33 }
+        relative_p95_tolerance_ms = [double]1.0
+        relative_p99_tolerance_ms = [double]2.0
+        gross_overrun_ms = [double]33.34
+        gross_input_ms = [double]100.0
+        geometry_id = $script:P4GeometryId
+        association_workload = if ($phase -and $group.id -ceq 'layers16') { 'canvas256_layers16_tap' } else { $null }
+        window_diagnostic_workload = if (-not $phase -or $group.id -ceq 'single') { 'canvas256_repeated_diagonal_window_x2' } else { $null }
+        setup_by_workload = $setup
+    }
+}
+
+function Get-P4LayerFrameExperimentContract {
+    param(
+        [Parameter(Mandatory = $true)][AllowNull()][AllowEmptyString()][string]$ExperimentId,
+        [Parameter(Mandatory = $true)][AllowNull()][AllowEmptyString()][string]$PreflightSha256
+    )
+    if ($ExperimentId -cnotmatch '^[a-z0-9][a-z0-9-]{2,63}\z' -or
+        $PreflightSha256 -cnotmatch '^[0-9a-f]{64}\z') {
+        throw 'Invalid P4 layer frame experiment identity.'
+    }
+    $protocolId = 'nene-pixel-p4-layer-phase-verification-v1'
+    $slots = @(Get-P4FrameSlotCatalog -ProtocolId $protocolId)
+    $group = @(Get-P4FrameGroupCatalog -ProtocolId $protocolId)[0]
+    [ordered]@{
+        schema = $group.experiment_schema
+        protocol_id = $protocolId
+        experiment_id = $ExperimentId
+        preflight_sha256 = $PreflightSha256
+        comparison_order = @($slots | ForEach-Object { "$($_.group_id):$($_.runner):$($_.role)" })
+        slot_catalog = $slots
+        slot_budget = $slots.Count
+        maximum_attempts_per_slot = 1
+        replacement_rule = 'none'
+    }
 }
 
 function Assert-P4RequiredValue {
@@ -282,20 +697,37 @@ function Get-P4TrackedPaths {
 }
 
 function Get-P4ExpectedMeasurementPaths {
-    param([string]$Worktree, [string]$Commit, [string]$Name)
+    param([string]$Worktree, [string]$Commit, [string]$Name,
+        [string]$ProtocolId = 'nene-pixel-p4-indexed-cutover-verification-v7')
 
     $tracked = Get-P4TrackedPaths $Worktree $Commit $Name
     $trackedSet = [Collections.Generic.HashSet[string]]::new([string[]]$tracked, [StringComparer]::Ordinal)
     $expected = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    $patterns = $script:P4MeasurementPathPatterns
+    $phase = $ProtocolId -ceq 'nene-pixel-p4-layer-phase-verification-v1'
+    if ($phase) {
+        if (@(Get-P4LayerArtifactCatalog -ProtocolId $ProtocolId | Where-Object { $_.role -ceq $Name }).Count -ne 1) {
+            throw 'Unknown layer measurement artifact role.'
+        }
+        $patterns = @('^docs/quality/[^/]+\.ps1$', '^docs/quality/measurements/[^\r\n]+$',
+            '^docs/quality/fixtures/p4-layer-phase/[^\r\n]+$',
+            '^(app/android|adapters/persistence)/src/androidTest/[^\r\n]+$')
+    } elseif ($ProtocolId -cne 'nene-pixel-p4-indexed-cutover-verification-v7') {
+        throw 'Unknown measurement inventory protocol.'
+    }
     foreach ($path in $tracked) {
-        foreach ($pattern in $script:P4MeasurementPathPatterns) {
+        foreach ($pattern in $patterns) {
             if ($path -cmatch $pattern) { [void]$expected.Add($path); break }
         }
     }
-    $required = @($script:P4SharedHostEvidenceSources)
-    if ($Name -ceq 'candidate') { $required += @($script:P4CandidateHostEvidenceSources) }
+    $required = if ($phase) { @(Get-P4LayerRequiredMeasurementPaths -ProtocolId $ProtocolId) }
+        else { @($script:P4SharedHostEvidenceSources) }
+    if (-not $phase -and $Name -ceq 'candidate') { $required += @($script:P4CandidateHostEvidenceSources) }
     foreach ($path in $required) {
-        if (-not $trackedSet.Contains($path)) { throw "The $Name build commit omits a host evidence source: $path" }
+        if (-not $trackedSet.Contains($path)) {
+            if ($phase) { throw "The $Name build commit omits a required evidence source: $path" }
+            throw "The $Name build commit omits a host evidence source: $path"
+        }
         [void]$expected.Add($path)
     }
     if ($expected.Count -eq 0) { throw "The $Name measurement inventory cannot be empty." }
@@ -330,9 +762,10 @@ function Assert-P4TrackedBlob {
 }
 
 function Assert-P4MeasurementInventory {
-    param([System.Collections.IDictionary]$Role, [string]$Name)
+    param([System.Collections.IDictionary]$Role, [string]$Name,
+        [string]$ProtocolId = 'nene-pixel-p4-indexed-cutover-verification-v7')
 
-    $expected = Get-P4ExpectedMeasurementPaths $Role.worktree $Role.build_commit $Name
+    $expected = Get-P4ExpectedMeasurementPaths $Role.worktree $Role.build_commit $Name $ProtocolId
     $observed = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
     foreach ($file in $Role.measurement_files) {
         $relative = [string]$file.relative_path
@@ -488,6 +921,22 @@ function Test-P4GitAncestor {
 function Assert-P4GitLineage {
     param([System.Collections.IDictionary]$Manifest)
 
+    if ($Manifest.Contains('protocol') -and $Manifest.protocol.id -ceq 'nene-pixel-p4-layer-phase-verification-v1') {
+        $catalog = @(Get-P4LayerArtifactCatalog -ProtocolId $Manifest.protocol.id)
+        $candidate = $Manifest.roles.candidate
+        foreach ($entry in $catalog) {
+            $role = $Manifest.roles[$entry.role]
+            if ($role.production_commit -cne $entry.production_commit -or
+                -not (Test-P4GitAncestor $role.worktree $entry.production_commit $role.build_commit)) {
+                throw "Layer artifact production/overlay lineage differs: $($entry.role)"
+            }
+            if ($entry.role -cne 'candidate' -and
+                -not (Test-P4GitAncestor $candidate.worktree $entry.production_commit $candidate.production_commit)) {
+                throw "Layer candidate does not descend from comparator: $($entry.role)"
+            }
+        }
+        return
+    }
     $baseline = $Manifest.roles.baseline
     $candidate = $Manifest.roles.candidate
     if (-not (Test-P4GitAncestor $baseline.worktree $script:P4BaselineProduction $baseline.build_commit)) {
@@ -513,8 +962,13 @@ function Invoke-P4Aapt2 {
 }
 
 function Assert-P4ApkPackaging {
-    param([string]$Aapt2Path, [System.Collections.IDictionary]$Artifact, [string]$Kind, [string]$Name)
+    param([string]$Aapt2Path, [System.Collections.IDictionary]$Artifact, [string]$Kind, [string]$Name,
+        [string]$ProtocolId = 'nene-pixel-p4-indexed-cutover-verification-v7')
 
+    $phase = $ProtocolId -ceq 'nene-pixel-p4-layer-phase-verification-v1'
+    if (-not $phase -and $ProtocolId -cne 'nene-pixel-p4-indexed-cutover-verification-v7') {
+        throw 'Unknown APK packaging protocol.'
+    }
     $contract = $script:P4ArtifactContract[$Kind]
     if ([string]$Artifact.variant -cne $contract.variant) {
         throw "$Name declares the wrong build variant: $($Artifact.variant)"
@@ -536,6 +990,7 @@ function Assert-P4ApkPackaging {
 
     $xmltree = (Invoke-P4Aapt2 $Aapt2Path @(
             'dump', 'xmltree', '--file', 'AndroidManifest.xml', $Artifact.path)) -join "`n"
+    if ($phase) { $xmltree = $xmltree.Replace('A: http://schemas.android.com/apk/res/android:', 'A: android:') }
     $instrumentation = [regex]::Matches($xmltree, '(?m)^\s*E: instrumentation \(line=\d+\)\s*$')
     if (-not $contract.instrumented) {
         if ($instrumentation.Count -ne 0) { throw "$Name must not declare instrumentation." }
@@ -560,6 +1015,11 @@ function Assert-P4ApkPackaging {
     if ([string]$Artifact.target_package -cne $target -or [string]$Artifact.test_package -cne $package) {
         throw "$Name manifest packages disagree with the APK ($target / $package)."
     }
+    if ($phase -and $Kind -ceq 'publication_test' -and
+        ($package -cne 'io.github.hideyukimori.nenepixel.adapters.persistence.test' -or $target -cne $package)) {
+        throw 'The layer publication APK must be the declared self-instrumenting persistence package.'
+    }
+    if ($phase -and $Kind -ceq 'test_debug') { Assert-P4LayerProviderXmlTree -XmlTree $xmltree }
 }
 
 function Assert-P4ProfileSourceBinding {
@@ -828,9 +1288,26 @@ function Assert-P4ApkIdentity {
 }
 
 function Assert-P4RoleSource {
-    param([System.Collections.IDictionary]$Role, [string]$Name, [string]$Aapt2Path)
-    Assert-P4RequiredKeys $Role @('worktree', 'production_commit', 'build_commit', 'production_tree_sha256',
-        'measurement_files', 'measurement_sha256', 'compiled_files', 'compiled_sha256', 'artifacts', 'profile') $Name
+    param([System.Collections.IDictionary]$Role, [string]$Name, [string]$Aapt2Path,
+        [string]$ProtocolId = 'nene-pixel-p4-indexed-cutover-verification-v7')
+    $phase = $ProtocolId -ceq 'nene-pixel-p4-layer-phase-verification-v1'
+    $required = @('worktree', 'production_commit', 'build_commit', 'production_tree_sha256',
+        'measurement_files', 'measurement_sha256', 'artifacts', 'profile')
+    $inventoryPrefixes = @('measurement')
+    $kinds = @('app_debug', 'test_debug', 'app_release_like', 'publication_test')
+    if ($phase) {
+        $entry = @(Get-P4LayerArtifactCatalog -ProtocolId $ProtocolId | Where-Object { $_.role -ceq $Name })
+        if ($entry.Count -ne 1 -or $Role.production_commit -cne $entry[0].production_commit -or
+            $Role.build_commit -ceq $Role.production_commit) { throw 'Layer role requires the pinned production and a test-overlay build.' }
+        $kinds = $entry[0].artifact_kinds
+        if ($Role.artifacts.Count -ne $kinds.Count -or @($Role.artifacts.Keys | Where-Object { $_ -cnotin $kinds }).Count -gt 0) {
+            throw 'Layer role APK inventory is not the exact required set.'
+        }
+    } elseif ($ProtocolId -ceq 'nene-pixel-p4-indexed-cutover-verification-v7') {
+        $required += @('compiled_files', 'compiled_sha256')
+        $inventoryPrefixes += 'compiled'
+    } else { throw 'Unknown role source protocol.' }
+    Assert-P4RequiredKeys $Role $required $Name
     foreach ($key in @('production_commit', 'build_commit')) {
         if ($Role[$key] -cnotmatch '^[0-9a-f]{40}$') { throw "Invalid $Name $key." }
     }
@@ -845,14 +1322,14 @@ function Assert-P4RoleSource {
     if ($sourceTree -cne $buildTree -or $buildTree -cne $Role.production_tree_sha256) {
         throw "Production tree mismatch: $Name"
     }
-    foreach ($prefix in @('measurement', 'compiled')) {
+    foreach ($prefix in $inventoryPrefixes) {
         if ((Get-P4FileInventoryHash $Role["${prefix}_files"]) -cne $Role["${prefix}_sha256"]) {
             throw "$Name $prefix aggregate mismatch."
         }
     }
-    Assert-P4MeasurementInventory $Role $Name
-    Assert-P4CompiledInventory $Role $Name
-    foreach ($kind in @('app_debug', 'test_debug', 'app_release_like', 'publication_test')) {
+    Assert-P4MeasurementInventory $Role $Name $ProtocolId
+    if (-not $phase) { Assert-P4CompiledInventory $Role $Name }
+    foreach ($kind in $kinds) {
         if (-not $Role.artifacts.Contains($kind)) { throw "Missing $Name APK: $kind" }
         Assert-P4FileRecord $Role.artifacts[$kind] "$Name.$kind"
         Assert-P4RequiredKeys $Role.artifacts[$kind] @('variant', 'target_package', 'test_package',
@@ -860,7 +1337,8 @@ function Assert-P4RoleSource {
         if ($Role.artifacts[$kind].embedded_revision -cne $Role.build_commit) { throw "APK source mismatch: $Name.$kind" }
         $packaged = if ($kind -eq 'app_release_like') { $Role.profile } else { $null }
         Assert-P4ApkIdentity $Role.artifacts[$kind] $Role.build_commit $packaged
-        Assert-P4ApkPackaging $Aapt2Path $Role.artifacts[$kind] $kind "$Name.$kind"
+        Assert-P4ApkPackaging $Aapt2Path $Role.artifacts[$kind] $kind "$Name.$kind" $ProtocolId
+        if ($phase) { Assert-P4LayerApkFixtureEntries $ProtocolId $Role.artifacts[$kind].path $kind }
     }
     Assert-P4RequiredKeys $Role.profile @('source', 'acceptance', 'pair', 'canonical', 'packaged_prof_sha256',
         'packaged_profm_sha256', 'generation_commit', 'generation_app_sha256', 'generation_test_sha256') "$Name.profile"

@@ -1,6 +1,8 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '../bounded-native-command.ps1')
+. (Join-Path $PSScriptRoot 'p4-device-private-transport.ps1')
+. (Join-Path $PSScriptRoot 'p4-operation-budget.ps1')
 
 # S5 device lanes. Every entrypoint below is derived from the candidate and baseline androidTest sources;
 # nothing here may be guessed. Sources of record:
@@ -65,8 +67,33 @@ function Assert-P4PackageName {
 function Get-P4LanePackages {
     param(
         [Parameter(Mandatory = $true)][System.Collections.IDictionary]$Manifest,
-        [Parameter(Mandatory = $true)][ValidateSet('baseline', 'candidate')][string]$Role
+        [Parameter(Mandatory = $true)][string]$Role,
+        [string]$ProtocolId = 'nene-pixel-p4-indexed-cutover-verification-v7'
     )
+    if ($ProtocolId -ceq 'nene-pixel-p4-layer-phase-verification-v1') {
+        $catalog = @(Get-P4LayerArtifactCatalog $ProtocolId | Where-Object { $_.role -ceq $Role })
+        if ($catalog.Count -ne 1 -or -not $Manifest.roles.Contains($Role)) { throw 'Unknown phase artifact role.' }
+        $artifacts = $Manifest.roles[$Role].artifacts
+        if ((($artifacts.Keys | Sort-Object) -join ',') -cne (($catalog[0].artifact_kinds | Sort-Object) -join ',')) {
+            throw 'Phase APK kind set differs.'
+        }
+        $application = Assert-P4PackageName ([string]$artifacts.app_debug.target_package) "$Role.app_debug"
+        $test = Assert-P4PackageName ([string]$artifacts.test_debug.test_package) "$Role.test_debug"
+        if ($application -ceq $test -or $artifacts.app_release_like.target_package -cne $application -or
+            $artifacts.test_debug.target_package -cne $application) { throw 'Phase app/test package binding differs.' }
+        $publication = if ($Role -ceq 'candidate') {
+            Assert-P4PackageName ([string]$artifacts.publication_test.test_package) "$Role.publication_test"
+        } else { $null }
+        if ($null -ne $publication -and ($publication -cin @($application, $test) -or
+                $artifacts.publication_test.target_package -cne $publication)) {
+            throw 'Phase publication must use its distinct self-instrumenting package.'
+        }
+        return [ordered]@{ application = $application; application_test = $test;
+            publication_test = $publication; publication_target = $publication }
+    }
+    if ($ProtocolId -cne 'nene-pixel-p4-indexed-cutover-verification-v7' -or $Role -cnotin @('baseline', 'candidate')) {
+        throw 'Unknown legacy package role/protocol.'
+    }
     $artifacts = $Manifest.roles[$Role].artifacts
     foreach ($kind in @('app_debug', 'test_debug', 'app_release_like', 'publication_test')) {
         if (-not $artifacts.Contains($kind)) { throw "Manifest role $Role is missing artifact '$kind'." }
@@ -112,7 +139,8 @@ function Get-P4InstrumentationArguments {
 function Get-P4FrameCollectorParameters {
     param(
         [Parameter(Mandatory = $true)][System.Collections.IDictionary]$Manifest,
-        [Parameter(Mandatory = $true)][System.Collections.IDictionary]$Slot
+        [Parameter(Mandatory = $true)][System.Collections.IDictionary]$Slot,
+        [string]$ManifestSha256
     )
     if (-not $Manifest.Contains('frame_experiment')) { throw 'The manifest declares no frame experiment.' }
     $experiment = $Manifest.frame_experiment
@@ -121,10 +149,21 @@ function Get-P4FrameCollectorParameters {
             throw "The frame experiment declaration is missing '$key'."
         }
     }
-    $baseline = $Manifest.roles.baseline
+    $phase = $Manifest.Contains('protocol') -and $Manifest.protocol.id -ceq 'nene-pixel-p4-layer-phase-verification-v1'
+    $baselineRole = 'baseline'; $artifactRole = $Slot.role
+    if ($phase) {
+        . (Join-Path $PSScriptRoot 'p4-layer-slot-routing.ps1')
+        $artifactRole = Resolve-P4ArtifactRole $Manifest.protocol.id $Slot.id
+        $group = @(Get-P4FrameGroupCatalog $Manifest.protocol.id | Where-Object { $_.id -ceq $Slot.group_id })[0]
+        $baselineRole = $group.baseline_artifact_role
+        $baselineGeometry = Get-P4LayerFrameGeometry $Manifest $baselineRole
+        $candidateGeometry = Get-P4LayerFrameGeometry $Manifest 'candidate'
+        $phaseContext = Get-P4LayerFramePhaseContext $Manifest $Slot $ManifestSha256
+    }
+    $baseline = $Manifest.roles[$baselineRole]
     $candidate = $Manifest.roles.candidate
-    $role = $Manifest.roles[$Slot.role]
-    return [ordered]@{
+    $role = $Manifest.roles[$artifactRole]
+    $parameters = [ordered]@{
         Variant = 'release-like'
         CompilationMode = 'speed-profile'
         DeviceSerial = [string]$Manifest.device.serial
@@ -138,10 +177,10 @@ function Get-P4FrameCollectorParameters {
         CandidateProductionCommit = [string]$candidate.production_commit
         BaselineProductionTreeSha256 = [string]$baseline.production_tree_sha256
         CandidateProductionTreeSha256 = [string]$candidate.production_tree_sha256
-        BaselineCanvas16SurfaceBounds = [string]$Manifest.device.baseline_canvas16_bounds
-        BaselineCanvas256SurfaceBounds = [string]$Manifest.device.baseline_canvas256_bounds
-        CandidateCanvas16SurfaceBounds = [string]$Manifest.device.candidate_canvas16_bounds
-        CandidateCanvas256SurfaceBounds = [string]$Manifest.device.candidate_canvas256_bounds
+        BaselineCanvas16SurfaceBounds = $(if ($phase) { if ($Slot.group_id -ceq 'single') { $baselineGeometry.canvas16_bounds } } else { [string]$Manifest.device.baseline_canvas16_bounds })
+        BaselineCanvas256SurfaceBounds = $(if ($phase) { $baselineGeometry.canvas256_bounds } else { [string]$Manifest.device.baseline_canvas256_bounds })
+        CandidateCanvas16SurfaceBounds = $(if ($phase) { if ($Slot.group_id -ceq 'single') { $candidateGeometry.canvas16_bounds } } else { [string]$Manifest.device.candidate_canvas16_bounds })
+        CandidateCanvas256SurfaceBounds = $(if ($phase) { $candidateGeometry.canvas256_bounds } else { [string]$Manifest.device.candidate_canvas256_bounds })
         BaselineApkSha256 = [string]$baseline.artifacts.app_release_like.sha256
         CandidateApkSha256 = [string]$candidate.artifacts.app_release_like.sha256
         BaselineProfileGenerationSourceCommit = [string]$baseline.profile.generation_commit
@@ -172,6 +211,13 @@ function Get-P4FrameCollectorParameters {
         Attempt = 1
         SampleCount = [int]$Slot.samples
     }
+    if ($phase) {
+        $parameters.PhaseContext = $phaseContext
+        if ($Slot.group_id -cne 'single') {
+            $parameters.Remove('BaselineCanvas16SurfaceBounds'); $parameters.Remove('CandidateCanvas16SurfaceBounds')
+        }
+    }
+    return $parameters
 }
 
 function Get-P4RecoveryQuarantinePlan {
@@ -519,6 +565,35 @@ function Get-P4CollectorBudget {
     $lane = [string]$Plan.lane
     $timeout = [int]$Plan.timeout_seconds
     if ($timeout -lt 1) { throw "Lane '$lane' has no positive slot timeout." }
+    if ($Plan.Contains('protocol_id') -and $Plan.protocol_id -ceq 'nene-pixel-p4-layer-phase-verification-v1') {
+        if ($lane -cnotin @('frame', 'memory', 'publication', 'saf-save')) { throw 'Unknown phase collector lane.' }
+        $installs = @($Plan.install_kinds).Count
+        $dexopts = @($Plan.dexopt_packages).Count
+        $probes = @($Plan.quiescence_packages).Count + 4 * $installs + $dexopts + @($Plan.private_files).Count
+        $budget = [ordered]@{ schema = 'nene-pixel-p4-layer-collector-budget-v1'; lane = $lane;
+            slot_id = $Plan.slot_id; derived = $true; timeout_seconds = $timeout;
+            instrumentation_seconds = [int]$Plan.inner_timeout_seconds;
+            frame_seconds = $(if ($lane -ceq 'frame') { $timeout } else { 0 });
+            setup_seconds = [int]$Plan.setup_timeout_seconds;
+            install_seconds = $installs * $script:P4InstallTimeoutSeconds;
+            dexopt_seconds = $dexopts * $script:P4DexoptTimeoutSeconds;
+            probe_count = $probes; probe_seconds = $probes * $script:P4ProbeTimeoutSeconds;
+            private_capture_seconds = 0; reserve_seconds = $script:P4CollectorReserveSeconds;
+            cap_seconds = $script:P4BoundedNativeCapSeconds }
+        $budget.collector_timeout_seconds = [int]($budget.instrumentation_seconds + $budget.frame_seconds +
+            $budget.setup_seconds + $budget.install_seconds + $budget.dexopt_seconds + $budget.probe_seconds +
+            $budget.reserve_seconds)
+        if ($lane -ceq 'frame') {
+            $budget.ui_setup_seconds = 300
+            $budget.release_identity_extra_seconds = 120
+            $budget.staging_capture_seconds = if (@($Plan.private_files).Count -gt 0) {
+                (2 * @($Plan.quiescence_packages).Count + @($Plan.private_files).Count) * $script:P4ProbeTimeoutSeconds
+            } else { 0 }
+            $budget.collector_timeout_seconds += $budget.ui_setup_seconds + $budget.release_identity_extra_seconds + $budget.staging_capture_seconds
+        }
+        Assert-P4CollectorBoundWithinCap $budget
+        return $budget
+    }
     if ($lane -ceq 'frame') {
         $frameBudget = [ordered]@{
             schema = $script:P4CollectorBudgetSchema
@@ -568,6 +643,123 @@ function Get-P4CollectorBudget {
     return $budget
 }
 
+function Get-P4LayerDeviceLanePlan {
+    param([Parameter(Mandatory)][Collections.IDictionary]$Manifest,
+        [Parameter(Mandatory)][Collections.IDictionary]$Slot,
+        [Parameter(Mandatory)][ValidatePattern('^[0-9a-f]{64}$')][string]$ManifestSha256)
+    $protocol = 'nene-pixel-p4-layer-phase-verification-v1'
+    if ($Manifest.protocol.id -cne $protocol) { throw 'Phase plan requires explicit phase protocol.' }
+    $matchesById = @(Get-P4SlotCatalog $protocol | Where-Object { $_.id -ceq $Slot.id })
+    if ($matchesById.Count -ne 1) { throw 'Unknown phase device slot.' }
+    $canonical = $matchesById[0]
+    if ((($Slot.Keys | Sort-Object) -join ',') -cne (($canonical.Keys | Sort-Object) -join ',')) {
+        throw 'Phase slot field set differs.'
+    }
+    foreach ($key in $canonical.Keys) {
+        if (($Slot[$key] | ConvertTo-Json -Depth 10 -Compress) -cne
+            ($canonical[$key] | ConvertTo-Json -Depth 10 -Compress)) { throw "Phase slot drift: $key" }
+    }
+    $role = Resolve-P4ArtifactRole $protocol $Slot.id
+    $source = $Manifest.roles[$role]
+    $artifact = @(Get-P4LayerArtifactCatalog $protocol | Where-Object { $_.role -ceq $role })[0]
+    if ($source.production_commit -cne $artifact.production_commit -or
+        $source.build_commit -cnotmatch '^[0-9a-f]{40}$' -or $source.build_commit -ceq $source.production_commit) {
+        throw 'Phase source identity differs.'
+    }
+    $packages = Get-P4LanePackages $Manifest $role $protocol
+    $candidatePackages = Get-P4LanePackages $Manifest 'candidate' $protocol
+    if ($packages.application -cne $candidatePackages.application -or
+        $packages.application_test -cne $candidatePackages.application_test) { throw 'Phase package identities differ between roles.' }
+    $context = [ordered]@{ protocol_id = $protocol; experiment_id = [string]$Manifest.experiment_id;
+        preflight_sha256 = $ManifestSha256; preservation_sha256 = [string]$Manifest.device.asset_preservation.sha256;
+        session = [string]$Manifest.device.asset_preservation.session; slot_id = [string]$Slot.id;
+        artifact_role = $role; measurement_build_commit = [string]$source.build_commit;
+        production_commit = [string]$source.production_commit; app_apk_sha256 = [string]$source.artifacts.app_debug.sha256;
+        test_apk_sha256 = [string]$source.artifacts.test_debug.sha256 }
+    foreach ($key in @('experiment_id', 'session')) {
+        if ($context[$key] -cnotmatch '^[a-z0-9][a-z0-9-]{2,63}$') { throw "Invalid phase $key" }
+    }
+    foreach ($key in @('preservation_sha256', 'app_apk_sha256', 'test_apk_sha256')) {
+        if ($context[$key] -cnotmatch '^[0-9a-f]{64}$') { throw "Invalid phase $key" }
+    }
+    $argumentKeys = [ordered]@{ protocol_id = 'p4LayerProtocolId'; experiment_id = 'p4LayerExperimentId';
+        preflight_sha256 = 'p4LayerPreflightSha256'; preservation_sha256 = 'p4LayerPreservationSha256';
+        session = 'p4LayerSession'; slot_id = 'p4LayerSlotId'; artifact_role = 'p4LayerArtifactRole';
+        measurement_build_commit = 'p4LayerBuildCommit'; production_commit = 'p4LayerProductionCommit';
+        app_apk_sha256 = 'p4LayerAppApkSha256'; test_apk_sha256 = 'p4LayerTestApkSha256' }
+    $arguments = [ordered]@{ p4LayerPreserved = 'true'; 'nene.p2.physicalProfileId' = $script:P4PhysicalProfileId }
+    foreach ($key in $context.Keys) { $arguments[$argumentKeys[$key]] = $context[$key] }
+    $prefix = $ManifestSha256.Substring(0, 12)
+    $plan = [ordered]@{ protocol_id = $protocol; lane = $Slot.lane; slot_id = $Slot.id;
+        role = $role; comparison_role = $Slot.role; phase_context = $context; packages = $packages;
+        quiescence_packages = @($packages.application, $packages.application_test, $candidatePackages.publication_test);
+        install_kinds = @('app_debug', 'test_debug'); dexopt_packages = @($packages.application);
+        timeout_seconds = [int]$Slot.timeout_seconds; inner_timeout_seconds = [int]$Slot.timeout_seconds;
+        setup_timeout_seconds = 0; expected_test_count = 1; test_package = $packages.application_test;
+        class = ''; instrumentation_arguments = $arguments; adb_arguments = @(); private_files = @();
+        private_file_quarantine = $null; recovery_quarantine = $null; frame_parameters = $null;
+        fixture_name = $null; report_capture_after_stop = $true }
+    $directory = ''; $reports = @(); $reportPackage = $packages.application
+    switch ($Slot.lane) {
+        'memory' {
+            $plan.class = 'io.github.hideyukimori.nenepixel.measurement.P4LayerEditorRetentionMeasurementTest'
+            $arguments.p4LayerCollect = 'editor-retention-v1'
+            $arguments.p4LayerMemoryRunIndex = [string]$Slot.run
+            $plan.fixture_name = "i89-145-$prefix-$($Slot.role)-$($Slot.run).nenepixel"
+        }
+        'publication' {
+            $plan.install_kinds = @('publication_test')
+            $plan.dexopt_packages = @($packages.publication_test)
+            $plan.test_package = $packages.publication_test
+            $plan.class = $script:P4PublicationClass
+            $arguments.p4LayerCollect = 'publication-v1'
+            $arguments['nene.p4.publicationEvidence'] = 'collect'
+            $arguments['nene.p4.publicationEvidenceRole'] = 'candidate'
+            $hash = [string]$source.artifacts.publication_test.sha256
+            if ($hash -cnotmatch '^[0-9a-f]{64}$') { throw 'Invalid publication APK hash.' }
+            $arguments.p4LayerPublicationApkSha256 = $hash
+            $context.publication_apk_sha256 = $hash
+            $directory = "p4-layer-publication-$prefix"
+            $reports = @('publication.csv', 'publication.status', 'identity.txt')
+            $reportPackage = $packages.publication_test
+        }
+        'saf-save' {
+            $plan.class = 'io.github.hideyukimori.nenepixel.measurement.P4LayerSafSaveMeasurementTest'
+            $arguments.p4LayerCollect = 'saf-save-v1'
+            $directory = "p4-layer-saf-$prefix"
+            $reports = @('save.csv', 'save.status', 'identity.txt', 'setup.csv')
+            $plan.fixture_name = "i89-145-$prefix-saf-source.nenepixel"
+        }
+        'frame' {
+            $plan.dexopt_packages = @()
+            $plan.inner_timeout_seconds = 0
+            if ($Slot.group_id -ceq 'single') {
+                $plan.install_kinds = @('app_debug')
+                $plan.test_package = ''
+            } else {
+                $plan.class = 'io.github.hideyukimori.nenepixel.measurement.P4LayerFrameFixturePreparationTest'
+                $arguments.p4LayerCollect = 'frame-fixtures-v1'
+                $plan.setup_timeout_seconds = 300
+                $extension = if ($Slot.group_id -ceq 'layers16') { 'nenepixel' } else { 'png' }
+                $plan.fixture_name = "i89-145-$prefix-frame-$($Slot.run)-$($Slot.group_id).$extension"
+                $directory = "p4-layer-frame-fixture-$prefix-$($Slot.run)"
+                $reports = @('fixture.txt')
+            }
+        }
+        default { throw 'Unknown phase lane.' }
+    }
+    $plan.private_files = @(foreach ($name in $reports) {
+        [ordered]@{ package = $reportPackage; relative_path = "files/$directory/$name";
+            destination_name = $name; timeout_seconds = 30; maximum_bytes = 1048576L }
+    })
+    if ($plan.class -cne '') {
+        $plan.adb_arguments = @(Get-P4InstrumentationArguments $plan.test_package $plan.class $arguments)
+    }
+    $plan.collector_budget = Get-P4CollectorBudget $plan
+    $plan.collector_timeout_seconds = $plan.collector_budget.collector_timeout_seconds
+    return $plan
+}
+
 function Get-P4DeviceLanePlan {
     <#
         Pure, device-free description of exactly what a device lane will do. The collector executes this
@@ -575,8 +767,12 @@ function Get-P4DeviceLanePlan {
     #>
     param(
         [Parameter(Mandatory = $true)][System.Collections.IDictionary]$Manifest,
-        [Parameter(Mandatory = $true)][System.Collections.IDictionary]$Slot
+        [Parameter(Mandatory = $true)][System.Collections.IDictionary]$Slot,
+        [string]$ManifestSha256
     )
+    if ($Manifest.Contains('protocol') -and $Manifest.protocol.id -ceq 'nene-pixel-p4-layer-phase-verification-v1') {
+        return Get-P4LayerDeviceLanePlan -Manifest $Manifest -Slot $Slot -ManifestSha256 $ManifestSha256
+    }
     $role = [string]$Slot.role
     $packages = Get-P4LanePackages -Manifest $Manifest -Role $role
     $buildCommit = [string]$Manifest.roles[$role].build_commit
@@ -713,27 +909,48 @@ function Invoke-P4BoundedAdb {
         [Parameter(Mandatory = $true)][string[]]$AdbArguments,
         [Parameter(Mandatory = $true)][int]$TimeoutSeconds
     )
-    return Invoke-BoundedNativeCommand -RepositoryRoot $Context.repository_root `
+    $nativeTimeout = Get-P4OperationTimeout $Context $TimeoutSeconds
+    $result = Invoke-BoundedNativeCommand -RepositoryRoot $Context.repository_root `
         -LogPath (Join-Path $Context.output_directory $LogName) `
         -ExecutablePath $Context.adb_path `
         -NativeArguments (@('-s', $Context.serial) + $AdbArguments) `
-        -TimeoutSeconds $TimeoutSeconds
+        -TimeoutSeconds $nativeTimeout
+    Assert-P4OperationActive $Context
+    return $result
 }
 
 function Invoke-P4RawAdbCapture {
     <#
-        Binary-safe private-file capture. `adb exec-out` streams raw bytes, so this cannot go through
-        the text launcher of Invoke-BoundedNativeCommand. It still runs inside the same kill-on-close
-        Windows Job boundary: the Job is created first and the process assigned immediately after
-        Start(), and both stdout and stderr drain asynchronously so WaitForExit stays the only bound.
-        adb is a thin client over the already-running adb server, so the short window between Start()
-        and assignment cannot leave an unbounded descendant behind.
+        Binary-safe capture for the existing private-file caller and bounded archive/APK files.
+        The process uses the existing kill-on-close Job; all pipe and exit waits share one deadline.
     #>
     param(
         [Parameter(Mandatory = $true)][string]$AdbPath,
         [Parameter(Mandatory = $true)][string[]]$AdbArguments,
-        [Parameter(Mandatory = $true)][int]$TimeoutSeconds
+        [Parameter(Mandatory = $true)][ValidateRange(1, 3600)][int]$TimeoutSeconds,
+        [string]$DestinationPath,
+        [string]$RecordPath,
+        [long]$MaximumBytes
     )
+    $fileMode = $PSBoundParameters.ContainsKey('DestinationPath')
+    foreach ($name in @('RecordPath', 'MaximumBytes')) {
+        if ($PSBoundParameters.ContainsKey($name) -ne $fileMode) {
+            throw 'DestinationPath, RecordPath and MaximumBytes must be supplied together.'
+        }
+    }
+    if ($fileMode) {
+        if ($MaximumBytes -lt 0) { throw 'MaximumBytes must be non-negative.' }
+        $DestinationPath = [IO.Path]::GetFullPath($DestinationPath)
+        $RecordPath = [IO.Path]::GetFullPath($RecordPath)
+        $commandRecordPath = "$RecordPath.command.json"
+        $paths = @($DestinationPath, $RecordPath, $commandRecordPath)
+        if (@($paths | Select-Object -Unique).Count -ne 3) { throw 'Capture output paths must be distinct.' }
+        foreach ($path in $paths) {
+            if ([IO.File]::Exists($path) -or [IO.Directory]::Exists($path)) {
+                throw "Capture output path already exists: $path"
+            }
+        }
+    }
     $startInfo = [Diagnostics.ProcessStartInfo]::new()
     $startInfo.FileName = [IO.Path]::GetFullPath($AdbPath)
     foreach ($argument in $AdbArguments) { $startInfo.ArgumentList.Add($argument) }
@@ -743,46 +960,150 @@ function Invoke-P4RawAdbCapture {
     $startInfo.RedirectStandardError = $true
     $process = [Diagnostics.Process]::new()
     $process.StartInfo = $startInfo
-    $buffer = [IO.MemoryStream]::new()
+    $output = $null
+    $resultStream = $null
     $job = [IntPtr]::Zero
+    $started = $false
+    $timedOut = $false
+    $byteLimitExceeded = $false
+    $byteCount = [long]0
+    $exitCode = $null
+    $stderr = $null
+    $failure = $null
+    $quiescent = $null
+    $timer = [Diagnostics.Stopwatch]::new()
     $timeoutMilliseconds = $TimeoutSeconds * 1000
     try {
+        if ($fileMode) {
+            # Reserve every output before starting the process. CreateNew also closes the race after
+            # the explicit collision check; a partial destination is never removed on failure.
+            $output = [IO.File]::Open($DestinationPath, [IO.FileMode]::CreateNew,
+                [IO.FileAccess]::Write, [IO.FileShare]::Read)
+            $resultStream = [IO.File]::Open($RecordPath, [IO.FileMode]::CreateNew,
+                [IO.FileAccess]::Write, [IO.FileShare]::Read)
+            $command = [ordered]@{
+                schema = 'nene-pixel-p4-binary-capture-command-v1'
+                executable = $startInfo.FileName
+                arguments = @($AdbArguments)
+                destination_path = $DestinationPath
+                maximum_bytes = $MaximumBytes
+                timeout_seconds = $TimeoutSeconds
+            }
+            Write-NewInvocationFile $commandRecordPath ($command | ConvertTo-Json -Depth 5)
+        } else {
+            $output = [IO.MemoryStream]::new()
+        }
+        $timer.Start()
         $job = New-InvocationJob
         if (-not $process.Start()) { throw 'The private-file capture did not start adb.' }
+        $started = $true
         if (-not [NenePixelBaselineProfile.JobNativeMethods]::AssignProcessToJobObject($job, $process.Handle)) {
             throw 'AssignProcessToJobObject failed with Win32 error ' +
                 "$([Runtime.InteropServices.Marshal]::GetLastWin32Error())."
         }
-        $copy = $process.StandardOutput.BaseStream.CopyToAsync($buffer)
         $standardErrorTask = $process.StandardError.ReadToEndAsync()
-        if (-not $process.WaitForExit($timeoutMilliseconds)) {
-            try { $process.Kill($true) } catch { }
-            $terminated = [NenePixelBaselineProfile.JobNativeMethods]::TerminateJobObject($job, 124)
-            $quiescent = $false
-            if ($terminated) {
-                $quiescent = Wait-InvocationJobEmpty -Job $job -DeadlineUtc ([datetime]::UtcNow.AddSeconds(10))
+        $chunk = [byte[]]::new(81920)
+        while ($true) {
+            $remaining = [int][Math]::Max(0, $timeoutMilliseconds - $timer.ElapsedMilliseconds)
+            $read = $process.StandardOutput.BaseStream.ReadAsync($chunk, 0, $chunk.Length)
+            if (-not $read.Wait($remaining)) {
+                $timedOut = $true
+                throw "The private-file capture exceeded its $TimeoutSeconds second bound while reading stdout."
             }
-            throw "The private-file capture exceeded its $TimeoutSeconds second bound " +
-                "(job terminated: $terminated, quiescent: $quiescent)."
+            $count = $read.GetAwaiter().GetResult()
+            if ($count -eq 0) { break }
+            $writeCount = $count
+            if ($fileMode) {
+                $available = $MaximumBytes - $byteCount
+                $writeCount = [int][Math]::Min([long]$count, $available)
+            }
+            if ($writeCount -gt 0) {
+                $output.Write($chunk, 0, $writeCount)
+                $byteCount += $writeCount
+            }
+            if ($fileMode -and $writeCount -lt $count) {
+                $byteLimitExceeded = $true
+                throw "The private-file capture exceeded its $MaximumBytes byte limit."
+            }
+            if ($timer.ElapsedMilliseconds -ge $timeoutMilliseconds) {
+                $timedOut = $true
+                throw "The private-file capture exceeded its $TimeoutSeconds second bound while writing stdout."
+            }
         }
-        if (-not $copy.Wait($timeoutMilliseconds) -or -not $standardErrorTask.Wait($timeoutMilliseconds)) {
-            throw 'The private-file capture did not drain within its bound.'
+        $remaining = [int][Math]::Max(0, $timeoutMilliseconds - $timer.ElapsedMilliseconds)
+        if (-not $standardErrorTask.Wait($remaining)) {
+            $timedOut = $true
+            throw "The private-file capture exceeded its $TimeoutSeconds second bound while draining stderr."
         }
-        if ($process.ExitCode -ne 0) {
-            throw "The private-file capture failed ($($process.ExitCode)): $($standardErrorTask.Result)"
+        $stderr = $standardErrorTask.GetAwaiter().GetResult()
+        $remaining = [int][Math]::Max(0, $timeoutMilliseconds - $timer.ElapsedMilliseconds)
+        if (-not $process.WaitForExit($remaining)) {
+            $timedOut = $true
+            throw "The private-file capture exceeded its $TimeoutSeconds second bound while waiting for exit."
         }
-        $bytes = $buffer.ToArray()
-        if ($bytes.Length -le 0) { throw 'The private-file capture returned no bytes.' }
-        return $bytes
+        $exitCode = $process.ExitCode
+        if ($timer.ElapsedMilliseconds -ge $timeoutMilliseconds) {
+            $timedOut = $true
+            throw "The private-file capture exceeded its $TimeoutSeconds second bound before completion."
+        }
+        if ($exitCode -ne 0) { throw "The private-file capture failed ($exitCode): $stderr" }
+        if (-not $fileMode -and $byteCount -le 0) { throw 'The private-file capture returned no bytes.' }
+        if (-not $fileMode) { return $output.ToArray() }
     }
+    catch { $failure = $_ }
     finally {
-        $buffer.Dispose()
+        if ($null -ne $failure -and $started) {
+            try { if (-not $process.HasExited) { $process.Kill($true) } } catch { }
+            if ($job -ne [IntPtr]::Zero) {
+                $terminated = [NenePixelBaselineProfile.JobNativeMethods]::TerminateJobObject($job, 124)
+                $quiescent = $false
+                if ($terminated) {
+                    $quiescent = Wait-InvocationJobEmpty -Job $job -DeadlineUtc ([datetime]::UtcNow.AddSeconds(10))
+                }
+                if (-not $quiescent) {
+                    $failure = [Management.Automation.ErrorRecord]::new(
+                        [InvalidOperationException]::new("$($failure.Exception.Message) Job quiescence was not confirmed."),
+                        'P4CaptureQuiescence', [Management.Automation.ErrorCategory]::OperationStopped, $null)
+                }
+            }
+            try { if ($process.HasExited) { $exitCode = $process.ExitCode } } catch { }
+        }
+        if ($null -ne $output) { $output.Dispose() }
+        $timer.Stop()
         $process.Dispose()
         if ($job -ne [IntPtr]::Zero) {
-            # Kill-on-close: releasing the last handle terminates anything still assigned to the Job.
             [NenePixelBaselineProfile.JobNativeMethods]::CloseHandle($job) | Out-Null
         }
+        if ($fileMode -and $null -ne $resultStream) {
+            $hash = $null
+            if ([IO.File]::Exists($DestinationPath)) {
+                $hash = (Get-FileHash -LiteralPath $DestinationPath -Algorithm SHA256).Hash.ToLowerInvariant()
+            }
+            $result = [ordered]@{
+                schema = 'nene-pixel-p4-binary-capture-result-v1'
+                status = $(if ($null -eq $failure) { 'success' } else { 'failure' })
+                exit_code = $exitCode
+                error = $(if ($null -eq $failure) { $null } else { $failure.Exception.Message })
+                stderr = $stderr
+                path = $DestinationPath
+                byte_count = $byteCount
+                bytes_written = $byteCount
+                sha256 = $hash
+                timed_out = $timedOut
+                byte_limit_exceeded = $byteLimitExceeded
+                job_quiescent_after_failure = $quiescent
+                elapsed_milliseconds = $timer.ElapsedMilliseconds
+                destination_path = $DestinationPath
+                command_record_path = $commandRecordPath
+            }
+            try {
+                $encoded = [Text.UTF8Encoding]::new($false).GetBytes(($result | ConvertTo-Json -Depth 5))
+                $resultStream.Write($encoded, 0, $encoded.Length)
+            } finally { $resultStream.Dispose() }
+        }
     }
+    if ($null -ne $failure) { throw $failure }
+    if ($fileMode) { return $result }
 }
 
 function Assert-P4RemotePackagesStopped {
@@ -820,16 +1141,54 @@ function Assert-P4InstalledApk {
     $expected = [string]$artifact.sha256
     if ($expected -cnotmatch '^[0-9a-f]{64}$') { throw "Artifact $Role.$Kind has no fixed SHA-256." }
     $observed = Get-P4InstalledApkSha256 -Context $Context -Package $package -Stage "$Kind-before"
+    $phase = $Manifest.Contains('protocol') -and $Manifest.protocol.id -ceq 'nene-pixel-p4-layer-phase-verification-v1'
     $installed = $false
-    if ($observed -cne $expected) {
-        $install = Invoke-P4BoundedAdb -Context $Context -LogName "install-$Kind.log" `
-            -AdbArguments @('install', '-r', '-t', [string]$artifact.path) `
-            -TimeoutSeconds $script:P4InstallTimeoutSeconds
-        if ($install.ExitCode -ne 0) { throw "Installing $Role.$Kind failed with exit $($install.ExitCode)." }
-        $installed = $true
-        $observed = Get-P4InstalledApkSha256 -Context $Context -Package $package -Stage "$Kind-after"
-        if ($observed -cne $expected) { throw "The installed $Role.$Kind base APK does not match its fixed identity." }
+    $attempted = $false; $failure = $null; $before = $observed; $readbackError = $null
+    if ($phase) {
+        $intent = [ordered]@{ schema = 'nene-pixel-p4-device-install-intent-v1'; role = $Role; kind = $Kind;
+            package = $package; before_sha256 = $before; expected_sha256 = $expected;
+            artifact_path = [string]$artifact.path; action = $(if ($before -ceq $expected) { 'verify-existing' } else { 'install' });
+            created_utc = [datetime]::UtcNow.ToString('o') }
+        foreach ($name in @("install-$Kind-intent.json", "install-$Kind.json")) {
+            if (Test-Path -LiteralPath (Join-Path $Context.output_directory $name)) { throw 'Phase install evidence already exists.' }
+        }
+        Write-NewInvocationFile (Join-Path $Context.output_directory "install-$Kind-intent.json") ($intent | ConvertTo-Json)
     }
+    try {
+        if ($observed -cne $expected) {
+            $attempted = $true
+            $install = Invoke-P4BoundedAdb -Context $Context -LogName "install-$Kind.log" `
+                -AdbArguments @('install', '-r', '-t', [string]$artifact.path) `
+                -TimeoutSeconds $script:P4InstallTimeoutSeconds
+            if ($install.ExitCode -ne 0) { throw "Installing $Role.$Kind failed with exit $($install.ExitCode)." }
+            $installed = $true
+            if (-not $phase) {
+                $observed = Get-P4InstalledApkSha256 -Context $Context -Package $package -Stage "$Kind-after"
+                if ($observed -cne $expected) { throw "The installed $Role.$Kind base APK does not match its fixed identity." }
+            }
+        }
+    } catch { $failure = $_ }
+    finally {
+        if ($phase) {
+            if ($attempted) {
+                $observed = 'unconfirmed'
+                try { $observed = Get-P4InstalledApkSha256 -Context $Context -Package $package -Stage "$Kind-after" }
+                catch { $readbackError = $_.Exception.Message; if ($null -eq $failure) { $failure = $_ } }
+            }
+            if ($null -eq $failure -and $observed -cne $expected) {
+                $failure = [InvalidOperationException]::new('Installed phase APK does not match its fixed identity.')
+            }
+            $record = [ordered]@{ schema = 'nene-pixel-p4-device-install-v2'; kind = $Kind; role = $Role;
+                package = $package; expected_sha256 = $expected; before_sha256 = $before; observed_sha256 = $observed;
+                attempted = $attempted; installed = $installed; status = $(if ($null -eq $failure) { 'success' } else { 'failure' });
+                intent_sha256 = Get-FileSha256 (Join-Path $Context.output_directory "install-$Kind-intent.json");
+                error = $(if ($null -eq $failure) { $null } else { [string]$failure }); readback_error = $readbackError;
+                recorded_utc = [datetime]::UtcNow.ToString('o') }
+            Write-NewInvocationFile (Join-Path $Context.output_directory "install-$Kind.json") ($record | ConvertTo-Json -Depth 5)
+        }
+    }
+    if ($null -ne $failure) { throw $failure }
+    if ($phase) { return $record }
     $record = [ordered]@{
         schema = 'nene-pixel-p4-device-install-v1'
         kind = $Kind
@@ -926,11 +1285,13 @@ function Copy-P4PrivateFile {
         [Parameter(Mandatory = $true)][string]$Destination
     )
     if (Test-Path -LiteralPath $Destination) { throw "Private-file destination already exists: $Destination" }
+    $nativeTimeout = Get-P4OperationTimeout $Context $script:P4PrivateFileTimeoutSeconds
     $bytes = Invoke-P4RawAdbCapture -AdbPath $Context.adb_path `
         -AdbArguments @('-s', $Context.serial, 'exec-out', 'run-as', $Package, 'cat', $RelativePath) `
-        -TimeoutSeconds $script:P4PrivateFileTimeoutSeconds
+        -TimeoutSeconds $nativeTimeout
     $stream = [IO.File]::Open($Destination, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::Read)
     try { $stream.Write($bytes, 0, $bytes.Length) } finally { $stream.Dispose() }
+    Assert-P4OperationActive $Context
     return [ordered]@{ package = $Package; relative_path = $RelativePath; byte_count = $bytes.Length }
 }
 
@@ -985,13 +1346,21 @@ function Invoke-P4InstrumentationLane {
     }
     # Protocol v5: the instrumentation gets exactly `timeout_seconds`. The outer wrapper Job is bounded
     # by the derived collector budget, which is strictly larger, so the outer kill can never precede it.
-    $innerTimeout = [int]$Plan.inner_timeout_seconds
-    if ($innerTimeout -ne [int]$Plan.timeout_seconds) {
+    $phaseFrame = $Plan.Contains('protocol_id') -and $Plan.protocol_id -ceq 'nene-pixel-p4-layer-phase-verification-v1' -and $Plan.lane -ceq 'frame'
+    if ($phaseFrame -and $Plan.setup_timeout_seconds -eq 0 -and $Plan.class -ceq '' -and @($Plan.private_files).Count -eq 0) {
+        return @()
+    }
+    $innerTimeout = if ($phaseFrame) { [int]$Plan.setup_timeout_seconds } else { [int]$Plan.inner_timeout_seconds }
+    if (($phaseFrame -and $innerTimeout -ne 300) -or (-not $phaseFrame -and $innerTimeout -ne [int]$Plan.timeout_seconds)) {
         throw 'The instrumentation bound must equal the protocol slot timeout.'
     }
     if ($innerTimeout -lt 1) { throw 'The slot timeout leaves no room for a bounded instrumentation run.' }
     Invoke-P4Instrumentation -Context $Context -AdbArguments $Plan.adb_arguments `
         -TimeoutSeconds $innerTimeout -ExpectedTestCount ([int]$Plan.expected_test_count) | Out-Null
+    if ($Plan.Contains('report_capture_after_stop') -and $Plan.report_capture_after_stop) {
+        # The wrapper owns stopped capture on success, failure and timeout. No live copy or quarantine.
+        return @()
+    }
     $copied = [Collections.Generic.List[object]]::new()
     foreach ($file in $Plan.private_files) {
         $copied.Add(
@@ -1000,6 +1369,65 @@ function Invoke-P4InstrumentationLane {
         )
     }
     return $copied.ToArray()
+}
+
+function Copy-P4LayerPrivateReports {
+    param([Parameter(Mandatory)][Collections.IDictionary]$Context,
+        [Parameter(Mandatory)][Collections.IDictionary]$Plan)
+    if ($Plan.protocol_id -cne 'nene-pixel-p4-layer-phase-verification-v1' -or -not $Plan.report_capture_after_stop) {
+        throw 'Stopped report capture requires a phase plan.'
+    }
+    $recordPath = Join-Path $Context.output_directory 'private-report-capture.json'
+    if (Test-Path -LiteralPath $recordPath) { throw 'Phase report capture already exists.' }
+    foreach ($file in $Plan.private_files) {
+        if ($file.destination_name -cnotmatch '^[a-z][a-z.]+$') { throw 'Unsafe phase report destination.' }
+        foreach ($suffix in @('', '.base64', '.transfer.json', '.transfer.json.encoded.json', '.transfer.json.encoded.json.command.json')) {
+            if (Test-Path -LiteralPath (Join-Path $Context.output_directory ($file.destination_name + $suffix))) {
+                throw 'Phase report destination is occupied.'
+            }
+        }
+    }
+    $results = [Collections.Generic.List[object]]::new()
+    $failure = $null
+    try {
+        Assert-P4RemotePackagesStopped $Context $Plan.quiescence_packages 'phase-report-capture'
+        foreach ($file in $Plan.private_files) {
+            $capture = [ordered]@{ package = $file.package; relative_path = $file.relative_path;
+                destination_name = $file.destination_name; status = 'failure'; error = $null }
+            try {
+                [void](Assert-P4PackageName $file.package 'phase report')
+                [void](Assert-P4PrivateRelativePath $file.relative_path 'phase report')
+                $package = ConvertTo-P4ShellWord $file.package
+                $relative = ConvertTo-P4ShellWord $file.relative_path
+                $guard = 'p=$(pidof ' + $package + '); r=$?; [ "$r" = 1 ] && [ -z "$p" ] || exit 81'
+                $components = $file.relative_path.Split('/')
+                $checks = @(for ($i = 0; $i -lt $components.Length; $i++) {
+                    '[ ! -L ' + (ConvertTo-P4ShellWord ($components[0..$i] -join '/')) + ' ] || exit 82'
+                }) -join '; '
+                $read = $checks + '; [ -e ' + $relative + ' ] || { printf p4-report-missing >&2; exit 44; }; ' +
+                    '[ -f ' + $relative + ' ] && [ "$(stat -c %h ' + $relative + ')" = 1 ] || exit 83; cat ' + $relative
+                $remote = $guard + '; run-as ' + $package + ' sh -c ' + (ConvertTo-P4ShellWord $read) +
+                    '; read_status=$?; ' + $guard + '; exit "$read_status"'
+                $destination = Join-Path $Context.output_directory $file.destination_name
+                $nativeTimeout = Get-P4OperationTimeout $Context ([int]$file.timeout_seconds)
+                $transfer = Invoke-P4EncodedShellCapture -AdbPath $Context.adb_path -Serial $Context.serial `
+                    -Script $remote -TimeoutSeconds $nativeTimeout -DestinationPath $destination `
+                    -RecordPath "$destination.transfer.json" -MaximumBytes ([long]$file.maximum_bytes)
+                Assert-P4OperationActive $Context
+                $capture.status = 'captured'; $capture.byte_count = $transfer.byte_count; $capture.sha256 = $transfer.sha256
+            } catch { $capture.error = $_.Exception.Message; if ($null -eq $failure) { $failure = $_ } }
+            $results.Add($capture)
+        }
+    } catch { if ($null -eq $failure) { $failure = $_ } }
+    finally {
+        $record = [ordered]@{ schema = 'nene-pixel-p4-layer-report-capture-v1'; slot_id = $Plan.slot_id;
+            status = $(if ($null -eq $failure) { 'success' } else { 'failure' });
+            expected_count = @($Plan.private_files).Count; reports = $results.ToArray();
+            error = $(if ($null -eq $failure) { $null } else { [string]$failure }); deleted = $false }
+        Write-NewInvocationFile $recordPath ($record | ConvertTo-Json -Depth 8)
+    }
+    if ($null -ne $failure) { throw $failure }
+    return $record
 }
 
 function Get-P4TextSha256 {
@@ -1188,15 +1616,28 @@ function Invoke-P4RecoveryQuarantine {
 function New-P4FrameSlotRecord {
     param(
         [Parameter(Mandatory = $true)][System.Collections.IDictionary]$Context,
-        [Parameter(Mandatory = $true)][string]$FrameSlotDirectory
+        [Parameter(Mandatory = $true)][string]$FrameSlotDirectory,
+        [Collections.IDictionary]$PhaseContext
     )
     $root = [IO.Path]::GetFullPath($FrameSlotDirectory)
     if (-not (Test-Path -LiteralPath $root -PathType Container)) {
         throw "The frame collector did not produce its slot directory: $root"
     }
     $files = [Collections.Generic.List[object]]::new()
+    $phase = $PSBoundParameters.ContainsKey('PhaseContext')
+    if ($phase) {
+        . (Join-Path $PSScriptRoot 'p4-layer-slot-routing.ps1')
+        Assert-P4FrameExactKeys $PhaseContext @('protocol_id','slot_id','preflight_sha256','production_commit','baseline_reference') 'frame slot context'
+        if ($PhaseContext.protocol_id -cne 'nene-pixel-p4-layer-phase-verification-v1' -or
+            $PhaseContext.preflight_sha256 -cnotmatch '\A[0-9a-f]{64}\z' -or
+            $PhaseContext.production_commit -cnotmatch '\A[0-9a-f]{40}\z') { throw 'Invalid phase frame record context.' }
+        $contract = Get-P4FrameExecutionContract $PhaseContext.protocol_id $PhaseContext.slot_id
+        if ((Split-Path -Leaf $root) -cne $contract.frame_directory_name) { throw 'Phase frame directory differs from its slot.' }
+        Assert-P4SealPathNotLinked $root
+    }
     foreach ($item in @(Get-ChildItem -LiteralPath $root -Recurse -File -Force | Sort-Object -Property FullName)) {
         $full = [IO.Path]::GetFullPath($item.FullName)
+        if ($phase) { Assert-P4SealPathNotLinked $full }
         $relative = $full.Substring($root.Length).TrimStart([char]'\', [char]'/').Replace('\', '/')
         $files.Add([ordered]@{ relative_path = $relative; byte_count = $item.Length; sha256 = (Get-FileHash -LiteralPath $full -Algorithm SHA256).Hash.ToLowerInvariant() })
     }
@@ -1207,6 +1648,11 @@ function New-P4FrameSlotRecord {
         files = $files.ToArray()
         recorded_utc = [datetime]::UtcNow.ToString('o')
     }
-    Write-NewInvocationFile (Join-Path $Context.output_directory 'frame-slot.json') ($record | ConvertTo-Json -Depth 6)
+    if ($phase) {
+        $record.schema = 'nene-pixel-p4-frame-slot-v2'
+        $record.phase_context = $PhaseContext; $record.slot_id = $contract.slot_id
+        $record.artifact_role = $contract.artifact_role
+    }
+    Write-NewInvocationFile (Join-Path $Context.output_directory 'frame-slot.json') ($record | ConvertTo-Json -Depth 12)
     return $record
 }

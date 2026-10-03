@@ -6,6 +6,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'p4-indexed-preflight.ps1')
+. (Join-Path $PSScriptRoot 'p4-indexed-capture-seal.ps1')
 . (Join-Path $PSScriptRoot 'android-window-state.ps1')
 # S1 live device-state contract. It is dot-sourced when present; every call site first asserts that the
 # contract functions exist, so a missing or renamed contract fails closed at the first device admission
@@ -25,7 +26,6 @@ if (Test-Path -LiteralPath $script:P4DeviceLanesScriptPath -PathType Leaf) { . $
 $script:P4CleanupReserveSeconds = 90
 $script:P4AnalysisTimeoutSeconds = 120
 $script:P4CaptureDrainSeconds = 5
-$script:P4CaptureSealSchema = 'nene-pixel-p4-capture-seal-v1'
 $script:P4QuiescenceSchema = 'nene-pixel-p4-quiescence-v1'
 $script:P4WorktreeStateSchema = 'nene-pixel-p4-worktree-state-v1'
 $script:P4RestorationSchema = 'nene-pixel-p4-restoration-v1'
@@ -377,24 +377,6 @@ function New-P4CaptureSeal {
     return $seal
 }
 
-function Resolve-P4SealedFilePath {
-    param($Seal, [string]$SlotDirectory, [string]$RelativePath)
-    if ($RelativePath -cmatch '(^/|\\|(^|/)\.\.(/|$)|[\r\n\t])') { throw "Invalid sealed relative path: $RelativePath" }
-    if ($RelativePath.StartsWith('external/', [StringComparison]::Ordinal)) {
-        $parts = $RelativePath.Split('/', 3)
-        if ($parts.Count -ne 3 -or [string]::IsNullOrWhiteSpace($parts[2])) {
-            throw "Malformed sealed external path: $RelativePath"
-        }
-        if ($null -eq $Seal -or -not $Seal.Contains('external_directories')) {
-            throw 'The capture seal does not declare its external directories.'
-        }
-        $match = @(@($Seal.external_directories) | Where-Object { [string]$_.name -ceq $parts[1] })
-        if ($match.Count -ne 1) { throw "Sealed external directory is undeclared: $($parts[1])" }
-        return (Join-Path ([string]$match[0].path) ($parts[2].Replace('/', [IO.Path]::DirectorySeparatorChar)))
-    }
-    return (Join-Path $SlotDirectory ($RelativePath.Replace('/', [IO.Path]::DirectorySeparatorChar)))
-}
-
 function Assert-P4AnalysisSealAgreement {
     param($Analysis, $Seal, $Slot)
     if ($null -eq $Seal) { throw 'The analyzer ran without a capture seal.' }
@@ -479,26 +461,8 @@ function Assert-P4CompletedChain {
         }
         Assert-P4RequiredKeys $result @('capture_seal_sha256', 'analysis_sha256', 'restoration_sha256',
             'worktree_after_sha256') "completed.$($prior.id)"
-        $sealPath = Join-Path $priorDirectory 'capture-seal.json'
-        if (-not (Test-Path -LiteralPath $sealPath -PathType Leaf) -or
-            (Get-FileSha256 $sealPath) -cne [string]$result.capture_seal_sha256) {
-            throw "Completed chain drifted: capture seal of $($prior.id)"
-        }
-        $seal = Get-Content -LiteralPath $sealPath -Raw | ConvertFrom-Json -AsHashtable
-        if ([string]$seal.schema -cne $script:P4CaptureSealSchema -or [string]$seal.slot_id -cne $prior.id) {
-            throw "Completed chain drifted: capture seal identity of $($prior.id)"
-        }
-        foreach ($file in @($seal.files)) {
-            $sealedPath = Resolve-P4SealedFilePath -Seal $seal -SlotDirectory $priorDirectory `
-                -RelativePath ([string]$file.relative_path)
-            if (-not (Test-Path -LiteralPath $sealedPath -PathType Leaf)) {
-                throw "Completed chain drifted: sealed file is missing ($($prior.id)/$($file.relative_path))"
-            }
-            $item = Get-Item -LiteralPath $sealedPath
-            if ($item.Length -ne [long]$file.byte_count -or (Get-FileSha256 $sealedPath) -cne [string]$file.sha256) {
-                throw "Completed chain drifted: sealed file changed ($($prior.id)/$($file.relative_path))"
-            }
-        }
+        Read-P4VerifiedCaptureSeal -SlotDirectory $priorDirectory -SlotId $prior.id `
+            -ExpectedSha256 ([string]$result.capture_seal_sha256) | Out-Null
         $analysisPath = Join-Path $priorDirectory 'analysis.json'
         if (-not (Test-Path -LiteralPath $analysisPath -PathType Leaf) -or
             (Get-FileSha256 $analysisPath) -cne [string]$result.analysis_sha256) {

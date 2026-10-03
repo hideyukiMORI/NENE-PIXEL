@@ -1,0 +1,76 @@
+import org.gradle.api.tasks.JavaExec
+import org.gradle.api.tasks.testing.Test
+
+// Explicit #145 measurement builds only: one checked source directory for both test APKs.
+// Host export: ./gradlew -I docs/quality/measurements/p4-layer-phase-fixture.init.gradle
+//   :adapters:persistence:layerPhaseFixtureExport -Pp4LayerFixtureOutput=<fresh-absolute-file> --offline
+gradle.projectsEvaluated {
+    def persistence = rootProject.findProject(':adapters:persistence')
+    def app = rootProject.findProject(':app:android')
+    if (persistence == null || app == null) return // Included build has neither module.
+
+    def fixtureDirectory = rootProject.file('docs/quality/fixtures/p4-layer-phase')
+    [persistence, app].each { project ->
+        project.extensions.getByName('android').sourceSets.getByName('androidTest').assets.srcDir(fixtureDirectory)
+    }
+
+    def debugTest = persistence.tasks.named('testDebugUnitTest', Test)
+    persistence.tasks.register('layerPhaseFixtureExport', JavaExec) { task ->
+        def output = persistence.providers.gradleProperty('p4LayerFixtureOutput').orNull
+        group = 'verification'
+        description = 'Exports the canonical #145 project to one new explicit file.'
+        dependsOn persistence.tasks.named('compileDebugUnitTestKotlin')
+        mainClass.set('io.github.hideyukimori.nenepixel.adapters.persistence.LayerPhaseFixtureExport')
+        classpath = debugTest.get().classpath + debugTest.get().testClassesDirs
+        if (output != null) args output
+        outputs.upToDateWhen { false }
+    }
+    persistence.tasks.register('layerPhaseUnderlayFixtureExport', JavaExec) { task ->
+        def output = persistence.providers.gradleProperty('p4UnderlayFixtureOutput').orNull
+        group = 'verification'
+        description = 'Exports the canonical #145 underlay PNG to one new explicit file.'
+        dependsOn persistence.tasks.named('compileDebugUnitTestKotlin')
+        mainClass.set('io.github.hideyukimori.nenepixel.adapters.persistence.LayerPhaseUnderlayFixtureExport')
+        classpath = debugTest.get().classpath + debugTest.get().testClassesDirs
+        if (output != null) args output
+        outputs.upToDateWhen { false }
+    }
+    persistence.tasks.register('layerPhasePublicationHostContract', JavaExec) {
+        def output = persistence.providers.gradleProperty('p4PublicationContractOutput').orNull
+        def androidCompile = persistence.tasks.named('compileDebugAndroidTestKotlin')
+        group = 'verification'
+        description = 'Checks phase report reservation/formatting using the actual AndroidTest helper classes.'
+        dependsOn androidCompile
+        mainClass.set('io.github.hideyukimori.nenepixel.adapters.persistence.AutosaveLayerPublicationHostContract')
+        classpath = persistence.files(androidCompile.get().destinationDirectory) + debugTest.get().classpath
+        if (output != null) args output
+        timeout.set(java.time.Duration.ofSeconds(30))
+        outputs.upToDateWhen { false }
+    }
+    app.tasks.register('layerPhaseSafHostContract', JavaExec) {
+        def output = app.providers.gradleProperty('p4SafContractOutput').orNull
+        def androidCompile = app.tasks.named('compileDebugAndroidTestKotlin')
+        def unitTest = app.tasks.named('testDebugUnitTest', Test)
+        group = 'verification'
+        description = 'Checks bounded SAF journal/report helpers without executing an Android method.'
+        dependsOn androidCompile
+        mainClass.set('io.github.hideyukimori.nenepixel.measurement.P4LayerSafHostContract')
+        classpath = app.files(androidCompile.get().destinationDirectory) + unitTest.get().classpath
+        if (output != null) args output
+        timeout.set(java.time.Duration.ofSeconds(30))
+        outputs.upToDateWhen { false }
+    }
+    app.tasks.register('layerPhaseFrameFixtureHostContract', JavaExec) {
+        def output = app.providers.gradleProperty('p4FrameFixtureContractOutput').orNull
+        def androidCompile = app.tasks.named('compileDebugAndroidTestKotlin')
+        def unitTest = app.tasks.named('testDebugUnitTest', Test)
+        group = 'verification'
+        description = 'Checks actual frame fixture slot/name guards without Android or device calls.'
+        dependsOn androidCompile
+        mainClass.set('io.github.hideyukimori.nenepixel.measurement.P4LayerFrameFixtureHostContract')
+        classpath = app.files(androidCompile.get().destinationDirectory) + unitTest.get().classpath
+        if (output != null) args output
+        timeout.set(java.time.Duration.ofSeconds(30))
+        outputs.upToDateWhen { false }
+    }
+}
