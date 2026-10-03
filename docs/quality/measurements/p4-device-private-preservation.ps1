@@ -83,13 +83,19 @@ function Assert-P4Session([string] $Session) {
 }
 
 function Get-P4MoveRoots($Original) {
-    $names = @('nene-pixel-recovery-v1', 'nene-pixel-recovery-v1.new', 'nene-pixel-recovery-v1.bak', 'reference-underlays')
+    $fixed = @(
+        @{ Path = 'no_backup/nene-pixel-recovery-v1'; Type = 'file' }
+        @{ Path = 'no_backup/nene-pixel-recovery-v1.new'; Type = 'file' }
+        @{ Path = 'no_backup/nene-pixel-recovery-v1.bak'; Type = 'file' }
+        @{ Path = 'no_backup/reference-underlays'; Type = 'directory' }
+        @{ Path = 'files/profileinstaller_profileWrittenFor_lastUpdateTime.dat'; Type = 'file' }
+        @{ Path = 'files/profileInstalled'; Type = 'file' }
+    )
     $roots = @()
-    foreach ($name in $names) {
-        $path = "no_backup/$name"
+    foreach ($entry in $fixed) {
+        $path = $entry.Path
         if (-not $Original.ContainsKey($path)) { continue }
-        $required = if ($name -ceq 'reference-underlays') { 'directory' } else { 'file' }
-        if ($Original[$path].Type -cne $required) { throw "Invalid original type: $path" }
+        if ($Original[$path].Type -cne $entry.Type) { throw "Invalid original type: $path" }
         $roots += $path
     }
     return $roots
@@ -109,12 +115,12 @@ function New-P4IsolationPlan([object[]] $OriginalInventory, [string] $Session) {
     $roots = @(Get-P4MoveRoots $original)
     foreach ($item in $original.Values) {
         $root = @($roots | Where-Object { Test-P4Below $item.Path $_ } | Select-Object -First 1)
-        $to = if ($root.Count -gt 0) { "$guard/$($item.Path.Substring('no_backup/'.Length))" } else { $item.Path }
+        $to = if ($root.Count -gt 0) { "$guard/$($root[0].Substring($root[0].LastIndexOf('/') + 1))$($item.Path.Substring($root[0].Length))" } else { $item.Path }
         $expected.Add($to, ($item | Select-Object *))
         $expected[$to].Path = $to
     }
     Add-P4Ancestors $expected $guard
-    foreach ($root in $roots) { $moves += [pscustomobject]@{ Source = $root; Destination = "$guard/$($root.Substring('no_backup/'.Length))" } }
+    foreach ($root in $roots) { $moves += [pscustomobject]@{ Source = $root; Destination = "$guard/$($root.Substring($root.LastIndexOf('/') + 1))" } }
     return [pscustomobject]@{ Session = $Session; Guard = $guard; SessionRoot = $sessionRoot; Moves = @($moves); Expected = @(Get-P4Items $expected); Original = @(Get-P4Items $original) }
 }
 

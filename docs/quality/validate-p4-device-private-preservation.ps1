@@ -80,6 +80,9 @@ function RunScenario([string] $name, $original, $created) {
     $post = KeyMap $after
     EnsureParent $post "$($restore.Archive)/sentinel"
     $after = @($post.Values)
+    foreach ($move in $restore.OriginalMoves) {
+        Check (-not $post.ContainsKey($move.Destination)) "$name destination vacant before original restore $($move.Destination)"
+    }
     foreach ($move in $restore.OriginalMoves) { $after = ModelMove $after $move.Source $move.Destination }
     Check (Assert-P4Restored $original $session $preRestore $after) "$name restored"
     VerifyIdentity $restore.Expected $after "$name final model"
@@ -99,6 +102,8 @@ function RunScenario([string] $name, $original, $created) {
 
 $original = @(
     (MakeDir 'files'), (File 'files/original.nenepixel'),
+    (File 'files/profileinstaller_profileWrittenFor_lastUpdateTime.dat' $hashA '1720000000123456788'),
+    (File 'files/profileInstalled' $hashA '1720000000123456787'),
     (MakeDir 'no_backup'), (MakeDir 'no_backup/p4-user-preservation'),
     (MakeDir 'no_backup/p4-user-preservation/old'), (File 'no_backup/p4-user-preservation/old/saved'),
     (MakeDir 'no_backup/reference-underlays'),
@@ -110,6 +115,8 @@ $original = @(
     (MakeDir 'shared_prefs'), (MakeDir 'databases')
 )
 $created = @(
+    (File 'files/profileinstaller_profileWrittenFor_lastUpdateTime.dat' $hashB '1720000000888888887'),
+    (File 'files/profileInstalled' $hashB '1720000000888888886'),
     (File 'no_backup/nene-pixel-recovery-v1' $hashB '1720000000888888888'),
     (MakeDir 'no_backup/reference-underlays'), (File 'no_backup/reference-underlays/new.image' $hashB),
     (MakeDir 'no_backup/p4-quarantine'), (File 'no_backup/p4-quarantine/slot-output' $hashB),
@@ -117,9 +124,19 @@ $created = @(
 )
 $main = RunScenario 'present complete' $original $created
 Check ((KeyMap $main.Restored)['no_backup/p4-user-preservation/old/saved'].Hash -ceq $hashA) 'old guard unchanged'
-Check ($main.Plan.OriginalMoves.Count -eq 4) 'whole underlay plus complete recovery set'
-Check ($main.Plan.MeasurementMoves.Count -eq 4) 'highest new measurement ancestors'
+Check ($main.Plan.OriginalMoves.Count -eq 6) 'whole underlay plus complete recovery and profile sets'
+Check ($main.Plan.MeasurementMoves.Count -eq 6) 'highest new measurement ancestors'
 Check (@($main.Plan.MeasurementMoves | Where-Object { $_.Source -ceq 'no_backup/reference-underlays' }).Count -eq 1) 'new underlay moved as a unit'
+foreach ($name in @('profileinstaller_profileWrittenFor_lastUpdateTime.dat', 'profileInstalled')) {
+    $source = "files/$name"
+    $guarded = "no_backup/p4-user-preservation/s-145-test/original/$name"
+    $archived = "no_backup/p4-user-preservation/s-145-test/measurement/$source"
+    Check (@($main.Plan.OriginalMoves | Where-Object { $_.Source -ceq $guarded -and $_.Destination -ceq $source }).Count -eq 1) "profile exact guard move $name"
+    Check (@($main.Plan.MeasurementMoves | Where-Object { $_.Source -ceq $source -and $_.Destination -ceq $archived }).Count -eq 1) "profile replacement archive move $name"
+    Check ((KeyMap $main.Restored)[$archived].Hash -ceq $hashB -and (KeyMap $main.Restored)[$source].Hash -ceq $hashA) "profile replacement retained before original $name"
+}
+RunScenario 'both profiles absent' @((MakeDir 'files'), (File 'files/other')) @((File 'files/profileinstaller_profileWrittenFor_lastUpdateTime.dat' $hashB), (File 'files/profileInstalled' $hashB)) | Out-Null
+RunScenario 'one profile present' @((MakeDir 'files'), (File 'files/profileInstalled')) @((File 'files/profileInstalled' $hashB), (File 'files/profileinstaller_profileWrittenFor_lastUpdateTime.dat' $hashB)) | Out-Null
 RunScenario 'empty underlay' @((MakeDir 'no_backup'), (MakeDir 'no_backup/reference-underlays')) @((File 'no_backup/nene-pixel-recovery-v1' $hashB)) | Out-Null
 RunScenario 'absent underlay' @((MakeDir 'no_backup'), (File 'no_backup/nene-pixel-recovery-v1.bak')) @((MakeDir 'no_backup/reference-underlays'), (File 'no_backup/reference-underlays/new.state' $hashB)) | Out-Null
 $absent = RunScenario 'absent no_backup' @((MakeDir 'files'), (File 'files/saved')) @((File 'no_backup/nene-pixel-recovery-v1' $hashB), (MakeDir 'shared_prefs'), (File 'shared_prefs/new' $hashB))
@@ -132,6 +149,12 @@ Reject { New-P4RestorationPlan $original 's-145-test' $damaged } 'byte drift'
 $damaged = Clone $main.Isolated
 ($damaged | Where-Object Path -eq 'no_backup/p4-user-preservation/s-145-test/original/reference-underlays/12345678901234567890123456789012.state').MtimeNs = '1720000000987654322'
 Reject { New-P4RestorationPlan $original 's-145-test' $damaged } 'timestamp-only drift'
+$damaged = Clone $main.Isolated
+($damaged | Where-Object Path -eq 'no_backup/p4-user-preservation/s-145-test/original/profileInstalled').MtimeNs = '1720000000123456789'
+Reject { New-P4RestorationPlan $original 's-145-test' $damaged } 'guarded profile timestamp drift'
+$damaged = Clone $main.Isolated
+($damaged | Where-Object Path -eq 'no_backup/p4-user-preservation/s-145-test/original/profileinstaller_profileWrittenFor_lastUpdateTime.dat').Hash = $hashB
+Reject { New-P4RestorationPlan $original 's-145-test' $damaged } 'guarded profile content drift'
 $damaged = @(Clone $main.Isolated | Where-Object Path -ne 'files/original.nenepixel')
 Reject { New-P4RestorationPlan $original 's-145-test' $damaged } 'missing original'
 $damaged = @(Clone $main.Isolated) + (File 'no_backup/p4-user-preservation/s-145-test/unexpected')
@@ -169,5 +192,7 @@ Reject { New-P4IsolationPlan @((MakeDir 'files'), (File 'files/mtime' $hashA '1.
 Reject { New-P4IsolationPlan @((MakeDir 'files'), ([pscustomobject]@{ Path='files/link'; Type='symlink' })) 'safe' } 'symlink'
 Reject { New-P4IsolationPlan @((MakeDir 'files'), ([pscustomobject]@{ Path='files/hard'; Type='file'; Size=[long]7; Hash=$hashA; MtimeNs='1'; LinkCount=2 })) 'safe' } 'hardlink'
 Reject { New-P4IsolationPlan @((MakeDir 'no_backup'), (File 'no_backup/reference-underlays')) 'safe' } 'underlay wrong kind'
+Reject { New-P4IsolationPlan @((MakeDir 'files'), (MakeDir 'files/profileInstalled')) 'safe' } 'profileInstalled wrong kind'
+Reject { New-P4IsolationPlan @((MakeDir 'files'), (MakeDir 'files/profileinstaller_profileWrittenFor_lastUpdateTime.dat')) 'safe' } 'profile timestamp file wrong kind'
 
 Write-Output "PASS preservation synthetic checks=$script:checks"

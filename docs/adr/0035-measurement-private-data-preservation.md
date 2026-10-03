@@ -31,6 +31,15 @@ durable data remains protected. Restoration refuses missing or changed originals
 destinations, ambiguous paths and an interrupted operation. It first retains measurement-created
 data separately and then returns originals only to vacant paths. No recovery step deletes evidence.
 
+The same guard also isolates the two ProfileInstaller 1.4.0 regular files named in the contract:
+`files/profileinstaller_profileWrittenFor_lastUpdateTime.dat` and `files/profileInstalled`.
+The existing frame collector installs the packaged profile, and that library writes these files
+using package update/profile state. Exact original preservation therefore requires moving them
+before measurement. Their measurement replacements are archived before their originals return.
+This follows the library's [installer source](https://raw.githubusercontent.com/androidx/androidx/androidx-main/profileinstaller/profileinstaller/src/main/java/androidx/profileinstaller/ProfileInstaller.java)
+and [verification source](https://raw.githubusercontent.com/androidx/androidx/androidx-main/profileinstaller/profileinstaller/src/main/java/androidx/profileinstaller/ProfileVerifier.java),
+and was checked against the repository-resolved 1.4.0 AAR; no dependency is changed.
+
 The original snapshot and preservation record are immutable; verification and restoration produce
 new records. The device, package, experiment and archive hashes bind them to one session. A native
 executor must verify the actual device's mtime precision before isolation, and verify the same file

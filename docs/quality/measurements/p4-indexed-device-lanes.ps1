@@ -722,18 +722,36 @@ function Invoke-P4BoundedAdb {
 
 function Invoke-P4RawAdbCapture {
     <#
-        Binary-safe private-file capture. `adb exec-out` streams raw bytes, so this cannot go through
-        the text launcher of Invoke-BoundedNativeCommand. It still runs inside the same kill-on-close
-        Windows Job boundary: the Job is created first and the process assigned immediately after
-        Start(), and both stdout and stderr drain asynchronously so WaitForExit stays the only bound.
-        adb is a thin client over the already-running adb server, so the short window between Start()
-        and assignment cannot leave an unbounded descendant behind.
+        Binary-safe capture for the existing private-file caller and bounded archive/APK files.
+        The process uses the existing kill-on-close Job; all pipe and exit waits share one deadline.
     #>
     param(
         [Parameter(Mandatory = $true)][string]$AdbPath,
         [Parameter(Mandatory = $true)][string[]]$AdbArguments,
-        [Parameter(Mandatory = $true)][int]$TimeoutSeconds
+        [Parameter(Mandatory = $true)][ValidateRange(1, 3600)][int]$TimeoutSeconds,
+        [string]$DestinationPath,
+        [string]$RecordPath,
+        [long]$MaximumBytes
     )
+    $fileMode = $PSBoundParameters.ContainsKey('DestinationPath')
+    foreach ($name in @('RecordPath', 'MaximumBytes')) {
+        if ($PSBoundParameters.ContainsKey($name) -ne $fileMode) {
+            throw 'DestinationPath, RecordPath and MaximumBytes must be supplied together.'
+        }
+    }
+    if ($fileMode) {
+        if ($MaximumBytes -lt 0) { throw 'MaximumBytes must be non-negative.' }
+        $DestinationPath = [IO.Path]::GetFullPath($DestinationPath)
+        $RecordPath = [IO.Path]::GetFullPath($RecordPath)
+        $commandRecordPath = "$RecordPath.command.json"
+        $paths = @($DestinationPath, $RecordPath, $commandRecordPath)
+        if (@($paths | Select-Object -Unique).Count -ne 3) { throw 'Capture output paths must be distinct.' }
+        foreach ($path in $paths) {
+            if ([IO.File]::Exists($path) -or [IO.Directory]::Exists($path)) {
+                throw "Capture output path already exists: $path"
+            }
+        }
+    }
     $startInfo = [Diagnostics.ProcessStartInfo]::new()
     $startInfo.FileName = [IO.Path]::GetFullPath($AdbPath)
     foreach ($argument in $AdbArguments) { $startInfo.ArgumentList.Add($argument) }
@@ -743,46 +761,150 @@ function Invoke-P4RawAdbCapture {
     $startInfo.RedirectStandardError = $true
     $process = [Diagnostics.Process]::new()
     $process.StartInfo = $startInfo
-    $buffer = [IO.MemoryStream]::new()
+    $output = $null
+    $resultStream = $null
     $job = [IntPtr]::Zero
+    $started = $false
+    $timedOut = $false
+    $byteLimitExceeded = $false
+    $byteCount = [long]0
+    $exitCode = $null
+    $stderr = $null
+    $failure = $null
+    $quiescent = $null
+    $timer = [Diagnostics.Stopwatch]::new()
     $timeoutMilliseconds = $TimeoutSeconds * 1000
     try {
+        if ($fileMode) {
+            # Reserve every output before starting the process. CreateNew also closes the race after
+            # the explicit collision check; a partial destination is never removed on failure.
+            $output = [IO.File]::Open($DestinationPath, [IO.FileMode]::CreateNew,
+                [IO.FileAccess]::Write, [IO.FileShare]::Read)
+            $resultStream = [IO.File]::Open($RecordPath, [IO.FileMode]::CreateNew,
+                [IO.FileAccess]::Write, [IO.FileShare]::Read)
+            $command = [ordered]@{
+                schema = 'nene-pixel-p4-binary-capture-command-v1'
+                executable = $startInfo.FileName
+                arguments = @($AdbArguments)
+                destination_path = $DestinationPath
+                maximum_bytes = $MaximumBytes
+                timeout_seconds = $TimeoutSeconds
+            }
+            Write-NewInvocationFile $commandRecordPath ($command | ConvertTo-Json -Depth 5)
+        } else {
+            $output = [IO.MemoryStream]::new()
+        }
+        $timer.Start()
         $job = New-InvocationJob
         if (-not $process.Start()) { throw 'The private-file capture did not start adb.' }
+        $started = $true
         if (-not [NenePixelBaselineProfile.JobNativeMethods]::AssignProcessToJobObject($job, $process.Handle)) {
             throw 'AssignProcessToJobObject failed with Win32 error ' +
                 "$([Runtime.InteropServices.Marshal]::GetLastWin32Error())."
         }
-        $copy = $process.StandardOutput.BaseStream.CopyToAsync($buffer)
         $standardErrorTask = $process.StandardError.ReadToEndAsync()
-        if (-not $process.WaitForExit($timeoutMilliseconds)) {
-            try { $process.Kill($true) } catch { }
-            $terminated = [NenePixelBaselineProfile.JobNativeMethods]::TerminateJobObject($job, 124)
-            $quiescent = $false
-            if ($terminated) {
-                $quiescent = Wait-InvocationJobEmpty -Job $job -DeadlineUtc ([datetime]::UtcNow.AddSeconds(10))
+        $chunk = [byte[]]::new(81920)
+        while ($true) {
+            $remaining = [int][Math]::Max(0, $timeoutMilliseconds - $timer.ElapsedMilliseconds)
+            $read = $process.StandardOutput.BaseStream.ReadAsync($chunk, 0, $chunk.Length)
+            if (-not $read.Wait($remaining)) {
+                $timedOut = $true
+                throw "The private-file capture exceeded its $TimeoutSeconds second bound while reading stdout."
             }
-            throw "The private-file capture exceeded its $TimeoutSeconds second bound " +
-                "(job terminated: $terminated, quiescent: $quiescent)."
+            $count = $read.GetAwaiter().GetResult()
+            if ($count -eq 0) { break }
+            $writeCount = $count
+            if ($fileMode) {
+                $available = $MaximumBytes - $byteCount
+                $writeCount = [int][Math]::Min([long]$count, $available)
+            }
+            if ($writeCount -gt 0) {
+                $output.Write($chunk, 0, $writeCount)
+                $byteCount += $writeCount
+            }
+            if ($fileMode -and $writeCount -lt $count) {
+                $byteLimitExceeded = $true
+                throw "The private-file capture exceeded its $MaximumBytes byte limit."
+            }
+            if ($timer.ElapsedMilliseconds -ge $timeoutMilliseconds) {
+                $timedOut = $true
+                throw "The private-file capture exceeded its $TimeoutSeconds second bound while writing stdout."
+            }
         }
-        if (-not $copy.Wait($timeoutMilliseconds) -or -not $standardErrorTask.Wait($timeoutMilliseconds)) {
-            throw 'The private-file capture did not drain within its bound.'
+        $remaining = [int][Math]::Max(0, $timeoutMilliseconds - $timer.ElapsedMilliseconds)
+        if (-not $standardErrorTask.Wait($remaining)) {
+            $timedOut = $true
+            throw "The private-file capture exceeded its $TimeoutSeconds second bound while draining stderr."
         }
-        if ($process.ExitCode -ne 0) {
-            throw "The private-file capture failed ($($process.ExitCode)): $($standardErrorTask.Result)"
+        $stderr = $standardErrorTask.GetAwaiter().GetResult()
+        $remaining = [int][Math]::Max(0, $timeoutMilliseconds - $timer.ElapsedMilliseconds)
+        if (-not $process.WaitForExit($remaining)) {
+            $timedOut = $true
+            throw "The private-file capture exceeded its $TimeoutSeconds second bound while waiting for exit."
         }
-        $bytes = $buffer.ToArray()
-        if ($bytes.Length -le 0) { throw 'The private-file capture returned no bytes.' }
-        return $bytes
+        $exitCode = $process.ExitCode
+        if ($timer.ElapsedMilliseconds -ge $timeoutMilliseconds) {
+            $timedOut = $true
+            throw "The private-file capture exceeded its $TimeoutSeconds second bound before completion."
+        }
+        if ($exitCode -ne 0) { throw "The private-file capture failed ($exitCode): $stderr" }
+        if (-not $fileMode -and $byteCount -le 0) { throw 'The private-file capture returned no bytes.' }
+        if (-not $fileMode) { return $output.ToArray() }
     }
+    catch { $failure = $_ }
     finally {
-        $buffer.Dispose()
+        if ($null -ne $failure -and $started) {
+            try { if (-not $process.HasExited) { $process.Kill($true) } } catch { }
+            if ($job -ne [IntPtr]::Zero) {
+                $terminated = [NenePixelBaselineProfile.JobNativeMethods]::TerminateJobObject($job, 124)
+                $quiescent = $false
+                if ($terminated) {
+                    $quiescent = Wait-InvocationJobEmpty -Job $job -DeadlineUtc ([datetime]::UtcNow.AddSeconds(10))
+                }
+                if (-not $quiescent) {
+                    $failure = [Management.Automation.ErrorRecord]::new(
+                        [InvalidOperationException]::new("$($failure.Exception.Message) Job quiescence was not confirmed."),
+                        'P4CaptureQuiescence', [Management.Automation.ErrorCategory]::OperationStopped, $null)
+                }
+            }
+            try { if ($process.HasExited) { $exitCode = $process.ExitCode } } catch { }
+        }
+        if ($null -ne $output) { $output.Dispose() }
+        $timer.Stop()
         $process.Dispose()
         if ($job -ne [IntPtr]::Zero) {
-            # Kill-on-close: releasing the last handle terminates anything still assigned to the Job.
             [NenePixelBaselineProfile.JobNativeMethods]::CloseHandle($job) | Out-Null
         }
+        if ($fileMode -and $null -ne $resultStream) {
+            $hash = $null
+            if ([IO.File]::Exists($DestinationPath)) {
+                $hash = (Get-FileHash -LiteralPath $DestinationPath -Algorithm SHA256).Hash.ToLowerInvariant()
+            }
+            $result = [ordered]@{
+                schema = 'nene-pixel-p4-binary-capture-result-v1'
+                status = $(if ($null -eq $failure) { 'success' } else { 'failure' })
+                exit_code = $exitCode
+                error = $(if ($null -eq $failure) { $null } else { $failure.Exception.Message })
+                stderr = $stderr
+                path = $DestinationPath
+                byte_count = $byteCount
+                bytes_written = $byteCount
+                sha256 = $hash
+                timed_out = $timedOut
+                byte_limit_exceeded = $byteLimitExceeded
+                job_quiescent_after_failure = $quiescent
+                elapsed_milliseconds = $timer.ElapsedMilliseconds
+                destination_path = $DestinationPath
+                command_record_path = $commandRecordPath
+            }
+            try {
+                $encoded = [Text.UTF8Encoding]::new($false).GetBytes(($result | ConvertTo-Json -Depth 5))
+                $resultStream.Write($encoded, 0, $encoded.Length)
+            } finally { $resultStream.Dispose() }
+        }
     }
+    if ($null -ne $failure) { throw $failure }
+    if ($fileMode) { return $result }
 }
 
 function Assert-P4RemotePackagesStopped {
