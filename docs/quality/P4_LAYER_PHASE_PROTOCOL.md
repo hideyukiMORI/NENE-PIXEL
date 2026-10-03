@@ -591,6 +591,40 @@ and oldest-baseline compilation, actual spec/catalog agreement and retained iden
 
 ## Pending admission decisions
 
+### Device-lane execution and retained output
+
+The existing lane planner selects phase behavior only from the explicit phase protocol. It resolves
+the canonical slot to its artifact role and derives the common eleven-field Android context from
+that role, the exact reserved manifest hash and `device.asset_preservation.session`. The latter must
+match the verified preservation-v2 record before admission; a caller-supplied attestation is not
+sufficient. Baseline roles require only their declared three APKs; candidate adds publication.
+
+Memory and SAF run on debug app/test with verify compilation. Publication is self-instrumenting
+and uses only its candidate publication APK, also verify compiled. Frame preparation installs the
+debug app and, for the eight staged slots, app-test; the existing frame collector later installs and
+verifies release-like with speed-profile. A staged frame uses its additional fixed 300-second setup
+invocation. These extra bounded calls are added to the fixed gesture-derived frame allowance.
+
+The collector budget charges 120 seconds per install/dexopt, 30 seconds per quiescence/probe or
+report-reservation check, the complete instrumentation/setup allowance and 60 seconds host reserve.
+Each install reserves four identity probes for before/after pm-path and SHA-256. Frame collector's
+own release-like work remains in its existing bound. Every derived collector bound must be at most
+3600 seconds before a slot is reserved. This does not yet define the whole phase deadline: stopped
+report capture, provider/work archives, original verification and restoration have separate pending
+cleanup/session budgets and must be fully accounted before admission.
+
+Phase install replacement writes an immutable intent before invoking install and retains its
+result even when install/readback fails. A missing result means an incomplete attempt, never proof
+that the old APK remains. The final restoration must reconcile that intent with the actual installed
+APK. No clear/uninstall or data deletion is permitted.
+
+Phase reports are copied by the outer cleanup after all writer packages are confirmed stopped,
+on both collector success and failure. Each bounded encoded transfer retains empty/partial host
+outputs and native evidence. Exact private paths are derived from the phase and slot; existing host
+outputs refuse replacement. The remote read also checks process absence and regular, unlinked path
+components. Missing reports are retained as missing evidence and invalidate an otherwise successful
+slot. No phase report is moved or deleted, and legacy quarantine is not used for these unique paths.
+
 ### Four immutable artifact roles and complete source inventory
 
 The phase preflight schema is `nene-pixel-p4-layer-preflight-v1`. Its role keys are exactly
