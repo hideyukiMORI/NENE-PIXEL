@@ -165,12 +165,14 @@ param(
     [string]$CandidateRole,
 
     [Parameter(Mandatory = $true)]
-    [ValidateRange(1, 4)]
+    [ValidateRange(1, 12)]
     [int]$ComparisonSequenceIndex,
 
     [Parameter(Mandatory = $true)]
     [ValidateRange(1, 2)]
     [int]$Attempt,
+
+    [System.Collections.IDictionary]$PhaseContext,
 
     [ValidateSet("speed-profile", "speed")]
     [string]$CompilationMode,
@@ -199,6 +201,8 @@ $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "m2-package-dexopt.ps1")
 . (Join-Path $PSScriptRoot "android-window-state.ps1")
 . (Join-Path $PSScriptRoot "../baseline-profile-evidence.ps1")
+. (Join-Path $PSScriptRoot "p4-indexed-preflight.ps1")
+. (Join-Path $PSScriptRoot "p4-indexed-frame-analysis.ps1")
 
 if (-not $PSBoundParameters.ContainsKey("CompilationMode")) {
     $CompilationMode = if ($Variant -eq "release-like") { "speed-profile" } else { "speed" }
@@ -229,7 +233,6 @@ $requiredRotation = 1
 $requiredLogicalWidth = 1920
 $requiredLogicalHeight = 1200
 $requiredRootBounds = "[0,0][1920,1200]"
-$geometryId = "initial-fit-centered-v1"
 $profileInstallSuccessResult = 1
 $inputInjection = "cmd-input-service-direct"
 $remotePrefix = "/data/local/tmp/nene-m2-frame-$Variant-$CompilationMode"
@@ -241,49 +244,45 @@ $resolvedExperiment =
     }
 $physicalPresentEnabled = $PSBoundParameters.ContainsKey("PhysicalPresentTraceProcessorPath")
 $physicalPresentSchema = "nene-pixel-m2-physical-present-v2"
-$frameSchema = "nene-pixel-p4-indexed-actual-app-frame-v8"
-$experimentSchema = "nene-pixel-p4-indexed-frame-experiment-v5"
-$noSampleInspectionSchema = "nene-pixel-p4-no-sample-inspection-v1"
-$baselineProductionCommitRequired = "8120c06fae1a372b23d2a7af4f50aa2b9cdfeff9"
-$workloadCatalog = @(
+$captureArguments = @{
+    Role = $CandidateRole; Runner = $RunKind; SequenceIndex = $ComparisonSequenceIndex
+    BuildCommit = $SourceCommit
+    ExpectedApkSha256 = if ($CandidateRole -ceq 'baseline') { $BaselineApkSha256 } else { $CandidateApkSha256 }
+    ExperimentId = $ExperimentId
+}
+$isLayerPhase = $PSBoundParameters.ContainsKey('PhaseContext')
+if ($isLayerPhase) { $captureArguments.PhaseContext = $PhaseContext }
+$frameContract = Get-P4FrameCaptureContract @captureArguments
+$phaseIdentity = if ($isLayerPhase) {
     [ordered]@{
-        workload = "canvas16_tap"
-        canvas_width = 16
-        canvas_height = 16
-        move_event_count = 0
-        motion_event_count = 2
-        preview_event_count = 1
-        commit_event_count = 1
-        raw_position_count = 1
-        effective_change_count = 1
-    },
-    [ordered]@{
-        workload = "canvas256_repeated_diagonal"
-        canvas_width = 256
-        canvas_height = 256
-        move_event_count = 16
-        motion_event_count = 18
-        preview_event_count = 17
-        commit_event_count = 1
-        raw_position_count = 4081
-        effective_change_count = 256
+        protocol_id = $frameContract.protocol_id
+        preflight_sha256 = $PhaseContext.preflight_sha256
+        group_id = $frameContract.group_id
+        slot_id = $frameContract.slot_id
+        artifact_role = $frameContract.artifact_role
+        experiment_id = $ExperimentId
     }
-)
-$workloadOrder = @($workloadCatalog | ForEach-Object { $_.workload })
+} else { $null }
+if ($isLayerPhase -and (-not ($ValidateArtifactOnly -or $ValidateExperimentOnly) -or $InspectGeometryOnly)) {
+    throw 'Layer-phase collection is not admitted: fixture, full manifest and preservation integration remain incomplete.'
+}
+$frameSchema = $frameContract.frame_schema
+$experimentSchema = $frameContract.experiment_schema
+$geometryId = $frameContract.geometry_id
+$warmupCount = $frameContract.warmups
+$noSampleInspectionSchema = "nene-pixel-p4-no-sample-inspection-v1"
+$baselineProductionCommitRequired = $frameContract.baseline_production_commit
+$workloadCatalog = @($frameContract.decision_workload_catalog)
+$workloadOrder = @($frameContract.decision_workload_order)
 # Diagnostic slots only (Lane 3 family 3): the exact event, dwell, reset and warmup sequence of
 # canvas256_repeated_diagonal on the same clean document, with the actual-size window shown at X2.
 # Only the family name and the window preparation/teardown differ; it is never a decision input.
-$windowDiagnosticWorkload = "canvas256_repeated_diagonal_window_x2"
+$windowDiagnosticWorkload = $frameContract.window_diagnostic_workload
 $windowDiagnosticScale = "x2"
-$windowDiagnosticSpec = [ordered]@{}
-foreach ($entry in $workloadCatalog[1].GetEnumerator()) {
-    $windowDiagnosticSpec[$entry.Key] = $entry.Value
-}
-$windowDiagnosticSpec.workload = $windowDiagnosticWorkload
-$diagnosticWorkloadCatalog = @($workloadCatalog) + @($windowDiagnosticSpec)
-$diagnosticWorkloadOrder = @($diagnosticWorkloadCatalog | ForEach-Object { $_.workload })
-$slotWorkloadCatalog = if ($RunKind -eq "diagnostic") { $diagnosticWorkloadCatalog } else { $workloadCatalog }
-$slotWorkloadOrder = @($slotWorkloadCatalog | ForEach-Object { $_.workload })
+$diagnosticWorkloadCatalog = @($frameContract.diagnostic_workload_catalog)
+$diagnosticWorkloadOrder = @($frameContract.diagnostic_workload_order)
+$slotWorkloadCatalog = @($frameContract.workload_catalog)
+$slotWorkloadOrder = @($frameContract.workload_order)
 $physicalPresentAnalyzer = Join-Path $PSScriptRoot "analyze-m2-physical-present.ps1"
 $physicalTraceState = $null
 $physicalAnalysis = $null
@@ -452,17 +451,13 @@ $candidateAcceptance = Read-BaselineProfileAcceptanceEvidence `
 $resolvedBaselineAcceptanceManifest = $baselineAcceptance.AcceptanceManifestPath
 $resolvedCandidateAcceptanceManifest = $candidateAcceptance.AcceptanceManifestPath
 
-$expectedSampleCount = if ($RunKind -eq "diagnostic") { 10 } else { 50 }
+$expectedSampleCount = $frameContract.samples
 if ($SampleCount -ne $expectedSampleCount) {
     throw "$RunKind collection requires exactly $expectedSampleCount operation samples."
 }
-$comparisonOrder = @(
-    "decision:baseline",
-    "decision:candidate",
-    "diagnostic:baseline",
-    "diagnostic:candidate"
-)
-$comparisonIdentity = "$RunKind`:$CandidateRole"
+$comparisonOrder = @($frameContract.comparison_order)
+$comparisonIdentity = if ($isLayerPhase) { "$($frameContract.group_id):$RunKind`:$CandidateRole" }
+    else { "$RunKind`:$CandidateRole" }
 if ($comparisonOrder[$ComparisonSequenceIndex - 1] -ne $comparisonIdentity) {
     throw "Comparison sequence $ComparisonSequenceIndex requires '$($comparisonOrder[$ComparisonSequenceIndex - 1])'."
 }
@@ -475,20 +470,19 @@ $expectedPackagedProfSha256 =
     if ($CandidateRole -eq "baseline") { $BaselinePackagedProfSha256 } else { $CandidatePackagedProfSha256 }
 $expectedPackagedProfmSha256 =
     if ($CandidateRole -eq "baseline") { $BaselinePackagedProfmSha256 } else { $CandidatePackagedProfmSha256 }
-$expectedSurfaceBoundsByWorkload =
-    if ($CandidateRole -eq "baseline") {
-        [ordered]@{
-            canvas16_tap = $BaselineCanvas16SurfaceBounds
-            canvas256_repeated_diagonal = $BaselineCanvas256SurfaceBounds
-            canvas256_repeated_diagonal_window_x2 = $BaselineCanvas256SurfaceBounds
+$expectedSurfaceBoundsByWorkload = [ordered]@{}
+foreach ($spec in $diagnosticWorkloadCatalog) {
+    $expectedSurfaceBoundsByWorkload[$spec.workload] =
+        if ($CandidateRole -ceq 'baseline') {
+            if ($spec.canvas_width -eq 16) { $BaselineCanvas16SurfaceBounds } else { $BaselineCanvas256SurfaceBounds }
+        } else {
+            if ($spec.canvas_width -eq 16) { $CandidateCanvas16SurfaceBounds } else { $CandidateCanvas256SurfaceBounds }
         }
-    } else {
-        [ordered]@{
-            canvas16_tap = $CandidateCanvas16SurfaceBounds
-            canvas256_repeated_diagonal = $CandidateCanvas256SurfaceBounds
-            canvas256_repeated_diagonal_window_x2 = $CandidateCanvas256SurfaceBounds
-        }
-    }
+}
+if ($isLayerPhase -and $PhaseContext.production_commit -cne
+    $(if ($CandidateRole -ceq 'baseline') { $BaselineProductionCommit } else { $CandidateProductionCommit })) {
+    throw 'Phase context production does not match the resolved artifact.'
+}
 if ($SourceCommit -ne $expectedSourceCommit) {
     throw "The supplied source commit does not match the fixed $CandidateRole source identity."
 }
@@ -532,8 +526,8 @@ if (-not $ValidateExperimentOnly) {
         return
     }
 }
-$slotName = "slot-{0:D2}-{1}-{2}" -f $ComparisonSequenceIndex, $RunKind, $CandidateRole
-$resolvedOutput = Join-Path $resolvedExperiment "$slotName-attempt-$Attempt"
+$slotName = $frameContract.frame_directory_name.Substring(0, $frameContract.frame_directory_name.Length - '-attempt-1'.Length)
+$resolvedOutput = Join-Path $resolvedExperiment $frameContract.frame_directory_name
 if ($InspectGeometryOnly) {
     # No-sample inspection never reserves an acceptance slot; its device evidence is kept in its own
     # timestamped directory so that a rejected inspection can be repeated without deleting evidence.
@@ -543,7 +537,9 @@ if ($InspectGeometryOnly) {
         )
 }
 $experimentManifestPath = Join-Path $resolvedExperiment "experiment.json"
-$experimentManifest =
+$experimentManifest = if ($isLayerPhase) {
+    Get-P4LayerFrameExperimentContract -ExperimentId $ExperimentId -PreflightSha256 $PhaseContext.preflight_sha256
+} else {
     [ordered]@{
         schema = $experimentSchema
         experiment_id = $ExperimentId
@@ -618,12 +614,16 @@ $experimentManifest =
         maximum_attempts_per_slot = $maximumAttemptsPerSlot
         replacement_rule = $replacementRule
     }
+}
 $existingManifest = $null
 if (Test-Path -LiteralPath $experimentManifestPath -PathType Leaf) {
-    $existingManifest = Get-Content -Raw -LiteralPath $experimentManifestPath | ConvertFrom-Json
+    $existingManifest = if ($isLayerPhase) {
+        Get-Content -Raw -LiteralPath $experimentManifestPath | ConvertFrom-Json -NoEnumerate
+    } else { Get-Content -Raw -LiteralPath $experimentManifestPath | ConvertFrom-Json }
     Assert-M2ExperimentAttemptPolicy -Manifest $existingManifest | Out-Null
 }
-$expectedManifestText = $experimentManifest | ConvertTo-Json -Depth 4
+$manifestDepth = if ($isLayerPhase) { 12 } else { 4 }
+$expectedManifestText = $experimentManifest | ConvertTo-Json -Depth $manifestDepth
 if ($InspectGeometryOnly) {
     # The inspection precedes the experiment; it never creates, writes or reserves anything under the
     # experiment directory, which must still be absent when the experiment is reserved.
@@ -644,7 +644,7 @@ elseif ($ComparisonSequenceIndex -eq 1 -and $Attempt -eq 1) {
         throw "An existing experiment directory must contain its fixed manifest."
     }
     else {
-        if (($existingManifest | ConvertTo-Json -Depth 4) -cne $expectedManifestText) {
+        if (($existingManifest | ConvertTo-Json -Depth $manifestDepth) -cne $expectedManifestText) {
             throw "The invocation does not match the fixed experiment manifest."
         }
     }
@@ -653,10 +653,12 @@ elseif (-not (Test-Path -LiteralPath $experimentManifestPath -PathType Leaf)) {
     throw "The fixed experiment manifest is missing: $experimentManifestPath"
 }
 else {
-    if (($existingManifest | ConvertTo-Json -Depth 4) -cne $expectedManifestText) {
+    if (($existingManifest | ConvertTo-Json -Depth $manifestDepth) -cne $expectedManifestText) {
         throw "The invocation does not match the fixed experiment manifest."
     }
 }
+
+$experimentManifestSha256 = if (-not $InspectGeometryOnly) { Get-FileSha256 $experimentManifestPath } else { $null }
 
 function Get-RunState {
     param(
@@ -668,6 +670,9 @@ function Get-RunState {
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
         return $null
     }
+    if ($isLayerPhase) {
+        return ,(Get-Content -Raw -LiteralPath $path | ConvertFrom-Json -NoEnumerate)
+    }
     return Get-Content -Raw -LiteralPath $path | ConvertFrom-Json
 }
 
@@ -678,9 +683,47 @@ function Test-RunStateIdentity {
         [Parameter(Mandatory = $true)][int]$ExpectedAttempt
     )
 
-    $expectedCount = if ($SequenceIndex -le 2) { 50 } else { 10 }
-    $expectedOrder = if ($SequenceIndex -le 2) { $workloadOrder } else { $diagnosticWorkloadOrder }
+    $stateSlots = @(Get-P4FrameSlotCatalog -ProtocolId $frameContract.protocol_id)
+    $stateSlot = @($stateSlots | Where-Object { $_.run -eq $SequenceIndex })
+    if ($stateSlot.Count -ne 1) { return $false }
+    $stateContract = Get-P4FrameExecutionContract -ProtocolId $frameContract.protocol_id -SlotId $stateSlot[0].id
+    $expectedCount = $stateContract.samples
+    $expectedOrder = @($stateContract.workload_order)
     $propertyNames = if ($null -eq $State) { @() } else { @($State.PSObject.Properties.Name) }
+    if ($isLayerPhase) {
+        if ($null -eq $State -or $State -is [System.Collections.IList] -or
+            'measured_workload_counts' -cnotin $propertyNames -or
+            'experiment_sha256' -cnotin $propertyNames -or $State.experiment_sha256 -cne $experimentManifestSha256) {
+            return $false
+        }
+        foreach ($key in @('schema', 'status', 'verdict', 'experiment_sha256')) {
+            if ($key -cnotin $propertyNames -or $State.$key -isnot [string]) { return $false }
+        }
+        if ('complete_run' -cnotin $propertyNames -or $State.complete_run -isnot [bool] -or
+            'workload_order' -cnotin $propertyNames -or $State.workload_order -isnot [System.Collections.IList] -or
+            $State.schema -cne $experimentSchema -or $State.status -cne 'completed' -or
+            $State.verdict -cnotin @('inconclusive', 'pass', 'fail') -or -not $State.complete_run) { return $false }
+        if (@($State.workload_order | Where-Object { $_ -isnot [string] }).Count -gt 0) { return $false }
+        $expectedIdentity = [ordered]@{
+            protocol_id = $stateContract.protocol_id; preflight_sha256 = $PhaseContext.preflight_sha256
+            group_id = $stateContract.group_id; slot_id = $stateContract.slot_id
+            artifact_role = $stateContract.artifact_role; experiment_id = $ExperimentId
+        }
+        foreach ($key in $expectedIdentity.Keys) {
+            if ($key -cnotin $propertyNames -or $State.$key -isnot [string] -or $State.$key -cne $expectedIdentity[$key]) {
+                return $false
+            }
+        }
+        foreach ($key in @('comparison_sequence_index', 'attempt', 'measured_operation_count')) {
+            if ($key -cnotin $propertyNames -or ($State.$key -isnot [int] -and $State.$key -isnot [long])) { return $false }
+        }
+        if ((@($State.measured_workload_counts.PSObject.Properties.Name) -join '|') -cne ($expectedOrder -join '|')) { return $false }
+        foreach ($key in $expectedOrder) {
+            if ($State.measured_workload_counts.$key -isnot [int] -and $State.measured_workload_counts.$key -isnot [long]) {
+                return $false
+            }
+        }
+    }
     $countsMatch =
         $null -ne $State -and
         "measured_workload_counts" -in $propertyNames -and
@@ -708,6 +751,8 @@ function Get-OperationTiming {
         [Parameter(Mandatory = $true)]
         [object[]]$CommitRows
     )
+
+    if ($isLayerPhase) { return Get-P4FrameOperationTiming -PreviewRows $PreviewRows -CommitRows $CommitRows }
 
     if ($PreviewRows.Count -lt 1 -or $CommitRows.Count -lt 1) {
         throw "Operation timing requires at least one preview and commit frame."
@@ -792,16 +837,41 @@ function Get-CompletedFamilyResult {
         InputP95 = $inputP95
         MaximumFrameOverrun = $maximumFrameOverrun
         MaximumInputToCommitted = $maximumInputToCommitted
-        Passed = $overrunP95 -le 0.0 -and $overrunP99 -le 16.67 -and $inputP95 -le 33.33
-        GrossRegression = $maximumFrameOverrun -gt 33.34 -or $maximumInputToCommitted -gt 100.0
+        Passed = if ($isLayerPhase) { $null } else { $overrunP95 -le 0.0 -and $overrunP99 -le 16.67 -and $inputP95 -le 33.33 }
+        GrossRegression = $maximumFrameOverrun -gt $frameContract.gross_overrun_ms -or $maximumInputToCommitted -gt $frameContract.gross_input_ms
     }
 }
 
+function Complete-FrameSampleRecord {
+    param(
+        [Parameter(Mandatory)][System.Collections.IDictionary]$Record,
+        [Parameter(Mandatory)][AllowEmptyCollection()][object[]]$PreviewRows
+    )
+    if ($isLayerPhase) {
+        foreach ($key in $phaseIdentity.Keys) { $Record[$key] = $phaseIdentity[$key] }
+        $associationFields = @('first_preview_frame_timeline_vsync_id', 'first_preview_row_index',
+            'first_preview_handle_input_start_nanos', 'first_preview_frame_completed_nanos',
+            'first_preview_deadline_nanos', 'first_preview_service_ms', 'first_preview_overrun_ms')
+        foreach ($key in $associationFields) { $Record[$key] = '' }
+        if ($Record.workload -ceq $frameContract.association_workload) {
+            $expected = [ordered]@{
+                workload = $Record.workload; operation = $Record.operation
+                operation_ordinal = $Record.operation_ordinal; sample_index = $Record.sample_index
+                source_commit = $SourceCommit; production_commit = $PhaseContext.production_commit
+                variant = $Variant; raw_row_count = $PreviewRows.Count
+            }
+            $association = Get-P4FirstPreviewAssociation -PreviewRows $PreviewRows -ExpectedCapture $expected
+            foreach ($key in $associationFields) { $Record[$key] = $association.$key }
+        }
+    }
+    return [pscustomobject]$Record
+}
+
 if ($ComparisonSequenceIndex -gt 1 -and -not $InspectGeometryOnly) {
-    $previousIdentity = $comparisonOrder[$ComparisonSequenceIndex - 2].Split(":")
-    $previousSlot = "slot-{0:D2}-{1}-{2}" -f ($ComparisonSequenceIndex - 1), $previousIdentity[0], $previousIdentity[1]
+    $previousSlot = @(Get-P4FrameSlotCatalog -ProtocolId $frameContract.protocol_id)[$ComparisonSequenceIndex - 2]
+    $previousContract = Get-P4FrameExecutionContract -ProtocolId $frameContract.protocol_id -SlotId $previousSlot.id
     $previousAttempt = 1
-    $previousState = Get-RunState -Directory (Join-Path $resolvedExperiment "$previousSlot-attempt-1")
+    $previousState = Get-RunState -Directory (Join-Path $resolvedExperiment $previousContract.frame_directory_name)
     if (
         -not (Test-RunStateIdentity -State $previousState -SequenceIndex ($ComparisonSequenceIndex - 1) -ExpectedAttempt $previousAttempt) -or
         $previousState.status -ne "completed" -or
@@ -901,6 +971,10 @@ function Write-RunState {
             measured_workload_counts = $script:measuredWorkloadCounts
             measured_operation_count = Get-MeasuredOperationCount
         }
+    if ($isLayerPhase) {
+        foreach ($key in $phaseIdentity.Keys) { $state[$key] = $phaseIdentity[$key] }
+        $state.experiment_sha256 = $experimentManifestSha256
+    }
     [System.IO.File]::WriteAllText(
         $runStatePath,
         ($state | ConvertTo-Json),
@@ -1374,21 +1448,41 @@ function Get-FrameRows {
     $headerIndex = $headerIndexes[0]
 
     $rows = [System.Collections.Generic.List[object]]::new()
+    $closedProfileData = $false
     for ($lineIndex = $headerIndex + 1; $lineIndex -lt $GfxInfo.Count; $lineIndex += 1) {
         $line = $GfxInfo[$lineIndex]
         if ($line -eq "---PROFILEDATA---") {
+            $closedProfileData = $true
             break
         }
         if ($line -notmatch "^\d+,") {
+            if ($isLayerPhase -and -not [string]::IsNullOrWhiteSpace($line)) {
+                throw 'Layer-phase PROFILEDATA contains an unparseable row.'
+            }
             continue
         }
         $frame = @($GfxInfo[$headerIndex], $line) | ConvertFrom-Csv
-        $completed = [long]$frame.FrameCompleted
-        $started = [long]$frame.FrameStartTime
-        $intended = [long]$frame.IntendedVsync
-        $deadline = [long]$frame.FrameDeadline
-        $inputStarted = [long]$frame.HandleInputStart
-        $frameTimelineVsyncId = [long]$frame.FrameTimelineVsyncId
+        if ($isLayerPhase) {
+            $completed = ConvertTo-P4FrameInteger $frame.FrameCompleted 'FrameCompleted'
+            $started = ConvertTo-P4FrameInteger $frame.FrameStartTime 'FrameStartTime'
+            $intended = ConvertTo-P4FrameInteger $frame.IntendedVsync 'IntendedVsync'
+            $deadline = ConvertTo-P4FrameInteger $frame.FrameDeadline 'FrameDeadline'
+            $inputStarted = ConvertTo-P4FrameInteger $frame.HandleInputStart 'HandleInputStart'
+            $frameTimelineVsyncId = ConvertTo-P4FrameInteger $frame.FrameTimelineVsyncId 'FrameTimelineVsyncId'
+            $flags = ConvertTo-P4FrameInteger $frame.Flags 'Flags' $true
+            $drawStarted = ConvertTo-P4FrameInteger $frame.DrawStart 'DrawStart' $true
+            $presented = ConvertTo-P4FrameInteger $frame.DisplayPresentTime 'DisplayPresentTime' $true
+        } else {
+            $completed = [long]$frame.FrameCompleted
+            $started = [long]$frame.FrameStartTime
+            $intended = [long]$frame.IntendedVsync
+            $deadline = [long]$frame.FrameDeadline
+            $inputStarted = [long]$frame.HandleInputStart
+            $frameTimelineVsyncId = [long]$frame.FrameTimelineVsyncId
+            $flags = [int]$frame.Flags
+            $drawStarted = [long]$frame.DrawStart
+            $presented = [long]$frame.DisplayPresentTime
+        }
         if (
             $frameTimelineVsyncId -le 0 -or
             $completed -le 0 -or
@@ -1399,8 +1493,7 @@ function Get-FrameRows {
         ) {
             throw "Sample $SampleIndex contains unavailable required frame fields."
         }
-        $rows.Add(
-            [pscustomobject]@{
+        $record = [ordered]@{
                 variant = $Variant
                 source_commit = $SourceCommit
                 production_commit = if ($CandidateRole -eq "baseline") { $BaselineProductionCommit } else { $CandidateProductionCommit }
@@ -1411,21 +1504,40 @@ function Get-FrameRows {
                 phase = $Phase
                 event_count = $EventCount
                 row_index = $rows.Count + 1
-                flags = [int]$frame.Flags
+                flags = $flags
                 frame_timeline_vsync_id = $frameTimelineVsyncId
                 intended_vsync_nanos = $intended
                 frame_start_nanos = $started
                 handle_input_start_nanos = $inputStarted
-                draw_start_nanos = [long]$frame.DrawStart
+                draw_start_nanos = $drawStarted
                 frame_deadline_nanos = $deadline
                 frame_completed_nanos = $completed
-                display_present_time_nanos = [long]$frame.DisplayPresentTime
+                display_present_time_nanos = $presented
                 frame_duration_cpu_ms = ($completed - $started) / 1000000.0
                 app_frame_total_ms = ($completed - $intended) / 1000000.0
                 frame_overrun_ms = ($completed - $deadline) / 1000000.0
                 input_start_to_completion_ms = ($completed - $inputStarted) / 1000000.0
-            }
-        )
+        }
+        if ($isLayerPhase) {
+            foreach ($key in $phaseIdentity.Keys) { $record[$key] = $phaseIdentity[$key] }
+            $record.frame_duration_cpu_ms = ([decimal]$completed - [decimal]$started) / [decimal]1000000
+            $record.app_frame_total_ms = ([decimal]$completed - [decimal]$intended) / [decimal]1000000
+            $record.frame_overrun_ms = ([decimal]$completed - [decimal]$deadline) / [decimal]1000000
+            $record.input_start_to_completion_ms = ([decimal]$completed - [decimal]$inputStarted) / [decimal]1000000
+        }
+        $rows.Add([pscustomobject]$record)
+    }
+    if ($isLayerPhase) {
+        if (-not $closedProfileData) { throw 'Layer-phase PROFILEDATA is truncated.' }
+        $expected = [ordered]@{
+            workload = $Workload; operation = "$Workload#$SampleIndex"; operation_ordinal = $OperationOrdinal
+            sample_index = $SampleIndex; source_commit = $SourceCommit; production_commit = $PhaseContext.production_commit
+            variant = $Variant; raw_row_count = $rows.Count
+        }
+        $spec = Get-WorkloadSpec $Workload
+        $expectedEvents = if ($Phase -ceq 'preview') { $spec.preview_event_count } else { $spec.commit_event_count }
+        if ($EventCount -ne $expectedEvents) { throw 'Frame capture event count drifted from the execution contract.' }
+        Assert-P4FramePhaseRows -Rows @($rows) -ExpectedCapture $expected -Phase $Phase -EventCount $expectedEvents -FullMetrics
     }
     return $rows
 }
@@ -2656,8 +2768,7 @@ try {
             @($previewCapture.Rows) + @($commitCapture.Rows) | ForEach-Object { $frameRows.Add($_) }
             $operationTiming =
                 Get-OperationTiming -PreviewRows @($previewCapture.Rows) -CommitRows @($commitCapture.Rows)
-            $sampleSummaries.Add(
-                [pscustomobject]@{
+            $sampleRecord = [ordered]@{
                     variant = $Variant
                     source_commit = $SourceCommit
                     production_commit =
@@ -2690,8 +2801,8 @@ try {
                     committed_result_completion_nanos = $operationTiming.committed_result_completion_nanos
                     input_to_committed_result_ms = $operationTiming.input_to_committed_result_ms
                     down_to_committed_result_ms = $operationTiming.down_to_committed_result_ms
-                }
-            )
+            }
+            $sampleSummaries.Add((Complete-FrameSampleRecord -Record $sampleRecord -PreviewRows @($previewCapture.Rows)))
             if ($operationOrdinal % 10 -eq 0) {
                 $environmentRows.Add((Get-PhysicalCheckpoint -Name "after_operation_$operationOrdinal"))
             }
@@ -2871,8 +2982,6 @@ try {
         "warmups_per_workload=$warmupCount",
         "samples_per_workload=$sampleCount",
         "measured_operation_count=$($sampleSummaries.Count)",
-        "measured_canvas16_tap=$($script:measuredWorkloadCounts.canvas16_tap)",
-        "measured_canvas256_repeated_diagonal=$($script:measuredWorkloadCounts.canvas256_repeated_diagonal)",
         "percentile_method=nearest-rank; diagnostic-p95-rank=10; decision-p95-rank=48",
         "environment_checkpoint_count=$($environmentRows.Count)",
         "raw_frame_rows=$($frameRows.Count)",
@@ -2884,13 +2993,20 @@ try {
         "diagnostic_gross_input_to_committed_boundary_ms=100.0-exclusive",
         "fatal_anr_matches=$fatalCount",
         "geometry_id=$geometryId",
-        "canvas16_tap_surface_bounds=$($expectedSurfaceBoundsByWorkload.canvas16_tap)",
-        "canvas256_repeated_diagonal_surface_bounds=$($expectedSurfaceBoundsByWorkload.canvas256_repeated_diagonal)",
         "display_present_time_available=$(@($validFrames | Where-Object { $_.display_present_time_nanos -gt 0 }).Count -gt 0)",
         "boundary=DOWN preview plus UP commit; every phase frame retained; acceptance latency starts at earliest UP HandleInputStart and completes at latest UP-associated FrameCompleted after committed UI verification; DOWN-to-commit including the intentional preview dwell is diagnostic only"
     ) | ForEach-Object { $metadata.Add($_) }
-    if ($slotWorkloadOrder -ccontains $windowDiagnosticWorkload) {
-        $metadata.Add("measured_$windowDiagnosticWorkload=$($script:measuredWorkloadCounts[$windowDiagnosticWorkload])")
+    foreach ($workload in $slotWorkloadOrder) {
+        $metadata.Add("measured_$workload=$($script:measuredWorkloadCounts[$workload])")
+        if ($workload -cne $windowDiagnosticWorkload) {
+            $metadata.Add("${workload}_surface_bounds=$($expectedSurfaceBoundsByWorkload[$workload])")
+        }
+    }
+    if ($isLayerPhase) {
+        foreach ($key in $phaseIdentity.Keys) {
+            if ($key -cne 'experiment_id') { $metadata.Add("$key=$($phaseIdentity[$key])") }
+        }
+        $metadata.Add("experiment_sha256=$experimentManifestSha256")
     }
     foreach ($family in $familyResults) {
         $prefix = $family.Workload

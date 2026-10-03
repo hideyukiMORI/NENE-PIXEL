@@ -266,6 +266,140 @@ function Get-P4FrameSlotCatalog {
     return $slots.ToArray()
 }
 
+function Get-P4FrameWorkloadCatalog {
+    # One event specification for collector and analyzer. Each invocation owns all returned records.
+    param([Parameter(Mandatory = $true)][AllowNull()][AllowEmptyCollection()][string[]]$WorkloadOrder)
+    if ($null -eq $WorkloadOrder -or $WorkloadOrder.Count -eq 0) {
+        throw 'P4 frame workload order must be nonempty.'
+    }
+    foreach ($workload in $WorkloadOrder) {
+        $tap = $false
+        $size = 256
+        switch -CaseSensitive ($workload) {
+            'canvas16_tap' { $tap = $true; $size = 16 }
+            'canvas256_layers16_tap' { $tap = $true }
+            'canvas256_repeated_diagonal' { }
+            'canvas256_repeated_diagonal_window_x2' { }
+            'canvas256_layers16_repeated_diagonal' { }
+            'canvas256_underlay_repeated_diagonal' { }
+            default { throw 'Unknown P4 frame workload.' }
+        }
+        [ordered]@{
+            workload = $workload
+            canvas_width = $size
+            canvas_height = $size
+            move_event_count = if ($tap) { 0 } else { 16 }
+            motion_event_count = if ($tap) { 2 } else { 18 }
+            preview_event_count = if ($tap) { 1 } else { 17 }
+            commit_event_count = 1
+            raw_position_count = if ($tap) { 1 } else { 4081 }
+            effective_change_count = if ($tap) { 1 } else { 256 }
+        }
+    }
+}
+
+function Get-P4FrameExecutionContract {
+    # Pure resolution is preparation, not manifest admission or permission to collect on a device.
+    param(
+        [AllowNull()][AllowEmptyString()][string]$ProtocolId = 'nene-pixel-p4-indexed-cutover-verification-v7',
+        [Parameter(Mandatory = $true)][AllowNull()][AllowEmptyString()][string]$SlotId
+    )
+    $slots = @(Get-P4FrameSlotCatalog -ProtocolId $ProtocolId)
+    $matches = @($slots | Where-Object { $_.id -ceq $SlotId })
+    if ($matches.Count -ne 1) { throw 'Unknown or mixed P4 frame execution slot.' }
+    $slot = $matches[0]
+    $phase = $ProtocolId -ceq 'nene-pixel-p4-layer-phase-verification-v1'
+    # The accepted single group names also describe the historical integer family counts.
+    $groups = @(Get-P4FrameGroupCatalog -ProtocolId 'nene-pixel-p4-layer-phase-verification-v1')
+    $group = if ($phase) { @($groups | Where-Object { $_.id -ceq $slot.group_id })[0] } else { $groups[0] }
+    $decisionOrder = @($group.decision_families)
+    $diagnosticOrder = @($group.diagnostic_families)
+    $workloadOrder = @(if ($slot.runner -ceq 'decision') { $decisionOrder } else { $diagnosticOrder })
+    $groupSlots = @(if ($phase) { $slots | Where-Object { $_.group_id -ceq $group.id } } else { $slots })
+    $groupSequence = 0
+    for ($i = 0; $i -lt $groupSlots.Count; $i++) {
+        if ($groupSlots[$i].id -ceq $SlotId) { $groupSequence = $i + 1 }
+    }
+    $comparisonOrder = @(foreach ($item in $slots) {
+        if ($phase) { "$($item.group_id):$($item.runner):$($item.role)" }
+        else { "$($item.runner):$($item.role)" }
+    })
+    $setup = [ordered]@{}
+    foreach ($workload in $diagnosticOrder) {
+        $setup[$workload] = switch -CaseSensitive ($workload) {
+            'canvas256_repeated_diagonal_window_x2' { 'window_x2' }
+            'canvas256_layers16_tap' { 'maximum_layers16' }
+            'canvas256_layers16_repeated_diagonal' { 'maximum_layers16' }
+            'canvas256_underlay_repeated_diagonal' { 'underlay' }
+            default { 'empty' }
+        }
+    }
+    $baselineSlot = @($groupSlots | Where-Object { $_.role -ceq 'baseline' -and $_.runner -ceq 'decision' })[0]
+    [ordered]@{
+        protocol_id = $ProtocolId
+        slot_id = $slot.id
+        group_id = if ($phase) { $group.id } else { $null }
+        artifact_role = if ($phase) { $slot.artifact_role } else { $slot.role }
+        role = $slot.role
+        runner = $slot.runner
+        sequence_index = $slot.run
+        group_sequence_index = $groupSequence
+        attempt = 1
+        frame_schema = if ($phase) { $group.frame_schema } else { 'nene-pixel-p4-indexed-actual-app-frame-v8' }
+        experiment_schema = if ($phase) { $group.experiment_schema } else { 'nene-pixel-p4-indexed-frame-experiment-v5' }
+        verdict_id = if ($phase) { $group.verdict_id } else { 'lane3-2026-09-23-relative' }
+        frame_directory_name = if ($phase) {
+            'slot-{0:D2}-{1}-{2}-{3}-attempt-1' -f $slot.run, $group.id, $slot.runner, $slot.role
+        } else { 'slot-{0:D2}-{1}-{2}-attempt-1' -f $slot.run, $slot.runner, $slot.role }
+        baseline_slot_id = if ($slot.role -ceq 'candidate' -and $slot.runner -ceq 'decision') { $baselineSlot.id } else { $null }
+        baseline_production_commit = if ($phase) { $group.baseline_production_commit } else { $script:P4BaselineProduction }
+        workload_order = $workloadOrder
+        decision_workload_order = $decisionOrder
+        diagnostic_workload_order = $diagnosticOrder
+        workload_catalog = @(Get-P4FrameWorkloadCatalog -WorkloadOrder $workloadOrder)
+        decision_workload_catalog = @(Get-P4FrameWorkloadCatalog -WorkloadOrder $decisionOrder)
+        diagnostic_workload_catalog = @(Get-P4FrameWorkloadCatalog -WorkloadOrder $diagnosticOrder)
+        warmups = $slot.warmups
+        samples = $slot.samples
+        timeout_seconds = $slot.timeout_seconds
+        comparison_order = $comparisonOrder
+        input_p95_gate_ms = if ($phase -and $slot.role -ceq 'candidate') { [double]16.67 } else { [double]33.33 }
+        relative_p95_tolerance_ms = [double]1.0
+        relative_p99_tolerance_ms = [double]2.0
+        gross_overrun_ms = [double]33.34
+        gross_input_ms = [double]100.0
+        geometry_id = $script:P4GeometryId
+        association_workload = if ($phase -and $group.id -ceq 'layers16') { 'canvas256_layers16_tap' } else { $null }
+        window_diagnostic_workload = if (-not $phase -or $group.id -ceq 'single') { 'canvas256_repeated_diagonal_window_x2' } else { $null }
+        setup_by_workload = $setup
+    }
+}
+
+function Get-P4LayerFrameExperimentContract {
+    param(
+        [Parameter(Mandatory = $true)][AllowNull()][AllowEmptyString()][string]$ExperimentId,
+        [Parameter(Mandatory = $true)][AllowNull()][AllowEmptyString()][string]$PreflightSha256
+    )
+    if ($ExperimentId -cnotmatch '^[a-z0-9][a-z0-9-]{2,63}\z' -or
+        $PreflightSha256 -cnotmatch '^[0-9a-f]{64}\z') {
+        throw 'Invalid P4 layer frame experiment identity.'
+    }
+    $protocolId = 'nene-pixel-p4-layer-phase-verification-v1'
+    $slots = @(Get-P4FrameSlotCatalog -ProtocolId $protocolId)
+    $group = @(Get-P4FrameGroupCatalog -ProtocolId $protocolId)[0]
+    [ordered]@{
+        schema = $group.experiment_schema
+        protocol_id = $protocolId
+        experiment_id = $ExperimentId
+        preflight_sha256 = $PreflightSha256
+        comparison_order = @($slots | ForEach-Object { "$($_.group_id):$($_.runner):$($_.role)" })
+        slot_catalog = $slots
+        slot_budget = $slots.Count
+        maximum_attempts_per_slot = 1
+        replacement_rule = 'none'
+    }
+}
+
 function Assert-P4RequiredValue {
     param([AllowNull()]$Value, [string]$Name)
     if ($null -eq $Value) { throw "Missing preflight value: $Name" }

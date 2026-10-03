@@ -187,6 +187,79 @@ overrun, missing/lost/flagged/foreign/reordered/tied rows, duplicate IDs, malfor
 and wrong derived metrics. No device samples or current successful analyzer suite are rerun merely
 to add this new schema's preparation contract.
 
+## Frame execution contract and evidence binding
+
+The existing preflight owns one `Get-P4FrameExecutionContract` resolver, selected by an explicit
+protocol ID and canonical slot ID. It derives role, artifact role, group, global sequence and
+group-local position, workload/event catalogs, directory identity, baseline reference and numeric
+rules from the registered catalogs. The collector and analyzer consume that same definition.
+Historical v7 resolves the original four slots, v8/v5 records and original workload/event catalogs;
+the new phase resolves the twelve slots and v9/v6 records. Unknown or mixed identities are errors.
+The legacy collector directory spelling is preserved. A phase frame directory is
+`slot-<two-digit-global-sequence>-<group>-<runner>-<comparison-role>-attempt-1` below the single
+frame experiment root; group changes never create a new experiment or an editable role projection.
+
+The v6 `experiment.json` is a canonical projection of that same preflight: exactly `schema`,
+`protocol_id`, `experiment_id`, `preflight_sha256`, the twelve-entry `comparison_order` and
+`slot_catalog`, `slot_budget` 12, `maximum_attempts_per_slot` 1 and `replacement_rule` `none`.
+The shared preflight helper constructs it; the writer and analyzer compare its complete contents.
+Phase metadata and run state also record its actual `experiment_sha256`. It contains no independently
+editable artifact copies. A phase frame-slot record uses `nene-pixel-p4-frame-slot-v2`, the checked
+phase/slot identities and experiment hash, with the existing exact file path/size/hash inventory.
+
+Phase analyzer callers provide a `PhaseContext` with exactly `protocol_id`, `slot_id`,
+`preflight_sha256`, `production_commit` and `baseline_reference`. The protocol/slot resolve the
+group and artifact role; the existing explicit role/runner/sequence/build/APK/experiment/bounds
+arguments must agree. The preflight hash identifies the immutable complete phase manifest,
+including the pinned device/display conditions, fixture and four artifact records. It is supplied
+by the wrapper, never learned from a capture being checked. This context is an internal view,
+not another manifest and not evidence that the full phase is admitted.
+
+For a decision candidate, `baseline_reference` has exactly `build_commit`, `production_commit`,
+`apk_sha256`, `analysis_sha256` and `capture_seal_sha256`. Other slots require a null reference.
+The baseline analysis must have the expected file hash, a matching capture-seal hash, the same
+preflight hash/experiment/group and the group's canonical decision-baseline slot/artifact role,
+with the expected build/production/APK, v9/v6/verdict identity, full family population and valid
+`baseline-recorded` result. The baseline production commit is also checked against the catalog.
+The outer wrapper remains responsible for proving the completed prior chain and sealed files;
+the inner analyzer must not accept a different path or group merely because its metrics match.
+The two existing evidence roots remain distinct: wrapper `analysis.json`, `capture-seal.json` and
+`completed.json` live under `<output_directory>/<canonical-slot-id>/`; the collector's raw files
+live under `<frame_experiment.directory>/<frame-directory-name>/`. The seal binds raw files through
+its existing `external/frame-slot/` inventory. The phase analyzer reads the canonical wrapper
+baseline directory, not a second analysis or seal copied into the raw collector directory.
+
+Every phase metadata record, run-state record, raw frame row and operation sample carries matching
+`protocol_id`, `preflight_sha256`, `group_id`, `slot_id`, `artifact_role` and `experiment_id`.
+Metadata, raw frames and samples also bind the expected production commit as well as build/APK
+identity at their declared boundary. The analyzer validates raw/sample integer identities without
+rounding, each phase's exact event count and row indices, timestamp order and each row's own
+service/overrun arithmetic. Preview precedes commit; malformed counts or a foreign row are not
+repaired. These checks apply to every v9 workload, not only the DOWN-only tap.
+The writer rejects an unparseable nonblank PROFILEDATA row or a missing closing marker, and the
+predecessor state requires native JSON integer/boolean types and its exact declared slot identity.
+The two other emitted raw durations (`frame_duration_cpu_ms` and `app_frame_total_ms`) are also
+reconciled to completion minus frame start/intended vsync at F6 precision. Operation-summary
+timestamps and both UP-to-committed/DOWN-to-committed durations reconcile to the retained phases.
+Gfxinfo janky/deadline counters remain summary observations: require exact nonnegative counts
+bounded by the operation total and reconcile published aggregates, rather than infer them from
+unrelated per-frame fields.
+
+Only `canvas256_layers16_tap` samples populate the seven first-preview fields. Other v9 families
+must leave those CSV columns empty (or omit them when no tap shares that CSV); nonempty orphan
+fields are invalid. The analyzer calls the same pure first-preview association used by the writer,
+compares every sample field to raw rows and reports first-preview service/overrun distributions
+descriptively. The complete tap frame population still supplies the existing relative gates.
+The tap family result adds `first_preview_operation_count`, `first_preview_service_p95_ms`,
+`first_preview_overrun_p95_ms` and `first_preview_overrun_p99_ms`, from exactly that family's
+predeclared 50 or 10 operations. Other families do not publish a first-preview population.
+
+This connection work does not open collection admission. The phase entry points continue to refuse
+live work until fixture setup, complete manifest/artifact/device bindings, all lane schemas and
+preservation/restoration integration are implemented. Host checks cover the common execution
+contract, legacy compatibility at the changed boundary, new-schema identity/timestamp/association
+refusals and the 16.67 ms/+1/+2 ms boundary. No device run or full local build follows from this edit.
+
 ## Live-editor retained-memory decision
 
 This is a separate, intrusive lane using the existing app instrumentation and two-pass post-GC

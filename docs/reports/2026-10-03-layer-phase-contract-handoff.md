@@ -7,7 +7,7 @@
 
 ## 再開位置
 
-- 開発lab `D:/NENE-PIXEL/worktrees/issue-145`、branch `perf/145-layer-gate`。今回の変更前HEADは
+- 開発labの `worktrees/issue-145`、branch `perf/145-layer-gate`。今回の変更前HEADは
   `3f9d80bc92c8e15c60aaf5ade04f08b09db4f8de`。今回の変更と本書は同じcommitに含め、最新headはPRで確認する。
 - #145はOPEN、#187はDraft。#172はPR #185でmerge済み、hideの目視4件も完了済み。再確認を要求しない。
 - Cドライブの初期checkoutは別のdirty履歴。編集・reset・commitしない。labでも過去の未追跡reportと
