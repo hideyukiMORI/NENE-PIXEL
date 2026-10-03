@@ -1,6 +1,7 @@
 package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -28,6 +29,8 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRec
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRetirementOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.ReferenceImageOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.ReferenceImagePort
+import io.github.hideyukimori.nenepixel.core.application.persistence.UnderlayMemoryPort
+import io.github.hideyukimori.nenepixel.core.application.persistence.UnderlayMemoryWorkflow
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.document.LegacyRgbaSource
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
@@ -46,10 +49,21 @@ internal fun TestNenePixelEditor(
     paletteJson: TestPaletteJsonPorts = TestPaletteJsonPorts(),
     referenceImage: ReferenceImagePort = ReferenceImagePort { ReferenceImageOutcome.Cancelled },
     pngImport: PngImportPort = PngImportPort { PngImportOutcome.Cancelled },
+    underlayMemory: TestUnderlayMemory? = null,
 ) {
     val scope = rememberCoroutineScope()
+    val underlayMemoryPort = underlayMemory?.port ?: EmptyUnderlayMemoryPort
     val persistence =
-        remember(controller, scope, projectStorage, presets, paletteJson, referenceImage, pngImport) {
+        remember(
+            controller,
+            scope,
+            projectStorage,
+            presets,
+            paletteJson,
+            referenceImage,
+            pngImport,
+            underlayMemoryPort,
+        ) {
             TestPersistenceHost(
                 controller,
                 scope,
@@ -59,9 +73,15 @@ internal fun TestNenePixelEditor(
                 paletteJson,
                 referenceImage,
                 pngImport,
+                underlayMemoryPort,
             )
         }
     LaunchedEffect(persistence) { persistence.initialize() }
+    DisposableEffect(persistence, underlayMemory) {
+        val requester: UnderlayMemoryRequester = persistence::requestUnderlayMemory
+        underlayMemory?.attach(requester)
+        onDispose { underlayMemory?.detach(requester) }
+    }
     NenePixelEditor(
         renderStates = controller.renderStates,
         persistenceOperations = persistence.workflow.operation,
@@ -101,6 +121,7 @@ private class TestPersistenceHost(
     paletteJson: TestPaletteJsonPorts,
     referenceImage: ReferenceImagePort,
     pngImport: PngImportPort,
+    underlayMemory: UnderlayMemoryPort,
 ) {
     val workflow =
         EditorPersistenceWorkflow.create(
@@ -115,6 +136,7 @@ private class TestPersistenceHost(
                 paletteJson.import,
                 referenceImage,
                 pngImport,
+                underlayMemory,
             ),
             Dispatchers.Unconfined,
         )
@@ -166,6 +188,11 @@ private class TestPersistenceHost(
     suspend fun initialize() {
         workflow.initializeRecovery()
         controller.synchronizeWithRuntime()
+    }
+
+    /** Stands in for the app's underlay memory scheduler: runs [request] only when a test asks (ADR 0034). */
+    fun requestUnderlayMemory(request: suspend (UnderlayMemoryWorkflow) -> Unit) {
+        complete { request(workflow.underlayMemory) }
     }
 
     private fun complete(block: suspend () -> Unit) {

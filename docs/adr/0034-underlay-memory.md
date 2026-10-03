@@ -79,12 +79,13 @@ its history and its recovery record are unchanged and never read the memory.
   `DocumentId`, returning `Remembered` with a `RememberedUnderlay` or `Absent`; `remember` of a
   `DocumentId` and a `RememberedUnderlay`; and `forget` of a `DocumentId`. `remember` and `forget`
   return a closed `Stored` / `Failed` outcome that is never projected to the user. `recall` has no
-  failure outcome: the adapter answers every I/O failure and every unreadable record as `Absent`.
+  failure outcome: the adapter answers every I/O failure, every unreadable record and a failed
+  allocation as `Absent`.
   No function of the port throws for an expected failure. `PersistencePorts` gains the port.
 - `:adapters:persistence` implements it in the directory `reference-underlays` under the
   application's no-backup files directory, the location of the recovery record: it is not included
   in backups and the OS does not evict it. The adapter is created like the other adapters, from
-  that directory and an injected dispatcher. One work has two records, each written through
+  the no-backup directory and an injected dispatcher; the adapter alone names the subdirectory. One work has two records, each written through
   `AtomicFile`, named by the 32 lower-case hexadecimal characters of the id:
   - `<id>.image`: the magic `NPUI` (4 bytes), a version (unsigned 16-bit, value 1), the width and
     the height (unsigned 16-bit each, 1 to 1024), the pixels in row-major order with four bytes
@@ -132,22 +133,31 @@ its history and its recovery record are unchanged and never read the memory.
   installation (new, load, recovery adoption, legacy conversion, PNG as a new work) starts with
   the store unknown, which is `RecallPending`. Nothing is published for a work while its store is
   unknown, so the empty workspace of a fresh installation never deletes a record.
-- A recall completion with a current token makes the store known. When no underlay action was
-  reduced since the installation and no switch is installing another work, a recalled value is
-  also reduced into the workspace as one `SetReferenceUnderlay` inside a runtime transaction, and
-  the workspace then equals the known value. Otherwise the workspace is left alone and the known
-  value is compared with it like any later change: an image chosen meanwhile is published, and a
-  Remove publishes a forget of the old record. A completion with a stale token is dropped.
-- The projection is `PublishPending` when the store is known, the workspace underlay differs from
-  it and the underlay is not being adjusted, or when a departing capture exists. While adjusting,
+- A recall completion for the current installation makes the store known. When no underlay
+  action was reduced since the installation, a recalled value is also reduced into the workspace
+  as one `SetReferenceUnderlay` inside a runtime transaction, and the workspace then equals the
+  known value. When an underlay action was reduced meanwhile, the workspace is left alone and the
+  known value is compared with it like any later change: an image chosen meanwhile is published,
+  and a Remove publishes a forget of the old record. A completion for another installation is
+  dropped. A completion that arrives while a switch is installing another work is dropped whole:
+  the store stays unknown, so the empty workspace is never mistaken for a Remove, and that
+  installation is not recalled again, also when the switch then fails and the work stays
+  installed: its underlay is then neither restored nor published in that installation, and an
+  underlay action in it is still carried to the store as the departing capture of the next
+  installation (amended 2026-10-03 during implementation).
+- The projection is `PublishPending` when a departing capture exists, or when the store is
+  known, the workspace underlay differs from it and the underlay is not being adjusted. While adjusting,
   nothing is requested; leaving the mode publishes the final placement once. Clearing the underlay
   (Remove) publishes a `forget`.
 - An installation takes the departing work's unpublished underlay, adjusting or not, as the one
-  departing capture (work id and value, or cleared), replacing an older one. A publication writes
-  the departing capture before the current value.
-- A publication completion, `Stored` or `Failed`, makes its value the known one when its token is
-  still current. A failed value is therefore not requested again until the underlay changes; the
-  projection never stays pending on a value that failed.
+  departing capture (work id and value, or cleared), replacing an older one. A departing capture
+  is published before anything else: while one exists the projection is `PublishPending` even
+  when the store of the installed work is unknown, that publication writes the departing capture
+  only, and the recall follows it. Loading the same work again therefore recalls what was just
+  written, not the older record (amended 2026-10-03 during implementation).
+- A publication completion, `Stored` or `Failed`, makes its value the known one when it belongs
+  to the current installation. A failed value is therefore not requested again until the underlay
+  changes; the projection never stays pending on a value that failed.
 - The projection is derived where the runtime changes the workspace: the public reduction, a
   reduction inside a transaction, and an installation. The flow is written only when a
   reference-underlay action was reduced, the tracking changed, or an installation happened; a

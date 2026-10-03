@@ -343,6 +343,7 @@ private class AutosaveStateTokens {
                 io.github.hideyukimori.nenepixel.core.application.persistence.PngImportPort {
                     io.github.hideyukimori.nenepixel.core.application.persistence.PngImportOutcome.Cancelled
                 },
+                EmptyUnderlayMemoryPort,
             ),
             Dispatchers.Unconfined,
         )

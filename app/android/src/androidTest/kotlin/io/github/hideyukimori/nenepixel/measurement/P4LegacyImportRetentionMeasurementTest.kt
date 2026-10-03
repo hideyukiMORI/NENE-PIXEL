@@ -211,6 +211,7 @@ private class P4LegacyImportRetentionWorkload {
                 P4CancelledPaletteJsonImport(),
                 ReferenceImagePort { ReferenceImageOutcome.Cancelled },
                 PngImportPort { PngImportOutcome.Cancelled },
+                EmptyUnderlayMemoryPort,
             ),
             Dispatchers.Unconfined,
         )

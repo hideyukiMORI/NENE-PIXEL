@@ -12,6 +12,7 @@ public class EditorPersistenceWorkflow private constructor(
     paletteJsonFlow: PersistencePaletteJsonFlow,
     referenceImageFlow: PersistenceReferenceImageFlow,
     pngImportFlow: PersistencePngImportFlow,
+    public val underlayMemory: UnderlayMemoryWorkflow,
 ) {
     public val operation: StateFlow<PersistenceOperationProjection>
         get() = runtime.persistenceOperation
@@ -89,6 +90,7 @@ public class EditorPersistenceWorkflow private constructor(
                     autosave,
                     conversionDispatcher,
                 ),
+                UnderlayMemoryWorkflow(runtime.underlayMemoryOperations, ports.underlayMemory, runtime.underlayMemory),
             )
         }
     }

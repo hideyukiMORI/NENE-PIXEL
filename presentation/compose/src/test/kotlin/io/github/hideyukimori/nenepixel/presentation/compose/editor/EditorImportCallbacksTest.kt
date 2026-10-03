@@ -148,6 +148,7 @@ internal fun pickPngImport(
                 PaletteJsonImportPort { PaletteJsonImportOutcome.Cancelled },
                 ReferenceImagePort { ReferenceImageOutcome.Cancelled },
                 PngImportPort { PngImportOutcome.Picked(raster) },
+                EmptyUnderlayMemoryPort,
             ),
             Dispatchers.Unconfined,
         )

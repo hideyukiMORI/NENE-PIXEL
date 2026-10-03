@@ -7,6 +7,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.command.Docume
 import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryPosition
 import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveProjection
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationProjection
+import io.github.hideyukimori.nenepixel.core.application.persistence.UnderlayMemoryProjection
 import io.github.hideyukimori.nenepixel.core.application.workspace.ReconcileDocumentLayer
 import io.github.hideyukimori.nenepixel.core.application.workspace.ReconcileDocumentPalette
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceAction
@@ -36,11 +37,21 @@ public class EditorRuntime private constructor(
     private val mutableAutosave: MutableStateFlow<AutosaveProjection> =
         MutableStateFlow(PersistenceProjectionMapper.projectAutosave(coordination))
 
+    /** Device memory of underlays (ADR 0034): beside the persistence coordination, never inside it. */
+    private var underlayMemoryTracking: UnderlayMemoryTracking = UnderlayMemoryTracking.initial()
+    private val mutableUnderlayMemory: MutableStateFlow<UnderlayMemoryProjection> =
+        MutableStateFlow(UnderlayMemoryProjection.Settled)
+
+    /** Derived under the runtime lock from the tracking and the installed workspace underlay. */
+    private val underlayMemoryProjection: UnderlayMemoryProjection
+        get() = underlayMemoryTracking.projection(owners.workspaceState.underlay)
+
     internal val pngExportOperations: RuntimePngExportOperations = RuntimePngExportOperations(this)
     internal val paletteJsonOperations: RuntimePaletteJsonOperations = RuntimePaletteJsonOperations(this)
     internal val referenceImageOperations: RuntimeReferenceImageOperations =
         RuntimeReferenceImageOperations(this)
     internal val pngImportOperations: RuntimePngImportOperations = RuntimePngImportOperations(this)
+    internal val underlayMemoryOperations: RuntimeUnderlayMemoryOperations = RuntimeUnderlayMemoryOperations(this)
 
     internal val saveOperations: RuntimeSaveOperations = RuntimeSaveOperations(this)
     internal val switchOperations: RuntimeSwitchOperations = RuntimeSwitchOperations(this)
@@ -55,6 +66,9 @@ public class EditorRuntime private constructor(
         mutablePersistenceOperation.asStateFlow()
 
     internal val autosaveProjection: StateFlow<AutosaveProjection> = mutableAutosave.asStateFlow()
+
+    /** Whether the installed work's underlay still has to be recalled from, or published to, the device. */
+    public val underlayMemory: StateFlow<UnderlayMemoryProjection> = mutableUnderlayMemory.asStateFlow()
 
     public fun captureSource(): CommandSourceAdmission =
         synchronized(runtimeLock) { owners.commandGateway.captureSource() }
@@ -89,10 +103,15 @@ public class EditorRuntime private constructor(
 
     internal fun <R> transact(block: (RuntimeTransaction) -> PersistenceTransition<R>): R =
         synchronized(runtimeLock) {
+            val tracking = underlayMemoryTracking
             val transition = block(RuntimeTransaction())
             coordination = transition.next
             applyEffectLocked(transition.effect)
             publishProjectionsLocked()
+            // An installation or a memory operation replaced the tracking (ADR 0034).
+            if (underlayMemoryTracking !== tracking) {
+                mutableUnderlayMemory.value = underlayMemoryProjection
+            }
             transition.result
         }
 
@@ -160,6 +179,13 @@ public class EditorRuntime private constructor(
     private fun reduceWorkspaceLocked(action: WorkspaceAction): WorkspaceReductionResult {
         val result = workspaceReducer.reduce(owners.workspaceState, action, owners.commandGateway.captureSource())
         owners = owners.copy(workspaceState = result.nextState)
+        // Only an underlay action touches the memory; every other reduction pays this one type check (ADR 0034).
+        if (action is WorkspaceAction.ReferenceUnderlayAction) {
+            if (result is WorkspaceReductionResult.Reduced) {
+                underlayMemoryTracking = underlayMemoryTracking.underlayReduced()
+            }
+            mutableUnderlayMemory.value = underlayMemoryProjection
+        }
         return result
     }
 
@@ -178,6 +204,9 @@ public class EditorRuntime private constructor(
             }
 
             is RuntimeOwnerEffect.ReplaceOwners -> {
+                // The departing work's unpublished underlay is captured before it is replaced (ADR 0034).
+                underlayMemoryTracking =
+                    underlayMemoryTracking.installed(owners.documentId(), owners.workspaceState.underlay)
                 // Session-only editor choices survive document replacement (ADR 0020, ADR 0026).
                 val carried = owners.workspaceState
                 val source = effect.owners.commandGateway.captureSource()
@@ -201,6 +230,13 @@ public class EditorRuntime private constructor(
     internal inner class RuntimeTransaction {
         val coordination: PersistenceCoordination
             get() = this@EditorRuntime.coordination
+
+        /** The underlay memory bookkeeping; `transact` publishes its projection when it is replaced. */
+        var underlayMemoryTracking: UnderlayMemoryTracking
+            get() = this@EditorRuntime.underlayMemoryTracking
+            set(value) {
+                this@EditorRuntime.underlayMemoryTracking = value
+            }
 
         fun documentState(): DocumentState = owners.commandGateway.runtimeState.documentState
 

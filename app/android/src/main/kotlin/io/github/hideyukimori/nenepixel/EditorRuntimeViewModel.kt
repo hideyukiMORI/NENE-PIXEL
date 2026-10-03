@@ -14,6 +14,7 @@ import io.github.hideyukimori.nenepixel.adapters.persistence.AndroidPngImportAda
 import io.github.hideyukimori.nenepixel.adapters.persistence.AndroidProjectStorageAdapter
 import io.github.hideyukimori.nenepixel.adapters.persistence.AndroidRecoveryRecordAdapter
 import io.github.hideyukimori.nenepixel.adapters.persistence.AndroidReferenceImageAdapter
+import io.github.hideyukimori.nenepixel.adapters.persistence.AndroidUnderlayMemoryAdapter
 import io.github.hideyukimori.nenepixel.core.application.editor.EditorRuntime
 import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveProjection
 import io.github.hideyukimori.nenepixel.core.application.persistence.EditorPersistenceWorkflow
@@ -41,6 +42,8 @@ internal class EditorRuntimeViewModel private constructor(
     private val operationWorker = EditorOperationWorker(viewModelScope)
 
     private val autosave = AutosaveScheduler(persistence)
+
+    private val underlayMemory = UnderlayMemoryScheduler(persistence.underlayMemory, controller::synchronizeWithRuntime)
 
     val persistenceOperations: StateFlow<PersistenceOperationProjection> = persistence.operation
     val autosaveStates: StateFlow<AutosaveProjection> = persistence.autosave
@@ -82,6 +85,7 @@ internal class EditorRuntimeViewModel private constructor(
 
     init {
         autosave.launchIn(viewModelScope)
+        underlayMemory.launchIn(viewModelScope)
         viewModelScope.launch {
             try {
                 persistence.initializeRecovery()
@@ -97,6 +101,14 @@ internal class EditorRuntimeViewModel private constructor(
      */
     fun flushAutosave() {
         autosave.flush()
+    }
+
+    /**
+     * Writes the installed work's underlay immediately, including one being adjusted (ADR 0034). Called from
+     * `MainActivity.onStop` beside [flushAutosave]; the request runs on `viewModelScope`.
+     */
+    fun flushUnderlayMemory() {
+        underlayMemory.flush()
     }
 
     private fun <T> launchOperation(block: suspend () -> T) {
@@ -135,6 +147,8 @@ internal class EditorRuntimeViewModel private constructor(
             val controller = EditorController.create(runtime)
             val pickerBroker = ProjectPickerBroker()
             val ioDispatcher = Dispatchers.IO.limitedParallelism(1)
+            // A separate serialized dispatcher: an underlay image write never queues in front of a save (ADR 0034).
+            val underlayMemoryDispatcher = Dispatchers.IO.limitedParallelism(1)
             val projectStorage =
                 AndroidProjectStorageAdapter.create(application.contentResolver, pickerBroker, ioDispatcher)
             val recoveryRecord =
@@ -153,6 +167,7 @@ internal class EditorRuntimeViewModel private constructor(
                         AndroidPaletteJsonImportAdapter.create(application.contentResolver, pickerBroker, ioDispatcher),
                         AndroidReferenceImageAdapter.create(application.contentResolver, pickerBroker, ioDispatcher),
                         AndroidPngImportAdapter.create(application.contentResolver, pickerBroker, ioDispatcher),
+                        AndroidUnderlayMemoryAdapter.create(application.noBackupFilesDir, underlayMemoryDispatcher),
                     ),
                     Dispatchers.Default,
                 )
