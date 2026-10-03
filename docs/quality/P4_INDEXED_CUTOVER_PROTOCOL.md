@@ -16,6 +16,43 @@ correctness checks may proceed under QLT-015. Before any acceptance sample, a no
 must prove agreement between the Issue, this accepted protocol, implemented harness/schema and
 exact artifacts/profile/device identity. A placeholder or mismatch blocks collection.
 
+Issue #145's prospective phase session also requires [Device Private Preservation](DEVICE_PRIVATE_PRESERVATION.md)
+(ADR 0035). Its underlay-aware preservation contract does not upgrade historical v1 records or
+change this protocol's collected verdicts. Until the new phase protocol and native executor are
+integrated, that phase collection remains blocked under QLT-015.
+
+## Prospective layer-phase comparison decisions (Issue #145)
+
+These decisions prepare a new phase identity; they are not a new binding of v7 and admit no samples.
+One phase experiment will use the existing collector with an explicit comparator for each family:
+
+| Family group | Baseline production | Reason |
+| --- | --- | --- |
+| Existing single-layer families, including the X2 diagnostic | `8120c06fae1a372b23d2a7af4f50aa2b9cdfeff9` | Retain the pre-layer baseline and the non-regression question of #142 |
+| Fully covered 256 x 256, 16 visible layers | `169b59287ca60e77e07ac91690450dd1a44b9ba4` | First accepted stroke-aware preview composite with the same layered preview semantics as the current implementation |
+| 256 x 256 diagonal with a visible alpha-128 underlay | `f92b1006be5f7145a32258446474f8640b14b60b` | First accepted nearest-neighbour underlay sampling, matching the current display semantics |
+
+The layered fixture is one immutable v3 project opened through the canonical project-load path in
+both roles, with all 16 layers fully covered and visible and the top layer selected. The #142-era v3
+decoder and project picker can load that data without layer-add UI, but #143 is selected because
+the earlier preview was a translucent overlay rather than the stroke-aware result. Fixture bytes,
+palette, stroke colour, checkpoints and the active layer must be pinned and checked before timing.
+The underlay roles use the same image bytes, transform and exact alpha; a rounded percentage label
+alone does not prove alpha 128. Feature setup stays outside the measured population.
+
+A current-build one-layer/16-layer or hidden/shown-underlay control would measure incremental cost.
+It does not replace these comparisons with an earlier implementation. Likewise, the filtered
+underlay in #170 is not the nearest-neighbour reference selected here. Extra controls are not added
+by this decision. The candidate includes #172, merged at `1f9bb1637058d3fa4a98122f4942406211bd1c69`;
+exact measurement builds, packaged profiles and artifact hashes still require prospective pinning.
+
+The new phase keeps the M5 UP-to-committed p95 limit of 16.67 ms and the existing all-frame relative
+limits of +1.0 ms p95 / +2.0 ms p99. The legacy analyzer's 33.33 ms does not establish that gate.
+Its new schema/verdict identity, fixed slot order and finite budget, first-preview event association
+and assessment, memory/publication lanes, fixture proof and preservation executor are still to be
+specified and integrated. Existing preview-phase rows do not alone prove DOWN-to-first-preview
+latency. Every historical FAIL/invalid remains unchanged; no acceptance collection starts here.
+
 ## Overall experiment identity and admission
 
 Protocol identity: `nene-pixel-p4-indexed-cutover-verification-v7`.
