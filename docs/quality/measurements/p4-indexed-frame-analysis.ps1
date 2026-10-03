@@ -19,6 +19,154 @@ $script:P4FrameInputP95Gate = 33.33
 $script:P4FrameGrossOverrun = 33.34
 $script:P4FrameGrossInput = 100.0
 
+function Get-P4FirstPreviewAssociation {
+    # Prospective #145 preparation only; historical capture analysis does not call this helper.
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][AllowNull()][AllowEmptyCollection()][object[]]$PreviewRows,
+        [Parameter(Mandatory)][System.Collections.IDictionary]$ExpectedCapture
+    )
+
+    $member = {
+        param($Value, [string]$Name)
+        if ($null -eq $Value) { throw "First-preview row is null (required '$Name')." }
+        if ($Value -is [System.Collections.IDictionary]) {
+            if (-not $Value.Contains($Name)) { throw "First-preview identity/row is missing '$Name'." }
+            return ,$Value[$Name]
+        }
+        if ($Name -cnotin @($Value.PSObject.Properties.Name)) {
+            throw "First-preview row is missing '$Name'."
+        }
+        return ,$Value.$Name
+    }
+    $integer = {
+        param($Value, [string]$Name, [bool]$AllowZero = $false)
+        # Floating/decimal values may already have lost integer identity; never round them to Int64.
+        if ($Value -isnot [string] -and $Value -isnot [byte] -and $Value -isnot [sbyte] -and
+            $Value -isnot [int16] -and $Value -isnot [uint16] -and $Value -isnot [int32] -and
+            $Value -isnot [uint32] -and $Value -isnot [int64] -and $Value -isnot [uint64]) {
+            throw "First-preview '$Name' is not an exact integer."
+        }
+        $text = [string]$Value
+        $parsed = [long]0
+        if ($text -cnotmatch '^[0-9]+$' -or
+            -not [long]::TryParse($text, [Globalization.NumberStyles]::None,
+                [Globalization.CultureInfo]::InvariantCulture, [ref]$parsed) -or
+            $parsed -lt 0 -or (-not $AllowZero -and $parsed -eq 0)) {
+            throw "First-preview '$Name' is not an in-range integer."
+        }
+        return $parsed
+    }
+    $metric = {
+        param($Value, [string]$Name)
+        if ($null -eq $Value -or $Value.GetType() -notin @([string], [byte], [sbyte], [int16], [uint16],
+                [int32], [uint32], [int64], [uint64], [float], [double], [decimal])) {
+            throw "First-preview '$Name' must be scalar numeric/text."
+        }
+        $text = if ($Value -is [IFormattable]) {
+            $Value.ToString($null, [Globalization.CultureInfo]::InvariantCulture)
+        } else { [string]$Value }
+        $parsed = [decimal]0
+        if ($text -cnotmatch '^-?[0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$' -or
+            -not [decimal]::TryParse($text, [Globalization.NumberStyles]::Float,
+                [Globalization.CultureInfo]::InvariantCulture, [ref]$parsed)) {
+            throw "First-preview '$Name' is not an invariant finite decimal metric."
+        }
+        return $parsed.ToString('F6', [Globalization.CultureInfo]::InvariantCulture)
+    }
+
+    $expected = @{}
+    foreach ($name in @('workload', 'operation', 'source_commit', 'production_commit', 'variant')) {
+        $expected[$name] = & $member $ExpectedCapture $name
+        if ($expected[$name] -isnot [string] -or [string]::IsNullOrWhiteSpace($expected[$name])) {
+            throw "First-preview expected '$name' must be nonempty text."
+        }
+    }
+    foreach ($name in @('operation_ordinal', 'sample_index', 'raw_row_count')) {
+        $expected[$name] = & $integer (& $member $ExpectedCapture $name) $name
+    }
+    if ($expected.workload -cne 'canvas256_layers16_tap' -or
+        $expected.variant -cne 'release-like' -or
+        $expected.operation -cne "$($expected.workload)#$($expected.sample_index)" -or
+        $expected.source_commit -cnotmatch '^[0-9a-fA-F]{40}$' -or
+        $expected.production_commit -cnotmatch '^[0-9a-fA-F]{40}$') {
+        throw 'First-preview expected identity is outside the DOWN-only capture contract.'
+    }
+    if ($null -eq $PreviewRows -or $PreviewRows.Count -eq 0 -or
+        $PreviewRows.Count -ne $expected.raw_row_count) {
+        throw 'First-preview capture is empty or has lost/extra rows.'
+    }
+
+    $ids = [Collections.Generic.HashSet[long]]::new()
+    $previous = $null
+    $first = $null
+    for ($index = 0; $index -lt $PreviewRows.Count; $index += 1) {
+        $row = $PreviewRows[$index]
+        foreach ($name in @('workload', 'operation', 'source_commit', 'production_commit', 'variant')) {
+            $actual = & $member $row $name
+            if ($actual -isnot [string] -or $actual -cne $expected[$name]) {
+                throw "First-preview row $($index + 1) has foreign '$name'."
+            }
+        }
+        foreach ($name in @('operation_ordinal', 'sample_index')) {
+            if ((& $integer (& $member $row $name) $name) -ne $expected[$name]) {
+                throw "First-preview row $($index + 1) has foreign '$name'."
+            }
+        }
+        $phase = & $member $row 'phase'
+        if ($phase -isnot [string] -or $phase -cne 'preview' -or
+            (& $integer (& $member $row 'event_count') 'event_count') -ne 1 -or
+            (& $integer (& $member $row 'flags') 'flags' $true) -ne 0 -or
+            (& $integer (& $member $row 'row_index') 'row_index') -ne $index + 1) {
+            throw 'First-preview row has a wrong phase/event, flags or nonconsecutive row index.'
+        }
+        $values = @{}
+        foreach ($name in @('frame_timeline_vsync_id', 'intended_vsync_nanos', 'frame_start_nanos',
+                'handle_input_start_nanos', 'frame_completed_nanos', 'frame_deadline_nanos')) {
+            $values[$name] = & $integer (& $member $row $name) $name
+        }
+        if (-not $ids.Add($values.frame_timeline_vsync_id)) {
+            throw 'First-preview rows repeat a frame identity.'
+        }
+        if ($values.intended_vsync_nanos -gt $values.frame_start_nanos -or
+            $values.frame_start_nanos -gt $values.handle_input_start_nanos -or
+            $values.handle_input_start_nanos -ge $values.frame_completed_nanos -or
+            $values.frame_deadline_nanos -le $values.intended_vsync_nanos) {
+            throw 'First-preview row timestamps do not preserve required within-row order.'
+        }
+        foreach ($name in @('intended_vsync_nanos', 'frame_start_nanos', 'handle_input_start_nanos',
+                'frame_completed_nanos')) {
+            if ($null -ne $previous -and $values[$name] -le $previous[$name]) {
+                throw "First-preview '$name' is tied or reordered."
+            }
+        }
+        # Decimal subtraction preserves nanoseconds even near Int64.MaxValue; no double extrema.
+        $service = (([decimal]$values.frame_completed_nanos -
+                [decimal]$values.handle_input_start_nanos) / [decimal]1000000).ToString(
+            'F6', [Globalization.CultureInfo]::InvariantCulture)
+        $overrun = (([decimal]$values.frame_completed_nanos -
+                [decimal]$values.frame_deadline_nanos) / [decimal]1000000).ToString(
+            'F6', [Globalization.CultureInfo]::InvariantCulture)
+        if ((& $metric (& $member $row 'input_start_to_completion_ms') 'input_start_to_completion_ms') -cne $service -or
+            (& $metric (& $member $row 'frame_overrun_ms') 'frame_overrun_ms') -cne $overrun) {
+            throw 'First-preview derived metrics disagree with their own row timestamps.'
+        }
+        if ($index -eq 0) {
+            $first = [pscustomobject][ordered]@{
+                first_preview_frame_timeline_vsync_id = $values.frame_timeline_vsync_id
+                first_preview_row_index = [long]1
+                first_preview_handle_input_start_nanos = $values.handle_input_start_nanos
+                first_preview_frame_completed_nanos = $values.frame_completed_nanos
+                first_preview_deadline_nanos = $values.frame_deadline_nanos
+                first_preview_service_ms = $service
+                first_preview_overrun_ms = $overrun
+            }
+        }
+        $previous = $values
+    }
+    return $first
+}
+
 function Get-P4FrameNearestRank {
     param(
         [Parameter(Mandatory = $true)][double[]]$Values,

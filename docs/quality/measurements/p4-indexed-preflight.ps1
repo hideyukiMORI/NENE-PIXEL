@@ -160,6 +160,45 @@ function Get-P4SlotCatalog {
     return $slots.ToArray()
 }
 
+function Get-P4FrameGroupCatalog {
+    <#
+        Device-free preparation only: the phase is not admitted by Assert-P4ManifestContract.
+        Comparison roles select baseline/candidate semantics; artifact roles select immutable builds.
+        Families and comparator commits have one definition here, consumed by the phase slot catalog.
+    #>
+    param([Parameter(Mandatory = $true)][AllowEmptyString()][AllowNull()][string]$ProtocolId)
+    if ($ProtocolId -cne 'nene-pixel-p4-layer-phase-verification-v1') {
+        throw 'Unknown P4 frame group protocol.'
+    }
+    $definitions = @(
+        [ordered]@{ id = 'single'; baseline_artifact_role = 'baseline_single';
+            baseline_production_commit = '8120c06fae1a372b23d2a7af4f50aa2b9cdfeff9';
+            decision_families = @('canvas16_tap', 'canvas256_repeated_diagonal');
+            diagnostic_families = @('canvas16_tap', 'canvas256_repeated_diagonal',
+                'canvas256_repeated_diagonal_window_x2') },
+        [ordered]@{ id = 'layers16'; baseline_artifact_role = 'baseline_layers16';
+            baseline_production_commit = '169b59287ca60e77e07ac91690450dd1a44b9ba4';
+            decision_families = @('canvas256_layers16_tap', 'canvas256_layers16_repeated_diagonal');
+            diagnostic_families = @('canvas256_layers16_tap', 'canvas256_layers16_repeated_diagonal') },
+        [ordered]@{ id = 'underlay'; baseline_artifact_role = 'baseline_underlay';
+            baseline_production_commit = 'f92b1006be5f7145a32258446474f8640b14b60b';
+            decision_families = @('canvas256_underlay_repeated_diagonal');
+            diagnostic_families = @('canvas256_underlay_repeated_diagonal') }
+    )
+    for ($i = 0; $i -lt $definitions.Count; $i++) {
+        $group = $definitions[$i]
+        $group.sequence = $i + 1
+        $group.preceding_group_id = if ($i -gt 0) { $definitions[$i - 1].id } else { $null }
+        $group.following_group_id = if ($i + 1 -lt $definitions.Count) { $definitions[$i + 1].id } else { $null }
+        $group.candidate_artifact_role = 'candidate'
+        $group.protocol_id = $ProtocolId
+        $group.frame_schema = 'nene-pixel-p4-indexed-actual-app-frame-v9'
+        $group.experiment_schema = 'nene-pixel-p4-indexed-frame-experiment-v6'
+        $group.verdict_id = 'layer-phase-2026-10-03-relative-m5'
+        $group
+    }
+}
+
 function Get-P4FrameSlotCatalog {
     <#
         Protocol v7 moved Lane 3 out of Issue #106's fixed order and acceptance to Issue #120, so these
@@ -169,7 +208,48 @@ function Get-P4FrameSlotCatalog {
         carry that order. The preserved run5 records keep their v6 ids (`frame-1-baseline-diagnostic`
         ... `frame-4-baseline-decision`) as historical names only.
     #>
+    param([string]$ProtocolId = 'nene-pixel-p4-indexed-cutover-verification-v7')
+    if ($ProtocolId -cne 'nene-pixel-p4-indexed-cutover-verification-v7' -and
+        $ProtocolId -cne 'nene-pixel-p4-layer-phase-verification-v1') {
+        throw 'Unknown P4 frame slot protocol.'
+    }
     $slots = [System.Collections.Generic.List[object]]::new()
+    if ($ProtocolId -ceq 'nene-pixel-p4-layer-phase-verification-v1') {
+        foreach ($group in @(Get-P4FrameGroupCatalog -ProtocolId $ProtocolId)) {
+            $baselineSlotId = "frame-$($slots.Count + 1)-$($group.id)-baseline-decision"
+            foreach ($order in @('baseline-decision', 'candidate-decision', 'baseline-diagnostic', 'candidate-diagnostic')) {
+                $parts = $order.Split('-')
+                $role = $parts[0]
+                $runner = $parts[1]
+                $families = @($group["${runner}_families"])
+                $warmups = 5
+                $samples = if ($runner -ceq 'decision') { 50 } else { 10 }
+                $sequence = $slots.Count + 1
+                $slots.Add([ordered]@{
+                    id = "frame-$sequence-$($group.id)-$order"; lane = 'frame'; group_id = $group.id;
+                    role = $role; artifact_role = if ($role -ceq 'baseline') {
+                        $group.baseline_artifact_role
+                    } else { $group.candidate_artifact_role };
+                    runner = $runner; run = $sequence; attempt = 1;
+                    protocol_id = $group.protocol_id; frame_schema = $group.frame_schema;
+                    experiment_schema = $group.experiment_schema; verdict_id = $group.verdict_id;
+                    baseline_production_commit = $group.baseline_production_commit;
+                    families = $families;
+                    baseline_slot_id = if ($role -ceq 'candidate' -and $runner -ceq 'decision') {
+                        $baselineSlotId
+                    } else { $null };
+                    preceding_slot_id = $null; following_slot_id = $null;
+                    timeout_seconds = Get-P4FrameWrapperBound -Families $families.Count -Warmups $warmups -Samples $samples;
+                    warmups = $warmups; samples = $samples
+                })
+            }
+        }
+        for ($i = 0; $i -lt $slots.Count; $i++) {
+            $slots[$i].preceding_slot_id = if ($i -gt 0) { $slots[$i - 1].id } else { $null }
+            $slots[$i].following_slot_id = if ($i + 1 -lt $slots.Count) { $slots[$i + 1].id } else { $null }
+        }
+        return $slots.ToArray()
+    }
     $sequence = 0
     foreach ($slot in @('baseline-decision', 'candidate-decision', 'baseline-diagnostic', 'candidate-diagnostic')) {
         $sequence++

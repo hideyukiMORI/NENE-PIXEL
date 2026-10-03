@@ -82,9 +82,216 @@ own; no new numeric physical-presentation gate is invented. The existing single-
 underlay diagonal remain registered. This decision fixes assessment semantics, but complete slot
 populations, budgets, schema and executable association checks still precede phase admission.
 
+## Fixed frame population and comparison roles
+
+The prospective protocol identity is `nene-pixel-p4-layer-phase-verification-v1`. Frame records use
+`nene-pixel-p4-indexed-actual-app-frame-v9`, experiment records use
+`nene-pixel-p4-indexed-frame-experiment-v6`, and the verdict identity is
+`layer-phase-2026-10-03-relative-m5`. These identities do not reclassify historical v7/v8/v5 data.
+The existing frame collector, analyzer, preflight and slot wrapper remain the single route.
+
+One phase experiment has three comparison groups in this exact order. `baseline` and `candidate`
+remain comparison roles; an artifact role independently selects the immutable build. The candidate
+artifact is the same in all three groups, rather than a rebuilt candidate per comparison.
+
+| Group | Baseline artifact role / production commit | Decision families, in order | Diagnostic families, in order |
+| --- | --- | --- | --- |
+| `single` | `baseline_single` / `8120c06fae1a372b23d2a7af4f50aa2b9cdfeff9` | `canvas16_tap`, `canvas256_repeated_diagonal` | the same two, then `canvas256_repeated_diagonal_window_x2` |
+| `layers16` | `baseline_layers16` / `169b59287ca60e77e07ac91690450dd1a44b9ba4` | `canvas256_layers16_tap`, `canvas256_layers16_repeated_diagonal` | the same two |
+| `underlay` | `baseline_underlay` / `f92b1006be5f7145a32258446474f8640b14b60b` | `canvas256_underlay_repeated_diagonal` | the same one |
+
+Within each group the order is decision baseline, decision candidate, diagnostic baseline,
+diagnostic candidate. Each family has five warmups, then 50 decision or 10 diagnostic operations.
+No samples are pooled between families, groups, or decision/diagnostic populations. This gives:
+
+| Group | Measured operations | Warmups | Total operations | Decision slot bound | Diagnostic slot bound |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `single` | 260 | 50 | 310 | 1,950 s | 975 s |
+| `layers16` | 240 | 40 | 280 | 1,950 s | 750 s |
+| `underlay` | 120 | 20 | 140 | 1,125 s | 525 s |
+| Total | 620 | 110 | 730 | — | — |
+
+There are exactly 12 frame slots, numbered 1 through 12, each with attempt 1 only. Their IDs are
+`frame-<sequence>-<group>-<comparison-role>-<runner>`. Each candidate decision slot references its
+own group's preceding decision-baseline slot. Its baseline reference must bind the same experiment,
+group, family catalog, device/display conditions and the group's fixed baseline production commit;
+an analysis file for another group cannot substitute even if its numbers or artifact hash match.
+The slot also records `artifact_role`, resolved to that group's baseline role or the shared
+`candidate` role. Artifact selection must never change the meaning of comparison role.
+
+The existing bound `300 + 15 * operations` seconds applies to each frame collector invocation.
+The sum of collector bounds is 14,550 seconds; this is a hang bound, not an estimated duration.
+The existing 90-second cleanup reserve and 120-second analysis bound apply to each slot separately.
+The existing 3,600-second native invocation cap is unchanged. A missing or extra family, changed
+population/order/bound, unrecognized group/role, or missing predecessor refuses admission.
+
+Every complete decision population is retained before its numeric verdict. A candidate numeric
+failure does not cancel that group's predeclared diagnostics. A gross diagnostic regression
+(maximum overrun above 33.34 ms or maximum UP-to-committed above 100.0 ms), invalid association,
+fatal error, ANR or process death stops subsequent slots. No automatic slot retry or new identity
+to retry the same candidate is permitted. Any corrective collection needs a recorded new plan under
+QLT-015/019; the failed and unexecuted portions of this experiment remain explicit.
+
+The candidate decision families each require UP-to-committed nearest-rank p95 at most 16.67 ms,
+all-frame overrun p95 at most the matched baseline plus 1.0 ms, and p99 at most baseline plus
+2.0 ms. The diagnostic window family remains descriptive and has the same gross-regression stop.
+The historical baseline admission guard remains p95 at most 33.33 ms and zero fatal/ANR/process-death
+matches. A miss is retained as `baseline-invalid` with its numeric reason and stops later slots;
+it cannot be retried under an invalid-harness recovery allowance. A recorded baseline is a
+comparison reference, not an M5 acceptance of that old build. The candidate's stricter 16.67 ms
+requirement is mandatory even when its matched baseline is slower. No threshold is relaxed.
+
+## Executable DOWN-only association contract
+
+The first-preview association is defined only for `canvas256_layers16_tap`. The analyzer's pure
+association function takes the complete preview rows and the caller's expected capture identity
+(workload, operation, ordinal, sample index, build/production commits, variant and raw row count).
+It returns the first row's own frame ID, row index, input start, completion and deadline, together
+with service-to-completion and overrun milliseconds. It never joins extrema from different rows.
+
+Admission requires a nonempty exact row count; `preview`, event count 1, flags 0 and every expected
+identity field on every row; consecutive row indices starting at 1; unique positive FrameTimeline
+IDs; positive integer timestamps; and, within each row, intended vsync <= frame start <= input start
+< completion and deadline > intended vsync. In recorded row order intended vsync, frame start,
+input start and completion must each increase strictly. Ties, reordered or foreign rows are
+refused rather than sorted, dropped or repaired. A negative overrun is valid. Derived per-row
+overrun and input-service values must match those row's timestamps to the published six-decimal
+precision. Integer fields must not be accepted through truncating or rounding conversion.
+
+The first row's own association is descriptive; tap all-frame relative and committed-result gates
+continue to use the full population. The helper does not prove an input was visibly presented.
+Before collection, the caller must independently prove the DOWN-only sequence, setup quiescence,
+preview/capture completeness and visible correctness. Full collector/analyzer integration must
+reconcile the sample association with retained raw rows, and reject first-preview fields on a
+diagonal or another workload. The pure helper alone cannot admit a capture or a phase.
+
+## Frame preparation implementation slice
+
+Issue #145 next implements the device-free group/slot catalog and its host contract. It extends
+the existing preflight catalog with an explicit protocol selection; the historical default remains
+unchanged. The new catalog supplies the fixed identities, comparison/artifact roles, predecessor
+references and finite populations above. It does not admit a phase manifest while collector,
+analyzer, preservation integration and remaining decisions are incomplete.
+
+Verification: a focused no-device catalog validator checks exact role/commit/family bindings,
+sequence, sample/warmup totals, derived bounds, predecessor isolation and rejection of unknown
+protocols. The historical four-slot catalog is a direct consumer regression check, without
+re-executing old device or analyzer evidence. Documentation validation checks this contract's links
+and rule references. No product behavior test, full local suite or device action follows from this
+slice. Earlier successful preservation and fixture checks are reused on unchanged inputs.
+
+The next independent slice adds the pure DOWN-only association to the existing frame analyzer,
+without changing historical analysis. Its focused no-device validator covers a multi-row capture
+whose first row is not the fastest, own-row timestamp pairing, exact metric arithmetic, negative
+overrun, missing/lost/flagged/foreign/reordered/tied rows, duplicate IDs, malformed integer fields
+and wrong derived metrics. No device samples or current successful analyzer suite are rerun merely
+to add this new schema's preparation contract.
+
+## Live-editor retained-memory decision
+
+This is a separate, intrusive lane using the existing app instrumentation and two-pass post-GC
+sampler, never a probe between frame-latency operations. The two artifact roles are
+`baseline_layers16` and `candidate`, five fresh target processes each, in that order. Every
+positive PID/process-start pair must be unique. Use `debug` artifacts compiled `verify` in both
+roles; this lane does not report release-like frame latency. The schema is
+`nene-pixel-p4-layer-editor-retention-v1`.
+
+The real `MainActivity`, its existing ViewModel and Compose canvas stay alive throughout one run.
+The test retrieves that model; it creates no second runtime. The same pinned maximum asset is
+loaded through the actual SAF flow. Fixture/provider staging is complete before C0. The initial
+workspace is a clean empty 256 by 256 document with the same initial-fit viewport, layout,
+palette controls, hidden actual-size window and absent underlay in both roles.
+
+| Checkpoint | Exact retained state |
+| --- | --- |
+| C0 `empty_idle` | Real empty editor rendered, initialized recovery and idle persistence, no preview/history. |
+| C1 `maximum_loaded_idle` | Successful maximum-asset load, revision 0, clean empty history, top layer 16, paint slot 0 and rendered canvas. |
+| C2 `long_preview_held` | DOWN plus the same 16 alternating diagonal MOVE events; pointer still held, preview rendered, document remains revision 0. |
+| C3 `committed_idle` | One UP commits that gesture, revision 1, one undoable entry, dirty state, no preview, completed autosave and rendered canvas. |
+| C4 `post_cycles_idle` | Ten Undo/Redo pairs through the normal controls, ending in C3's exact document/history position and availability; no preview and completed autosave. |
+
+Each checkpoint uses exactly the existing two GC/finalization passes on the instrumentation thread,
+then records primitive heap/PSS values while retaining the real model. No screenshots, copied pixel
+arrays, independently decoded fixture, old document/render/workspace snapshots or prior preview
+objects may survive in test fields across a checkpoint. The normal model/composition and test
+runner remain present. Report target-process heap/PSS including that fixed instrumentation cost;
+the external DocumentsProvider and system picker processes are outside this population.
+
+At C0/C1 require operation idle and no pending/publishing autosave. At C3/C4 require operation idle,
+no pending/publishing autosave, and the current capture is already published. A return to that
+same published position requires no new generation. A storage/lineage failure, undecided recovery
+offer or failure to reach the state within 15 seconds is invalid, not an excuse to omit the run.
+Composition must be idle and the requested canvas/preview state must have rendered. Each whole
+instrumentation invocation is bounded at 300 seconds; no extra GC or process substitution is allowed.
+
+For C1, C2, C3 and C4 independently, preserve the established memory limits: every Java heap at
+most 50% of that process's `Runtime.maxMemory`; every PSS at most that run's C0 PSS plus 60% of
+`ActivityManager.memoryClass`; and the five-run median PSS delta from C0 at most 50% of memory class.
+Each C4-minus-C3 Java-heap growth is at most `max(1 MiB, 1% of Runtime.maxMemory)`. Cross-artifact
+differences are descriptive, not a new tolerance. The first invalid or numeric failure stops the
+remaining memory/phase slots with all prior results retained. No five-run median is reported from
+a shorter population.
+
+The source-derived owner inventory accompanies observations. Maximum document primitive pixels are
+1,179,648 bytes. A held top-layer preview additionally retains 15 copied non-target surfaces,
+1,105,920 bytes of indices/coverage, and a 1,024-byte palette. The committed ARGB array, two preview
+ARGB arrays and their Android bitmaps are separate owners; preview arrays/bitmap can remain cached
+after release while preview source references are dropped. These logical counts exclude object,
+renderer and native overhead. The earlier +512 KiB estimate is not a PSS tolerance or an assertion
+that only that many extra bytes remain reachable.
+
+## Maximum publication and physical SAF-save decisions
+
+These descriptive storage lanes use the shared candidate production tree and real physical storage,
+separately from frame timing and retained-memory GC. They follow the ten memory runs, in this order:
+
+1. One fresh persistence-instrumentation invocation of the existing AtomicFile publication runner:
+   maximum 16-layer fixture, then the canonical minimum v3 fixture, each five warmups and 20 samples.
+   Schema `nene-pixel-p4-layer-publication-device-v1`; maximum Candidate 1,182,885 bytes, minimum
+   Candidate 85 bytes. Decode the pinned maximum asset outside timing through `ProjectFormatCodec`.
+   Time from immediately before Candidate encode through the production writer's accepted exact
+   read-back result. Keep the existing 54-row journal (25 operation rows and min/max per group),
+   60-second worker bound, 300-second native bound and 5-second completed-operation anomaly guard.
+   No row/file I/O or full fixture scan is added between timed operations.
+2. One fresh app-instrumentation invocation for 25 distinct preselected fresh SAF destinations:
+   five warmups, then 20 samples on the same 1,182,862-byte maximum project. Schema
+   `nene-pixel-p4-layer-saf-save-device-v1`. Use the existing test DocumentsProvider authority
+   `io.github.hideyukimori.nenepixel.test.acceptance.documents`, with unique allowed
+   `i89-145-...` names; pin the provider APK and grants to the actual target app identity. Prepare
+   all fresh empty destinations and their real framework grants through a test-only activity-result
+   registration on the existing app activity before timing. A URI string alone is not admission.
+
+SAF timing calls the public `AndroidProjectStorageAdapter.save` with a test picker returning exactly
+one previously unused granted destination. The interval includes encode, self-validation, that
+fixed-picker return, real `ContentResolver` open/write/close, bounded read-back and exact byte
+verification. It excludes document creation, user/DocsUI wait and preselection. No wrapped in-process
+provider, direct private-file write or production observation API substitutes. This is verified save
+to a preselected local SAF destination; it is not the full interactive Save As duration, a guarantee
+for cloud/Downloads providers, or an fsync guarantee. Each grant/freshness/byte-count/outcome is bound
+to its sample. Batch-boundary validation checks exact output bytes against the pinned fixture.
+
+SAF setup has a fixed 300-second bound; the 25-operation worker has the same 60-second bound and
+5-second completed-operation anomaly guard as publication. One native invocation is bounded at
+420 seconds, covering those intervals and a 60-second reporting/drain reserve. Its bounded journal
+contains 27 rows: 25 operations and descriptive min/max, with no per-row disk I/O during timing.
+Failed/partial outputs are preserved under the existing slot evidence/quarantine policy. Neither
+lane retries a slot, deletes successful/failed evidence, overwrites an old URI or clears an app.
+
+For maximum AtomicFile publication, apply ADR 0018's unchanged 250 ms decision boundary to this
+actual v3 maximum. At or below it keep 1,000/5,000 ms; above it retain the valid observations and
+re-derive the two constants with the ADR's existing formulas before merge. This is a constant
+decision, not a performance PASS label. SAF min/max is descriptive, with exact successful transport
+and the predeclared anomaly guard required; the autosave 250 ms boundary is not a SAF acceptance
+threshold. No speedup is claimed from different byte counts or transport paths.
+
+These decisions do not yet authorize execution: both schemas, exact owner/quiescence contracts,
+real grants and artifact entries must be implemented and checked at their narrow boundaries,
+then bound into the one phase manifest and its preservation/restoration lifecycle. Storage and
+memory keep the existing `Invoke-P4InstrumentationLane` executor, rather than another collector.
+
 ## Pending admission decisions
 
-The fixed frame-family order/counts and executable first-preview association, underlay image/placement,
-memory checkpoints and ownership, SAF provider/timing boundary, versioned schemas/verdicts,
-artifact/profile bindings, finite stop/retry budget and preservation-v2 integration must be
+Collector/analyzer integration of first-preview association, the exact underlay image/placement
+proof, executable memory/storage schema agreement and real SAF grant proof,
+artifact/profile bindings, complete phase stop/budget rules and preservation-v2 integration must be
 completed before collection. A verified read-only snapshot is not an isolated measurement session.
