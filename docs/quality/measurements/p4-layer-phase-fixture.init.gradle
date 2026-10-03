@@ -25,4 +25,14 @@ gradle.projectsEvaluated {
         if (output != null) args output
         outputs.upToDateWhen { false }
     }
+    persistence.tasks.register('layerPhaseUnderlayFixtureExport', JavaExec) { task ->
+        def output = persistence.providers.gradleProperty('p4UnderlayFixtureOutput').orNull
+        group = 'verification'
+        description = 'Exports the canonical #145 underlay PNG to one new explicit file.'
+        dependsOn persistence.tasks.named('compileDebugUnitTestKotlin')
+        mainClass.set('io.github.hideyukimori.nenepixel.adapters.persistence.LayerPhaseUnderlayFixtureExport')
+        classpath = debugTest.get().classpath + debugTest.get().testClassesDirs
+        if (output != null) args output
+        outputs.upToDateWhen { false }
+    }
 }

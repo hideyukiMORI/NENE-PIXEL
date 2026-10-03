@@ -58,6 +58,53 @@ Its fixture proof combines pinned bytes, production v3 decoding contracts, the c
 load, canvas size, clean state and top-layer selection policy. Memory and publication lanes consume
 the same decoded asset outside their measured intervals, rather than constructing another fixture.
 
+## Fixed underlay material and load boundary
+
+The underlay group uses one checked synthetic PNG in the same test-asset directory:
+`underlay-grid.png`, 1024 by 1024, 8-bit opaque RGB, non-interlaced. Its only PNG chunk kinds are
+IHDR, IDAT and IEND; no orientation, density, gamma or embedded colour-profile metadata is allowed.
+For source coordinate `(x,y)`, let `u=floor(x/4)` and `v=floor(y/4)`. Its exact sRGB RGBA pixel is
+`(64 + u % 192, 64 + v % 192, 64 + (u+v) % 192, 255)`. Every 4-by-4 block is constant, and no
+source pixel is black. Encoded bytes and the decoded row-major big-endian RGBA8888 byte stream
+receive separate pinned SHA-256 identities; the artifact check must prove both where declared.
+
+- Encoded PNG: 184,323 bytes, SHA-256
+  `05efb3fc8edf43f45dc5a8b7cae3be148680c5694b47c47d1cf4eb7cbe26c6fb`.
+- Decoded row-major RGBA8888: 1,048,576 pixels / 4,194,304 bytes, SHA-256
+  `f107eb10700c55df2cb3a4dd1b2723b14bc773dcd59866f4a65a5b94d583aa78`.
+
+The host test fixture is the sole generator, using the JDK's ImageIO PNG writer only in test code.
+Its explicit exporter creates a fresh file. The checked PNG is test input, not a production asset.
+Host verification checks its hash, metadata/chunk contract, every decoded pixel and the production
+placement factory. An opt-in Android fixture test checks the same packaged bytes through the actual
+`AndroidBitmapReferenceImageDecoder` and compares all decoded pixels by the separate RGBA hash.
+Select `LayerPhaseUnderlayDecoderDeviceTest` with the exact instrumentation argument
+`p4LayerFixtureCheck=true` only after device admission; without the argument it is skipped.
+That functional check has no timing verdict. A compiled test or merged asset does not establish an
+APK-entry, Android decode or successful picker-load proof.
+
+Both comparison roles create a fresh empty 256-by-256 single-layer document through the existing
+New-document UI and select opaque black at palette index 0. They pick the same verified PNG through
+the existing test DocumentsProvider and real SAF picker. A fresh allowed `i89-145-...png` provider
+name binds the phase/fixture identity; the provider's no-overwrite rule and framework URI grants
+remain in force. No URI string, direct broker completion or provider permission bypass substitutes
+for the actual app pick. Exact provider APK/manifest/source, asset entry, staged bytes and grant/load
+outcome are admission evidence, outside timed samples.
+
+Successful pick uses the existing `ReferenceUnderlay.placed` path: decoded 1024-by-1024 on the
+256-by-256 document yields exactly left 0, top 0, scale 0.25, opacity alpha 128, Shown and Resting.
+The host/source comparison proves the factory contract in both roles; runtime preparation must
+also prove a fresh work, successful pick, correct pattern, shown control, closed panel and absent
+adjust bar. A rounded 50-percent label is supplementary evidence, never proof of integer alpha 128.
+No opacity slider, fit command or adjustment gesture is sent. The pick result replaces any restored
+underlay through the production operation; a stale remembered image cannot stand in for the PNG.
+Before timing, no pending recall/publication or setup frame may contaminate capture. The later
+admission work must establish that quiescence and visible correctness on the actual device.
+
+The existing repeated-diagonal and one-Undo reset sequence remains unchanged. PNG decode/hash,
+full-pixel verification, fixture selection and setup observations stay outside every timed gesture.
+No document scan, allocation/copy or draw step is added to application production code by this fixture.
+
 ## First-preview assessment decision
 
 The layered group has two workloads on the same pinned maximum document: `canvas256_layers16_tap`
