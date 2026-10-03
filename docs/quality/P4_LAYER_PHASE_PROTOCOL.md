@@ -679,6 +679,17 @@ own release-like work remains in its existing bound. Every derived collector bou
 report capture, provider/work archives, original verification and restoration have separate pending
 cleanup/session budgets and must be fully accounted before admission.
 
+An explicitly supplied phase operation budget shares one running monotonic clock across its
+native observation, snapshot, install and restoration calls. Its integer allowance is 1–3600
+seconds. Each new native invocation uses the smaller of its existing ceiling and the whole
+remaining seconds after reserving 15 seconds for native termination/draining. No positive whole
+second, a stopped/malformed clock or an expired budget refuses before launching another command.
+Host verification also checks expiry before reporting success. Budget omission preserves historical
+call ceilings; an explicitly null budget is invalid. A phase inventory admits at most 4096 discovered
+entries before any stat/hash batches; retained discovery and partial outputs are never replaced.
+The budget helper is part of the immutable snapshot source inventory. This shared mechanism does
+not select the final per-slot cleanup or whole-session allowance and does not reopen admission.
+
 Phase install replacement writes an immutable intent before invoking install and retains its
 result even when install/readback fails. A missing result means an incomplete attempt, never proof
 that the old APK remains. The final restoration must reconcile that intent with the actual installed

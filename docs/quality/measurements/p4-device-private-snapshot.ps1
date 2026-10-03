@@ -12,6 +12,7 @@ function Get-P4SnapshotSources {
         'p4-device-private-snapshot.ps1', 'p4-device-private-native.ps1',
         'p4-device-private-observation.ps1', 'p4-device-private-preservation.ps1',
         'p4-device-private-transport.ps1', 'p4-indexed-device-lanes.ps1',
+        'p4-operation-budget.ps1',
         '../bounded-native-command.ps1')
     $items = [ordered]@{}
     foreach ($name in $relative) {
@@ -35,9 +36,11 @@ function Invoke-P4SnapshotEncoded {
         [string] $Script, [long] $MaximumBytes)
     $destination = Join-Path $Context.output_directory "$Stage-$Step.bin"
     $record = Join-Path $Context.output_directory "$Stage-$Step.json"
+    $nativeTimeout = Get-P4OperationTimeout $Context 30
     [void] (Invoke-P4EncodedShellCapture -AdbPath $Context.adb_path -Serial $Context.serial `
-        -Script $Script -TimeoutSeconds 30 -DestinationPath $destination `
+        -Script $Script -TimeoutSeconds $nativeTimeout -DestinationPath $destination `
         -RecordPath $record -MaximumBytes $MaximumBytes)
+    Assert-P4OperationActive $Context
     return $destination
 }
 
@@ -88,7 +91,7 @@ function Assert-P4SnapshotVacant([System.Collections.IDictionary] $Context, [str
             throw "Snapshot output path already exists: $path"
         }
     }
-    # Native stat/hash batches have unbounded counts. Reject any old evidence under this
+    # Legacy native stat/hash batches have no entry cap. Reject any old evidence under this
     # unique stage prefix as well, including directories and partial prior attempts.
     $prefix = "$Stage-"
     foreach ($path in [IO.Directory]::EnumerateFileSystemEntries($Context.output_directory)) {
@@ -200,6 +203,7 @@ function New-P4PrivateSnapshot {
         foreach ($name in $sources.Keys) {
             if ($sources[$name] -cne $currentSources[$name]) { throw 'Snapshot source changed during capture' }
         }
+        Assert-P4OperationActive $Context
         $result.status = 'verified-snapshot'
     } catch {
         $failure = $_

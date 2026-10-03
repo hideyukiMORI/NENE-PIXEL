@@ -138,6 +138,7 @@ function Invoke-P4IsolationStep {
         if ($bytes.Length -ne 0) { throw 'Mutation command emitted stdout' }
         $observed = Get-P4NativePrivateInventory -Context $Context -Stage "$Stage-$Name-post"
         Assert-P4ExactMap (ConvertTo-P4InventoryMap $Next) (ConvertTo-P4InventoryMap $observed)
+        Assert-P4OperationActive $Context
         $step.status = 'success'
     } catch { $step.reason = $_.Exception.Message; throw }
     finally {
@@ -225,6 +226,7 @@ function Invoke-P4PrivateIsolation {
         Write-P4SessionJson $inventoryPath @(Get-P4Items (ConvertTo-P4InventoryMap $final))
         $record.isolation_inventory_path = $inventoryPath
         $record.isolation_inventory_sha256 = Get-P4SnapshotHash $inventoryPath
+        Assert-P4OperationActive $Context
         $record.status = 'preserved'
     } catch { $failure = $_; $record.reason = $_.Exception.Message }
     finally {

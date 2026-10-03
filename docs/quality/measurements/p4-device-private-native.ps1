@@ -53,10 +53,11 @@ function Invoke-P4NativeCapture {
             throw "Native capture output path already exists: $path"
         }
     }
+    $nativeTimeout = Get-P4OperationTimeout $Context 30
     $captureError = $null
     try {
         [void] (Invoke-P4RawAdbCapture -AdbPath $Context.adb_path `
-            -AdbArguments (@('-s', $Context.serial) + $AdbArguments) -TimeoutSeconds 30 `
+            -AdbArguments (@('-s', $Context.serial) + $AdbArguments) -TimeoutSeconds $nativeTimeout `
             -DestinationPath $destination -RecordPath $recordPath -MaximumBytes $MaximumBytes)
     } catch { $captureError = $_ }
     if (-not [IO.File]::Exists($recordPath) -or -not [IO.File]::Exists($destination)) {
@@ -91,6 +92,7 @@ function Invoke-P4NativeCapture {
     } elseif ($ExpectedExit -ne 0 -and $record.stderr -cne '') {
         throw "Unexpected native stderr: $Step"
     }
+    Assert-P4OperationActive $Context
     return ,$bytes
 }
 
@@ -120,9 +122,11 @@ function Invoke-P4NativeRunAs([System.Collections.IDictionary] $Context, [string
         (ConvertTo-P4ShellWord $Script)
     $destination = Join-Path $Context.output_directory "$Stage-$Step.bin"
     $recordPath = Join-Path $Context.output_directory "$Stage-$Step.json"
+    $nativeTimeout = Get-P4OperationTimeout $Context 30
     [void] (Invoke-P4EncodedShellCapture -AdbPath $Context.adb_path -Serial $Context.serial `
-        -Script $remote -TimeoutSeconds 30 -DestinationPath $destination `
+        -Script $remote -TimeoutSeconds $nativeTimeout -DestinationPath $destination `
         -RecordPath $recordPath -MaximumBytes $MaximumBytes)
+    Assert-P4OperationActive $Context
     return ,(Read-P4NativeBytes $destination)
 }
 
@@ -157,6 +161,7 @@ function Get-P4NativePrivateInventory {
     $scan = 'for root in files no_backup shared_prefs databases; do if [ -e "$root" ] || [ -L "$root" ]; then find "$root" -print0 || exit; fi; done'
     $paths = Invoke-P4NativeRunAs $Context $Stage 'paths-before' $scan 33554432
     $discovered = ConvertFrom-P4NulPaths $paths
+    Assert-P4OperationInventoryLimit $Context $discovered.Count
     $metadata = [Collections.Generic.List[string]]::new()
     $batchNumber = 0
     foreach ($batch in (New-P4NativeBatches $discovered)) {
@@ -171,6 +176,7 @@ function Get-P4NativePrivateInventory {
     $discoveredSet = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
     foreach ($path in $discovered) { [void]$discoveredSet.Add($path) }
     foreach ($line in $metadata) {
+        Assert-P4OperationActive $Context
         $fields = $line.Split('|')
         if ($fields.Length -ne 6 -or $fields[1] -cnotmatch '^[0-9a-fA-F]+$') { throw 'Malformed native metadata' }
         $path = $fields[0]
@@ -193,6 +199,7 @@ function Get-P4NativePrivateInventory {
     $inventory = ConvertFrom-P4NativeInventory $paths $metadata.ToArray() $hashes.ToArray()
     $after = Invoke-P4NativeRunAs $Context $Stage 'paths-after' $scan 33554432
     $afterPaths = ConvertFrom-P4NulPaths $after
+    Assert-P4OperationInventoryLimit $Context $afterPaths.Count
     if ($afterPaths.Count -ne $discovered.Count) { throw 'Native path set drift' }
     $set = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
     foreach ($path in $discovered) { [void]$set.Add($path) }
@@ -201,5 +208,6 @@ function Get-P4NativePrivateInventory {
     [void] (Invoke-P4NativeCapture -Context $Context -Stage $Stage -Step 'stopped-after' `
         -AdbArguments @('shell', '-T', '-n', $pidCommand) -MaximumBytes 1024 `
         -ExpectedExit 1 -ExpectedStdout '' -ExpectedStderr '')
+    Assert-P4OperationActive $Context
     return ,([object[]]$inventory)
 }

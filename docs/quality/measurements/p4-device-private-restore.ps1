@@ -116,12 +116,14 @@ function Assert-P4RestorationStopped([Collections.IDictionary] $Context, [string
 function Invoke-P4RestorationApkInstall([Collections.IDictionary] $Context, [string] $Stage, $Snapshot) {
     $destination = Join-Path $Context.output_directory "$Stage-install.bin"
     $rawPath = Join-Path $Context.output_directory "$Stage-install.json"
+    $nativeTimeout = Get-P4OperationTimeout $Context 120
     Write-P4SessionJson (Join-Path $Context.output_directory "$Stage-install-intent.json") `
         ([ordered]@{ apk_path = $Snapshot.apk_path; apk_sha256 = $Snapshot.apk_sha256;
-            arguments = @('-s', $Context.serial, 'install', '-r', '-d', '-t', $Snapshot.apk_path); timeout_seconds = 120 })
+            arguments = @('-s', $Context.serial, 'install', '-r', '-d', '-t', $Snapshot.apk_path); timeout_seconds = $nativeTimeout })
+    Assert-P4OperationActive $Context
     [void](Invoke-P4RawAdbCapture -AdbPath $Context.adb_path `
         -AdbArguments @('-s', $Context.serial, 'install', '-r', '-d', '-t', $Snapshot.apk_path) `
-        -TimeoutSeconds 120 -DestinationPath $destination -RecordPath $rawPath -MaximumBytes 4096)
+        -TimeoutSeconds $nativeTimeout -DestinationPath $destination -RecordPath $rawPath -MaximumBytes 4096)
     $raw = Get-Content -LiteralPath $rawPath -Raw | ConvertFrom-Json
     if ($raw.status -cne 'success' -or $raw.exit_code -ne 0 -or $null -ne $raw.error -or
         $raw.stderr -cne '' -or $raw.timed_out -or $raw.byte_limit_exceeded -or
@@ -132,6 +134,7 @@ function Invoke-P4RestorationApkInstall([Collections.IDictionary] $Context, [str
     if (($lines -join "`n") -cnotin @('Success', "Performing Streamed Install`nSuccess")) {
         throw 'Unexpected original APK install output'
     }
+    Assert-P4OperationActive $Context
 }
 
 function Invoke-P4PrivateRestoration {
@@ -244,6 +247,7 @@ function Invoke-P4PrivateRestoration {
         $finalPath = Join-Path $Context.output_directory "$stage-final-inventory.json"
         Write-P4SessionJson $finalPath @(Get-P4Items (ConvertTo-P4InventoryMap $final))
         $record.final_inventory_path = $finalPath; $record.final_inventory_sha256 = Get-P4SnapshotHash $finalPath
+        Assert-P4OperationActive $Context
         $record.status = 'restored'
     } catch { $failure = $_; $record.reason = $_.Exception.Message }
     finally { $record.steps = @($steps.ToArray()); Write-P4SessionJson $resultPath $record }

@@ -2,6 +2,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '../bounded-native-command.ps1')
 . (Join-Path $PSScriptRoot 'p4-device-private-transport.ps1')
+. (Join-Path $PSScriptRoot 'p4-operation-budget.ps1')
 
 # S5 device lanes. Every entrypoint below is derived from the candidate and baseline androidTest sources;
 # nothing here may be guessed. Sources of record:
@@ -908,11 +909,14 @@ function Invoke-P4BoundedAdb {
         [Parameter(Mandatory = $true)][string[]]$AdbArguments,
         [Parameter(Mandatory = $true)][int]$TimeoutSeconds
     )
-    return Invoke-BoundedNativeCommand -RepositoryRoot $Context.repository_root `
+    $nativeTimeout = Get-P4OperationTimeout $Context $TimeoutSeconds
+    $result = Invoke-BoundedNativeCommand -RepositoryRoot $Context.repository_root `
         -LogPath (Join-Path $Context.output_directory $LogName) `
         -ExecutablePath $Context.adb_path `
         -NativeArguments (@('-s', $Context.serial) + $AdbArguments) `
-        -TimeoutSeconds $TimeoutSeconds
+        -TimeoutSeconds $nativeTimeout
+    Assert-P4OperationActive $Context
+    return $result
 }
 
 function Invoke-P4RawAdbCapture {
@@ -1281,11 +1285,13 @@ function Copy-P4PrivateFile {
         [Parameter(Mandatory = $true)][string]$Destination
     )
     if (Test-Path -LiteralPath $Destination) { throw "Private-file destination already exists: $Destination" }
+    $nativeTimeout = Get-P4OperationTimeout $Context $script:P4PrivateFileTimeoutSeconds
     $bytes = Invoke-P4RawAdbCapture -AdbPath $Context.adb_path `
         -AdbArguments @('-s', $Context.serial, 'exec-out', 'run-as', $Package, 'cat', $RelativePath) `
-        -TimeoutSeconds $script:P4PrivateFileTimeoutSeconds
+        -TimeoutSeconds $nativeTimeout
     $stream = [IO.File]::Open($Destination, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::Read)
     try { $stream.Write($bytes, 0, $bytes.Length) } finally { $stream.Dispose() }
+    Assert-P4OperationActive $Context
     return [ordered]@{ package = $Package; relative_path = $RelativePath; byte_count = $bytes.Length }
 }
 
@@ -1403,9 +1409,11 @@ function Copy-P4LayerPrivateReports {
                 $remote = $guard + '; run-as ' + $package + ' sh -c ' + (ConvertTo-P4ShellWord $read) +
                     '; read_status=$?; ' + $guard + '; exit "$read_status"'
                 $destination = Join-Path $Context.output_directory $file.destination_name
+                $nativeTimeout = Get-P4OperationTimeout $Context ([int]$file.timeout_seconds)
                 $transfer = Invoke-P4EncodedShellCapture -AdbPath $Context.adb_path -Serial $Context.serial `
-                    -Script $remote -TimeoutSeconds ([int]$file.timeout_seconds) -DestinationPath $destination `
+                    -Script $remote -TimeoutSeconds $nativeTimeout -DestinationPath $destination `
                     -RecordPath "$destination.transfer.json" -MaximumBytes ([long]$file.maximum_bytes)
+                Assert-P4OperationActive $Context
                 $capture.status = 'captured'; $capture.byte_count = $transfer.byte_count; $capture.sha256 = $transfer.sha256
             } catch { $capture.error = $_.Exception.Message; if ($null -eq $failure) { $failure = $_ } }
             $results.Add($capture)
