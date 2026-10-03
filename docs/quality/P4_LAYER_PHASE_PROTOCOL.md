@@ -702,6 +702,17 @@ outputs refuse replacement. The remote read also checks process absence and regu
 components. Missing reports are retained as missing evidence and invalidate an otherwise successful
 slot. No phase report is moved or deleted, and legacy quarantine is not used for these unique paths.
 
+### Measurement state between slots
+
+Each slot's stopped cleanup uses the existing ADR0035 planner to move only measurement-created
+recovery files, remembered underlays and the two ProfileInstaller files to the fresh
+`no_backup/p4-layer-slots/<session>/<slot-id>/` archive. The original guard stays isolated until
+the whole phase finishes or stops. Full inventory checks surround each no-overwrite mkdir/move;
+the current installed APK, preservation record, preflight and slot bind the retained result.
+No-op resets issue no mutation. A failure consumes no extra attempt and preserves every applied
+prefix for the existing final restoration policy. Full app/provider host archives and the outer
+finite lifecycle are still required before admission; a reset result is not phase acceptance.
+
 ### Four immutable artifact roles and complete source inventory
 
 The phase preflight schema is `nene-pixel-p4-layer-preflight-v1`. Its role keys are exactly

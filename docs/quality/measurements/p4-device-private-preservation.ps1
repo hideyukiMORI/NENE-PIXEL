@@ -171,6 +171,34 @@ function Get-P4IsolatedState([object[]] $OriginalInventory, [string] $Session, [
     return [pscustomobject]@{ Plan = $plan; Base = $base; Current = $current; New = $new }
 }
 
+function New-P4SlotResetPlan {
+    param([object[]] $OriginalInventory, [string] $Session, [string] $SlotId,
+        [object[]] $CurrentInventory, [Nullable[int]] $CompletedMoveCount = $null)
+    Assert-P4Session $SlotId
+    $state = Get-P4IsolatedState $OriginalInventory $Session $CurrentInventory
+    $sessionArchive = "no_backup/p4-layer-slots/$Session"
+    $archive = "$sessionArchive/$SlotId"
+    foreach ($entry in $OriginalInventory) {
+        if (Test-P4Below $entry.Path $sessionArchive) { throw 'Slot archive session belongs to original inventory' }
+    }
+    if ($state.Current.ContainsKey($archive)) { throw 'Slot archive already exists' }
+    $moves = @()
+    foreach ($root in @(Get-P4MoveRoots $state.New)) {
+        $moves += [pscustomobject]@{ Source = $root; Destination = "$archive/$root" }
+    }
+    Assert-P4MoveCount $CompletedMoveCount $moves.Count 'completed slot reset move count'
+    $completed = if ($null -eq $CompletedMoveCount) { $moves.Count } else { $CompletedMoveCount }
+    $expected = ConvertTo-P4InventoryMap $CurrentInventory
+    foreach ($move in $moves) {
+        Add-P4Ancestors $expected ($move.Destination.Substring(0, $move.Destination.LastIndexOf('/')))
+    }
+    for ($i = 0; $i -lt $completed; $i++) {
+        Move-P4InventoryEntries $expected $moves[$i].Source $moves[$i].Destination
+    }
+    return [pscustomobject]@{ Session = $Session; SlotId = $SlotId; Archive = $archive;
+        Moves = @($moves); Expected = @(Get-P4Items $expected) }
+}
+
 function New-P4RestorationExpectedMap($Current, [string] $Archive, $MeasurementMoves, $OriginalMoves, [int] $CompletedMeasurementMoveCount, [int] $CompletedOriginalMoveCount) {
     $expected = New-P4Map
     foreach ($entry in $Current.Values) { $expected.Add($entry.Path, ($entry | Select-Object *)) }

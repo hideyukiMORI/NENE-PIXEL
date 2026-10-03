@@ -220,6 +220,23 @@ Verification/restoration records reference its hash. The prospective phase prefl
 these bindings and the verified isolation, not merely filename, serial and freshness. No existing
 v1 record is upgraded in place. This schema describes measurement evidence only, not project files.
 
+### Measurement state between phase slots
+
+The same policy planner supplies a slot reset, separate from final original restoration. It first
+verifies every isolated original, then selects only measurement-created entries at the six existing
+recovery/underlay/ProfileInstaller roots. With the app stopped, those entries move without overwrite
+to `no_backup/p4-layer-slots/<session>/<slot-id>/<original-relative-path>`. The session's slot archive
+must not belong to the original inventory, and the selected slot destination must be absent.
+No-op resets create no device directories. Other original or measurement-created entries stay put.
+
+Every mkdir/move uses the existing native isolation step with complete before/after inventory
+comparison and retained intent/result. The executor requires immutable verified preservation-v2,
+the expected installed APK and an explicit shared operation clock; final success requires matching
+APK identity, exact final inventory and intact isolated originals. Failure retains the applied prefix.
+Complete resets and every partial directory/move prefix remain inputs to the unchanged final
+restoration planner, which archives all measurement-created entries and returns the originals.
+Slot cleanup never consumes the original guard. These helpers do not themselves admit a phase.
+
 ## Narrow verification
 
 `validate-p4-device-private-preservation.ps1` uses synthetic inventories without adb, Gradle or
