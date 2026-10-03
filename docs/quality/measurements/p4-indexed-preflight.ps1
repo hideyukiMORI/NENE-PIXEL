@@ -295,6 +295,29 @@ function Get-P4LayerMemorySlotCatalog {
     }
 }
 
+function Get-P4LayerStorageSlotCatalog {
+    param([Parameter(Mandatory)][string]$ProtocolId)
+    [void](Get-P4FrameGroupCatalog -ProtocolId $ProtocolId)
+    [ordered]@{
+        id = 'publication-layers16-candidate'; protocol_id = $ProtocolId; sequence_index = 23
+        lane = 'publication'; role = 'candidate'; artifact_role = 'candidate'; timeout_seconds = 300
+        schema = 'nene-pixel-p4-layer-publication-device-v1'; journal_rows = 54
+        worker_timeout_seconds = 60; sample_anomaly_nanos = 5000000000L
+        warmup_count_per_group = 5; sample_count_per_group = 20
+        groups = @(
+            [ordered]@{ name = 'candidate_v3_max'; structural_byte_count = 1182885 },
+            [ordered]@{ name = 'candidate_v3_min'; structural_byte_count = 85 }
+        )
+    }
+    [ordered]@{
+        id = 'saf-save-layers16-candidate'; protocol_id = $ProtocolId; sequence_index = 24
+        lane = 'saf-save'; role = 'candidate'; artifact_role = 'candidate'; timeout_seconds = 420
+        schema = 'nene-pixel-p4-layer-saf-save-device-v1'; journal_rows = 27
+        setup_timeout_seconds = 300; worker_timeout_seconds = 60; sample_anomaly_nanos = 5000000000L
+        warmup_count = 5; sample_count = 20; structural_byte_count = 1182862
+    }
+}
+
 function Get-P4FrameWorkloadCatalog {
     # One event specification for collector and analyzer. Each invocation owns all returned records.
     param([Parameter(Mandatory = $true)][AllowNull()][AllowEmptyCollection()][string[]]$WorkloadOrder)

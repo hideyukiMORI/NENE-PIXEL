@@ -35,4 +35,29 @@ gradle.projectsEvaluated {
         if (output != null) args output
         outputs.upToDateWhen { false }
     }
+    persistence.tasks.register('layerPhasePublicationHostContract', JavaExec) {
+        def output = persistence.providers.gradleProperty('p4PublicationContractOutput').orNull
+        def androidCompile = persistence.tasks.named('compileDebugAndroidTestKotlin')
+        group = 'verification'
+        description = 'Checks phase report reservation/formatting using the actual AndroidTest helper classes.'
+        dependsOn androidCompile
+        mainClass.set('io.github.hideyukimori.nenepixel.adapters.persistence.AutosaveLayerPublicationHostContract')
+        classpath = persistence.files(androidCompile.get().destinationDirectory) + debugTest.get().classpath
+        if (output != null) args output
+        timeout.set(java.time.Duration.ofSeconds(30))
+        outputs.upToDateWhen { false }
+    }
+    app.tasks.register('layerPhaseSafHostContract', JavaExec) {
+        def output = app.providers.gradleProperty('p4SafContractOutput').orNull
+        def androidCompile = app.tasks.named('compileDebugAndroidTestKotlin')
+        def unitTest = app.tasks.named('testDebugUnitTest', Test)
+        group = 'verification'
+        description = 'Checks bounded SAF journal/report helpers without executing an Android method.'
+        dependsOn androidCompile
+        mainClass.set('io.github.hideyukimori.nenepixel.measurement.P4LayerSafHostContract')
+        classpath = app.files(androidCompile.get().destinationDirectory) + unitTest.get().classpath
+        if (output != null) args output
+        timeout.set(java.time.Duration.ofSeconds(30))
+        outputs.upToDateWhen { false }
+    }
 }

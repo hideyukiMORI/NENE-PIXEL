@@ -425,6 +425,10 @@ phase integration below. No measurement has run from this preparation slice.
 These descriptive storage lanes use the shared candidate production tree and real physical storage,
 separately from frame timing and retained-memory GC. They follow the ten memory runs, in this order:
 
+The exact slot IDs are `publication-layers16-candidate` (phase sequence 23, native bound 300 seconds)
+and `saf-save-layers16-candidate` (sequence 24, native bound 420 seconds). Both use artifact role
+`candidate`, attempt 1 only, and require the complete preceding successful memory chain.
+
 1. One fresh persistence-instrumentation invocation of the existing AtomicFile publication runner:
    maximum 16-layer fixture, then the canonical minimum v3 fixture, each five warmups and 20 samples.
    Schema `nene-pixel-p4-layer-publication-device-v1`; maximum Candidate 1,182,885 bytes, minimum
@@ -468,6 +472,88 @@ These decisions do not yet authorize execution: both schemas, exact owner/quiesc
 real grants and artifact entries must be implemented and checked at their narrow boundaries,
 then bound into the one phase manifest and its preservation/restoration lifecycle. Storage and
 memory keep the existing `Invoke-P4InstrumentationLane` executor, rather than another collector.
+
+### Publication artifact and output binding
+
+The existing AtomicFile runner selects the layer phase only with `p4LayerCollect=publication-v1`
+alongside its existing explicit publication collect/candidate arguments. The maximum is decoded
+from the checked asset before the timed loop; the existing minimum factory is reused. CSV keeps
+the eight columns `schema,role,group,index,kind,elapsed_ns,generation,outcome`, changes schema only
+to the declared layer-publication identity, and uses groups `candidate_v3_max`, `candidate_v3_min`.
+Generations are 1 through 50 across both groups; summary rows repeat their selected sample's
+generation/index/elapsed value, choosing the first occurrence in a tie. Successful rows say
+`written`; a failed write's row says `failed` and leaves the whole journal invalid.
+
+Before timing, the runner records the eleven common phase identity fields, its own
+`publication_apk_sha256`, actual self-instrumenting package/UID and PID/start pair, fixed profile,
+fixture hash, both envelope sizes, output/work paths and the fixed population/bound facts.
+Its installed persistence-test APK is hashed and its actual process UID is checked. App/test APK
+hashes are the host-bound candidate identities; this separate UID does not claim to inspect the
+main app's private preservation guard. Explicit preservation attestation supplements the host's
+complete manifest and native preservation proof. Neither supplied hashes nor a local directory
+admit collection on their own.
+
+The prefix is `p4-layer-publication-<first twelve preflight SHA-256 characters>`. A fresh `files/`
+directory with that name holds `publication.csv`, `publication.status`, and `identity.txt`; a fresh
+`no_backup/` directory with the same name holds the real AtomicFile record. Reservations refuse
+existing entries. Partial reservations and the final or failed record state are retained, including
+zero-byte files. No phase finally block deletes them. The production writer's own AtomicFile
+behavior remains part of the measured operation and is not intercepted. Identity is persisted and
+emitted as one status-code 3 `p4LayerPublicationIdentity` line before the worker; the host analyzer
+must reconcile those two copies exactly. Complete/invalid status and the bounded CSV are published
+after the worker, so reporting I/O is outside timed operations. Historical publication selection,
+file names, schemas and cleanup remain unchanged.
+
+The publication preparation implementation and 63-case host parser contract are recorded in the
+[publication report](../reports/2026-10-03-layer-publication.md). The real AndroidTest helper classes
+also pass the no-device reservation/format boundary through the explicitly selected fixture init
+script. This is compile/host evidence only; actual AtomicFile timings and complete phase admission
+remain pending. Identity reconciliation requires exactly one JUnit start, identity bundle, test
+completion and terminal successful instrumentation code, in that order.
+
+### SAF worker and evidence binding
+
+The opt-in app runner uses `p4LayerCollect=saf-save-v1`, candidate artifact role and the exact SAF
+slot above. It reuses the app admission guard and shared real-SAF preparation. The actual editor
+loads the staged maximum through its production picker; its immutable current document is the
+save input. No new codec dependency or second runtime is introduced. The real activity stays alive
+and quiescent. Setup, including fixture load, 25 fresh destinations and all grants, has one
+300-second bound. The whole timed worker has one 60-second bound; the native invocation remains
+420 seconds with the stated reporting/drain reserve. The same existing JUnit Timeout mechanism
+bounds setup and worker independently. Interrupted/frozen journals cannot start another operation.
+
+Names use `i89-145-<first twelve preflight SHA-256 characters>-saf-`: `source.nenepixel`, then
+`warmup-1.nenepixel` through `warmup-5.nenepixel`, followed by `sample-1.nenepixel` through
+`sample-20.nenepixel`. One sequential fixed picker returns each granted destination exactly once;
+it rejects open requests, exhaustion or a non-project create request. The full public adapter save
+call, including its fixed picker return, is the timed interval. Reporting and adapter construction
+are outside it. A Saved outcome must have consumed exactly the planned destination.
+
+The CSV columns are
+`schema,role,index,kind,elapsed_ns,destination_uri,grantee_uid,provider_uid,initial_byte_count,accepted_byte_count,picker_consumed,outcome,cleanup`.
+Indices are zero-based separately within warmups and samples. The two summaries select the first
+minimum/maximum of the 20 measured rows and repeat all its fields except kind. Initial byte count
+is the setup-observed zero. Accepted byte count is 1,182,862 only for Saved, otherwise `not_verified`;
+it is not an observation of partial file size. Outcomes are `saved`, `cancelled`, `failed`, with
+cleanup `not_needed`, `deleted` or `delete_failed` as returned. Phase provider `deleted` means the
+already-declared logical quarantine move. A non-Saved outcome, unconsumed/reused picker, missing
+row, anomaly, cancellation or incomplete byte validation makes the journal invalid and stops work.
+
+Fresh `files/p4-layer-saf-<first twelve preflight SHA-256 characters>/` holds `save.csv`,
+`save.status`, `identity.txt`, and `setup.csv`. Status starts invalid. Setup appends each successful
+grant observation before timing, retaining a prefix on failure. One exact identity is persisted
+and emitted as status-code 3 `p4LayerSafIdentity` after complete setup and before the worker. It
+binds the eleven common phase fields, process PID/start, profile, source URI/hash/bytes, app/provider
+UIDs, all counts/bounds and report path. The host reconciles both copies and the ordered setup
+records; every CSV URI/UID must match that same setup. All 25 destinations receive exact pinned
+byte verification only after the timed batch. Complete status is written only after that succeeds.
+No partial/successful source, output, quarantine or report file is deleted by the test.
+
+The opt-in runner and strict host parser now implement these contracts. Actual compiled pure
+journal/output helpers and 81 focused parser/source-agreement cases pass without a device; see the
+[SAF-save report](../reports/2026-10-03-layer-saf-save.md). The shared publication-context boundary
+is checked directly, while its unchanged numeric algorithm reuses its prior result. Real grants,
+save timings and complete phase admission remain pending.
 
 ## Pending admission decisions
 
