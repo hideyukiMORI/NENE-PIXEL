@@ -138,7 +138,8 @@ function Get-P4InstrumentationArguments {
 function Get-P4FrameCollectorParameters {
     param(
         [Parameter(Mandatory = $true)][System.Collections.IDictionary]$Manifest,
-        [Parameter(Mandatory = $true)][System.Collections.IDictionary]$Slot
+        [Parameter(Mandatory = $true)][System.Collections.IDictionary]$Slot,
+        [string]$ManifestSha256
     )
     if (-not $Manifest.Contains('frame_experiment')) { throw 'The manifest declares no frame experiment.' }
     $experiment = $Manifest.frame_experiment
@@ -147,10 +148,21 @@ function Get-P4FrameCollectorParameters {
             throw "The frame experiment declaration is missing '$key'."
         }
     }
-    $baseline = $Manifest.roles.baseline
+    $phase = $Manifest.Contains('protocol') -and $Manifest.protocol.id -ceq 'nene-pixel-p4-layer-phase-verification-v1'
+    $baselineRole = 'baseline'; $artifactRole = $Slot.role
+    if ($phase) {
+        . (Join-Path $PSScriptRoot 'p4-layer-slot-routing.ps1')
+        $artifactRole = Resolve-P4ArtifactRole $Manifest.protocol.id $Slot.id
+        $group = @(Get-P4FrameGroupCatalog $Manifest.protocol.id | Where-Object { $_.id -ceq $Slot.group_id })[0]
+        $baselineRole = $group.baseline_artifact_role
+        $baselineGeometry = Get-P4LayerFrameGeometry $Manifest $baselineRole
+        $candidateGeometry = Get-P4LayerFrameGeometry $Manifest 'candidate'
+        $phaseContext = Get-P4LayerFramePhaseContext $Manifest $Slot $ManifestSha256
+    }
+    $baseline = $Manifest.roles[$baselineRole]
     $candidate = $Manifest.roles.candidate
-    $role = $Manifest.roles[$Slot.role]
-    return [ordered]@{
+    $role = $Manifest.roles[$artifactRole]
+    $parameters = [ordered]@{
         Variant = 'release-like'
         CompilationMode = 'speed-profile'
         DeviceSerial = [string]$Manifest.device.serial
@@ -164,10 +176,10 @@ function Get-P4FrameCollectorParameters {
         CandidateProductionCommit = [string]$candidate.production_commit
         BaselineProductionTreeSha256 = [string]$baseline.production_tree_sha256
         CandidateProductionTreeSha256 = [string]$candidate.production_tree_sha256
-        BaselineCanvas16SurfaceBounds = [string]$Manifest.device.baseline_canvas16_bounds
-        BaselineCanvas256SurfaceBounds = [string]$Manifest.device.baseline_canvas256_bounds
-        CandidateCanvas16SurfaceBounds = [string]$Manifest.device.candidate_canvas16_bounds
-        CandidateCanvas256SurfaceBounds = [string]$Manifest.device.candidate_canvas256_bounds
+        BaselineCanvas16SurfaceBounds = $(if ($phase) { if ($Slot.group_id -ceq 'single') { $baselineGeometry.canvas16_bounds } } else { [string]$Manifest.device.baseline_canvas16_bounds })
+        BaselineCanvas256SurfaceBounds = $(if ($phase) { $baselineGeometry.canvas256_bounds } else { [string]$Manifest.device.baseline_canvas256_bounds })
+        CandidateCanvas16SurfaceBounds = $(if ($phase) { if ($Slot.group_id -ceq 'single') { $candidateGeometry.canvas16_bounds } } else { [string]$Manifest.device.candidate_canvas16_bounds })
+        CandidateCanvas256SurfaceBounds = $(if ($phase) { $candidateGeometry.canvas256_bounds } else { [string]$Manifest.device.candidate_canvas256_bounds })
         BaselineApkSha256 = [string]$baseline.artifacts.app_release_like.sha256
         CandidateApkSha256 = [string]$candidate.artifacts.app_release_like.sha256
         BaselineProfileGenerationSourceCommit = [string]$baseline.profile.generation_commit
@@ -198,6 +210,13 @@ function Get-P4FrameCollectorParameters {
         Attempt = 1
         SampleCount = [int]$Slot.samples
     }
+    if ($phase) {
+        $parameters.PhaseContext = $phaseContext
+        if ($Slot.group_id -cne 'single') {
+            $parameters.Remove('BaselineCanvas16SurfaceBounds'); $parameters.Remove('CandidateCanvas16SurfaceBounds')
+        }
+    }
+    return $parameters
 }
 
 function Get-P4RecoveryQuarantinePlan {
@@ -565,7 +584,11 @@ function Get-P4CollectorBudget {
             $budget.reserve_seconds)
         if ($lane -ceq 'frame') {
             $budget.ui_setup_seconds = 300
-            $budget.collector_timeout_seconds += $budget.ui_setup_seconds
+            $budget.release_identity_extra_seconds = 120
+            $budget.staging_capture_seconds = if (@($Plan.private_files).Count -gt 0) {
+                (2 * @($Plan.quiescence_packages).Count + @($Plan.private_files).Count) * $script:P4ProbeTimeoutSeconds
+            } else { 0 }
+            $budget.collector_timeout_seconds += $budget.ui_setup_seconds + $budget.release_identity_extra_seconds + $budget.staging_capture_seconds
         }
         Assert-P4CollectorBoundWithinCap $budget
         return $budget
@@ -1317,8 +1340,12 @@ function Invoke-P4InstrumentationLane {
     }
     # Protocol v5: the instrumentation gets exactly `timeout_seconds`. The outer wrapper Job is bounded
     # by the derived collector budget, which is strictly larger, so the outer kill can never precede it.
-    $innerTimeout = [int]$Plan.inner_timeout_seconds
-    if ($innerTimeout -ne [int]$Plan.timeout_seconds) {
+    $phaseFrame = $Plan.Contains('protocol_id') -and $Plan.protocol_id -ceq 'nene-pixel-p4-layer-phase-verification-v1' -and $Plan.lane -ceq 'frame'
+    if ($phaseFrame -and $Plan.setup_timeout_seconds -eq 0 -and $Plan.class -ceq '' -and @($Plan.private_files).Count -eq 0) {
+        return @()
+    }
+    $innerTimeout = if ($phaseFrame) { [int]$Plan.setup_timeout_seconds } else { [int]$Plan.inner_timeout_seconds }
+    if (($phaseFrame -and $innerTimeout -ne 300) -or (-not $phaseFrame -and $innerTimeout -ne [int]$Plan.timeout_seconds)) {
         throw 'The instrumentation bound must equal the protocol slot timeout.'
     }
     if ($innerTimeout -lt 1) { throw 'The slot timeout leaves no room for a bounded instrumentation run.' }
@@ -1581,15 +1608,28 @@ function Invoke-P4RecoveryQuarantine {
 function New-P4FrameSlotRecord {
     param(
         [Parameter(Mandatory = $true)][System.Collections.IDictionary]$Context,
-        [Parameter(Mandatory = $true)][string]$FrameSlotDirectory
+        [Parameter(Mandatory = $true)][string]$FrameSlotDirectory,
+        [Collections.IDictionary]$PhaseContext
     )
     $root = [IO.Path]::GetFullPath($FrameSlotDirectory)
     if (-not (Test-Path -LiteralPath $root -PathType Container)) {
         throw "The frame collector did not produce its slot directory: $root"
     }
     $files = [Collections.Generic.List[object]]::new()
+    $phase = $PSBoundParameters.ContainsKey('PhaseContext')
+    if ($phase) {
+        . (Join-Path $PSScriptRoot 'p4-layer-slot-routing.ps1')
+        Assert-P4FrameExactKeys $PhaseContext @('protocol_id','slot_id','preflight_sha256','production_commit','baseline_reference') 'frame slot context'
+        if ($PhaseContext.protocol_id -cne 'nene-pixel-p4-layer-phase-verification-v1' -or
+            $PhaseContext.preflight_sha256 -cnotmatch '\A[0-9a-f]{64}\z' -or
+            $PhaseContext.production_commit -cnotmatch '\A[0-9a-f]{40}\z') { throw 'Invalid phase frame record context.' }
+        $contract = Get-P4FrameExecutionContract $PhaseContext.protocol_id $PhaseContext.slot_id
+        if ((Split-Path -Leaf $root) -cne $contract.frame_directory_name) { throw 'Phase frame directory differs from its slot.' }
+        Assert-P4SealPathNotLinked $root
+    }
     foreach ($item in @(Get-ChildItem -LiteralPath $root -Recurse -File -Force | Sort-Object -Property FullName)) {
         $full = [IO.Path]::GetFullPath($item.FullName)
+        if ($phase) { Assert-P4SealPathNotLinked $full }
         $relative = $full.Substring($root.Length).TrimStart([char]'\', [char]'/').Replace('\', '/')
         $files.Add([ordered]@{ relative_path = $relative; byte_count = $item.Length; sha256 = (Get-FileHash -LiteralPath $full -Algorithm SHA256).Hash.ToLowerInvariant() })
     }
@@ -1600,6 +1640,11 @@ function New-P4FrameSlotRecord {
         files = $files.ToArray()
         recorded_utc = [datetime]::UtcNow.ToString('o')
     }
-    Write-NewInvocationFile (Join-Path $Context.output_directory 'frame-slot.json') ($record | ConvertTo-Json -Depth 6)
+    if ($phase) {
+        $record.schema = 'nene-pixel-p4-frame-slot-v2'
+        $record.phase_context = $PhaseContext; $record.slot_id = $contract.slot_id
+        $record.artifact_role = $contract.artifact_role
+    }
+    Write-NewInvocationFile (Join-Path $Context.output_directory 'frame-slot.json') ($record | ConvertTo-Json -Depth 12)
     return $record
 }

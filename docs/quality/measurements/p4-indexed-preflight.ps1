@@ -345,16 +345,22 @@ function Get-P4LayerFixtureCatalog {
         sha256 = '05efb3fc8edf43f45dc5a8b7cae3be148680c5694b47c47d1cf4eb7cbe26c6fb' }
 }
 
-function Resolve-P4ArtifactRole {
+function Get-P4ExecutionSlot {
     param([Parameter(Mandatory)][string]$ProtocolId, [Parameter(Mandatory)][string]$SlotId)
     $catalog = @(Get-P4SlotCatalog -ProtocolId $ProtocolId)
     if ($ProtocolId -ceq 'nene-pixel-p4-indexed-cutover-verification-v7') {
         $catalog += @(Get-P4FrameSlotCatalog -ProtocolId $ProtocolId)
     }
     $selected = @($catalog | Where-Object { $_.id -ceq $SlotId })
-    if ($selected.Count -ne 1) { throw 'Unknown or ambiguous artifact-role slot.' }
-    if ($ProtocolId -ceq 'nene-pixel-p4-layer-phase-verification-v1') { return $selected[0].artifact_role }
-    return $selected[0].role
+    if ($selected.Count -ne 1) { throw 'Unknown or ambiguous execution slot.' }
+    return $selected[0]
+}
+
+function Resolve-P4ArtifactRole {
+    param([Parameter(Mandatory)][string]$ProtocolId, [Parameter(Mandatory)][string]$SlotId)
+    $slot = Get-P4ExecutionSlot $ProtocolId $SlotId
+    if ($ProtocolId -ceq 'nene-pixel-p4-layer-phase-verification-v1') { return $slot.artifact_role }
+    return $slot.role
 }
 
 function Get-P4LayerRequiredMeasurementPaths {

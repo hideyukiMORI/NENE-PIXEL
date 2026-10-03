@@ -258,6 +258,13 @@ try {
         $oldFunctions = @($oldAst.EndBlock.Statements | Where-Object { $_ -is [Management.Automation.Language.FunctionDefinitionAst] })
         foreach ($old in @($oldFunctions | Where-Object { $CaseGroup -ceq 'Compatibility' })) {
             $current = @($functions | Where-Object { $_.Name -ceq $old.Name })
+            if ($old.Name -cin @('Get-Bounds', 'Get-InitialFitGeometry')) {
+                $shared = [Management.Automation.Language.Parser]::ParseFile(
+                    (Join-Path $PSScriptRoot 'measurements/p4-indexed-frame-analysis.ps1'), [ref]$null, [ref]$null)
+                $current = @($shared.EndBlock.Statements | Where-Object {
+                    $_ -is [Management.Automation.Language.FunctionDefinitionAst] -and $_.Name -ceq $old.Name
+                })
+            }
             Case "legacy function unchanged after explicit phase branch removal: $($old.Name)" {
                 Check ($current.Count -eq 1) 'Function missing/duplicate'
                 $text = $current[0].Extent.Text.Replace("`r`n", "`n")

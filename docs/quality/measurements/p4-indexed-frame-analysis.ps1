@@ -1079,3 +1079,69 @@ function Test-P4FrameCapture {
     }
     return $result
 }
+
+function Get-InitialFitGeometry {
+    param(
+        [Parameter(Mandatory = $true)][object]$SurfaceBounds,
+        [Parameter(Mandatory = $true)][object]$Spec
+    )
+
+    $surfaceWidth = $SurfaceBounds.Right - $SurfaceBounds.Left
+    $surfaceHeight = $SurfaceBounds.Bottom - $SurfaceBounds.Top
+    if ($surfaceWidth -le 0 -or $surfaceHeight -le 0) {
+        throw "The pinned canvas surface bounds must have positive integer extents."
+    }
+    $fit = [Math]::Min($surfaceWidth / [double]$Spec.canvas_width, $surfaceHeight / [double]$Spec.canvas_height)
+    $projectedWidth = $fit * $Spec.canvas_width
+    $projectedHeight = $fit * $Spec.canvas_height
+    $originX = $SurfaceBounds.Left + (($surfaceWidth - $projectedWidth) / 2.0)
+    $originY = $SurfaceBounds.Top + (($surfaceHeight - $projectedHeight) / 2.0)
+    $firstX = $originX + ($fit / 2.0)
+    $firstY = $originY + ($fit / 2.0)
+    $lastX = $originX + (($Spec.canvas_width - 0.5) * $fit)
+    $lastY = $originY + (($Spec.canvas_height - 0.5) * $fit)
+    $values = @($fit, $originX, $originY, $firstX, $firstY, $lastX, $lastY)
+    if (
+        @($values | Where-Object { [double]::IsNaN($_) -or [double]::IsInfinity($_) }).Count -gt 0 -or
+        $fit -le 0.0 -or
+        $SurfaceBounds.Left -lt 0 -or
+        $SurfaceBounds.Top -lt 0 -or
+        $SurfaceBounds.Right -gt $requiredLogicalWidth -or
+        $SurfaceBounds.Bottom -gt $requiredLogicalHeight -or
+        $firstX -le $SurfaceBounds.Left -or
+        $firstY -le $SurfaceBounds.Top -or
+        $lastX -ge $SurfaceBounds.Right -or
+        $lastY -ge $SurfaceBounds.Bottom
+    ) {
+        throw "The $geometryId projection did not produce target-cell centers strictly inside the pinned surface."
+    }
+    return [pscustomobject]@{
+        Id = $geometryId
+        SurfaceBounds = "[$($SurfaceBounds.Left),$($SurfaceBounds.Top)][$($SurfaceBounds.Right),$($SurfaceBounds.Bottom)]"
+        Fit = $fit
+        OriginX = $originX
+        OriginY = $originY
+        FirstX = $firstX
+        FirstY = $firstY
+        LastX = $lastX
+        LastY = $lastY
+    }
+}
+
+function Get-Bounds {
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Xml.XmlElement]$Node
+    )
+
+    $match = [regex]::Match($Node.GetAttribute("bounds"), "^\[(\d+),(\d+)\]\[(\d+),(\d+)\]$")
+    if (-not $match.Success) {
+        throw "UI node has invalid bounds."
+    }
+    return [pscustomobject]@{
+        Left = [int]$match.Groups[1].Value
+        Top = [int]$match.Groups[2].Value
+        Right = [int]$match.Groups[3].Value
+        Bottom = [int]$match.Groups[4].Value
+    }
+}

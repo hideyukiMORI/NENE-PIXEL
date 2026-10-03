@@ -62,7 +62,7 @@ try {
                     'memory' { 1080 }
                     'publication' { 930 }
                     'saf-save' { 1320 }
-                    'frame' { $slot.timeout_seconds + 300 + $(if ($slot.group_id -ceq 'single') { 390 } else { 960 }) }
+                    'frame' { $slot.timeout_seconds + 420 + $(if ($slot.group_id -ceq 'single') { 390 } else { 1170 }) }
                 }
                 Check ($budget.collector_timeout_seconds -eq $expected) "Unexpected exact bound $($budget.collector_timeout_seconds) / $expected"
                 foreach ($file in $plan.private_files) {
@@ -118,7 +118,7 @@ try {
             Case "frame setup budget $($slot.id)" {
                 $plan = Get-P4DeviceLanePlan $manifest $slot $hash
                 $budget = $plan.collector_budget
-                $expected = $slot.timeout_seconds + 300 + $(if ($slot.group_id -ceq 'single') { 390 } else { 960 })
+                $expected = $slot.timeout_seconds + 420 + $(if ($slot.group_id -ceq 'single') { 390 } else { 1170 })
                 Check ($budget.ui_setup_seconds -eq 300 -and $budget.collector_timeout_seconds -eq $expected -and
                     $budget.collector_timeout_seconds -le 3600) 'Frame UI allowance differs'
             }

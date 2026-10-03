@@ -616,7 +616,7 @@ The combined UI preparation has a 300-second cumulative allowance per slot, incl
 calls, waits and host validation. It is separate from fixture staging and the gesture allowance;
 native setup calls use the remaining allowance, capped at 30 seconds. Every setup XML/PNG and
 failure prefix is retained under fresh names. Expiry invalidates the slot without an automatic
-retry. The longest collector allowance is consequently 3210 seconds, below the unchanged 3600 cap.
+retry. This allowance is included in the complete collector budget in the routing section below.
 
 ADR 0034 underlay memory runs on a separate asynchronous path and exposes no completion status
 in the UI. A successful picker, stable screenshot or fixed sleep does not prove that its recall or
@@ -627,6 +627,35 @@ The [UI preparation report](../reports/2026-10-03-layer-frame-ui.md) records the
 picker, retained failure, source compatibility and bounded-call checks.
 
 ## Pending admission decisions
+
+### Phase collector and analyzer routing
+
+The existing entry points resolve the explicit phase's full ordered catalog and its separate
+artifact role. `frame_experiment.geometry` has exactly the four artifact-role keys: baseline_single
+and candidate require `canvas16_bounds` and `canvas256_bounds`; baseline_layers16 and
+baseline_underlay require only `canvas256_bounds`. Unused 16-square collector arguments are omitted
+for the latter groups. Legacy calls retain their existing required geometry behavior.
+
+Each candidate decision derives its five-field frame context from its own group's completed
+baseline, the pinned baseline build/production/APK, and verified analysis/capture-seal hashes.
+Foreign groups, experiments, preflights, changed sealed bytes and incomplete predecessors refuse
+before collection. Frame-slot-v2 records bind that context and the complete frame file inventory.
+Memory analysis consumes every preceding memory analysis in order, each bound to the completed
+slot's seal. Publication and SAF use the existing strict parsers with their full raw identity inputs.
+Phase analyses declare canonical `raw_inputs` names, sizes and hashes. Frame analyses additionally
+revalidate the retained setup sequence, bounded cumulative time and actual PNG pixels using the
+same geometry implementation as collection. The [routing report](../reports/2026-10-04-layer-slot-routing.md)
+records the focused checks and remaining outer admission requirements.
+
+Non-single frame preparation runs in a fresh `fixture-preparation` directory. Its native setup is
+followed by stopping all three writer packages and bounded report capture even on failure. Only
+successful native execution plus a verified saved/emitted fixture identity may precede release-like
+collection. These stopped calls add 210 seconds (three stops, three absence probes, one report),
+and release-like installation's retained intent adds four identity probes, 120 seconds, in addition
+to the existing frame collector's installed-APK verification. The resulting maximum collector bound
+is 3540 seconds, within the 3600-second native cap. This is
+still not the whole-session archive/restoration bound. Partial setup and install evidence remain
+available for outer cleanup; no historical private-file quarantine runs for phase slots.
 
 ### Device-lane execution and retained output
 
