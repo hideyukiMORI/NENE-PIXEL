@@ -1,6 +1,6 @@
 # #145 device-free lane routing and native-call orchestration. Never contacts ADB.
 param([Parameter(Mandatory)][string]$OutputDirectory,
-    [ValidateSet('Plans', 'NativeBoundaries', 'Compatibility', 'SourceBindings', 'LaneDispatch')][string]$CaseGroup = 'Plans')
+    [ValidateSet('Plans', 'FrameBudgets', 'NativeBoundaries', 'Compatibility', 'SourceBindings', 'LaneDispatch')][string]$CaseGroup = 'Plans')
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'measurements/nene-pixel-lab.ps1')
@@ -62,7 +62,7 @@ try {
                     'memory' { 1080 }
                     'publication' { 930 }
                     'saf-save' { 1320 }
-                    'frame' { $slot.timeout_seconds + $(if ($slot.group_id -ceq 'single') { 390 } else { 960 }) }
+                    'frame' { $slot.timeout_seconds + 300 + $(if ($slot.group_id -ceq 'single') { 390 } else { 960 }) }
                 }
                 Check ($budget.collector_timeout_seconds -eq $expected) "Unexpected exact bound $($budget.collector_timeout_seconds) / $expected"
                 foreach ($file in $plan.private_files) {
@@ -112,6 +112,17 @@ try {
         } -Refuse
         Case 'unknown package protocol refused' { Get-P4LanePackages $manifest 'candidate' 'foreign' | Out-Null } -Refuse
         Case 'bound above native cap refused' { Assert-P4CollectorBoundWithinCap @{ lane = 'frame'; collector_timeout_seconds = 3601 } } -Refuse
+    }
+    if ($CaseGroup -ceq 'FrameBudgets') {
+        foreach ($slot in @($slots | Where-Object { $_.lane -ceq 'frame' })) {
+            Case "frame setup budget $($slot.id)" {
+                $plan = Get-P4DeviceLanePlan $manifest $slot $hash
+                $budget = $plan.collector_budget
+                $expected = $slot.timeout_seconds + 300 + $(if ($slot.group_id -ceq 'single') { 390 } else { 960 })
+                Check ($budget.ui_setup_seconds -eq 300 -and $budget.collector_timeout_seconds -eq $expected -and
+                    $budget.collector_timeout_seconds -le 3600) 'Frame UI allowance differs'
+            }
+        }
     }
     if ($CaseGroup -ceq 'NativeBoundaries') {
         $script:mode = ''; $script:events = [Collections.Generic.List[string]]::new()

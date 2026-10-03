@@ -589,6 +589,43 @@ before admission. The already fixed frame gesture counts and numerical gates are
 The [staging implementation report](../reports/2026-10-03-layer-frame-staging.md) records candidate
 and oldest-baseline compilation, actual spec/catalog agreement and retained identity checks.
 
+## Release-like UI and functional preview preparation
+
+Phase-only setup uses the collector's existing UI primitives and the production New/Load/picker
+paths. Retained staging text and instrumentation output are revalidated with their pinned hashes,
+full eleven-field context, slot, build and production before the normal release-like picker opens
+the exact provider name. The five-field frame context remains unchanged. The setup record does
+not itself attest preservation, native completion or full admission; the outer caller owns those.
+
+Each non-single family performs one functional gesture before its warmups, with screenshots before,
+while preview is held and after commit. This is twelve additional functional gestures across the
+eight staged slots, outside the unchanged 620 measured and 110 warmup operations. Pixel probes at
+fixed document-cell centres verify opaque black on the intended stroke and unchanged off-stroke
+pixels. The layered background must match the pinned grayscale composite. The underlay pattern
+must match its fixed source formula composited at alpha 128 over the actual empty-work screenshot
+(at most two RGB levels of rendering-rounding difference). This visual check supports the separately
+source-proven exact placement/alpha; it cannot distinguish adjacent alpha values by itself.
+
+The underlay requires a fresh 256-square work, a successful explicit PNG pick, shown visibility,
+closed layer panel and no adjust bar. Normal work replacement runs after the functional proof and
+after each family's warmups. Successful New/Load uses the existing publication-wait and switch
+commit path to clear autosave tracking. The unchanged commit/Undo sample sequence retains its
+ordinary production autosave behavior; it is not relabelled as globally idle between operations.
+
+The combined UI preparation has a 300-second cumulative allowance per slot, including native
+calls, waits and host validation. It is separate from fixture staging and the gesture allowance;
+native setup calls use the remaining allowance, capped at 30 seconds. Every setup XML/PNG and
+failure prefix is retained under fresh names. Expiry invalidates the slot without an automatic
+retry. The longest collector allowance is consequently 3210 seconds, below the unchanged 3600 cap.
+
+ADR 0034 underlay memory runs on a separate asynchronous path and exposes no completion status
+in the UI. A successful picker, stable screenshot or fixed sleep does not prove that its recall or
+publication has settled. This remains an explicit admission gap: these preparation helpers leave
+the frame live barrier closed until that proof and outer preservation/manifest routing are complete.
+
+The [UI preparation report](../reports/2026-10-03-layer-frame-ui.md) records the host pixel,
+picker, retained failure, source compatibility and bounded-call checks.
+
 ## Pending admission decisions
 
 ### Device-lane execution and retained output

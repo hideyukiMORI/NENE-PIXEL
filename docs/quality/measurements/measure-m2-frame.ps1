@@ -174,6 +174,8 @@ param(
 
     [System.Collections.IDictionary]$PhaseContext,
 
+    [System.Collections.IDictionary]$PhaseFixtureEvidence,
+
     [ValidateSet("speed-profile", "speed")]
     [string]$CompilationMode,
 
@@ -203,6 +205,7 @@ $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "../baseline-profile-evidence.ps1")
 . (Join-Path $PSScriptRoot "p4-indexed-preflight.ps1")
 . (Join-Path $PSScriptRoot "p4-indexed-frame-analysis.ps1")
+. (Join-Path $PSScriptRoot "p4-layer-frame-preparation.ps1")
 
 if (-not $PSBoundParameters.ContainsKey("CompilationMode")) {
     $CompilationMode = if ($Variant -eq "release-like") { "speed-profile" } else { "speed" }
@@ -251,6 +254,9 @@ $captureArguments = @{
     ExperimentId = $ExperimentId
 }
 $isLayerPhase = $PSBoundParameters.ContainsKey('PhaseContext')
+if ($PSBoundParameters.ContainsKey('PhaseFixtureEvidence') -and -not $isLayerPhase) {
+    throw 'Phase fixture evidence requires the explicit layer-phase context.'
+}
 if ($isLayerPhase) { $captureArguments.PhaseContext = $PhaseContext }
 $frameContract = Get-P4FrameCaptureContract @captureArguments
 $phaseIdentity = if ($isLayerPhase) {
@@ -991,6 +997,9 @@ function Invoke-TargetAdb {
         [string[]]$AdbArguments
     )
 
+    if ($isLayerPhase -and $script:layerSetupActive) {
+        return Invoke-P4LayerSetupAdb -AdbArguments $AdbArguments
+    }
     $commandOutput = @(& adb -s $DeviceSerial @AdbArguments 2>&1)
     if ($LASTEXITCODE -ne 0) {
         throw "adb failed ($LASTEXITCODE): adb -s <physical-device> $($AdbArguments -join ' ')`n$($commandOutput -join "`n")"
@@ -1772,7 +1781,7 @@ function Invoke-UndoToCleanCheckpoint {
 function Assert-CommittedResult {
     param(
         [Parameter(Mandatory = $true)]
-        [ValidateSet("sample", "warmup")]
+        [ValidateSet("sample", "warmup", "preparation")]
         [string]$JourneyKind,
 
         [Parameter(Mandatory = $true)]
@@ -1812,6 +1821,7 @@ function Get-CurrentEditorUi {
     $remote = "$remotePrefix-current.xml"
     Invoke-TargetAdb -AdbArguments @("shell", "uiautomator", "dump", $remote) | Out-Null
     $text = (Invoke-TargetAdb -AdbArguments @("shell", "cat", $remote)) -join "`n"
+    if ($isLayerPhase -and $script:layerSetupActive) { Save-P4LayerSetupUi -Text $text }
     return [xml]$text
 }
 
@@ -1892,7 +1902,9 @@ function New-DocumentThroughUi {
     }
     Invoke-NodeTap -Node (Get-ResourceNode -Ui $typedUi -Identity "editor_create")
     Start-Sleep -Milliseconds $drawWaitMilliseconds
-    $createdUi = Get-CurrentEditorUi
+    $createdUi = if ($isLayerPhase -and $script:layerSetupActive) {
+        Wait-P4LayerSetupStatus 'New document created'
+    } else { Get-CurrentEditorUi }
     if (@($createdUi.SelectNodes("//*[@resource-id]") | Where-Object { $_.GetAttribute("resource-id") -like "*editor_create_document_title" }).Count -ne 0) {
         throw "The New-document dialog remained visible after creating the $($Spec.canvas_width) by $($Spec.canvas_height) document."
     }
@@ -2619,6 +2631,14 @@ $successfulMetadata = $null
 $script:collectionCleanupErrors = [System.Collections.Generic.List[string]]::new()
 
 try {
+    if ($isLayerPhase) {
+        if ($frameContract.group_id -ceq 'single') {
+            if ($null -ne $PhaseFixtureEvidence) { throw 'Single-layer slots must not substitute a staged fixture.' }
+        } else {
+            $script:layerFixture = Read-P4LayerFrameSetupFixture -Evidence $PhaseFixtureEvidence `
+                -FrameContext $PhaseContext -BuildCommit $SourceCommit -Experiment $ExperimentId
+        }
+    }
     $deviceIdentity = Get-PhysicalDeviceIdentity
     $originalRotationState = Get-WindowRotationState
     Write-RotationStateArtifact -Name "rotation-original.txt" -State $originalRotationState
@@ -2677,14 +2697,18 @@ try {
     Start-Sleep -Milliseconds 1500
     $environmentRows.Add((Get-PhysicalCheckpoint -Name "before_warmups"))
 
-    New-DocumentThroughUi -Spec $workloadCatalog[0] | Out-Null
+    if ($isLayerPhase) {
+        Invoke-P4LayerFrameSetup -Label 'initial' -Action {
+            $script:phasePrepared = Reset-P4LayerFrameWork -Spec $slotWorkloadCatalog[0] -Label 'initial' -CaptureEmpty
+        }
+    } else { New-DocumentThroughUi -Spec $workloadCatalog[0] | Out-Null }
 
     $beforeRemote = "$remotePrefix-before.xml"
     $beforeLocal = Join-Path $resolvedOutput "ui-before.xml"
     Invoke-TargetAdb -AdbArguments @("shell", "uiautomator", "dump", $beforeRemote) | Out-Null
     Invoke-TargetAdb -AdbArguments @("pull", $beforeRemote, $beforeLocal) | Out-Null
     [xml]$beforeUi = Get-Content -Raw -LiteralPath $beforeLocal
-    Assert-CleanWorkloadReady -Ui $beforeUi -Workload "canvas16_tap" | Out-Null
+    Assert-CleanWorkloadReady -Ui $beforeUi -Workload $slotWorkloadCatalog[0].workload | Out-Null
     $undoNode = Get-ResourceNode -Ui $beforeUi -Identity "editor_undo"
     $redoNode = Get-ResourceNode -Ui $beforeUi -Identity "editor_redo"
     if (
@@ -2707,7 +2731,19 @@ try {
         $workload = $spec.workload
         $isWindowFamily = $workload -ceq $windowDiagnosticWorkload
         # The window family reuses the clean 256 by 256 document left by canvas256_repeated_diagonal.
-        if ($workload -ne $workloadCatalog[0].workload -and -not $isWindowFamily) {
+        if ($isLayerPhase) {
+            if ($workload -cne $slotWorkloadCatalog[0].workload) {
+                Invoke-P4LayerFrameSetup -Label "initial-$workload" -Action {
+                    $script:phasePrepared = Reset-P4LayerFrameWork -Spec $spec -Label "initial-$workload" -CaptureEmpty
+                }
+            }
+            if ($frameContract.group_id -cne 'single') {
+                Invoke-P4LayerFrameSetup -Label "functional-$workload" -Action {
+                    Test-P4LayerFrameFunctionalPreview -Spec $spec -Prepared $script:phasePrepared
+                    Reset-P4LayerFrameWork -Spec $spec -Label "after-functional-$workload" | Out-Null
+                }
+            }
+        } elseif ($workload -ne $workloadCatalog[0].workload -and -not $isWindowFamily) {
             New-DocumentThroughUi -Spec $spec | Out-Null
         }
         if ($isWindowFamily) {
@@ -2727,6 +2763,18 @@ try {
                 -Phase "warmup-reset" `
                 -JourneyIndex $warmupIndex `
                 -Workload $workload
+        }
+        if ($isLayerPhase) {
+            Invoke-P4LayerFrameSetup -Label "after-warmups-$workload" -Action {
+                Reset-P4LayerFrameWork -Spec $spec -Label "after-warmups-$workload" | Out-Null
+                if ($isWindowFamily) {
+                    $window = Get-ResourceNode (Get-CurrentEditorUi) 'editor_actual_size_window'
+                    if ($window.GetAttribute('content-desc') -cnotmatch 'x2\z' -or
+                        $window.GetAttribute('bounds') -cne $windowRecords[$workload].Bounds) {
+                        throw 'Work replacement changed the pinned actual-size window.'
+                    }
+                }
+            }
         }
         $environmentRows.Add((Get-PhysicalCheckpoint -Name "before_${workload}_samples"))
         foreach ($sampleIndex in 1..$sampleCount) {

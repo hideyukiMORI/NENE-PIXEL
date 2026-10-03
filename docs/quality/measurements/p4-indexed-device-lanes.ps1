@@ -563,6 +563,10 @@ function Get-P4CollectorBudget {
         $budget.collector_timeout_seconds = [int]($budget.instrumentation_seconds + $budget.frame_seconds +
             $budget.setup_seconds + $budget.install_seconds + $budget.dexopt_seconds + $budget.probe_seconds +
             $budget.reserve_seconds)
+        if ($lane -ceq 'frame') {
+            $budget.ui_setup_seconds = 300
+            $budget.collector_timeout_seconds += $budget.ui_setup_seconds
+        }
         Assert-P4CollectorBoundWithinCap $budget
         return $budget
     }
