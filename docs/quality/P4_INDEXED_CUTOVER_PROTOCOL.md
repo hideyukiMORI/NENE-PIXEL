@@ -24,6 +24,7 @@ integrated, that phase collection remains blocked under QLT-015.
 ## Prospective layer-phase comparison decisions (Issue #145)
 
 These decisions prepare a new phase identity; they are not a new binding of v7 and admit no samples.
+Further preparation decisions are recorded in the [P4 Layer Phase Protocol](P4_LAYER_PHASE_PROTOCOL.md).
 One phase experiment will use the existing collector with an explicit comparator for each family:
 
 | Family group | Baseline production | Reason |

@@ -101,7 +101,24 @@ function Get-P4MoveRoots($Original) {
     return $roots
 }
 
-function New-P4IsolationPlan([object[]] $OriginalInventory, [string] $Session) {
+function Move-P4InventoryEntries($Map, [string] $Source, [string] $Destination) {
+    if (-not $Map.ContainsKey($Source) -or $Map.ContainsKey($Destination)) { throw "Move collision: $Source -> $Destination" }
+    $moving = @($Map.Keys | Where-Object { Test-P4Below $_ $Source })
+    foreach ($path in $moving) {
+        $to = $Destination + $path.Substring($Source.Length)
+        if ($Map.ContainsKey($to)) { throw "Move descendant occupied: $to" }
+        $copy = $Map[$path] | Select-Object *
+        $copy.Path = $to
+        $Map.Add($to, $copy)
+    }
+    foreach ($path in $moving) { $Map.Remove($path) | Out-Null }
+}
+
+function Assert-P4MoveCount([Nullable[int]] $Count, [int] $Maximum, [string] $Name) {
+    if ($null -ne $Count -and ($Count -lt 0 -or $Count -gt $Maximum)) { throw "Invalid ${Name}: $Count" }
+}
+
+function New-P4IsolationPlan([object[]] $OriginalInventory, [string] $Session, [Nullable[int]] $CompletedMoveCount = $null) {
     Assert-P4Session $Session
     $original = ConvertTo-P4InventoryMap $OriginalInventory
     $sessionRoot = "no_backup/p4-user-preservation/$Session"
@@ -110,17 +127,15 @@ function New-P4IsolationPlan([object[]] $OriginalInventory, [string] $Session) {
     }
     if ($original.ContainsKey('no_backup/p4-user-preservation') -and $original['no_backup/p4-user-preservation'].Type -cne 'directory') { throw 'Guard parent occupied' }
     $guard = "$sessionRoot/original"
-    $expected = New-P4Map
-    $moves = @()
     $roots = @(Get-P4MoveRoots $original)
-    foreach ($item in $original.Values) {
-        $root = @($roots | Where-Object { Test-P4Below $item.Path $_ } | Select-Object -First 1)
-        $to = if ($root.Count -gt 0) { "$guard/$($root[0].Substring($root[0].LastIndexOf('/') + 1))$($item.Path.Substring($root[0].Length))" } else { $item.Path }
-        $expected.Add($to, ($item | Select-Object *))
-        $expected[$to].Path = $to
-    }
-    Add-P4Ancestors $expected $guard
+    $moves = @()
     foreach ($root in $roots) { $moves += [pscustomobject]@{ Source = $root; Destination = "$guard/$($root.Substring($root.LastIndexOf('/') + 1))" } }
+    Assert-P4MoveCount $CompletedMoveCount $moves.Count 'completed isolation move count'
+    $completed = if ($null -eq $CompletedMoveCount) { $moves.Count } else { $CompletedMoveCount }
+    $expected = New-P4Map
+    foreach ($item in $original.Values) { $expected.Add($item.Path, ($item | Select-Object *)) }
+    Add-P4Ancestors $expected $guard
+    for ($i = 0; $i -lt $completed; $i++) { Move-P4InventoryEntries $expected $moves[$i].Source $moves[$i].Destination }
     return [pscustomobject]@{ Session = $Session; Guard = $guard; SessionRoot = $sessionRoot; Moves = @($moves); Expected = @(Get-P4Items $expected); Original = @(Get-P4Items $original) }
 }
 
@@ -156,7 +171,23 @@ function Get-P4IsolatedState([object[]] $OriginalInventory, [string] $Session, [
     return [pscustomobject]@{ Plan = $plan; Base = $base; Current = $current; New = $new }
 }
 
-function New-P4RestorationPlan([object[]] $OriginalInventory, [string] $Session, [object[]] $CurrentInventory) {
+function New-P4RestorationExpectedMap($Current, [string] $Archive, $MeasurementMoves, $OriginalMoves, [int] $CompletedMeasurementMoveCount, [int] $CompletedOriginalMoveCount) {
+    $expected = New-P4Map
+    foreach ($entry in $Current.Values) { $expected.Add($entry.Path, ($entry | Select-Object *)) }
+    Add-P4Directory $expected $Archive
+    foreach ($move in $MeasurementMoves) {
+        Add-P4Ancestors $expected $move.Destination.Substring(0, $move.Destination.LastIndexOf('/'))
+    }
+    for ($i = 0; $i -lt $CompletedMeasurementMoveCount; $i++) {
+        Move-P4InventoryEntries $expected $MeasurementMoves[$i].Source $MeasurementMoves[$i].Destination
+    }
+    for ($i = 0; $i -lt $CompletedOriginalMoveCount; $i++) {
+        Move-P4InventoryEntries $expected $OriginalMoves[$i].Source $OriginalMoves[$i].Destination
+    }
+    return $expected
+}
+
+function New-P4RestorationPlan([object[]] $OriginalInventory, [string] $Session, [object[]] $CurrentInventory, [Nullable[int]] $CompletedMeasurementMoveCount = $null, [Nullable[int]] $CompletedOriginalMoveCount = $null) {
     $state = Get-P4IsolatedState $OriginalInventory $Session $CurrentInventory
     $plan = $state.Plan
     $archive = "$($plan.SessionRoot)/measurement"
@@ -172,36 +203,26 @@ function New-P4RestorationPlan([object[]] $OriginalInventory, [string] $Session,
         if (-not $isNested) { $moveRoots += $path }
     }
     $measurementMoves = @()
-    $expected = New-P4Map
-    foreach ($entry in $state.Base.Values) { $expected.Add($entry.Path, ($entry | Select-Object *)) }
-    Add-P4Directory $expected $archive
     foreach ($root in $moveRoots) {
         $destination = "$archive/$root"
         $measurementMoves += [pscustomobject]@{ Source = $root; Destination = $destination }
-        Add-P4Ancestors $expected $destination.Substring(0, $destination.LastIndexOf('/'))
     }
-    foreach ($entry in $state.New.Values) {
-        $newPath = "$archive/$($entry.Path)"
-        $copy = $entry | Select-Object *
-        $copy.Path = $newPath
-        $expected.Add($newPath, $copy)
-    }
-    foreach ($move in $plan.Moves) {
-        foreach ($path in @($expected.Keys)) {
-            if (Test-P4Below $path $move.Destination) {
-                $newPath = $move.Source + $path.Substring($move.Destination.Length)
-                if ($expected.ContainsKey($newPath)) { throw "Original destination occupied: $newPath" }
-                $copy = $expected[$path] | Select-Object *
-                $copy.Path = $newPath
-                $expected.Add($newPath, $copy)
-                $expected.Remove($path) | Out-Null
-            }
-        }
+    $originalMoves = @($plan.Moves | ForEach-Object { [pscustomobject]@{ Source = $_.Destination; Destination = $_.Source } })
+    Assert-P4MoveCount $CompletedMeasurementMoveCount $measurementMoves.Count 'completed measurement move count'
+    Assert-P4MoveCount $CompletedOriginalMoveCount $originalMoves.Count 'completed original move count'
+    $completedMeasurement = if ($null -eq $CompletedMeasurementMoveCount) { $measurementMoves.Count } else { $CompletedMeasurementMoveCount }
+    $completedOriginal = if ($null -eq $CompletedOriginalMoveCount) { $originalMoves.Count } else { $CompletedOriginalMoveCount }
+    if ($completedOriginal -gt 0 -and $completedMeasurement -ne $measurementMoves.Count) { throw 'Original moves require complete measurement moves' }
+    $full = New-P4RestorationExpectedMap $state.Current $archive $measurementMoves $originalMoves $measurementMoves.Count $originalMoves.Count
+    $expected = if ($completedMeasurement -eq $measurementMoves.Count -and $completedOriginal -eq $originalMoves.Count) {
+        $full
+    } else {
+        New-P4RestorationExpectedMap $state.Current $archive $measurementMoves $originalMoves $completedMeasurement $completedOriginal
     }
     return [pscustomobject]@{
         Session = $Session; Guard = $plan.Guard; Archive = $archive
-        MeasurementMoves = @($measurementMoves); OriginalMoves = @($plan.Moves | ForEach-Object { [pscustomobject]@{ Source = $_.Destination; Destination = $_.Source } })
-        Expected = @(Get-P4Items $expected); Measurement = @($expected.Values | Where-Object { Test-P4Below $_.Path $archive } | Sort-Object -Property Path -CaseSensitive)
+        MeasurementMoves = @($measurementMoves); OriginalMoves = @($originalMoves)
+        Expected = @(Get-P4Items $expected); Measurement = @($full.Values | Where-Object { Test-P4Below $_.Path $archive } | Sort-Object -Property Path -CaseSensitive)
         OriginallyAbsentNoBackup = -not (ConvertTo-P4InventoryMap $plan.Original).ContainsKey('no_backup')
     }
 }

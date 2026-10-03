@@ -51,10 +51,53 @@ function VerifyIdentity($expected, $actual, [string] $label) {
     Check ($e.Count -eq $a.Count) "$label count"
     foreach ($path in $e.Keys) {
         Check ($a.ContainsKey($path)) "$label path $path"
+        Check ($a[$path].Type -ceq $e[$path].Type) "$label type $path"
         if ($e[$path].Type -ceq 'file') {
-            Check ($a[$path].Hash -ceq $e[$path].Hash -and $a[$path].MtimeNs -ceq $e[$path].MtimeNs -and $a[$path].Size -eq $e[$path].Size) "$label identity $path"
+            Check ($a[$path].Hash -ceq $e[$path].Hash -and $a[$path].MtimeNs -ceq $e[$path].MtimeNs -and $a[$path].Size -eq $e[$path].Size -and $a[$path].LinkCount -eq $e[$path].LinkCount) "$label identity $path"
         }
     }
+}
+function CheckPrefixPlans([string] $name, $original, $preRestore) {
+    $session = 's-145-test'
+    $isolation = New-P4IsolationPlan $original $session
+    $isolationModel = KeyMap (Clone $original)
+    EnsureParent $isolationModel "$($isolation.Guard)/sentinel"
+    $isolationModel = @($isolationModel.Values)
+    for ($i = 0; $i -le $isolation.Moves.Count; $i++) {
+        if ($i -gt 0) {
+            $move = $isolation.Moves[$i - 1]
+            $isolationModel = ModelMove $isolationModel $move.Source $move.Destination
+        }
+        $prefix = New-P4IsolationPlan $original $session -CompletedMoveCount $i
+        Check ($prefix.Moves.Count -eq $isolation.Moves.Count) "$name isolation move list intact $i"
+        VerifyIdentity $isolationModel $prefix.Expected "$name isolation prefix $i"
+    }
+    $explicitIsolation = New-P4IsolationPlan $original $session -CompletedMoveCount $isolation.Moves.Count
+    Check ((ConvertTo-Json -InputObject $isolation -Depth 20 -Compress) -ceq (ConvertTo-Json -InputObject $explicitIsolation -Depth 20 -Compress)) "$name isolation default equals explicit full"
+
+    $restore = New-P4RestorationPlan $original $session $preRestore
+    $restoreModel = KeyMap (Clone $preRestore)
+    EnsureParent $restoreModel "$($restore.Archive)/sentinel"
+    foreach ($move in $restore.MeasurementMoves) { EnsureParent $restoreModel $move.Destination }
+    $restoreModel = @($restoreModel.Values)
+    for ($i = 0; $i -le $restore.MeasurementMoves.Count; $i++) {
+        if ($i -gt 0) {
+            $move = $restore.MeasurementMoves[$i - 1]
+            $restoreModel = ModelMove $restoreModel $move.Source $move.Destination
+        }
+        $prefix = New-P4RestorationPlan $original $session $preRestore -CompletedMeasurementMoveCount $i -CompletedOriginalMoveCount 0
+        Check ($prefix.MeasurementMoves.Count -eq $restore.MeasurementMoves.Count -and $prefix.OriginalMoves.Count -eq $restore.OriginalMoves.Count) "$name restoration move lists intact m$i"
+        VerifyIdentity $restoreModel $prefix.Expected "$name measurement prefix $i"
+        VerifyIdentity $restore.Measurement $prefix.Measurement "$name full measurement proof m$i"
+    }
+    for ($i = 1; $i -le $restore.OriginalMoves.Count; $i++) {
+        $move = $restore.OriginalMoves[$i - 1]
+        $restoreModel = ModelMove $restoreModel $move.Source $move.Destination
+        $prefix = New-P4RestorationPlan $original $session $preRestore -CompletedMeasurementMoveCount $restore.MeasurementMoves.Count -CompletedOriginalMoveCount $i
+        VerifyIdentity $restoreModel $prefix.Expected "$name original prefix $i"
+    }
+    $explicitRestore = New-P4RestorationPlan $original $session $preRestore -CompletedMeasurementMoveCount $restore.MeasurementMoves.Count -CompletedOriginalMoveCount $restore.OriginalMoves.Count
+    Check ((ConvertTo-Json -InputObject $restore -Depth 20 -Compress) -ceq (ConvertTo-Json -InputObject $explicitRestore -Depth 20 -Compress)) "$name restoration default equals explicit full"
 }
 function RunScenario([string] $name, $original, $created) {
     $session = 's-145-test'
@@ -75,6 +118,7 @@ function RunScenario([string] $name, $original, $created) {
     }
     $preRestore = @($live.Values)
     $restore = New-P4RestorationPlan $original $session $preRestore
+    if ($name -cin @('present complete', 'absent no_backup', 'empty inventory')) { CheckPrefixPlans $name $original $preRestore }
     $after = $preRestore
     foreach ($move in $restore.MeasurementMoves) { $after = ModelMove $after $move.Source $move.Destination }
     $post = KeyMap $after
@@ -194,5 +238,12 @@ Reject { New-P4IsolationPlan @((MakeDir 'files'), ([pscustomobject]@{ Path='file
 Reject { New-P4IsolationPlan @((MakeDir 'no_backup'), (File 'no_backup/reference-underlays')) 'safe' } 'underlay wrong kind'
 Reject { New-P4IsolationPlan @((MakeDir 'files'), (MakeDir 'files/profileInstalled')) 'safe' } 'profileInstalled wrong kind'
 Reject { New-P4IsolationPlan @((MakeDir 'files'), (MakeDir 'files/profileinstaller_profileWrittenFor_lastUpdateTime.dat')) 'safe' } 'profile timestamp file wrong kind'
+Reject { New-P4IsolationPlan $original 's-145-test' -CompletedMoveCount -1 } 'negative isolation prefix'
+Reject { New-P4IsolationPlan $original 's-145-test' -CompletedMoveCount 7 } 'oversized isolation prefix'
+Reject { New-P4RestorationPlan $original 's-145-test' $main.PreRestore -CompletedMeasurementMoveCount -1 } 'negative measurement prefix'
+Reject { New-P4RestorationPlan $original 's-145-test' $main.PreRestore -CompletedMeasurementMoveCount 7 } 'oversized measurement prefix'
+Reject { New-P4RestorationPlan $original 's-145-test' $main.PreRestore -CompletedOriginalMoveCount -1 } 'negative original prefix'
+Reject { New-P4RestorationPlan $original 's-145-test' $main.PreRestore -CompletedOriginalMoveCount 7 } 'oversized original prefix'
+Reject { New-P4RestorationPlan $original 's-145-test' $main.PreRestore -CompletedMeasurementMoveCount 0 -CompletedOriginalMoveCount 1 } 'early original prefix'
 
 Write-Output "PASS preservation synthetic checks=$script:checks"

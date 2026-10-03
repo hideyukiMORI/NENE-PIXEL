@@ -57,6 +57,11 @@ all original files keep size, hash and mtime, all original directories retain th
 the deliberately moved subtree, no live isolated path exists, and only the necessary new guard
 ancestors are allowed. `no_backup` may be created if originally absent; its prior absence is kept.
 
+The same planner may describe a completed prefix of its fixed move order for executor readback.
+After the guard ancestors exist, prefix zero means no original has moved; each next prefix moves
+exactly one more declared root. The default remains the complete plan. A prefix is an expected
+inventory for verifying a currently executing transaction, never permission to resume a failed one.
+
 ## Restoration plan and verification
 
 The planner receives the original inventory, the session id and the current full inventory. It
@@ -82,6 +87,13 @@ exception is the new guard/measurement archive scaffolding; no live original is 
 exception explicitly. Any interruption remains a failed, retained operation; do not automatically
 repeat a partly applied plan or label a plan as a successful restoration.
 
+Restoration prefix inventories are derived from the one original pre-restoration inventory and
+the canonical restoration plan. All archive destination parents are created before moving data.
+The measurement-move prefix must be complete before any original-move prefix can be nonzero.
+Counts outside the declared move lists are refused. Every completed prefix preserves the exact
+identity and unique location of every original and measurement entry; the complete prefix is the
+same final inventory already required above. An executor compares this state after every move.
+
 ## Native execution and phase admission requirements
 
 The future native executor is the sole consumer of these plans. It uses bounded, logged commands,
@@ -97,6 +109,33 @@ before returning user records to their live paths; a historical baseline must ne
 against the returned current records. Final native verification includes the installed APK identity.
 APK restoration and lifecycle-flush proof are executor obligations, not claims of the pure planner.
 
+The executor binds one verified snapshot to device, package, session and experiment. Before isolation,
+it verifies the snapshot's retained files and hashes, current implementation identities, the installed
+original APK, and a fresh stopped inventory equal to the original. It derives the move list from the
+canonical planner. Host output collisions and an existing device session are refusals before moves.
+Creating required directories is logged as a separate step; the executor never uses an unrestricted
+caller-provided move list or overwrites an occupied directory.
+
+Each move has a new intent record, a stopped full-inventory check against the preceding canonical
+prefix, and a bounded quoted `run-as` command. The command again requires PID absence, a present
+non-link source, a vacant destination and the same filesystem for source and destination parent;
+`mv -nT` disables clobbering and directory-target inference. The complete readback must equal the
+next canonical prefix before a success result is written or the next move starts. This uses the
+controlled, stopped application as the sole-writer precondition; it does not claim that shell
+existence checks are an atomic lock against an independently relaunched application.
+
+Restoration starts only from a successful v2 preservation record. Its caller pins the expected
+currently installed APK from the last recorded measurement installation, never merely from whatever
+APK happens to be on the device. An unexpected APK or a live process refuses restoration before an
+install. If needed, the executor restores the captured original with bounded `adb install -r -d -t`,
+without uninstall/clear or permission-grant flags, and verifies its hash and stopped state. Only then
+does it observe the guarded data, derive one restoration plan and archive all measurement entries
+before returning originals. A new result links the immutable preservation record and every step.
+
+Native executor checks initially use mocked command boundaries and synthetic inventories only.
+Actual isolation waits for the complete restoration implementation, its review, and the prospective
+phase's artifact/protocol admission. A read-only snapshot or passing prefix test cannot start it.
+
 Binary archive/APK transfer reuses `Invoke-P4RawAdbCapture` in
 `measurements/p4-indexed-device-lanes.ps1`. Its file destination mode must create a new file, stream
 bytes without text redirection, stop at an explicit byte limit, and share one wall-clock deadline
@@ -105,6 +144,22 @@ existing in-memory caller. The call writes new command/result records, including
 and the retained partial file; it never deletes or overwrites either. The existing in-memory caller
 keeps its nonempty-byte result contract. This transport does not prove archive contents, remote
 command status, lifecycle completion or preservation admission; those checks remain with the executor.
+
+On Windows, the ADB shell client can translate LF to CRLF even with `shell -T -n` and no remote PTY.
+A physical constant-byte probe found 257 received bytes for the sequence 0..255. Consequently shell
+stdout must not carry private binary payload directly. The private transfer wraps the remote source
+in `sh -c 'set -o pipefail || exit; { SOURCE; } | base64'`, retaining shell_v2 exit and stderr, then
+streams strict base64 decoding to a new host file. The same constant probe recovered all 256 bytes
+through that encoding and retained upstream exit 73. The app and its private files were untouched.
+
+This is the single binary representation used by the new private observer and future archive/APK
+consumer; the existing legacy in-memory caller is unchanged. It reuses the same bounded raw launcher,
+preserves both encoded and decoded partial artifacts and records, caps both representations, and
+shares a deadline across capture and decoding. Decode accepts only base64 alphabet/padding plus
+CR/LF separators, refuses truncation, misplaced/excess padding or data after padding, and writes no
+more than the decoded cap. It does not normalize any byte of the decoded private payload. The raw
+transport record and the decoded result are linked by hashes; a failed remote source never admits a
+decoded result, even when base64 itself exits successfully. No device staging file is created.
 
 ### Native observation and archive validation
 
@@ -132,6 +187,32 @@ Every discovered path must appear in the metadata, every regular file in the dig
 second NUL enumeration must match the first. The process must remain stopped at the end. These
 checks produce an observation, not a stable snapshot or preservation admission: the snapshot
 executor still needs matching inventories on both sides of the verified archive capture.
+
+The native shell proof includes the encoded byte sequence 0..255 and a separate encoded upstream
+failure under pipefail. Only exact decoded bytes and the expected remote failure admit subsequent
+private commands. The path list, metadata and hashes all use this encoding; after decoding the
+metadata parser still requires native LF-only records. Host `adb features` has its own CRLF handling.
+
+### Read-only snapshot stage
+
+The snapshot stage composes the native observer, encoded transfer and archive validator; it does
+not isolate records or install an APK. It writes only new host evidence. It captures the original
+single installed base APK and a tar of all present protected roots, verifies the APK against native
+SHA-256 before and after capture, and verifies every archive entry against the observed inventory.
+Split installations, unsafe or changed package paths, unsupported private access, nonzero commands,
+and byte/deadline limits are refusals. The single APK path must be a canonical `/data/app/.../base.apk`
+path returned for the requested package; no caller-provided device APK path is accepted.
+
+A complete stopped native inventory is taken before and after both captures. Exact path/type/size,
+hash and file mtime equality is required; the package path and APK hash must also remain identical.
+The caller supplies explicit archive and APK byte caps. The archive uses native tar for present
+roots; with no roots, an exact empty tar stream is valid. Nothing is extracted to the device or host.
+Every outcome, including failure, retains its source identities, transfer records and partial files.
+
+The successful `nene-pixel-device-private-snapshot-v1` record binds device, package, snapshot stage,
+inventory, archive and APK hashes. It attests a verified read-only snapshot, not isolation or phase
+admission. A later transaction must prove that its current state still equals this snapshot before
+moving anything. A snapshot is never relabelled as a v2 preservation record.
 
 Preservation evidence uses `nene-pixel-device-preservation-v2` with device/package/session identity,
 creation time, original archive and inventory hashes, plan identity and verified `preserved` state.

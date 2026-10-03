@@ -4,7 +4,7 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'measurements/p4-device-private-native.ps1')
 
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
-    $OutputDirectory = Get-NenePixelLabPath ('evidence/145-native-observer/' +
+    $OutputDirectory = Get-NenePixelLabPath ('evidence/145-encoded-native/' +
         (Get-Date -Format 'yyyyMMddTHHmmssfff') + '-' + [guid]::NewGuid().ToString('N')) -StartDirectory $PSScriptRoot
 }
 if ([IO.Directory]::Exists($OutputDirectory) -or [IO.File]::Exists($OutputDirectory)) { throw 'Evidence directory exists' }
@@ -26,6 +26,14 @@ function Reject([scriptblock] $Action, [string] $Description) {
     Check $failed "$Description must refuse"
 }
 function Bytes([string] $Text) { return ,([Text.UTF8Encoding]::new($false).GetBytes($Text)) }
+function Encoded([byte[]] $Decoded) {
+    $base64 = [Convert]::ToBase64String($Decoded)
+    $lines = [Collections.Generic.List[string]]::new()
+    for ($i = 0; $i -lt $base64.Length; $i += 64) {
+        $lines.Add($base64.Substring($i, [Math]::Min(64, $base64.Length - $i)))
+    }
+    return ,(Bytes $(if ($lines.Count -eq 0) { '' } else { ($lines -join "`r`n") + "`r`n" }))
+}
 function Paths([string[]] $Names) {
     $list = [Collections.Generic.List[byte]]::new()
     foreach ($name in $Names) { $list.AddRange((Bytes $name)); $list.Add(0) }
@@ -45,7 +53,9 @@ function New-Case([string] $Name) {
 function Invoke-P4RawAdbCapture {
     param([string] $AdbPath, [string[]] $AdbArguments, [int] $TimeoutSeconds,
         [string] $DestinationPath, [string] $RecordPath, [long] $MaximumBytes)
-    $step = [IO.Path]::GetFileNameWithoutExtension($DestinationPath).Substring(($script:case + '-').Length)
+    $leaf = [IO.Path]::GetFileName($DestinationPath)
+    $step = $leaf.Substring(($script:case + '-').Length) -creplace '\.bin(\.base64)?$', ''
+    $private = $leaf.EndsWith('.bin.base64', [StringComparison]::Ordinal)
     $script:requests.Add([pscustomobject]@{ Case = $script:case; Step = $step; Arguments = @($AdbArguments);
         Bound = $MaximumBytes; Timeout = $TimeoutSeconds })
     $names = @('files', 'files/a-b_1', 'files/zero', 'no_backup', 'shared_prefs', 'databases')
@@ -64,6 +74,8 @@ function Invoke-P4RawAdbCapture {
     $data = switch -Regex ($step) {
         '^features$' { Bytes "shell_v2`nstat_v2`n"; break }
         '^shell-proof$' { $exit = 73; $stderr = 'p4-err'; Bytes 'p4-out'; break }
+        '^encoded-upstream-proof$' { $exit = 73; $stderr = 'p4-err'; Bytes ''; break }
+        '^encoded-byte-proof$' { [byte[]]@(0..255); break }
         '^stopped-' { $exit = 1; Bytes ''; break }
         '^paths-' { Paths $names; break }
         '^stat-[0-9]+$' {
@@ -94,6 +106,10 @@ function Invoke-P4RawAdbCapture {
         'bad-proof-exit' { if ($step -eq 'shell-proof') { $exit = 72 } }
         'bad-proof-stdout' { if ($step -eq 'shell-proof') { $data = Bytes 'wrong' } }
         'bad-proof-stderr' { if ($step -eq 'shell-proof') { $stderr = 'wrong' } }
+        'bad-byte-proof' { if ($step -eq 'encoded-byte-proof') { $data[10] = 255 } }
+        'short-byte-proof' { if ($step -eq 'encoded-byte-proof') { $data = [byte[]] $data[0..254] } }
+        'bad-upstream-exit' { if ($step -eq 'encoded-upstream-proof') { $exit = 72 } }
+        'bad-upstream-stderr' { if ($step -eq 'encoded-upstream-proof') { $stderr = 'wrong' } }
         'running' { if ($step -eq 'stopped-before') { $exit = 0; $data = Bytes "123`n" } }
         'undetermined' { if ($step -eq 'stopped-before') { $exit = 2 } }
         'command-failure' { if ($step -eq 'stat-0') { $exit = 1; $stderr = 'permission denied' } }
@@ -105,6 +121,10 @@ function Invoke-P4RawAdbCapture {
         'bad-hash' { if ($step -eq 'hash-0') { $data = Bytes ($hash[0] + "`n") } }
         'unsafe-path' { if ($step -eq 'paths-before') { $data = Paths @('files','files/bad name') } }
         'late-running' { if ($step -eq 'stopped-after') { $exit = 0; $data = Bytes "123`n" } }
+    }
+    if ($private) { $data = Encoded $data }
+    if ($script:case -eq 'corrupt-encoded-byte-proof' -and $step -eq 'encoded-byte-proof') {
+        $data[5] = [byte][char]'!'
     }
     if ($data.Length -gt $MaximumBytes) {
         $cap = $true
@@ -126,7 +146,8 @@ function Invoke-P4RawAdbCapture {
     try { $stream.Write($data, 0, $data.Length) } finally { $stream.Dispose() }
     $result = [ordered]@{ schema = 'nene-pixel-p4-binary-capture-result-v1'; status = $status;
         exit_code = $exit; error = $errorText; stderr = $stderr; destination_path = $destination;
-        byte_count = $data.Length; timed_out = $timeout; byte_limit_exceeded = $cap;
+        byte_count = $data.Length; sha256 = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($data)).ToLowerInvariant();
+        command_record_path = "$record.command.json"; timed_out = $timeout; byte_limit_exceeded = $cap;
         job_quiescent_after_failure = $(if ($status -eq 'failure') { $true } else { $null }) }
     if ($script:case -eq 'no-quiescence') {
         $result.job_quiescent_after_failure = $false
@@ -152,12 +173,29 @@ $inventory = Get-P4NativePrivateInventory -Context $normal -Stage 'normal'
 Check ($inventory.Count -eq 6 -and @($inventory | Where-Object Type -EQ 'file').Count -eq 2) 'populated roots and empty file'
 Check (($inventory | Where-Object Path -EQ 'files/zero').Size -eq 0) 'zero-byte file'
 $normalRequests = @($script:requests | Where-Object Case -EQ 'normal')
-Check (($normalRequests.Step -join ',') -ceq 'features,shell-proof,stopped-before,paths-before,stat-0,hash-0,paths-after,stopped-after') 'command sequence'
+Check (($normalRequests.Step -join ',') -ceq 'features,shell-proof,stopped-before,encoded-byte-proof,encoded-upstream-proof,paths-before,stat-0,hash-0,paths-after,stopped-after') 'command sequence'
 Check (@($normalRequests | Where-Object { $_.Arguments[0] -cne '-s' -or $_.Arguments[1] -cne 'serial-01:5555' }).Count -eq 0) 'serial prefix'
 Check (@($normalRequests | Where-Object { $_.Step -ne 'features' -and ($_.Arguments[2..4] -join ',') -cnotlike 'shell,-T,-n*' }).Count -eq 0) 'shell T n flags'
 $statCommand = @($normalRequests | Where-Object Step -EQ 'stat-0')[0].Arguments[-1]
-Check ($statCommand -clike "run-as 'io.github.hideyukimori.nenepixel' sh -c 'stat *" -and
-    $statCommand.Contains('files/a-b_1') -and -not $statCommand.Contains('rm ')) 'run-as quoted stat'
+Check ($statCommand -clike "sh -c 'set -o pipefail || exit; { run-as *" -and
+    $statCommand.Contains('stat ') -and $statCommand.Contains('files/a-b_1') -and
+    $statCommand.Contains(' | base64') -and -not $statCommand.Contains('rm ')) 'encoded run-as quoted stat'
+Check (@($normalRequests | Where-Object { $_.Step -in @('encoded-byte-proof','paths-before','stat-0','hash-0','paths-after') -and
+    $_.Arguments[-1] -cnotlike "sh -c 'set -o pipefail || exit; { * | base64'" }).Count -eq 0) `
+    'all binary native commands use encoded wrapper'
+Check (@($normalRequests | Where-Object { $_.Step -eq 'encoded-upstream-proof' -and
+    $_.Arguments[-1] -cnotlike "sh -c 'set -o pipefail || exit; { printf p4-err >&2; exit 73; } | base64'" }).Count -eq 0) `
+    'upstream proof exercises encoded pipefail wrapper'
+$byteCommand = @($normalRequests | Where-Object Step -EQ 'encoded-byte-proof')[0].Arguments[-1]
+$octets = [regex]::Matches($byteCommand, '\\[0-3][0-7][0-7]')
+$octalSequence = @($octets | ForEach-Object { [Convert]::ToInt32($_.Value.Substring(1), 8) })
+Check ($octets.Count -eq 256 -and ($octalSequence -join ',') -ceq ((0..255) -join ',')) `
+    'remote probe command enumerates all 256 octal bytes'
+Check (([IO.File]::ReadAllBytes((Join-Path $normal.output_directory 'normal-encoded-byte-proof.bin')) -join ',') -ceq
+    ([byte[]]@(0..255) -join ',')) 'encoded probe recovers every byte'
+Check ([IO.File]::Exists((Join-Path $normal.output_directory 'normal-paths-before.bin.base64')) -and
+    [IO.File]::Exists((Join-Path $normal.output_directory 'normal-paths-before.json.encoded.json'))) `
+    'encoded and decoded evidence retained'
 Check (@($normalRequests | Where-Object { $_.Timeout -ne 30 -or $_.Bound -le 0 }).Count -eq 0) 'bounded captures'
 $hostCrLf = New-Case 'host-crlf-features'
 $hostCrLfInventory = Get-P4NativePrivateInventory -Context $hostCrLf -Stage 'host-crlf-features'
@@ -181,8 +219,9 @@ Check (@($longInventory | Where-Object { $_.Type -eq 'file' -and
 $longRequests = @($script:requests | Where-Object Case -EQ 'long-digest')
 Check (@($longRequests | Where-Object Step -Like 'stat-*').Count -eq 2 -and
     @($longRequests | Where-Object Step -Like 'hash-*').Count -eq 2) 'long paths split into bounded batches'
-Check (@($longRequests | Where-Object { $_.Step -like 'hash-*' -and $_.Bound -eq 65536 }).Count -eq 2) `
-    'long digest requests 64 KiB capture cap'
+Check (@($longRequests | Where-Object { $_.Step -like 'hash-*' -and
+    $_.Bound -eq (Get-P4EncodedMaximum 65536) }).Count -eq 2) `
+    'long digest requests encoded bound for 64 KiB decoded cap'
 $longHashOutputs = @(Get-ChildItem -LiteralPath $long.output_directory -Filter 'long-digest-hash-*.bin')
 Check ($longHashOutputs.Count -eq 2 -and @($longHashOutputs | Where-Object {
     $_.Length -gt 16384 -and $_.Length -le 65536 }).Count -ge 1) `
@@ -193,10 +232,17 @@ Check ($emptyInventory.Count -eq 0) 'all roots absent'
 Check (@($script:requests | Where-Object { $_.Case -eq 'empty' -and $_.Step -like 'stat-*' }).Count -eq 0) 'empty skips stat/hash'
 
 foreach ($name in @('missing-shell','bad-proof-exit','bad-proof-stdout','bad-proof-stderr',
+        'bad-byte-proof','short-byte-proof','corrupt-encoded-byte-proof',
+        'bad-upstream-exit','bad-upstream-stderr',
         'running','undetermined','command-failure','timeout','cap','drift','bad-metadata',
         'extra-metadata','bad-hash','unsafe-path','late-running')) {
     $context = New-Case $name
     Reject { Get-P4NativePrivateInventory -Context $context -Stage $name } $name
+    if ($name -in @('bad-byte-proof','short-byte-proof','corrupt-encoded-byte-proof',
+            'bad-upstream-exit','bad-upstream-stderr')) {
+        Check (@($script:requests | Where-Object { $_.Case -eq $name -and $_.Step -eq 'paths-before' }).Count -eq 0) `
+            "$name refuses before enumeration"
+    }
 }
 foreach ($scenario in @(@('bare-cr-features', 'features'), @('remote-crlf-stat', 'stat-0'),
         @('remote-crlf-hash', 'hash-0'))) {

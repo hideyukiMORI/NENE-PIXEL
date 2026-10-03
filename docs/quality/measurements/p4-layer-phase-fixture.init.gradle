@@ -1,0 +1,28 @@
+import org.gradle.api.tasks.JavaExec
+import org.gradle.api.tasks.testing.Test
+
+// Explicit #145 measurement builds only: one checked source directory for both test APKs.
+// Host export: ./gradlew -I docs/quality/measurements/p4-layer-phase-fixture.init.gradle
+//   :adapters:persistence:layerPhaseFixtureExport -Pp4LayerFixtureOutput=<fresh-absolute-file> --offline
+gradle.projectsEvaluated {
+    def persistence = rootProject.findProject(':adapters:persistence')
+    def app = rootProject.findProject(':app:android')
+    if (persistence == null || app == null) return // Included build has neither module.
+
+    def fixtureDirectory = rootProject.file('docs/quality/fixtures/p4-layer-phase')
+    [persistence, app].each { project ->
+        project.extensions.getByName('android').sourceSets.getByName('androidTest').assets.srcDir(fixtureDirectory)
+    }
+
+    def debugTest = persistence.tasks.named('testDebugUnitTest', Test)
+    persistence.tasks.register('layerPhaseFixtureExport', JavaExec) { task ->
+        def output = persistence.providers.gradleProperty('p4LayerFixtureOutput').orNull
+        group = 'verification'
+        description = 'Exports the canonical #145 project to one new explicit file.'
+        dependsOn persistence.tasks.named('compileDebugUnitTestKotlin')
+        mainClass.set('io.github.hideyukimori.nenepixel.adapters.persistence.LayerPhaseFixtureExport')
+        classpath = debugTest.get().classpath + debugTest.get().testClassesDirs
+        if (output != null) args output
+        outputs.upToDateWhen { false }
+    }
+}

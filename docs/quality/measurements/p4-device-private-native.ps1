@@ -2,13 +2,8 @@
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'p4-device-private-observation.ps1')
 . (Join-Path $PSScriptRoot 'p4-indexed-device-lanes.ps1')
+. (Join-Path $PSScriptRoot 'p4-device-private-transport.ps1')
 . (Join-Path $PSScriptRoot 'nene-pixel-lab.ps1')
-
-function ConvertTo-P4ShellWord([string] $Value) {
-    $quote = [string][char]39
-    $escapedQuote = $quote + [char]34 + $quote + [char]34 + $quote
-    return $quote + $Value.Replace($quote, $escapedQuote) + $quote
-}
 
 function Assert-P4NativeContext([System.Collections.IDictionary] $Context, [string] $Stage) {
     foreach ($key in @('repository_root', 'output_directory', 'adb_path', 'serial', 'package')) {
@@ -123,8 +118,12 @@ function Invoke-P4NativeRunAs([System.Collections.IDictionary] $Context, [string
     [string] $Step, [string] $Script, [long] $MaximumBytes) {
     $remote = 'run-as ' + (ConvertTo-P4ShellWord $Context.package) + ' sh -c ' +
         (ConvertTo-P4ShellWord $Script)
-    return ,(Invoke-P4NativeCapture -Context $Context -Stage $Stage -Step $Step `
-        -AdbArguments @('shell', '-T', '-n', $remote) -MaximumBytes $MaximumBytes)
+    $destination = Join-Path $Context.output_directory "$Stage-$Step.bin"
+    $recordPath = Join-Path $Context.output_directory "$Stage-$Step.json"
+    [void] (Invoke-P4EncodedShellCapture -AdbPath $Context.adb_path -Serial $Context.serial `
+        -Script $remote -TimeoutSeconds 30 -DestinationPath $destination `
+        -RecordPath $recordPath -MaximumBytes $MaximumBytes)
+    return ,(Read-P4NativeBytes $destination)
 }
 
 function Get-P4NativePrivateInventory {
@@ -143,6 +142,18 @@ function Get-P4NativePrivateInventory {
     [void] (Invoke-P4NativeCapture -Context $Context -Stage $Stage -Step 'stopped-before' `
         -AdbArguments @('shell', '-T', '-n', $pidCommand) -MaximumBytes 1024 `
         -ExpectedExit 1 -ExpectedStdout '' -ExpectedStderr '')
+    $byteScript = 'printf ' + (ConvertTo-P4ShellWord ((0..255 | ForEach-Object {
+        '\' + [Convert]::ToString($_, 8).PadLeft(3, '0')
+    }) -join ''))
+    $byteProof = Invoke-P4NativeRunAs $Context $Stage 'encoded-byte-proof' $byteScript 256
+    if ($byteProof.Length -ne 256) { throw 'Encoded byte proof length mismatch' }
+    for ($i = 0; $i -lt 256; $i++) {
+        if ($byteProof[$i] -ne $i) { throw 'Encoded byte proof value mismatch' }
+    }
+    $encodedFailure = New-P4EncodedShellCommand 'printf p4-err >&2; exit 73'
+    [void] (Invoke-P4NativeCapture -Context $Context -Stage $Stage -Step 'encoded-upstream-proof' `
+        -AdbArguments @('shell', '-T', '-n', $encodedFailure) -MaximumBytes 64 `
+        -ExpectedExit 73 -ExpectedStdout '' -ExpectedStderr 'p4-err')
     $scan = 'for root in files no_backup shared_prefs databases; do if [ -e "$root" ] || [ -L "$root" ]; then find "$root" -print0 || exit; fi; done'
     $paths = Invoke-P4NativeRunAs $Context $Stage 'paths-before' $scan 33554432
     $discovered = ConvertFrom-P4NulPaths $paths
