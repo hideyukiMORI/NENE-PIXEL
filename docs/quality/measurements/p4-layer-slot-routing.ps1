@@ -164,6 +164,15 @@ function Invoke-P4LayerFrameAnalysis {
         -ExperimentId $Manifest.experiment_id -BaselineAnalysisPath $baseline -PhaseContext $context
     Assert-P4FrameExactProjection $record.files $result.frame_files 'frame collector inventory'
     Assert-P4LayerFrameSetupEvidence $expected $context $bounds
+    Read-P4LayerFrameStagingEvidence $Manifest $Slot $ManifestSha256 $Directory $context | Out-Null
+    $result.capture_sha256 = Get-FileSha256 $path
+    return $result
+}
+
+function Read-P4LayerFrameStagingEvidence {
+    param($Manifest, $Slot, [string]$ManifestSha256, [string]$Directory, $context)
+    $contract = Get-P4FrameExecutionContract $Manifest.protocol.id $Slot.id
+    $source = $Manifest.roles[$contract.artifact_role]
     $stagingPath = Join-Path $Directory 'fixture-preparation/staging-result.json'; Assert-P4SealPathNotLinked $stagingPath
     $staging = Get-Content -Raw -LiteralPath $stagingPath | ConvertFrom-Json -AsHashtable
     if ($staging.schema -cne 'nene-pixel-p4-layer-frame-staging-result-v1' -or $staging.slot_id -cne $Slot.id -or
@@ -184,8 +193,7 @@ function Invoke-P4LayerFrameAnalysis {
         }
         Read-P4LayerFrameSetupFixture $staging.fixture_evidence $context $source.build_commit $Manifest.experiment_id | Out-Null
     }
-    $result.capture_sha256 = Get-FileSha256 $path
-    return $result
+    return $stagingPath
 }
 
 function Get-P4LayerFramePhaseContext {

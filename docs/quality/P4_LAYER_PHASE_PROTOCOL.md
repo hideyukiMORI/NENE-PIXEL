@@ -702,6 +702,28 @@ outputs refuse replacement. The remote read also checks process absence and regu
 components. Missing reports are retained as missing evidence and invalidate an otherwise successful
 slot. No phase report is moved or deleted, and legacy quarantine is not used for these unique paths.
 
+### Stopped capture, archive and reset composition
+
+Before sealing a phase slot, one shared 3000-second operation clock covers writer stops, pinned
+debug access, report recovery, full private/APK snapshots and measurement-state reset. It retains
+the native 15-second termination/drain reserve. All three writer packages must be confirmed stopped
+before any private read or mutation. The cleanup verifies preservation-v2 identity and uses the
+existing phase install intent/readback path to restore the exact artifact role's debug APK access.
+
+Archive the app for every slot, its test/provider package when that slot installs `test_debug`,
+and the self-instrumenting publication package for the publication slot. Do not install an auxiliary
+package just to archive it. Each archive uses the existing read-only snapshot/inventory/tar verifier
+with a 256 MiB private-archive cap, 128 MiB APK cap and 4096-entry inventory cap. These are finite
+refusal bounds, not promised durations. Missing packages, timeouts and cap failures retain all
+partial host outputs; reset may start only after report capture and every required archive succeed.
+
+A successful frame retains its already captured fixture evidence. Failed staging may recover that
+slot's unique fixture report into a fresh diagnostic directory after debug access. If the collector
+was killed before producing frame-slot-v2, the outer cleanup inventories the canonical partial
+frame directory before sealing; it never replaces an existing frame record. The cleanup record
+binds its components and errors. Final settings/sealing and whole-session deadlines still belong to
+the outer wrapper, and all live-admission requirements remain in force.
+
 ### Measurement state between slots
 
 Each slot's stopped cleanup uses the existing ADR0035 planner to move only measurement-created
