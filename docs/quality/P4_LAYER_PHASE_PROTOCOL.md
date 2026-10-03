@@ -105,6 +105,30 @@ The existing repeated-diagonal and one-Undo reset sequence remains unchanged. PN
 full-pixel verification, fixture selection and setup observations stay outside every timed gesture.
 No document scan, allocation/copy or draw step is added to application production code by this fixture.
 
+### Shared real-SAF fixture preparation
+
+The app instrumentation registers a temporary launcher on the real `MainActivity`'s existing
+ActivityResultRegistry, using the production create-document contract. The existing DocumentsUI
+helper selects the existing test provider and a unique `i89-145-...` name. The result must be that
+authority's exact named document, with read and write grants for the target app's actual PID/UID,
+the expected display name and zero bytes. Provider package/class/UID are checked against the
+installed app-test package; its source, manifest and APK belong to the admitted artifact inventory.
+
+Pinned asset bytes are staged through that granted ContentResolver destination and read back in
+full with exact size/hash. The temporary launcher is unregistered in all outcomes. Setup retains
+only the name/URI and primitive grant facts after byte verification returns; the production app's
+normal picker then opens that named document. No provider-private file access, shell grant or
+broker completion is used. Memory setup finishes before C0. The same helper creates the 25 fresh
+empty granted SAF-save destinations before timing, without writing fixture bytes into them.
+
+The public save adapter requests cleanup of a failed fresh output. For `i89-145-...` documents only,
+the test provider implements that logical deletion by moving the existing file without overwrite
+into its private `files/p4-layer-provider-quarantine/` directory. It disappears from the provider's
+document listing while its bytes remain available to the phase evidence capture. Legacy fixture
+deletion remains unchanged. A quarantine collision or failed move reports failed cleanup and leaves
+the source in place; it must not delete or overwrite either file. These provider files, successful
+documents and partial failures are retained with the slot. The production adapter is unmodified.
+
 ## First-preview assessment decision
 
 The layered group has two workloads on the same pinned maximum document: `canvas256_layers16_tap`
@@ -333,7 +357,9 @@ palette controls, hidden actual-size window and absent underlay in both roles.
 Each checkpoint uses exactly the existing two GC/finalization passes on the instrumentation thread,
 then records primitive heap/PSS values while retaining the real model. No screenshots, copied pixel
 arrays, independently decoded fixture, old document/render/workspace snapshots or prior preview
-objects may survive in test fields across a checkpoint. The normal model/composition and test
+objects may survive in test fields across a checkpoint. The opaque autosave position token contains
+only its runtime-generation and history-position values and may be retained to compare C3 with C4.
+The normal model/composition and test
 runner remain present. Report target-process heap/PSS including that fixed instrumentation cost;
 the external DocumentsProvider and system picker processes are outside this population.
 
@@ -352,6 +378,27 @@ differences are descriptive, not a new tolerance. The first invalid or numeric f
 remaining memory/phase slots with all prior results retained. No five-run median is reported from
 a shorter population.
 
+The app runner requires exact phase/experiment/slot/artifact/build/production, preflight SHA-256,
+preservation SHA-256/session and both installed app/test APK hashes. It verifies those installed
+files and the existing native preservation guard before launching the editor. These local checks
+supplement the host's complete manifest and preservation-v2 verification; a directory or supplied
+hash alone is never collection admission. Memory slots are `memory-layers16-baseline-1` through
+`-5`, then `memory-layers16-candidate-1` through `-5`; families are respectively
+`baseline-layer-editor-retention` and `candidate-layer-editor-retention`.
+
+One status-code 3 bundle carries the existing seven process-identity fields plus `p4LayerIdentity`,
+the exact eleven-field admission projection. Each completed checkpoint immediately emits one
+status-code 5 `p4LayerMemoryCheckpoint` record containing its run/slot/name/index and all eight
+primitive values from the unchanged post-GC sampler. Exactly five ordered checkpoint bundles are
+required for a valid run. One final status-code 4 `p4MemoryReport` binds those observations to the
+same identity, fixture URI/hash, actual grant/provider UIDs and fixed workload facts. Its five
+heap/PSS pairs must equal the raw checkpoint records. Partial checkpoint records survive failure;
+they cannot be padded, omitted or used as a complete run. Across all ten runs, PID/start pairs are
+unique; within each role, limits and five-run medians use only its exact preceding runs, with
+the same positive runtime maximum and Android memory class. A capacity change within an immutable
+artifact role is invalid evidence. The analyzer receives the host-verified sealed predecessor chain;
+it independently rechecks its identities, complete checkpoint populations and numeric verdicts.
+
 The source-derived owner inventory accompanies observations. Maximum document primitive pixels are
 1,179,648 bytes. A held top-layer preview additionally retains 15 copied non-target surfaces,
 1,105,920 bytes of indices/coverage, and a 1,024-byte palette. The committed ARGB array, two preview
@@ -359,6 +406,19 @@ ARGB arrays and their Android bitmaps are separate owners; preview arrays/bitmap
 after release while preview source references are dropped. These logical counts exclude object,
 renderer and native overhead. The earlier +512 KiB estimate is not a PSS tolerance or an assertion
 that only that many extra bytes remain reachable.
+
+### Memory preparation implementation status
+
+The opt-in app instrumentation now implements the real-editor sequence, shared SAF staging,
+five immediate checkpoint records and final report. The existing memory analyzer selects the new
+contract only when an explicit phase context is supplied; its four historical families are unchanged.
+The no-device validators cover numerical boundaries, malformed or foreign evidence, predecessor
+order/freshness, and Android report-field agreement. Both candidate and fixed layer baseline compile
+the same test overlay. See the [implementation report](../reports/2026-10-03-layer-editor-memory.md).
+
+These checks do not establish device grant/load/render behavior or admit a phase. The manifest,
+outer instrumentation wrapper, complete artifact inventories and preservation chain still need the
+phase integration below. No measurement has run from this preparation slice.
 
 ## Maximum publication and physical SAF-save decisions
 

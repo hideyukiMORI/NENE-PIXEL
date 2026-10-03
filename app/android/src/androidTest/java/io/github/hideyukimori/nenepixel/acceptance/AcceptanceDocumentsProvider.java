@@ -77,22 +77,19 @@ public final class AcceptanceDocumentsProvider extends DocumentsProvider {
     }
 
     @Override public void deleteDocument(String id) throws FileNotFoundException {
-        if (!documentFile(id).delete()) throw new FileNotFoundException("Fixture was not deleted");
+        try {
+            AcceptanceDocumentFiles.delete(getContext().getFilesDir(), id);
+        } catch (IOException failure) {
+            throw new FileNotFoundException(failure.getMessage());
+        }
     }
 
     private File directory() {
-        File directory = new File(getContext().getFilesDir(), "m3-acceptance");
-        if (!directory.isDirectory() && !directory.mkdirs()) {
-            throw new IllegalStateException("Cannot create fixture directory");
-        }
-        return directory;
+        return AcceptanceDocumentFiles.directory(getContext().getFilesDir());
     }
 
     private File documentFile(String id) {
-        if (id == null || !id.matches("i89-[a-z0-9.-]{1,90}")) {
-            throw new IllegalArgumentException("Invalid fixture name");
-        }
-        return new File(directory(), id);
+        return AcceptanceDocumentFiles.document(getContext().getFilesDir(), id);
     }
 
     private void requireRoot(String id) {

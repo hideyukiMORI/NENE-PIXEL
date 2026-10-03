@@ -266,6 +266,35 @@ function Get-P4FrameSlotCatalog {
     return $slots.ToArray()
 }
 
+function Get-P4LayerMemorySlotCatalog {
+    param([Parameter(Mandatory)][string]$ProtocolId)
+    $group = @(Get-P4FrameGroupCatalog -ProtocolId $ProtocolId | Where-Object { $_.id -ceq 'layers16' })[0]
+    $sequence = 0
+    foreach ($role in @('baseline', 'candidate')) {
+        foreach ($run in 1..5) {
+            $sequence++
+            [ordered]@{
+                id = "memory-layers16-$role-$run"
+                protocol_id = $ProtocolId
+                lane = 'memory'
+                role = $role
+                artifact_role = if ($role -ceq 'baseline') { $group.baseline_artifact_role } else { 'candidate' }
+                baseline_production_commit = $group.baseline_production_commit
+                family = "$role-layer-editor-retention"
+                run = $run
+                memory_sequence_index = $sequence
+                sequence_index = 12 + $sequence
+                timeout_seconds = 300
+                schema = 'nene-pixel-p4-layer-editor-retention-v1'
+                analysis_contract = 'nene-pixel-p4-layer-memory-analysis-v1'
+                profile = 'NENE-P2-ALLDOCUBE-IPL80MP-A16-API36'
+                fixture_sha256 = '165f62d180533849ce1a4ef1625cd3971e445f2dca60ef7b9b46fedaafa0b3ec'
+                checkpoints = @('empty_idle', 'maximum_loaded_idle', 'long_preview_held', 'committed_idle', 'post_cycles_idle')
+            }
+        }
+    }
+}
+
 function Get-P4FrameWorkloadCatalog {
     # One event specification for collector and analyzer. Each invocation owns all returned records.
     param([Parameter(Mandatory = $true)][AllowNull()][AllowEmptyCollection()][string[]]$WorkloadOrder)
