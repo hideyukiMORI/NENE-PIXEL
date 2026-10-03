@@ -48,7 +48,11 @@ internal data class P4LayerRunAdmission(
                     preservationSha256 = arguments.required("p4LayerPreservationSha256", hash),
                     session = arguments.required("p4LayerSession", identifier),
                     slotId = arguments.required("p4LayerSlotId", identifier),
-                    artifactRole = arguments.required("p4LayerArtifactRole", Regex("baseline_layers16|candidate")),
+                    artifactRole =
+                        arguments.required(
+                            "p4LayerArtifactRole",
+                            Regex("baseline_single|baseline_layers16|baseline_underlay|candidate"),
+                        ),
                     buildCommit = arguments.required("p4LayerBuildCommit", commit),
                     productionCommit = arguments.required("p4LayerProductionCommit", commit),
                     appApkSha256 = arguments.required("p4LayerAppApkSha256", hash),

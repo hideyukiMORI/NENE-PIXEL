@@ -60,4 +60,17 @@ gradle.projectsEvaluated {
         timeout.set(java.time.Duration.ofSeconds(30))
         outputs.upToDateWhen { false }
     }
+    app.tasks.register('layerPhaseFrameFixtureHostContract', JavaExec) {
+        def output = app.providers.gradleProperty('p4FrameFixtureContractOutput').orNull
+        def androidCompile = app.tasks.named('compileDebugAndroidTestKotlin')
+        def unitTest = app.tasks.named('testDebugUnitTest', Test)
+        group = 'verification'
+        description = 'Checks actual frame fixture slot/name guards without Android or device calls.'
+        dependsOn androidCompile
+        mainClass.set('io.github.hideyukimori.nenepixel.measurement.P4LayerFrameFixtureHostContract')
+        classpath = app.files(androidCompile.get().destinationDirectory) + unitTest.get().classpath
+        if (output != null) args output
+        timeout.set(java.time.Duration.ofSeconds(30))
+        outputs.upToDateWhen { false }
+    }
 }

@@ -20,6 +20,57 @@ $script:P4FrameInputP95Gate = 33.33
 $script:P4FrameGrossOverrun = 33.34
 $script:P4FrameGrossInput = 100.0
 
+function Test-P4LayerFrameFixturePreparation {
+    param([AllowNull()][Collections.IDictionary]$PhaseContext,
+        [AllowEmptyCollection()][string[]]$IdentityLines,
+        [AllowEmptyCollection()][string[]]$InstrumentationLines)
+    . (Join-Path $PSScriptRoot 'p4-indexed-memory-analysis.ps1')
+    . (Join-Path $PSScriptRoot 'p4-indexed-publication-analysis.ps1')
+    Assert-P4LayerMemoryFields $PhaseContext $script:P4LayerMemoryIdentityFields 'frame fixture phase context'
+    foreach ($name in $script:P4LayerMemoryIdentityFields) {
+        $pattern = if ($name -like '*sha256') { '\A[0-9a-f]{64}\z' }
+            elseif ($name -like '*commit') { '\A[0-9a-f]{40}\z' }
+            elseif ($name -ceq 'artifact_role') { '\A(baseline_layers16|baseline_underlay|candidate)\z' }
+            else { '\A[a-z0-9][a-z0-9-]{2,63}\z' }
+        if ($PhaseContext[$name] -isnot [string] -or $PhaseContext[$name] -cnotmatch $pattern) {
+            throw "Invalid frame fixture context: $name"
+        }
+    }
+    $selected = @(Get-P4FrameSlotCatalog $PhaseContext.protocol_id | Where-Object { $_.id -ceq $PhaseContext.slot_id })
+    if ($selected.Count -ne 1 -or $selected[0].group_id -cnotin @('layers16', 'underlay') -or
+        $selected[0].artifact_role -cne $PhaseContext.artifact_role) { throw 'Frame fixture role/group/slot differs.' }
+    $slot = $selected[0]
+    $artifact = @(Get-P4LayerArtifactCatalog $PhaseContext.protocol_id | Where-Object { $_.role -ceq $slot.artifact_role })[0]
+    if ($PhaseContext.production_commit -cne $artifact.production_commit) { throw 'Frame fixture production differs.' }
+    $index = if ($slot.group_id -ceq 'layers16') { 0 } else { 1 }
+    $fixture = @(Get-P4LayerFixtureCatalog $PhaseContext.protocol_id)[$index]
+    $extension = if ($index -eq 0) { 'nenepixel' } else { 'png' }
+    $prefix = $PhaseContext.preflight_sha256.Substring(0, 12)
+    $name = "i89-145-$prefix-frame-$($slot.run)-$($slot.group_id).$extension"
+    $facts = [ordered]@{
+        prefix = 'P4_LAYER_FRAME_FIXTURE'; group_id = $slot.group_id; fixture_name = $name
+        fixture_asset = $fixture.name; fixture_sha256 = $fixture.sha256; fixture_bytes = [string]$fixture.byte_count
+        fixture_uri = "content://io.github.hideyukimori.nenepixel.test.acceptance.documents/document/$name"
+        report_path = "files/p4-layer-frame-fixture-$prefix-$($slot.run)/fixture.txt"
+    }
+    if ($IdentityLines.Count -ne 1) { throw 'Frame fixture identity must have exactly one line.' }
+    $identity = ConvertFrom-P4MemoryReport $IdentityLines[0]
+    $numbers = @('process_id', 'process_start_elapsed_realtime_millis', 'grantee_uid', 'provider_uid')
+    Assert-P4LayerMemoryFields $identity (@($facts.Keys) + $script:P4LayerMemoryIdentityFields + $numbers) 'frame fixture identity'
+    foreach ($key in $facts.Keys) { Assert-P4LayerMemoryText $identity $key $facts[$key] }
+    foreach ($key in $script:P4LayerMemoryIdentityFields) { Assert-P4LayerMemoryText $identity $key $PhaseContext[$key] }
+    foreach ($key in $numbers) {
+        $value = Read-P4LayerMemoryInteger $identity[$key] $key
+        if ($key -cne 'process_start_elapsed_realtime_millis' -and $value -gt [int]::MaxValue) {
+            throw 'Impossible frame fixture process/grant identity.'
+        }
+    }
+    if ($identity.grantee_uid -ceq $identity.provider_uid) { throw 'Frame fixture provider must have a distinct UID.' }
+    Assert-P4LayerStorageInstrumentation $InstrumentationLines $IdentityLines[0] 'p4LayerFrameFixture'
+    return [ordered]@{ schema = 'nene-pixel-p4-layer-frame-fixture-preparation-v1'; verdict = 'prepared-source'
+        role = $slot.role; slot_id = $slot.id; phase_context = $PhaseContext; fixture_identity = $identity }
+}
+
 function Get-P4FrameExactMember {
     param([AllowNull()]$Value, [string]$Name)
     if ($null -eq $Value) { throw "Frame record is null (required '$Name')." }

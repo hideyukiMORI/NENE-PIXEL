@@ -555,6 +555,40 @@ journal/output helpers and 81 focused parser/source-agreement cases pass without
 is checked directly, while its unchanged numeric algorithm reuses its prior result. Real grants,
 save timings and complete phase admission remain pending.
 
+## Frame fixture staging before release-like capture
+
+Each of the eight layer/underlay frame slots stages one new provider document before its
+release-like capture. Single-layer slots need no fixture staging. The opt-in app AndroidTest
+`p4LayerCollect=frame-fixtures-v1` uses the same real-SAF helper and target activity as memory/save
+preparation. It has a 240-second JUnit bound and a 300-second native bound, separate from the frame
+operation population. This is one functional setup invocation per applicable slot, attempt 1 only;
+it produces no latency sample or numerical performance verdict.
+
+The immutable role's debug app and app-test APK are verified with the common eleven-field phase
+admission and preservation guard. The slot ID supplies its group/sequence/comparison role; only
+`layers16` with the maximum project or `underlay` with the PNG is accepted. Actual role must be
+that group's baseline artifact role or candidate as declared. The fresh provider name is
+`i89-145-<first twelve preflight SHA-256 characters>-frame-<sequence>-<group>` plus `.nenepixel`
+or `.png`. The helper checks the empty destination and real target UID grants, writes pinned asset
+bytes through ContentResolver and verifies their complete read-back. It uses no document model or
+second runtime and performs no drawing gesture.
+
+A fresh app-private `files/p4-layer-frame-fixture-<hash-prefix>-<sequence>/fixture.txt` is reserved
+before launch. The file starts empty and records the common phase identity, group, fixture
+name/asset/URI/bytes/hash, actual target/provider UIDs, PID/start, and report path only after staging
+succeeds. The same line is emitted in status-code 3 as `p4LayerFrameFixture`. Empty/partial output
+and the provider destination remain on failure. Host acceptance requires exact persisted/emitted
+agreement and successful instrumentation including activity closure. Source staging does not prove
+release-like load, underlay placement or rendered preview; those checks stay at the collector's
+separate setup boundary, before warmups. A later release-like install cannot replace the required
+normal app picker operation or its visible/quiescent checks.
+
+These extra setup invocations/installations must be included in the derived phase wrapper budget
+before admission. The already fixed frame gesture counts and numerical gates are unchanged.
+
+The [staging implementation report](../reports/2026-10-03-layer-frame-staging.md) records candidate
+and oldest-baseline compilation, actual spec/catalog agreement and retained identity checks.
+
 ## Pending admission decisions
 
 ### Four immutable artifact roles and complete source inventory

@@ -16,6 +16,7 @@ internal class P4LayerMemoryJournal(
     val fixtureName = "i89-145-${admission.preflightSha256.take(12)}-$comparisonRole-$runIndex.nenepixel"
 
     fun start() {
+        check(admission.artifactRole == "baseline_layers16" || admission.artifactRole == "candidate")
         require(runIndex in 1..5)
         check(admission.slotId == "memory-layers16-$comparisonRole-$runIndex")
         if (comparisonRole ==

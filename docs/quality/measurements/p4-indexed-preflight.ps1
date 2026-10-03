@@ -367,6 +367,8 @@ function Get-P4LayerRequiredMeasurementPaths {
         "$appPackage/acceptance/AcceptanceDocumentsUi.kt",
         "$appPackage/measurement/P4LayerFixtureDocuments.kt",
         "$appPackage/measurement/P4LayerRunAdmission.kt",
+        "$appPackage/measurement/P4LayerFrameFixtureSpec.kt",
+        "$appPackage/measurement/P4LayerFrameFixturePreparationTest.kt",
         'docs/quality/measurements/p4-layer-phase-fixture.init.gradle')
     foreach ($fixture in @(Get-P4LayerFixtureCatalog -ProtocolId $ProtocolId)) {
         "docs/quality/fixtures/p4-layer-phase/$($fixture.name)"
