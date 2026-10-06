@@ -290,10 +290,11 @@ try {
                 }
             }
         }
-        Case 'phase live barrier remains closed' {
+        Case 'phase live collection open, inspection outside the phase' {
+            # #145 T7b-2: collection is gated by the preflight admission and reservation, not by a collector refusal.
             $text = [IO.File]::ReadAllText($collectorPath)
-            Check ($text.Contains("if (`$isLayerPhase -and (-not (`$ValidateArtifactOnly -or `$ValidateExperimentOnly) -or `$InspectGeometryOnly))") -and
-                $text.Contains("throw 'Layer-phase collection is not admitted:")) 'Phase live collection was opened'
+            Check (-not $text.Contains('is not admitted') -and $text.Contains("if (`$isLayerPhase -and `$InspectGeometryOnly) {") -and
+                $text.Contains("throw 'Layer-phase runs have no no-sample geometry inspection;")) 'Phase collector barrier differs from T7b-2'
             Check ($text.IndexOf('Read-P4LayerFrameSetupFixture -Evidence') -lt $text.LastIndexOf('$deviceIdentity = Get-PhysicalDeviceIdentity')) 'Fixture validation follows a device call'
         }
     }

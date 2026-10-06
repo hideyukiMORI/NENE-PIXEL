@@ -246,14 +246,39 @@ try {
     }
     if ($CaseGroup -cin @('Compatibility', 'SourceBindings')) {
         if ($CaseGroup -ceq 'Compatibility') {
-        # Compare exact legacy plan outputs against the pre-change implementation in an isolated module.
-        $path = 'docs/quality/measurements/p4-indexed-device-lanes.ps1'
-        $oldText = (git -C $repository show "749124f6f5eb806cf0fca52880e694ae60d24af2:$path") -join "`n"
-        Check ($LASTEXITCODE -eq 0) 'Cannot read pinned legacy source'
-        Write-NewInvocationFile (Join-Path $OutputDirectory 'legacy-device-lanes.ps1') $oldText
-        $oldText = $oldText.Replace(". (Join-Path `$PSScriptRoot '../bounded-native-command.ps1')",
-            ". '" + (Join-Path $repository 'docs/quality/bounded-native-command.ps1').Replace("'", "''") + "'")
-        $legacyModule = New-Module -ScriptBlock ([scriptblock]::Create($oldText))
+        # Legacy plan outputs are pinned by the SHA-256 of each plan's compressed JSON (UTF-8), recorded from the
+        # pre-change implementation (749124f, #145 T3b) and checked equal to HEAD's output when recorded (#145 T7b-2).
+        # A commit pin breaks under rebase/squash; changing this table is the record of an intended plan change.
+        $legacyPlanSha256 = [ordered]@{
+            'command-baseline' = 'cf205cf42d8cda5acb0526d2e400dc95d58d34968c14bbf9333fb4c66e1a5128'
+            'command-candidate' = 'a7df2f6451a03af0a0f8cc6fa1747c05986a1e946b1efa959584b1d80730ae4e'
+            'memory-baseline-common-1' = 'edef04e9f9daacd3e7b17b4c53de9c461917c180fd6738c64136c77e169159c3'
+            'memory-baseline-common-2' = '8e209941c18c3cc3ab20fc9cbdc645d39fe7e2646fccd70991f57af5cd58e3dc'
+            'memory-baseline-common-3' = '98916f1ca4d840252192c1e255290fb20c744f18d37bd25eaa8dcacadb683cf6'
+            'memory-baseline-common-4' = '24995f9d53dc7526ae7f3cc9cc8702becfd238177f9fb5a7f3488b2f5692d322'
+            'memory-baseline-common-5' = '228075b0c2bd9fcd82f0c6de3bd2054fa50bc985e592532e3e07ffea3ada888e'
+            'memory-candidate-common-1' = '0dcb5eb6ad463974f8fb90c8bd4a872f3d12bb2fb2763c19ad4d9d8f3aec8b44'
+            'memory-candidate-common-2' = '2e03a75f5f63a4e5a5bf9c611e46b634a9af0341255aa50662f3c9146f7208cb'
+            'memory-candidate-common-3' = 'f5cd814c6f9ab4b10f06548fcbf48fabbd2e068d81cecc70b57b0256223cf92a'
+            'memory-candidate-common-4' = '92cdb094a9e2ee2a5f56e546d22ea8ec8562bcc924ef2288a09ad10b6861b401'
+            'memory-candidate-common-5' = '13f6dbaf1e8d05e9c880803fc01afb0fa71d0bf01bd911d358a605cd6d0a75d3'
+            'memory-candidate-palette-1' = '82717fe8e4c01e0105336842bc31f89c8599d887d4aaeb093e29d3a0d44ec70c'
+            'memory-candidate-palette-2' = 'f10f79c331d6af0fe96430e65a49695bd6684694a5ae5feb95c999cd60293a8e'
+            'memory-candidate-palette-3' = 'd6b042f4279b91fa49d44ffff6a8c40a89e4417ce925191e4ee13cf317de3004'
+            'memory-candidate-palette-4' = '7186ee971071bd999cdc5634f3f3e978f22a69be8dd40ac5b291af49e2d1dbc8'
+            'memory-candidate-palette-5' = 'bbe0cd3e818935f85af5ff62a1723e938b411b7d4118f9c58c50a564e1fb35f4'
+            'memory-candidate-import-1' = '21489240f0b9f6d9c66d1c2f436a49de7fc276588253cd9395cd9cf7aa7c4e35'
+            'memory-candidate-import-2' = '7c7621e1e571ed258195ba351f5b7b225fa4769a32e01af600f3cac58b61f159'
+            'memory-candidate-import-3' = 'a36f3d7666df8a77e165b10f1a0a5ca798675b5e7383f79444b07fbd19045348'
+            'memory-candidate-import-4' = '7a0fefcf520ed2ccb8fe4de35f79be1caf898ea0efbe4cef70b34abf3813dcbf'
+            'memory-candidate-import-5' = 'adb1d2155574665a7b780769a7f77edf20430525a1d1c989374079badd881120'
+            'publication-baseline' = '7ef40af5b715c389db80e2c579386d422a7e8454c24f87065b79ad7519ac760e'
+            'publication-candidate' = 'a93cf74e017ce63b23388e25febdfc41c7f27f343ae688b51deae51f5f27f84d'
+            'frame-1-baseline-decision' = 'ebf68715bd35fcc7f72f716129ec0473d4148f4badfc9693a2123be0a79af29a'
+            'frame-2-candidate-decision' = '32f28cf0b009c44c7d5ea919e30f0bcaf138629d5d915ab23c87998b2dce7320'
+            'frame-3-baseline-diagnostic' = '650389f943c584004e87a82d169109c9bbd148b5a4ff9c694ff13c40ab96e661'
+            'frame-4-candidate-diagnostic' = '575d111fd73b60ed2e4c8b79c3354fb251109aa83cb33e02ae84e68d71db8244'
+        }
         $fixtureAst = [Management.Automation.Language.Parser]::ParseFile(
             (Join-Path $PSScriptRoot 'validate-p4-frame-analysis.ps1'), [ref]$null, [ref]$null)
         $factory = @($fixtureAst.FindAll({ param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and
@@ -268,17 +293,15 @@ try {
         $fixtureExperimentId = 'legacy-plan-contract'; $canvas16Bounds = '[100,200][300,400]'; $canvas256Bounds = '[80,180][320,420]'
         $legacyManifest = New-P4LaneManifest
         $legacySlots = @(@(Get-P4SlotCatalog) + @(Get-P4FrameSlotCatalog) | Where-Object { $_.lane -cne 'host' })
-        $beforePlans = @(& $legacyModule { param($m, $slots)
-            foreach ($s in $slots) { Get-P4DeviceLanePlan $m $s }
-        } $legacyManifest $legacySlots)
-        # Dynamic-module exports may enter command resolution: explicitly restore the current source.
-        . (Join-Path $PSScriptRoot 'measurements/p4-indexed-device-lanes.ps1')
-        Check ((Get-Command Get-P4DeviceLanePlan).Parameters.ContainsKey('ManifestSha256')) 'Current plan function not restored'
-        $legacyResults = @(for ($i = 0; $i -lt $legacySlots.Count; $i++) {
-            $slot = $legacySlots[$i]; $before = $beforePlans[$i]
+        Check ($legacySlots.Count -eq $legacyPlanSha256.Count) 'Legacy slot set differs from the pinned plan table'
+        # Frame plans carry the fixture's experiment directory under this run's output; it is hashed as <output>.
+        $outputJson = ($OutputDirectory | ConvertTo-Json -Compress).Trim('"')
+        $legacyResults = @(foreach ($slot in $legacySlots) {
             $after = Get-P4DeviceLanePlan $legacyManifest $slot
             Case "legacy exact plan $($slot.id)" {
-                Check (($before | ConvertTo-Json -Depth 20 -Compress) -ceq ($after | ConvertTo-Json -Depth 20 -Compress)) 'Legacy plan changed'
+                $json = ($after | ConvertTo-Json -Depth 20 -Compress).Replace($outputJson, '<output>')
+                $actual = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($json))).ToLowerInvariant()
+                Check ($legacyPlanSha256.Contains($slot.id) -and $legacyPlanSha256[$slot.id] -ceq $actual) 'Legacy plan changed'
             }
             $after
         })
@@ -308,9 +331,17 @@ try {
             }
         }
         Case 'numerical analyzers and encoded transport unchanged' {
-            foreach ($path in @('p4-indexed-memory-analysis.ps1', 'p4-indexed-publication-analysis.ps1', 'p4-indexed-frame-analysis.ps1', 'p4-device-private-transport.ps1')) {
-                $diff = @(git -C $repository diff 749124f6f5eb806cf0fca52880e694ae60d24af2 -- "docs/quality/measurements/$path")
-                Check ($LASTEXITCODE -eq 0 -and $diff.Count -eq 0) "Unchanged evidence no longer reusable: $path"
+            # Pinned by git blob hash (git hash-object), recorded from HEAD at #145 T7b-2; a commit pin breaks
+            # under rebase/squash. Changing this table is the record of an intended analyzer/transport change.
+            $pinnedBlob = [ordered]@{
+                'p4-indexed-memory-analysis.ps1' = 'c6a70243d7ed95f20375c598c4ff7e72884c0730'
+                'p4-indexed-publication-analysis.ps1' = '3a1d98147835e1a153fa721710276c2c9ff5c411'
+                'p4-indexed-frame-analysis.ps1' = '14258017b597b7a7ac561b82363eb53561633aa1'
+                'p4-device-private-transport.ps1' = 'ed4572eb8945fba06e20e312016df547a8bd05ac'
+            }
+            foreach ($path in $pinnedBlob.Keys) {
+                $blob = @(git -C $repository hash-object -- "docs/quality/measurements/$path")
+                Check ($LASTEXITCODE -eq 0 -and $blob.Count -eq 1 -and $blob[0] -ceq $pinnedBlob[$path]) "Unchanged evidence no longer reusable: $path"
             }
         }
     }

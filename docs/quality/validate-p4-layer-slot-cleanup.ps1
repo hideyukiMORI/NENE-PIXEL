@@ -298,28 +298,40 @@ try {
     if ($CaseGroup -ceq 'Compatibility') {
         $routingPath = Join-Path $PSScriptRoot 'measurements/p4-layer-slot-routing.ps1'
         $currentAst = Read-Ast $routingPath
-        $oldText = (& git -C $repository show '52606fa:docs/quality/measurements/p4-layer-slot-routing.ps1') -join "`n"
-        if ($LASTEXITCODE -ne 0) { throw 'Previous routing source unavailable' }
-        $tokens = $null; $errors = $null
-        $oldAst = [Management.Automation.Language.Parser]::ParseInput($oldText, [ref]$tokens, [ref]$errors)
-        if ($errors.Count -ne 0) { throw 'Previous routing parse failed' }
-        foreach ($node in $oldAst.FindAll({ param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] }, $false)) {
-            if ($node.Name -ceq 'Invoke-P4LayerFrameAnalysis') { continue }
-            Check ((Function-Text $currentAst $node.Name).Replace("`r`n", "`n") -ceq $node.Extent.Text.Replace("`r`n", "`n")) "routing function unchanged $($node.Name)"
+        # Pinned by hash, not by commit (a commit pin breaks under rebase/squash; #145 T7b-2). Routing functions:
+        # SHA-256 of the LF-normalised function text, recorded from HEAD after checking them equal to the accepted
+        # 52606fa routing (Invoke-P4LayerFrameAnalysis: the same body delegated to Read-P4LayerFrameStagingEvidence).
+        # Dependencies: git blob hash (git hash-object). Changing a table is the record of an intended change.
+        $pinnedRoutingSha256 = [ordered]@{
+            'Get-P4LayerFrameGeometry' = '06581c59461c16a067e832874afb6886465a700e875d136ce84657e601dcf135'
+            'Read-P4LayerCompletedAnalysis' = '68e7b98aad05065b9b08faee16ba8ffaad67fc6644bcf33822baa90b1c824daa'
+            'Get-P4LayerRawInputs' = '12b1850496c6b7202688c7b1401ce4bbb13557f7baf7505050e552508339fd0d'
+            'Invoke-P4LayerSlotAnalysis' = '0f3adbfdddc60badc2ff8fad5660956926fad3f1504dc49ba5ba820722e7a95b'
+            'Invoke-P4LayerFrameAnalysis' = '7a07d44c317f1223f28f7d757daab53fe4af002ff201eff40499281bde400786'
+            'Get-P4LayerFramePhaseContext' = '0fa0d005efd8db2156fe140a58b40991ca0e08d725cc9b11d04fffa5d0ec59eb'
+            'Install-P4LayerFrameReleaseArtifact' = 'ac52c5f35a41fd1e58453ba8afa5a3c1a58ba136ad6144b24c1e5c16af4cba3a'
+            'Invoke-P4LayerFrameStaging' = '4f2f6e91aaf5bf025d7dbe608c13d46ef1bd2ac34d5f39c3d09e9a371e69fe9f'
+            'Invoke-P4LayerFrameCollector' = 'e5b078730f6acb0b109861ec82a443423999d1195ef53ef3f36a71bf74947daf'
+            'Assert-P4LayerFrameSetupEvidence' = '94f0521175d8c3f163b2a33ac8a90c5143816d813539e2c41a0cb9a9a9cf7f5b'
+            'Read-P4LayerFrameStagingEvidence' = '5788427baaab80e00591f76eee0f610f264fd094c3b374bc99e1db366d0897ab'
         }
-        $old = (Function-Text $oldAst 'Invoke-P4LayerFrameAnalysis').Replace("`r`n", "`n")
-        $current = (Function-Text $currentAst 'Invoke-P4LayerFrameAnalysis').Replace("`r`n", "`n")
-        $reader = (Function-Text $currentAst 'Read-P4LayerFrameStagingEvidence').Replace("`r`n", "`n")
-        $start = $old.IndexOf('$stagingPath ='); $end = $old.IndexOf('$result.capture_sha256 =')
-        $body = $old.Substring($start, $end - $start)
-        $readerStart = $reader.IndexOf('$stagingPath ='); $readerEnd = $reader.IndexOf('return $stagingPath')
-        Check ($body.TrimEnd() -ceq $reader.Substring($readerStart, $readerEnd - $readerStart).TrimEnd()) 'shared staging reader keeps the exact accepted verification body'
-        $delegated = $old.Substring(0, $start) + 'Read-P4LayerFrameStagingEvidence $Manifest $Slot $ManifestSha256 $Directory $context | Out-Null' + "`n    " + $old.Substring($end)
-        Check ($delegated -ceq $current) 'analyzer differs only by delegation with the same arguments'
-        foreach ($file in @('p4-device-private-snapshot.ps1', 'p4-device-private-slot-reset.ps1', 'p4-device-private-transport.ps1',
-                'p4-indexed-device-lanes.ps1', 'p4-indexed-frame-analysis.ps1', 'p4-indexed-memory-analysis.ps1', 'p4-indexed-publication-analysis.ps1')) {
-            $diff = & git -C $repository diff 52606fa -- "docs/quality/measurements/$file"
-            Check ($LASTEXITCODE -eq 0 -and @($diff).Count -eq 0) "accepted dependency unchanged $file"
+        foreach ($name in $pinnedRoutingSha256.Keys) {
+            $functionText = (Function-Text $currentAst $name).Replace("`r`n", "`n")
+            $actual = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($functionText))).ToLowerInvariant()
+            Check ($actual -ceq $pinnedRoutingSha256[$name]) "routing function unchanged $name"
+        }
+        $pinnedDependencyBlob = [ordered]@{
+            'p4-device-private-snapshot.ps1' = '8c013e38442954ca07d14d8c22f98b402a78d4e5'
+            'p4-device-private-slot-reset.ps1' = 'e50a4b89f48427e9b82bc315b7be27e35e90eec0'
+            'p4-device-private-transport.ps1' = 'ed4572eb8945fba06e20e312016df547a8bd05ac'
+            'p4-indexed-device-lanes.ps1' = '1e24969fdcc0cf39f4fe02817d789c9eca1012e3'
+            'p4-indexed-frame-analysis.ps1' = '14258017b597b7a7ac561b82363eb53561633aa1'
+            'p4-indexed-memory-analysis.ps1' = 'c6a70243d7ed95f20375c598c4ff7e72884c0730'
+            'p4-indexed-publication-analysis.ps1' = '3a1d98147835e1a153fa721710276c2c9ff5c411'
+        }
+        foreach ($file in $pinnedDependencyBlob.Keys) {
+            $blob = @(& git -C $repository hash-object -- "docs/quality/measurements/$file")
+            Check ($LASTEXITCODE -eq 0 -and $blob.Count -eq 1 -and $blob[0] -ceq $pinnedDependencyBlob[$file]) "accepted dependency unchanged $file"
         }
         [void](Read-Ast (Join-Path $PSScriptRoot 'measurements/p4-layer-slot-cleanup.ps1'))
         [void](Read-Ast $PSCommandPath)

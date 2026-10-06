@@ -273,8 +273,13 @@ $phaseIdentity = if ($isLayerPhase) {
         experiment_id = $ExperimentId
     }
 } else { $null }
-if ($isLayerPhase -and (-not ($ValidateArtifactOnly -or $ValidateExperimentOnly) -or $InspectGeometryOnly)) {
-    throw 'Layer-phase collection is not admitted: fixture, full manifest and preservation integration remain incomplete.'
+# Layer-phase collection is open (#145 T7b-2): the fixture (T3c), the full manifest (T7a/T7b-1) and the
+# preservation integration (T6/T6r) are joined. A phase collection still does not start unless the phase
+# wrapper has passed the preflight admission and the reservation (four roles, 18 slots, preservation-v2,
+# agreement Issue 145); PhaseContext carries that reserved preflight's sha256. The validation-only switches
+# keep their meaning under the phase. The protocol has no no-sample inspection, so it stays outside the phase.
+if ($isLayerPhase -and $InspectGeometryOnly) {
+    throw 'Layer-phase runs have no no-sample geometry inspection; the phase collects reserved slots only.'
 }
 $frameSchema = $frameContract.frame_schema
 $experimentSchema = $frameContract.experiment_schema
