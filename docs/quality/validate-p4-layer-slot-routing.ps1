@@ -274,8 +274,10 @@ try {
                 $context=@{output_directory=$dir}
                 if($mode -ceq 'success') {$actual=Invoke-P4LayerFrameStaging $context $manifest $plan;Check ($null -ne $actual.fixture_evidence) 'Missing verified identity'}
                 else {Refuses {Invoke-P4LayerFrameStaging $context $manifest $plan}}
-                Check ($script:events.Count -eq 5 -and $script:events[0] -ceq 'instrument' -and $script:events[-1] -ceq 'capture') 'Failure skipped stop/capture'
-                Check (@($script:events|Where-Object {$_ -clike 'stop:*'}).Count -eq 3) 'Not all writers stopped'
+                # Writers = the packages the slot's role installs (R3), not a fixed three.
+                $writers=@($plan.quiescence_packages);Check ($writers.Count -gt 0) 'Plan has no writers'
+                $expected=@('instrument')+@($writers|ForEach-Object {"stop:$_"})+@('capture')
+                Check (($script:events -join '|') -ceq ($expected -join '|')) 'Failure skipped stop/capture'
                 $record=Get-Content -Raw (Join-Path $dir 'fixture-preparation/staging-result.json')|ConvertFrom-Json -AsHashtable
                 Check ($record.status -ceq $(if($mode -ceq 'success') {'success'}else{'failure'})) 'Wrong retained outcome'
                 if($mode -cne 'success') {Check ($record.errors.Count -gt 0 -and $null -eq $record.fixture_evidence) 'Failure accepted fixture'}
