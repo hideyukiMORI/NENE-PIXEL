@@ -6,6 +6,7 @@ import io.github.hideyukimori.nenepixel.core.projectformat.ProjectFormatCodec
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
+import java.util.Locale
 import java.util.zip.CRC32
 
 internal class RecoveryRecordEnvelopeV3Test {
@@ -167,7 +168,7 @@ internal class RecoveryRecordEnvelopeV3Test {
         return this
     }
 
-    private fun ByteArray.toHexadecimal(): String = joinToString("") { byte -> "%02x".format(byte) }
+    private fun ByteArray.toHexadecimal(): String = joinToString("") { byte -> "%02x".format(Locale.ROOT, byte) }
 
     private companion object {
         val CORRUPT = RecoveryDecodeResult.Rejected(RecoveryRejection.CORRUPT)

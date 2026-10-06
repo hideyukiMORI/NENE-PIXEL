@@ -10,6 +10,7 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.underlay.Unde
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.fail
 import org.junit.jupiter.api.Test
+import java.util.Locale
 import java.util.zip.CRC32
 
 internal class UnderlayStateRecordTest {
@@ -170,7 +171,7 @@ internal class UnderlayStateRecordTest {
         return created.image
     }
 
-    private fun ByteArray.toHexadecimal(): String = joinToString("") { byte -> "%02x".format(byte) }
+    private fun ByteArray.toHexadecimal(): String = joinToString("") { byte -> "%02x".format(Locale.ROOT, byte) }
 
     private fun String.decodeHex(): ByteArray =
         ByteArray(length / 2) { index -> substring(index * 2, index * 2 + 2).toInt(16).toByte() }

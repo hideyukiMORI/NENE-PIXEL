@@ -6,6 +6,7 @@ import io.github.hideyukimori.nenepixel.core.projectformat.ProjectFormatCodec
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
+import java.util.Locale
 import java.util.zip.CRC32
 
 internal class RecoveryRecordCodecTest {
@@ -222,5 +223,5 @@ internal class RecoveryRecordCodecTest {
         return this
     }
 
-    private fun ByteArray.toHexadecimal(): String = joinToString("") { byte -> "%02x".format(byte) }
+    private fun ByteArray.toHexadecimal(): String = joinToString("") { byte -> "%02x".format(Locale.ROOT, byte) }
 }
