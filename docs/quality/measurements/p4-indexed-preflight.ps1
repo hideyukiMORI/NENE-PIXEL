@@ -214,6 +214,8 @@ function Get-P4FrameSlotCatalog {
         decision baseline, decision candidate, diagnostic baseline, diagnostic candidate; the ids
         carry that order. The preserved run5 records keep their v6 ids (`frame-1-baseline-diagnostic`
         ... `frame-4-baseline-decision`) as historical names only.
+        The layer phase (Issue #145 R1) registers decision slots only: per group decision baseline,
+        then decision candidate, numbered frame-1 through frame-6. Diagnostic slots stay v7-only.
     #>
     param([string]$ProtocolId = 'nene-pixel-p4-indexed-cutover-verification-v7')
     if ($ProtocolId -cne 'nene-pixel-p4-indexed-cutover-verification-v7' -and
@@ -224,13 +226,13 @@ function Get-P4FrameSlotCatalog {
     if ($ProtocolId -ceq 'nene-pixel-p4-layer-phase-verification-v1') {
         foreach ($group in @(Get-P4FrameGroupCatalog -ProtocolId $ProtocolId)) {
             $baselineSlotId = "frame-$($slots.Count + 1)-$($group.id)-baseline-decision"
-            foreach ($order in @('baseline-decision', 'candidate-decision', 'baseline-diagnostic', 'candidate-diagnostic')) {
+            foreach ($order in @('baseline-decision', 'candidate-decision')) {
                 $parts = $order.Split('-')
                 $role = $parts[0]
                 $runner = $parts[1]
-                $families = @($group["${runner}_families"])
+                $families = @($group.decision_families)
                 $warmups = 5
-                $samples = if ($runner -ceq 'decision') { 50 } else { 10 }
+                $samples = 50
                 $sequence = $slots.Count + 1
                 $slots.Add([ordered]@{
                     id = "frame-$sequence-$($group.id)-$order"; lane = 'frame'; group_id = $group.id;
@@ -290,7 +292,7 @@ function Get-P4LayerMemorySlotCatalog {
                 family = "$role-layer-editor-retention"
                 run = $run
                 memory_sequence_index = $sequence
-                sequence_index = 12 + $sequence
+                sequence_index = 6 + $sequence
                 timeout_seconds = 300
                 schema = 'nene-pixel-p4-layer-editor-retention-v1'
                 analysis_contract = 'nene-pixel-p4-layer-memory-analysis-v1'
@@ -306,7 +308,7 @@ function Get-P4LayerStorageSlotCatalog {
     param([Parameter(Mandatory)][string]$ProtocolId)
     [void](Get-P4FrameGroupCatalog -ProtocolId $ProtocolId)
     [ordered]@{
-        id = 'publication-layers16-candidate'; protocol_id = $ProtocolId; sequence_index = 23
+        id = 'publication-layers16-candidate'; protocol_id = $ProtocolId; sequence_index = 17
         lane = 'publication'; role = 'candidate'; artifact_role = 'candidate'; timeout_seconds = 300
         schema = 'nene-pixel-p4-layer-publication-device-v1'; journal_rows = 54
         worker_timeout_seconds = 60; sample_anomaly_nanos = 5000000000L
@@ -317,7 +319,7 @@ function Get-P4LayerStorageSlotCatalog {
         )
     }
     [ordered]@{
-        id = 'saf-save-layers16-candidate'; protocol_id = $ProtocolId; sequence_index = 24
+        id = 'saf-save-layers16-candidate'; protocol_id = $ProtocolId; sequence_index = 18
         lane = 'saf-save'; role = 'candidate'; artifact_role = 'candidate'; timeout_seconds = 420
         schema = 'nene-pixel-p4-layer-saf-save-device-v1'; journal_rows = 27
         setup_timeout_seconds = 300; worker_timeout_seconds = 60; sample_anomaly_nanos = 5000000000L
@@ -514,7 +516,8 @@ function Get-P4FrameExecutionContract {
     $groups = @(Get-P4FrameGroupCatalog -ProtocolId 'nene-pixel-p4-layer-phase-verification-v1')
     $group = if ($phase) { @($groups | Where-Object { $_.id -ceq $slot.group_id })[0] } else { $groups[0] }
     $decisionOrder = @($group.decision_families)
-    $diagnosticOrder = @($group.diagnostic_families)
+    # The phase registers decision slots only (Issue #145 R1); diagnostic workloads stay v7-only.
+    $diagnosticOrder = @(if ($phase) { } else { $group.diagnostic_families })
     $workloadOrder = @(if ($slot.runner -ceq 'decision') { $decisionOrder } else { $diagnosticOrder })
     $groupSlots = @(if ($phase) { $slots | Where-Object { $_.group_id -ceq $group.id } } else { $slots })
     $groupSequence = 0
@@ -526,7 +529,7 @@ function Get-P4FrameExecutionContract {
         else { "$($item.runner):$($item.role)" }
     })
     $setup = [ordered]@{}
-    foreach ($workload in $diagnosticOrder) {
+    foreach ($workload in @(if ($phase) { $decisionOrder } else { $diagnosticOrder })) {
         $setup[$workload] = switch -CaseSensitive ($workload) {
             'canvas256_repeated_diagonal_window_x2' { 'window_x2' }
             'canvas256_layers16_tap' { 'maximum_layers16' }
@@ -559,7 +562,7 @@ function Get-P4FrameExecutionContract {
         diagnostic_workload_order = $diagnosticOrder
         workload_catalog = @(Get-P4FrameWorkloadCatalog -WorkloadOrder $workloadOrder)
         decision_workload_catalog = @(Get-P4FrameWorkloadCatalog -WorkloadOrder $decisionOrder)
-        diagnostic_workload_catalog = @(Get-P4FrameWorkloadCatalog -WorkloadOrder $diagnosticOrder)
+        diagnostic_workload_catalog = @(if (-not $phase) { Get-P4FrameWorkloadCatalog -WorkloadOrder $diagnosticOrder })
         warmups = $slot.warmups
         samples = $slot.samples
         timeout_seconds = $slot.timeout_seconds
@@ -571,7 +574,7 @@ function Get-P4FrameExecutionContract {
         gross_input_ms = [double]100.0
         geometry_id = $script:P4GeometryId
         association_workload = if ($phase -and $group.id -ceq 'layers16') { 'canvas256_layers16_tap' } else { $null }
-        window_diagnostic_workload = if (-not $phase -or $group.id -ceq 'single') { 'canvas256_repeated_diagonal_window_x2' } else { $null }
+        window_diagnostic_workload = if (-not $phase) { 'canvas256_repeated_diagonal_window_x2' } else { $null }
         setup_by_workload = $setup
     }
 }

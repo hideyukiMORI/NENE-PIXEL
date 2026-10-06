@@ -109,43 +109,35 @@ try {
         Check-Record $groups[$i] $expected "group[$i]"
     }
 
-    # Twelve independently pinned rows: group, comparison role, artifact role, runner, samples, bound, comparator.
+    # Six independently pinned decision rows: group, comparison role, artifact role, runner, samples, bound, comparator.
     $slotRows = @(
         @('single', 'baseline', 'baseline_single', 'decision', 50, 1950, $null),
         @('single', 'candidate', 'candidate', 'decision', 50, 1950, 'frame-1-single-baseline-decision'),
-        @('single', 'baseline', 'baseline_single', 'diagnostic', 10, 975, $null),
-        @('single', 'candidate', 'candidate', 'diagnostic', 10, 975, $null),
         @('layers16', 'baseline', 'baseline_layers16', 'decision', 50, 1950, $null),
-        @('layers16', 'candidate', 'candidate', 'decision', 50, 1950, 'frame-5-layers16-baseline-decision'),
-        @('layers16', 'baseline', 'baseline_layers16', 'diagnostic', 10, 750, $null),
-        @('layers16', 'candidate', 'candidate', 'diagnostic', 10, 750, $null),
+        @('layers16', 'candidate', 'candidate', 'decision', 50, 1950, 'frame-3-layers16-baseline-decision'),
         @('underlay', 'baseline', 'baseline_underlay', 'decision', 50, 1125, $null),
-        @('underlay', 'candidate', 'candidate', 'decision', 50, 1125, 'frame-9-underlay-baseline-decision'),
-        @('underlay', 'baseline', 'baseline_underlay', 'diagnostic', 10, 525, $null),
-        @('underlay', 'candidate', 'candidate', 'diagnostic', 10, 525, $null)
+        @('underlay', 'candidate', 'candidate', 'decision', 50, 1125, 'frame-5-underlay-baseline-decision')
     )
     $expectedIds = @(
         'frame-1-single-baseline-decision', 'frame-2-single-candidate-decision',
-        'frame-3-single-baseline-diagnostic', 'frame-4-single-candidate-diagnostic',
-        'frame-5-layers16-baseline-decision', 'frame-6-layers16-candidate-decision',
-        'frame-7-layers16-baseline-diagnostic', 'frame-8-layers16-candidate-diagnostic',
-        'frame-9-underlay-baseline-decision', 'frame-10-underlay-candidate-decision',
-        'frame-11-underlay-baseline-diagnostic', 'frame-12-underlay-candidate-diagnostic'
+        'frame-3-layers16-baseline-decision', 'frame-4-layers16-candidate-decision',
+        'frame-5-underlay-baseline-decision', 'frame-6-underlay-candidate-decision'
     )
     $slots = @(Get-P4FrameSlotCatalog -ProtocolId $phase)
-    Check ($slots.Count -eq 12) 'twelve phase slots'
-    Check (@($slots.id | Select-Object -Unique).Count -eq 12) 'unique slot identities'
+    Check ($slots.Count -eq 6) 'six phase slots'
+    Check (@($slots.id | Select-Object -Unique).Count -eq 6) 'unique slot identities'
+    Check (@($slots | Where-Object { $_.runner -cne 'decision' }).Count -eq 0) 'no phase diagnostic slot'
     for ($i = 0; $i -lt $slotRows.Count; $i++) {
         $row = $slotRows[$i]
-        $groupRow = $groupRows[[int][Math]::Floor($i / 4)]
-        $families = @(if ($row[3] -ceq 'decision') { $groupRow[3] } else { $groupRow[4] })
+        $groupRow = $groupRows[[int][Math]::Floor($i / 2)]
+        $families = @($groupRow[3])
         $expected = [ordered]@{ id = $expectedIds[$i]; lane = 'frame'; group_id = $row[0]; role = $row[1];
             artifact_role = $row[2]; runner = $row[3]; run = $i + 1; attempt = 1;
             protocol_id = $phase; frame_schema = 'nene-pixel-p4-indexed-actual-app-frame-v9';
             experiment_schema = 'nene-pixel-p4-indexed-frame-experiment-v6'; verdict_id = 'layer-phase-2026-10-03-relative-m5';
             baseline_production_commit = $groupRow[2]; families = $families; baseline_slot_id = $row[6];
             preceding_slot_id = if ($i -gt 0) { $expectedIds[$i - 1] } else { $null };
-            following_slot_id = if ($i -lt 11) { $expectedIds[$i + 1] } else { $null };
+            following_slot_id = if ($i -lt 5) { $expectedIds[$i + 1] } else { $null };
             timeout_seconds = $row[5]; warmups = 5; samples = $row[4] }
         Check-Record $slots[$i] $expected "slot[$i]"
         $operationCount = @($slots[$i].families).Count * ($slots[$i].warmups + $slots[$i].samples)
@@ -153,7 +145,7 @@ try {
     }
 
     $measured = 0; $warmup = 0; $bound = 0
-    $expectedTotals = @(@('single', 260, 50, 310), @('layers16', 240, 40, 280), @('underlay', 120, 20, 140))
+    $expectedTotals = @(@('single', 200, 20, 220), @('layers16', 200, 20, 220), @('underlay', 100, 10, 110))
     foreach ($row in $expectedTotals) {
         $groupMeasured = 0; $groupWarmup = 0
         foreach ($slot in @($slots | Where-Object { $_.group_id -ceq $row[0] })) {
@@ -166,8 +158,8 @@ try {
         Check ($groupMeasured + $groupWarmup -eq $row[3]) "$($row[0]) operation total"
         $measured += $groupMeasured; $warmup += $groupWarmup
     }
-    Check ($measured -eq 620 -and $warmup -eq 110 -and $measured + $warmup -eq 730) 'phase operation totals'
-    Check ($bound -eq 14550) 'phase collector bound total'
+    Check ($measured -eq 500 -and $warmup -eq 50 -and $measured + $warmup -eq 550) 'phase operation totals'
+    Check ($bound -eq 10050) 'phase collector bound total'
     foreach ($candidate in @($slots | Where-Object { $_.role -ceq 'candidate' -and $_.runner -ceq 'decision' })) {
         $baseline = @($slots | Where-Object { $_.id -ceq $candidate.baseline_slot_id })
         Check ($baseline.Count -eq 1) "$($candidate.id) one comparison baseline"
@@ -176,9 +168,36 @@ try {
         Check ($baseline[0].baseline_production_commit -ceq $candidate.baseline_production_commit -and
             ($baseline[0].families -join ',') -ceq ($candidate.families -join ',')) "$($candidate.id) comparator commit/families"
     }
-    Check ($slots[4].preceding_slot_id -ceq 'frame-4-single-candidate-diagnostic' -and $null -eq $slots[4].baseline_slot_id) 'layers group ordering is not a comparison binding'
-    Check ($slots[8].preceding_slot_id -ceq 'frame-8-layers16-candidate-diagnostic' -and $null -eq $slots[8].baseline_slot_id) 'underlay group ordering is not a comparison binding'
-    Check ($null -eq $slots[3].baseline_slot_id -and $slots[3].preceding_slot_id -ceq 'frame-3-single-baseline-diagnostic') 'diagnostic predecessor is not a decision comparator'
+    Check ($slots[2].preceding_slot_id -ceq 'frame-2-single-candidate-decision' -and $null -eq $slots[2].baseline_slot_id) 'layers group ordering is not a comparison binding'
+    Check ($slots[4].preceding_slot_id -ceq 'frame-4-layers16-candidate-decision' -and $null -eq $slots[4].baseline_slot_id) 'underlay group ordering is not a comparison binding'
+
+    # Whole phase composition: frame 1-6, memory 7-16, publication 17, SAF 18.
+    $memorySlots = @(Get-P4LayerMemorySlotCatalog -ProtocolId $phase)
+    Check ($memorySlots.Count -eq 10 -and (($memorySlots.sequence_index) -join ',') -ceq '7,8,9,10,11,12,13,14,15,16') 'memory sequence 7-16'
+    $storageSlots = @(Get-P4LayerStorageSlotCatalog -ProtocolId $phase)
+    Check ($storageSlots.Count -eq 2 -and $storageSlots[0].id -ceq 'publication-layers16-candidate' -and
+        $storageSlots[0].sequence_index -eq 17 -and $storageSlots[1].id -ceq 'saf-save-layers16-candidate' -and
+        $storageSlots[1].sequence_index -eq 18) 'storage sequence 17-18'
+    $phaseSlots = @(Get-P4SlotCatalog -ProtocolId $phase)
+    Check ($phaseSlots.Count -eq 18) 'eighteen phase slots'
+    Check ((@($phaseSlots[0..5] | ForEach-Object { $_.id }) -join ',') -ceq ($expectedIds -join ',')) 'phase composition starts with six frame slots'
+    $experiment = Get-P4LayerFrameExperimentContract -ExperimentId 'offline-frame-catalog' -PreflightSha256 ('0' * 64)
+    Check ($experiment.slot_budget -eq 6) 'experiment slot budget 6'
+    Check ((@($experiment.comparison_order) -join ',') -ceq ('single:decision:baseline,single:decision:candidate,' +
+        'layers16:decision:baseline,layers16:decision:candidate,underlay:decision:baseline,underlay:decision:candidate')) 'experiment comparison order'
+
+    # Historical execution contract keeps its diagnostic workloads; the phase contract has none.
+    $oldDiagnostic = Get-P4FrameExecutionContract -SlotId 'frame-3-baseline-diagnostic'
+    Check ((@($oldDiagnostic.workload_order) -join ',') -ceq 'canvas16_tap,canvas256_repeated_diagonal,canvas256_repeated_diagonal_window_x2' -and
+        $oldDiagnostic.window_diagnostic_workload -ceq 'canvas256_repeated_diagonal_window_x2' -and
+        @($oldDiagnostic.diagnostic_workload_catalog).Count -eq 3 -and @($oldDiagnostic.setup_by_workload.Keys).Count -eq 3) 'historical diagnostic contract unchanged'
+    foreach ($slot in $slots) {
+        $contract = Get-P4FrameExecutionContract -ProtocolId $phase -SlotId $slot.id
+        Check (@($contract.diagnostic_workload_order).Count -eq 0 -and @($contract.diagnostic_workload_catalog).Count -eq 0 -and
+            $null -eq $contract.window_diagnostic_workload -and
+            (@($contract.setup_by_workload.Keys) -join ',') -ceq (@($slot.families) -join ',') -and
+            @($contract.comparison_order).Count -eq 6) "$($slot.id) phase contract has no diagnostic workload"
+    }
 
     # Fully populated required top-level shape reaches the unchanged identity gate before any file/device check.
     $manifest = [ordered]@{ schema = $script:P4ManifestSchema; protocol = [ordered]@{ id = $phase };
@@ -194,7 +213,7 @@ try {
     $summary.status = 'pass'
     $summary.measured_operations = $measured; $summary.warmup_operations = $warmup
     $summary.total_operations = $measured + $warmup; $summary.collector_bound_seconds = $bound
-    $summary.group_count = 3; $summary.slot_count = 12
+    $summary.group_count = 3; $summary.slot_count = 6; $summary.phase_slot_count = 18
 } catch {
     $summary.error = $_.Exception.Message
     throw
