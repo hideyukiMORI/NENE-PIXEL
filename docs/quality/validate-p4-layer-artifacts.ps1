@@ -257,18 +257,26 @@ E: manifest (line=1)
             $tokens = $null; $errors = $null
             $oldAst = [Management.Automation.Language.Parser]::ParseInput($oldText, [ref]$tokens, [ref]$errors)
             $newAst = [Management.Automation.Language.Parser]::ParseFile($source, [ref]$tokens, [ref]$errors)
-            foreach ($name in @('Get-P4ProductionTreeHash', 'Assert-P4ApkIdentity', 'Assert-P4ProfileSourceBinding',
-                    'Assert-P4TrackedBlob', 'Assert-P4NoReparsePath', 'Assert-P4ManifestContract', 'Assert-P4ManifestArtifacts')) {
+            # The v7 manifest admission bodies moved behind the schema dispatcher under Indexed names;
+            # their bodies stay byte-identical to the checkpoint.
+            $renamed = [ordered]@{ 'Get-P4ProductionTreeHash' = 'Get-P4ProductionTreeHash'
+                'Assert-P4ApkIdentity' = 'Assert-P4ApkIdentity'; 'Assert-P4ProfileSourceBinding' = 'Assert-P4ProfileSourceBinding'
+                'Assert-P4TrackedBlob' = 'Assert-P4TrackedBlob'; 'Assert-P4NoReparsePath' = 'Assert-P4NoReparsePath'
+                'Assert-P4ManifestContract' = 'Assert-P4IndexedManifestContract'
+                'Assert-P4ManifestArtifacts' = 'Assert-P4IndexedManifestArtifacts' }
+            foreach ($name in $renamed.Keys) {
+                $newName = $renamed[$name]
                 $find = { param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq $name }
-                $before = $oldAst.Find($find, $true).Extent.Text.Replace("`r`n", "`n")
-                $after = $newAst.Find($find, $true).Extent.Text.Replace("`r`n", "`n")
-                Require ($before -ceq $after) "Changed reused function: $name"
+                $findNew = { param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq $newName }
+                $before = $oldAst.Find($find, $true).Body.Extent.Text.Replace("`r`n", "`n")
+                $after = $newAst.Find($findNew, $true).Body.Extent.Text.Replace("`r`n", "`n")
+                Require ($before -ceq $after) "Changed reused function: $name -> $newName"
             }
         }
-        Case 'full layer phase still refuses legacy manifest admission' {
+        Case 'incomplete layer manifest is refused by the phase contract' {
             $minimal = [ordered]@{ schema = 'nene-pixel-p4-layer-preflight-v1'; protocol = [ordered]@{ id = $phase } }
             try { Assert-P4ManifestContract $minimal; throw 'Unexpected success' }
-            catch { Require ($_.Exception.Message -ne 'Unexpected success') 'Collection barrier removed' }
+            catch { Require ($_.Exception.Message -ceq 'Missing preflight field: manifest.created_utc') 'Phase contract not selected' }
         }
     }
     $summary.status = 'pass'

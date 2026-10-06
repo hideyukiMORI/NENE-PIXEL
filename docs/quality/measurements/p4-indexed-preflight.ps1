@@ -3,6 +3,12 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '../bounded-native-command.ps1')
 . (Join-Path $PSScriptRoot '../baseline-profile-evidence.ps1')
 . (Join-Path $PSScriptRoot 'p4-indexed-device-state.ps1')
+# The layer phase manifest pins a preservation-v2 record; admission verifies it with the canonical
+# reader. Loaded only when absent, so a caller's earlier load (and its validator mocks) stays in force.
+if (-not (Get-Command Read-P4VerifiedPreservation -CommandType Function -ErrorAction SilentlyContinue) -or
+    -not (Get-Command Assert-P4RestorationMeaning -CommandType Function -ErrorAction SilentlyContinue)) {
+    . (Join-Path $PSScriptRoot 'p4-device-private-restore.ps1')
+}
 
 # Every Assert-* here refuses by throwing and writes nothing to the pipeline; callers never branch
 # on a return value. Two recorded conventions: `observed_dexopt` describes the artifact's own
@@ -20,6 +26,9 @@ $script:P4ManifestSchema = 'nene-pixel-p4-indexed-preflight-v7'
 # Lane 3 (still v7 identity): baseline production is main at collection time (8120c06, 2026-09-29).
 # 2f0b617 stays bound to the preserved frame1 evidence, 2dd4e01 to the preserved run5 evidence.
 $script:P4BaselineProduction = '8120c06fae1a372b23d2a7af4f50aa2b9cdfeff9'
+# Issue #145 layer phase manifest identity. The v7 constants above keep the historical admission.
+$script:P4LayerPreflightSchema = 'nene-pixel-p4-layer-preflight-v1'
+$script:P4LayerProtocolPath = 'docs/quality/P4_LAYER_PHASE_PROTOCOL.md'
 
 # Exactly one contract record per lane boundary. Absent, duplicate or unknown scopes are refusals.
 $script:P4CollectorContractScopes = @(
@@ -169,8 +178,9 @@ function Get-P4SlotCatalog {
 
 function Get-P4FrameGroupCatalog {
     <#
-        Device-free preparation only: the phase is not admitted by Assert-P4ManifestContract.
-        Comparison roles select baseline/candidate semantics; artifact roles select immutable builds.
+        The phase manifest (schema nene-pixel-p4-layer-preflight-v1) is admitted offline by
+        Assert-P4ManifestContract / Assert-P4ManifestArtifacts (Issue #145 R4/R7); its live reservation
+        stage stays closed. Comparison roles select baseline/candidate semantics; artifact roles select immutable builds.
         Families and comparator commits have one definition here, consumed by the phase slot catalog.
     #>
     param([Parameter(Mandatory = $true)][AllowEmptyString()][AllowNull()][string]$ProtocolId)
@@ -1360,7 +1370,7 @@ function Assert-P4RoleSource {
     Assert-P4ProfileSourceBinding $profile "$Name.profile"
 }
 
-function Assert-P4ManifestContract {
+function Assert-P4IndexedManifestContract {
     param([System.Collections.IDictionary]$Manifest)
     Assert-P4RequiredKeys $Manifest @('schema', 'protocol', 'created_utc', 'experiment_id', 'output_directory',
         'roles', 'tools', 'toolchain', 'device', 'frame_experiment', 'correctness', 'collector_contracts',
@@ -1423,7 +1433,171 @@ function Assert-P4ManifestContract {
 # hide's decision, after the device collectors, frame analyzer, preflight and slot boundary passed two
 # independent read-only reviews and their no-device validators.
 
+function ConvertTo-P4LayerUtc {
+    # ConvertFrom-Json already turns ISO-8601 text into DateTime; keep its Kind instead of reformatting.
+    param([AllowNull()]$Value, [string]$Name)
+    if ($Value -is [datetime]) {
+        if ($Value.Kind -eq [DateTimeKind]::Unspecified) { return [datetime]::SpecifyKind($Value, [DateTimeKind]::Utc) }
+        return $Value.ToUniversalTime()
+    }
+    return Read-P4Utc ([string]$Value) $Name
+}
+
+function Assert-P4LayerManifestPreservation {
+    <#
+        Admission precondition (Issue #145 T6, ADR 0035): the phase snapshots and isolates first, and
+        only then reserves the manifest, because the manifest pins the resulting preservation-v2
+        record. A caller's attestation of path/hash/session is not proof: the record is re-read and
+        verified with the canonical reader, and it must predate the manifest.
+    #>
+    param([System.Collections.IDictionary]$Manifest)
+    $pin = $Manifest.device.asset_preservation
+    Assert-P4RequiredKeys $pin @('path', 'sha256', 'session') 'device.asset_preservation'
+    if (@($pin.Keys).Count -ne 3) { throw 'device.asset_preservation must hold exactly path, sha256 and session.' }
+    $path = [IO.Path]::GetFullPath([string]$pin.path)
+    $context = @{ serial = [string]$Manifest.device.serial; package = $script:P4ApplicationPackage
+        output_directory = [IO.Path]::GetDirectoryName($path) }
+    $verified = Read-P4VerifiedPreservation $path $context
+    if ($verified.Hash -cne [string]$pin.sha256 -or [string]$verified.Record.session -cne [string]$pin.session -or
+        [string]$verified.Record.experiment_id -cne [string]$Manifest.experiment_id) {
+        throw 'The layer manifest does not pin its verified preservation-v2 record.'
+    }
+    $preserved = ConvertTo-P4LayerUtc $verified.Record.created_utc 'preservation.created_utc'
+    $created = ConvertTo-P4LayerUtc $Manifest.created_utc 'manifest.created_utc'
+    if ($preserved -gt $created) { throw 'The layer manifest predates its preservation-v2 record.' }
+}
+
+function Assert-P4LayerManifestContract {
+    <#
+        Issue #145 R4/R7: the phase manifest names exactly the four artifact roles (builds) and the
+        18-slot catalog. Comparison roles (baseline/candidate) live only on slots; a manifest role key
+        is always an artifact role. The candidate's Baseline Profile is the one generation pinned by
+        `baseline_profile`; the three baselines keep their historical profiles (checked per role).
+        Device identity/state and the frame statement repeat the v7 body's lines because that body
+        stays byte-identical as historical admission.
+    #>
+    param([System.Collections.IDictionary]$Manifest)
+    $phase = 'nene-pixel-p4-layer-phase-verification-v1'
+    $keys = @('schema', 'protocol', 'created_utc', 'experiment_id', 'output_directory', 'roles', 'tools',
+        'toolchain', 'device', 'frame_experiment', 'baseline_profile', 'slots')
+    if ($null -eq $Manifest) { throw 'Missing layer manifest.' }
+    foreach ($key in @($Manifest.Keys)) { if ($key -cnotin $keys) { throw "Unexpected layer manifest field: $key" } }
+    # Slots carry null predecessor/successor ids; they are judged by exact catalog equality below.
+    Assert-P4RequiredKeys $Manifest @($keys | Where-Object { $_ -cne 'slots' }) 'manifest'
+    if (-not $Manifest.Contains('slots')) { throw 'Missing preflight field: manifest.slots' }
+    if ($Manifest.schema -cne $script:P4LayerPreflightSchema -or $Manifest.protocol.id -cne $phase) {
+        throw 'Wrong P4 layer manifest/protocol identity.'
+    }
+    if ($Manifest.experiment_id -cnotmatch '^[a-z0-9][a-z0-9-]{2,63}$') { throw 'Invalid experiment ID.' }
+    ConvertTo-P4LayerUtc $Manifest.created_utc 'manifest.created_utc' | Out-Null
+    $catalog = @(Get-P4LayerArtifactCatalog -ProtocolId $phase)
+    $expectedRoles = [Collections.Generic.HashSet[string]]::new([string[]]@($catalog.role), [StringComparer]::Ordinal)
+    $observedRoles = [Collections.Generic.HashSet[string]]::new([string[]]@($Manifest.roles.Keys), [StringComparer]::Ordinal)
+    Assert-P4InventorySetEquals $expectedRoles $observedRoles 'layer artifact role'
+    Assert-P4RequiredKeys $Manifest.toolchain @('jdk', 'jvm', 'gradle', 'agp', 'kotlin', 'compose',
+        'android_build_tools', 'android_sdk', 'os', 'wrapper', 'catalog', 'locks', 'verification_metadata') 'toolchain'
+    # No host timing lane is built for the phase, so its host init script is not a phase tool.
+    Assert-P4RequiredKeys $Manifest.tools @('runner', 'analyzer', 'wrapper', 'validator', 'bounded_native',
+        'frame_collector', 'frame_validator', 'adb', 'aapt2') 'tools'
+    # Frame bounds live per artifact role in frame_experiment.geometry (Get-P4LayerFrameGeometry).
+    Assert-P4RequiredKeys $Manifest.device @('serial', 'profile', 'manufacturer', 'model', 'product', 'device',
+        'api', 'fingerprint', 'security_patch', 'display_mode', 'width', 'height', 'refresh_rate', 'rotation',
+        'thermal', 'power_save', 'interactive', 'usb_power', 'battery', 'locale', 'user_rotation', 'stay_awake',
+        'asset_preservation', 'initial_viewport') 'device'
+    if ($Manifest.device.profile -cne 'NENE-P2-ALLDOCUBE-IPL80MP-A16-API36' -or
+        $Manifest.device.model -cne 'iPlay80miniPro' -or [int]$Manifest.device.api -ne 36 -or
+        $Manifest.device.initial_viewport -cne $script:P4GeometryId) { throw 'Wrong device/geometry contract.' }
+    foreach ($key in @('power_save', 'interactive', 'usb_power')) {
+        if ([string]$Manifest.device[$key] -cne $script:P4DeviceStateRequiredValues[$key]) {
+            throw "The manifest records an unusable measurement device state at device.$key."
+        }
+    }
+    Assert-P4RequiredKeys $Manifest.frame_experiment @('directory', 'hypothesis', 'expected_affected_cost',
+        'correctness_risk', 'stop_conditions', 'geometry') 'frame_experiment'
+    $frameDirectory = [IO.Path]::GetFullPath($Manifest.frame_experiment.directory)
+    $outputRoot = [IO.Path]::GetFullPath($Manifest.output_directory).TrimEnd([char]'\', [char]'/')
+    if (-not $frameDirectory.StartsWith($outputRoot + [IO.Path]::DirectorySeparatorChar,
+            [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'The frame experiment directory must live under the reserved experiment output directory.'
+    }
+    # The one Baseline Profile generation (R4/R6) is a production input of the candidate build.
+    $pin = $Manifest.baseline_profile
+    Assert-P4RequiredKeys $pin @('generation_commit', 'canonical_sha256', 'packaged_prof_sha256',
+        'packaged_profm_sha256') 'baseline_profile'
+    if (@($pin.Keys).Count -ne 4 -or $pin.generation_commit -cnotmatch '^[0-9a-f]{40}$' -or
+        @('canonical_sha256', 'packaged_prof_sha256', 'packaged_profm_sha256' | Where-Object {
+            [string]$pin[$_] -cnotmatch '^[0-9a-f]{64}$' }).Count -ne 0) { throw 'Malformed Baseline Profile pin.' }
+    $profile = $Manifest.roles.candidate.profile
+    Assert-P4RequiredKeys $profile @('canonical', 'generation_commit', 'packaged_prof_sha256',
+        'packaged_profm_sha256') 'roles.candidate.profile'
+    if ($profile.generation_commit -cne $pin.generation_commit -or $profile.canonical.sha256 -cne $pin.canonical_sha256 -or
+        $profile.packaged_prof_sha256 -cne $pin.packaged_prof_sha256 -or
+        $profile.packaged_profm_sha256 -cne $pin.packaged_profm_sha256) {
+        throw 'The candidate Baseline Profile is not the pinned one-time generation.'
+    }
+    # The ordered 18-slot catalog is the only schedule; every slot resolves its own build.
+    try { Assert-P4RestorationMeaning @(Get-P4SlotCatalog -ProtocolId $phase) @($Manifest.slots) }
+    catch { throw "Layer slot catalog drift: $($_.Exception.Message)" }
+    foreach ($slot in @($Manifest.slots)) {
+        $artifactRole = Resolve-P4ArtifactRole $phase $slot.id
+        if ($slot.role -cnotin @('baseline', 'candidate') -or $artifactRole -cne $slot.artifact_role -or
+            -not $Manifest.roles.Contains($artifactRole)) { throw "Slot comparison/artifact role mix-up: $($slot.id)" }
+    }
+    Assert-P4LayerManifestPreservation $Manifest
+}
+
+function Assert-P4ManifestContract {
+    <# One entry for both identities: the layer preflight schema selects the phase contract; anything
+       else keeps the historical v7 contract, unchanged. #>
+    param([System.Collections.IDictionary]$Manifest)
+    if ($null -ne $Manifest -and $Manifest.Contains('schema') -and $Manifest.schema -ceq $script:P4LayerPreflightSchema) {
+        Assert-P4LayerManifestContract $Manifest
+        return
+    }
+    Assert-P4IndexedManifestContract $Manifest
+}
+
+function Assert-P4LayerManifestArtifacts {
+    <#
+        Offline admission of the four immutable artifact roles. Each role reuses Assert-P4RoleSource
+        (catalog variants, APK existence/SHA-256, embedded revision = build commit, production-tree
+        hash = declared production, fixture APK entries, packaged provider, closed source inventory)
+        and Assert-P4GitLineage. The live `reservation` stage (Issue agreement and device admission
+        over four roles) has no accepted phase rule yet and refuses.
+    #>
+    param([System.Collections.IDictionary]$Manifest, [string]$RepositoryRoot, [string]$Stage)
+    $phase = 'nene-pixel-p4-layer-phase-verification-v1'
+    if ($Stage -cne 'slot') { throw 'Layer phase reservation is not admitted: its live agreement/device stage is undecided.' }
+    Assert-P4ManifestContract $Manifest
+    Assert-P4FileRecord $Manifest.protocol 'protocol'
+    if ((Get-FileSha256 (Join-Path $RepositoryRoot $script:P4LayerProtocolPath)) -cne $Manifest.protocol.sha256) {
+        throw 'Accepted layer phase protocol bytes drifted.'
+    }
+    Assert-P4GitLineage $Manifest
+    foreach ($key in $Manifest.tools.Keys) { Assert-P4FileRecord $Manifest.tools[$key] "tools.$key" }
+    foreach ($entry in @(Get-P4LayerArtifactCatalog -ProtocolId $phase)) {
+        Assert-P4RoleSource $Manifest.roles[$entry.role] $entry.role $Manifest.tools.aapt2.path $phase
+    }
+    foreach ($key in @('wrapper', 'catalog', 'verification_metadata')) {
+        Assert-P4FileRecord $Manifest.toolchain[$key] "toolchain.$key"
+    }
+    foreach ($file in $Manifest.toolchain.locks) { Assert-P4FileRecord $file 'dependency lock' }
+}
+
 function Assert-P4ManifestArtifacts {
+    param(
+        [System.Collections.IDictionary]$Manifest,
+        [string]$RepositoryRoot,
+        [ValidateSet('reservation', 'slot')][string]$Stage = 'reservation'
+    )
+    if ($null -ne $Manifest -and $Manifest.Contains('schema') -and $Manifest.schema -ceq $script:P4LayerPreflightSchema) {
+        Assert-P4LayerManifestArtifacts $Manifest $RepositoryRoot $Stage
+        return
+    }
+    Assert-P4IndexedManifestArtifacts $Manifest $RepositoryRoot -Stage $Stage
+}
+
+function Assert-P4IndexedManifestArtifacts {
     <#
         `reservation` is the one-time gate that consumes the device and the Issue agreement.
         `slot` re-proves every offline fact before each slot without touching the device again and
