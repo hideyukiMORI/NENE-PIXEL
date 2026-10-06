@@ -18,6 +18,9 @@ if (Test-Path -LiteralPath $script:P4DeviceStateScriptPath -PathType Leaf) { . $
 # the private-file quarantine. Both call sites assert the contract functions first.
 $script:P4DeviceLanesScriptPath = Join-Path $PSScriptRoot 'p4-indexed-device-lanes.ps1'
 if (Test-Path -LiteralPath $script:P4DeviceLanesScriptPath -PathType Leaf) { . $script:P4DeviceLanesScriptPath }
+# Issue #145 R3 / R7 point 3: the phase slot's stopped cleanup (stop, partial record and report
+# recovery, six-root reset) runs before the seal; its clock is part of the phase slot deadline.
+. (Join-Path $PSScriptRoot 'p4-layer-slot-cleanup.ps1')
 
 # Fixed slot budgets. The slot deadline is started + collector timeout + cleanup reserve + analysis
 # budget; cleanup must finish before the analysis budget begins or the slot is INVALID. The collector
@@ -855,6 +858,12 @@ function Invoke-P4IndexedSlot {
     if ($collectorTimeoutSeconds -lt [int]$slot.timeout_seconds) {
         throw "The collector bound for $SlotId is shorter than its protocol timeout."
     }
+    # Phase only: the stopped-cleanup clock of the slot (Get-P4LayerSlotCleanupTimeout), derived before
+    # reservation. A v7 slot keeps 0 and its deadline is unchanged.
+    $phaseCleanupSeconds = 0
+    if ($route.phase) {
+        $phaseCleanupSeconds = [int](Get-P4LayerSlotCleanupPlan $manifest $slot $manifestHash).timeout_seconds
+    }
     $mutex = [Threading.Mutex]::new($false, 'Local\NenePixelP4EvidenceExclusive')
     $acquired = $false
     $directory = Join-Path $root $SlotId
@@ -882,8 +891,8 @@ function Invoke-P4IndexedSlot {
         $admissionDirectory = Join-Path $directory 'admission'
         Move-Item -LiteralPath $admission.directory -Destination $admissionDirectory
         $startedUtc = [datetime]::UtcNow
-        $slotDeadlineUtc = $startedUtc.AddSeconds($collectorTimeoutSeconds + $script:P4CleanupReserveSeconds +
-            $script:P4AnalysisTimeoutSeconds)
+        $slotDeadlineUtc = $startedUtc.AddSeconds($collectorTimeoutSeconds + $phaseCleanupSeconds +
+            $script:P4CleanupReserveSeconds + $script:P4AnalysisTimeoutSeconds)
         $deviceBeforeSha = if ($slot.lane -ceq 'host') { 'not-applicable' }
             else { Get-FileSha256 (Join-Path $admissionDirectory 'device-state-before.json') }
         $started = [ordered]@{ schema = $script:P4ManifestSchema; slot_id = $SlotId; status = 'started'; attempt = 1;
@@ -898,6 +907,7 @@ function Invoke-P4IndexedSlot {
             quiescence_sha256 = (Get-FileSha256 (Join-Path $admissionDirectory 'quiescence.json'));
             worktree_before_sha256 = (Get-FileSha256 (Join-Path $admissionDirectory 'worktree-before.json'));
             device_before_sha256 = $deviceBeforeSha }
+        if ($route.phase) { $started.phase_cleanup_seconds = $phaseCleanupSeconds }
         Write-NewInvocationFile (Join-Path $directory 'started.json') ($started | ConvertTo-Json -Depth 8)
         $original = $null
         $failure = $null
@@ -952,6 +962,15 @@ function Invoke-P4IndexedSlot {
                     Invoke-P4PrivateFileQuarantine `
                         -Context (Get-P4SlotDeviceContext -Manifest $manifest -Slot $slot -Directory $directory) `
                         -Plan $lanePlan.private_file_quarantine | Out-Null
+                } catch { $cleanupErrors.Add($_.Exception.Message) }
+            }
+            # Phase: the stopped cleanup on collector success and failure alike, before the seal, so its
+            # record (`phase-cleanup/`) is sealed capture. Its failure is a cleanup error, never a retry.
+            if ($route.phase) {
+                try {
+                    Invoke-P4LayerSlotCleanup -Context (Get-P4SlotDeviceContext -Manifest $manifest -Slot $slot `
+                            -Directory $directory -ManifestSha256 $manifestHash) -Manifest $manifest -Slot $slot `
+                        -ManifestSha256 $manifestHash -CollectorSucceeded ($null -eq $failure) | Out-Null
                 } catch { $cleanupErrors.Add($_.Exception.Message) }
             }
             try {
