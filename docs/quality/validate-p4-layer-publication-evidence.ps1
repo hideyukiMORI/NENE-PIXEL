@@ -98,9 +98,9 @@ function Invoke-Capture {
 
 Invoke-Case 'fixed two storage slots after memory' {
     $slots = @(Get-P4LayerStorageSlotCatalog $context.protocol_id)
-    Assert-Contract ($slots.Count -eq 2 -and $slots[0].id -ceq $context.slot_id -and $slots[0].sequence_index -eq 23 -and
+    Assert-Contract ($slots.Count -eq 2 -and $slots[0].id -ceq $context.slot_id -and $slots[0].sequence_index -eq 17 -and
         $slots[0].timeout_seconds -eq 300 -and $slots[0].journal_rows -eq 54 -and
-        $slots[1].id -ceq 'saf-save-layers16-candidate' -and $slots[1].sequence_index -eq 24 -and
+        $slots[1].id -ceq 'saf-save-layers16-candidate' -and $slots[1].sequence_index -eq 18 -and
         $slots[1].timeout_seconds -eq 420 -and $slots[1].journal_rows -eq 27) 'Storage slot drift.'
     Assert-Rejected { Get-P4LayerStorageSlotCatalog 'wrong-protocol' }
 }

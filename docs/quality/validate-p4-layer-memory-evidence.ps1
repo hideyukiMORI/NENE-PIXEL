@@ -121,7 +121,7 @@ Invoke-Case 'fixed ten-slot catalog' {
     foreach ($sequence in 1..10) {
         $slot = $slots[$sequence - 1]; $context = New-Context $sequence
         Assert-Contract ($slot.id -ceq $context.slot_id -and $slot.artifact_role -ceq $context.artifact_role -and
-            $slot.sequence_index -eq 12 + $sequence -and $slot.memory_sequence_index -eq $sequence -and
+            $slot.sequence_index -eq 6 + $sequence -and $slot.memory_sequence_index -eq $sequence -and
             $slot.run -eq ($sequence - 1) % 5 + 1 -and $slot.timeout_seconds -eq 300 -and
             ($slot.checkpoints -join ',') -ceq ($checkpoints -join ',')) 'Catalog drift.'
     }
