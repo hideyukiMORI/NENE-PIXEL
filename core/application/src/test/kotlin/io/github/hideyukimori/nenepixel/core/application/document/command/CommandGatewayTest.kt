@@ -3,6 +3,7 @@ package io.github.hideyukimori.nenepixel.core.application.document.command
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandResultAssertions.applied
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandResultAssertions.rejected
 import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryAvailability
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.DocumentIdentity
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.blackIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.canvas
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.cellAt
@@ -102,7 +103,7 @@ internal class CommandGatewayTest {
 
     @Test
     fun `effective change at maximum revision rejects atomically`() {
-        val initial = state(canvas(1, 1), revision(Long.MAX_VALUE))
+        val initial = state(canvas(1, 1), identity = DocumentIdentity(revision = revision(Long.MAX_VALUE)))
         val gateway = CommandGateway.create(initial)
         assertEquals(
             RejectionReason.RevisionOverflow,

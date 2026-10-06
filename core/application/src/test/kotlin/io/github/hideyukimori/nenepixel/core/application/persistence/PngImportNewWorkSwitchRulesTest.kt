@@ -1,5 +1,6 @@
 package io.github.hideyukimori.nenepixel.core.application.persistence
 
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.DocumentIdentity
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.black
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.canvas
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.position
@@ -17,7 +18,7 @@ internal class PngImportNewWorkSwitchRulesTest {
     @Test
     fun `an unadopted recovery candidate asks first and the confirmation opens the plan`() {
         runBlocking {
-            val candidate = state(canvas(2, 2), documentId = documentId('a'))
+            val candidate = state(canvas(2, 2), identity = DocumentIdentity(documentId('a')))
             val fixture =
                 Fixture(RecoveryInspection.Candidate(generation(9), DocumentImportSource.Current(candidate)))
             fixture.initialize()

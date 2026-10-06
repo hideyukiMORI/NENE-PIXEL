@@ -1,6 +1,7 @@
 package io.github.hideyukimori.nenepixel.core.application.document.transition
 
 import io.github.hideyukimori.nenepixel.core.application.document.command.RejectionReason
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.DocumentIdentity
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.blackIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.canvas
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.cellAt
@@ -71,15 +72,16 @@ internal class DocumentTransitionTest {
 
     @Test
     fun `revision mismatch is typed and leaves the current state unchanged`() {
-        val current = state(canvas(1, 1), revision(2L))
+        val current = state(canvas(1, 1), identity = DocumentIdentity(revision = revision(2L)))
         val patch =
             patch(
                 current.size,
                 listOf(PixelChange.create(position(0, 0), PixelCell.Covered(blackIndex), PixelCell.Covered(redIndex))),
             )
 
+        val stale = state(current.size, identity = DocumentIdentity(revision = revision(1L)))
         val reason =
-            rejected(DocumentTransition.create(current, sparseChangeSet(state(current.size, revision(1L)), patch)))
+            rejected(DocumentTransition.create(current, sparseChangeSet(stale, patch)))
 
         val mismatch = assertInstanceOf(RejectionReason.RevisionMismatch::class.java, reason)
         assertEquals(revision(1L), mismatch.expected)

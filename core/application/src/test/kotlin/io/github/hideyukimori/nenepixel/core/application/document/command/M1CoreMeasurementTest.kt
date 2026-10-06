@@ -1,6 +1,7 @@
 package io.github.hideyukimori.nenepixel.core.application.document.command
 
 import com.sun.management.ThreadMXBean
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.DocumentIdentity
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.blackIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.canvas
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.defaultDocumentId
@@ -245,7 +246,7 @@ internal class M1CoreMeasurementTest {
                 val y = index / edge
                 if (x == y) redIndex else blackIndex
             }
-        val expectedApplied = state(size, revision(1L), expectedPixels, defaultDocumentId)
+        val expectedApplied = state(size, expectedPixels, identity = DocumentIdentity(defaultDocumentId, revision(1L)))
         return CoreMeasurementFixture(
             initial = initial,
             expectedApplied = expectedApplied,
