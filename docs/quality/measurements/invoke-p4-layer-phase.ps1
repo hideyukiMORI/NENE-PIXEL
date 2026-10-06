@@ -19,13 +19,22 @@ $script:P4LayerPhaseMaximumApkBytes = 134217728
 $script:P4LayerPhaseClock = { [datetime]::UtcNow }
 
 # --- Hang bounds (not measured durations) -------------------------------------------------------
-# The snapshot, isolation and restoration helpers own no clock constant. Their bound is the sum of
-# their native calls' own timeouts: every Invoke-P4NativeCapture / Invoke-P4NativeRunAs /
-# Invoke-P4SnapshotEncoded call is bounded at 30 s, the restoration APK install at 120 s
-# (Invoke-P4RestorationApkInstall). One private inventory is I calls (8 fixed + stat and hash batches);
-# I is the cleanup's assumed inventory shape (P4LayerCleanupInventoryCallCount, entries <= 256, files <= 128).
+# The snapshot, isolation and restoration helpers own no clock constant. Their bound is derived the
+# way the stopped cleanup's is (T4r2): calls x the measured worst call x margin, rounded up to whole
+# minutes. The 30 s per-call timeout is not summed (that bound is over ten times reality).
+#   call    = P4LayerCleanupMeasuredCallMilliseconds (276 ms: the 10-03 maximum of 37 native calls,
+#             evidence 145-native-device-readonly/20261003T155545623, elapsed_milliseconds)
+#   margin  = P4LayerCleanupMargin (2; also covers host-side work between calls)
+# One private inventory is I calls (8 fixed + stat and hash batches); I is the cleanup's assumed
+# inventory shape (P4LayerCleanupInventoryCallCount, entries <= 256, files <= 128).
 # One mkdir/move step is a pre inventory, the run-as call and a post inventory: 2I + 1 calls.
-$script:P4LayerPhaseNativeCallSeconds = 30
+# The snapshot's two transfers are not call-shaped; each counts at its measured 10-03 duration x margin
+# (evidence 145-native-snapshot-device/20261003T160746439: original-original-tar.json, 10,335,232 B in
+# 3,204 ms; original-original-apk.json, 12,402,152 B in 4,738 ms). A larger archive takes longer; the
+# bound covers the measured size only (assumed, stated).
+# The restoration APK install keeps its fixed 120 s (Invoke-P4RestorationApkInstall).
+$script:P4LayerPhaseSnapshotTarMilliseconds = 3204
+$script:P4LayerPhaseSnapshotApkMilliseconds = 4738
 $script:P4LayerPhaseRestorationInstallSeconds = 120
 # Worst step shapes (assumed, stated): isolation creates at most no_backup, p4-user-preservation,
 # <session> and original (4 mkdir) and moves at most the six Get-P4MoveRoots roots (6 moves).
@@ -37,20 +46,26 @@ $script:P4LayerPhaseRestorationSteps = 3 + 7 + 6
 function Get-P4LayerPhasePreservationBounds {
     $inventory = [int]$script:P4LayerCleanupInventoryCallCount
     $step = 2 * $inventory + 1
-    # Snapshot: inventory before, APK path+hash, APK copy, tar, inventory after, APK path+hash.
-    $snapshotCalls = 2 * $inventory + 6
+    # Snapshot: inventory before, APK path+hash, inventory after, APK path+hash (+ APK copy and tar transfers).
+    $snapshotCalls = 2 * $inventory + 4
     # Isolation: APK path+hash, original inventory, steps, final inventory, APK path+hash.
     $isolationCalls = 4 + 2 * $inventory + $script:P4LayerPhaseIsolationSteps * $step
     # Restoration: 4 stopped probes, 3 x APK path+hash, pre and final inventories, steps (+ the install).
     $restorationCalls = 10 + 2 * $inventory + $script:P4LayerPhaseRestorationSteps * $step
-    $call = $script:P4LayerPhaseNativeCallSeconds
-    return [ordered]@{ inventory_calls = $inventory; native_call_seconds = $call
-        snapshot_calls = $snapshotCalls; snapshot_seconds = $snapshotCalls * $call
-        isolation_calls = $isolationCalls; isolation_seconds = $isolationCalls * $call
-        preservation_seconds = ($snapshotCalls + $isolationCalls) * $call
-        restoration_calls = $restorationCalls
-        restoration_seconds = $restorationCalls * $call + $script:P4LayerPhaseRestorationInstallSeconds
-        derivation = 'sum of the helpers'' own native call timeouts (no clock constant exists); assumed step shapes stated in invoke-p4-layer-phase.ps1' }
+    $call = [long]$script:P4LayerCleanupMeasuredCallMilliseconds
+    $margin = [long]$script:P4LayerCleanupMargin
+    $transfers = [long]$script:P4LayerPhaseSnapshotTarMilliseconds + $script:P4LayerPhaseSnapshotApkMilliseconds
+    $minutes = { param([double]$Milliseconds) [int]([Math]::Ceiling($Milliseconds / 60000.0) * 60) }
+    $snapshot = & $minutes (($snapshotCalls * $call + $transfers) * $margin)
+    $isolation = & $minutes ($isolationCalls * $call * $margin)
+    $restoration = & $minutes ($restorationCalls * $call * $margin + $script:P4LayerPhaseRestorationInstallSeconds * 1000)
+    return [ordered]@{ inventory_calls = $inventory; measured_call_milliseconds = $call; margin = $margin
+        snapshot_calls = $snapshotCalls; snapshot_transfer_milliseconds = $transfers; snapshot_seconds = $snapshot
+        isolation_calls = $isolationCalls; isolation_seconds = $isolation
+        preservation_seconds = $snapshot + $isolation
+        restoration_calls = $restorationCalls; restoration_install_seconds = $script:P4LayerPhaseRestorationInstallSeconds
+        restoration_seconds = $restoration
+        derivation = 'calls x measured worst call (276 ms, 10-03) x margin 2, snapshot transfers at measured duration x 2, + restoration install 120 s, each rounded up to 60 s; call counts are assumed step shapes stated in invoke-p4-layer-phase.ps1' }
 }
 
 function Get-P4LayerPhaseBounds {

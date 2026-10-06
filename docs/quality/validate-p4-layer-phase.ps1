@@ -224,8 +224,12 @@ try {
         }
         Check ($cleanupSum -eq 11280) "cleanup total $cleanupSum"
         $p = $bounds.preservation
-        Check ($p.snapshot_seconds -eq 840 -and $p.isolation_seconds -eq 7680 -and $p.restoration_seconds -eq 12120) "preservation $($p.snapshot_seconds)/$($p.isolation_seconds)/$($p.restoration_seconds)"
-        Check ($bounds.phase_seconds -eq $p.preservation_seconds + $bounds.slots_seconds + $p.restoration_seconds) 'phase sum'
+        # Calls x 276 ms x 2 (+ snapshot transfers 3,204 + 4,738 ms x 2, + install 120 s), up to 60 s:
+        # snapshot 26 calls 30.236 s -> 60, isolation 256 calls 141.312 s -> 180, restoration 400 calls 340.8 s -> 360.
+        Check ($p.snapshot_calls -eq 26 -and $p.isolation_calls -eq 256 -and $p.restoration_calls -eq 400) "preservation calls $($p.snapshot_calls)/$($p.isolation_calls)/$($p.restoration_calls)"
+        Check ($p.snapshot_seconds -eq 60 -and $p.isolation_seconds -eq 180 -and $p.restoration_seconds -eq 360) "preservation $($p.snapshot_seconds)/$($p.isolation_seconds)/$($p.restoration_seconds)"
+        Check ($bounds.slots_seconds -eq 45360) "slots total $($bounds.slots_seconds)"
+        Check ($bounds.phase_seconds -eq 45960 -and $bounds.phase_seconds -eq $p.preservation_seconds + $bounds.slots_seconds + $p.restoration_seconds) "phase sum $($bounds.phase_seconds)"
         Check ($bounds.kind -ceq 'hang-bound' -and $bounds.note -match 'not measured') 'hang-bound label'
     }
 
