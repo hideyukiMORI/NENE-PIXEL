@@ -4,6 +4,21 @@ param([Parameter(Mandatory)][string]$OutputDirectory,
     [string]$StagingDirectory)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+$utf8NoBom = [Text.UTF8Encoding]::new($false)
+try { [Console]::OutputEncoding = $utf8NoBom } catch [IO.IOException] { }
+$OutputEncoding = $utf8NoBom
+function Read-GitBlobText([string]$Revision) {
+    # Decode blob bytes as UTF-8 so the result does not depend on the console code page.
+    $info = [Diagnostics.ProcessStartInfo]::new('git')
+    foreach ($argument in @('-C', $repository, 'cat-file', 'blob', $Revision)) { $info.ArgumentList.Add($argument) }
+    $info.RedirectStandardOutput = $true; $info.RedirectStandardError = $true; $info.UseShellExecute = $false
+    $process = [Diagnostics.Process]::Start($info)
+    $errorTask = $process.StandardError.ReadToEndAsync()
+    $buffer = [IO.MemoryStream]::new()
+    $process.StandardOutput.BaseStream.CopyTo($buffer); $process.WaitForExit(); [void]$errorTask.Result
+    if ($process.ExitCode -ne 0) { throw "git cat-file failed for $Revision" }
+    return [Text.UTF8Encoding]::new($false, $true).GetString($buffer.ToArray())
+}
 . (Join-Path $PSScriptRoot 'measurements/nene-pixel-lab.ps1')
 . (Join-Path $PSScriptRoot 'measurements/p4-indexed-frame-analysis.ps1')
 . (Join-Path $PSScriptRoot 'measurements/p4-layer-frame-preparation.ps1')
@@ -416,15 +431,14 @@ try {
         }
         foreach ($commit in $commits) {
             Case "normal switch waits publication $commit" {
-                $source = (git -C $repository show "${commit}:$core`persistence/PersistenceSwitchFlow.kt") -join "`n"
-                Check ($LASTEXITCODE -eq 0 -and $source.Contains('autosave.retryAfterPublication { applyStart(operations.beginLoad()) }') -and
+                $source = Read-GitBlobText "${commit}:$core`persistence/PersistenceSwitchFlow.kt"
+                Check ($source.Contains('autosave.retryAfterPublication { applyStart(operations.beginLoad()) }') -and
                     $source.Contains('autosave.retryAfterPublication { applyStart(operations.beginNewDocument(request)) }')) 'Normal switch wait changed'
             }
             foreach ($locale in @('values', 'values-ja', 'values-b+zh+Hans')) {
                 Case "actual status labels $commit $locale" {
                     $path = "presentation/compose/src/main/res/$locale/strings.xml"
-                    [xml]$strings = (git -C $repository show "${commit}:$path") -join "`n"
-                    Check ($LASTEXITCODE -eq 0) 'Status resource absent'
+                    [xml]$strings = Read-GitBlobText "${commit}:$path"
                     $labels = [ordered]@{ project_loaded = 'Project loaded'; new_document_created = 'New document created' }
                     if ($commit -cin $commits[2..3]) { $labels.underlay_picked = 'Underlay image loaded'; $labels.underlay_hide = 'Hide underlay' }
                     foreach ($key in $labels.Keys) {

@@ -468,7 +468,9 @@ try {
         function Invoke-P4InstrumentationLane {param($Context,$Manifest,$Plan)
             $script:events.Add('staging');if($stagingFails) {throw 'synthetic staging failure'}
         }
-        function Get-Command {param($Name,$CommandType);Check ($Name -ceq 'adb') 'Unexpected tool resolution';return [pscustomobject]@{Source=$manifest.tools.adb.path}}
+        function Get-Command {param($Name,$CommandType)
+            if($Name -cne 'adb') {return Microsoft.PowerShell.Core\Get-Command @PSBoundParameters}
+            return [pscustomobject]@{Source=$manifest.tools.adb.path}}
         $slot=@($slots|Where-Object {$_.lane -ceq 'frame' -and $_.group_id -ceq 'single' -and $_.role -ceq 'baseline' -and $_.runner -ceq 'decision'})[0]
         $parameters=Get-P4FrameCollectorParameters $manifest $slot $hash
         $fake=Join-Path $OutputDirectory 'host-collector.ps1'
