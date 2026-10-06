@@ -151,11 +151,11 @@ internal class CommandGatewayTest {
                 )
             val results = executeConcurrently(gateway, first, second)
 
-            assertEquals(1, results.count { it is CommandResult.Applied })
-            assertEquals(1, results.count { it is CommandResult.Rejected })
+            assertEquals(1, results.count { result -> result is CommandResult.Applied })
+            assertEquals(1, results.count { result -> result is CommandResult.Rejected })
             assertEquals(
                 RejectionReason.SourceHistoryMismatch,
-                rejected(results.single { it is CommandResult.Rejected }),
+                rejected(results.single { result -> result is CommandResult.Rejected }),
             )
             assertEquals(revision(1), gateway.runtimeState.documentState.revision)
             val committed =

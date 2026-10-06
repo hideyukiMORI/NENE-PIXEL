@@ -97,7 +97,7 @@ internal class StrokePreviewCompositeTest {
             .createLayered(
                 defaultDocumentId,
                 Revision.initial(),
-                definition(paletteIndex(0), *palette),
+                definition(paletteIndex(0), *palette.toTypedArray()),
                 listOf(
                     layer(1, LayerVisibility.Visible, listOf(0, null, 1, 2, null, 0, 3, null)),
                     layer(2, middleVisibility, listOf(1, 1, null, null, 2, null, 0, null)),
@@ -121,9 +121,8 @@ internal class StrokePreviewCompositeTest {
         /** Covers every pixel but (0, 1), with forward and backward segments. */
         val path: List<PixelPosition> = listOf(position(0, 0), position(3, 0), position(3, 1), position(1, 1))
 
-        val palette: Array<PixelColor> =
-            arrayOf(0x204060ff, 0xa0c0e080.toInt(), 0xff000040.toInt(), 0x00ff00ff)
+        val palette: List<PixelColor> =
+            listOf(0x204060ff, 0xa0c0e080.toInt(), 0xff000040.toInt(), 0x00ff00ff)
                 .map(PixelColor::fromPackedRgba8888)
-                .toTypedArray()
     }
 }
