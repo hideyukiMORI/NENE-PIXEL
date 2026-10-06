@@ -96,21 +96,28 @@ try {
             [ordered]@{ canvas256_underlay_repeated_diagonal = 'underlay' })
     )
     $legacyOrder = @('decision:baseline', 'decision:candidate', 'diagnostic:baseline', 'diagnostic:candidate')
+    # Issue #145 R1: the phase registers six decision slots only; no diagnostic workload or window family.
     $phaseOrder = @(
-        'single:decision:baseline', 'single:decision:candidate', 'single:diagnostic:baseline', 'single:diagnostic:candidate',
-        'layers16:decision:baseline', 'layers16:decision:candidate', 'layers16:diagnostic:baseline', 'layers16:diagnostic:candidate',
-        'underlay:decision:baseline', 'underlay:decision:candidate', 'underlay:diagnostic:baseline', 'underlay:diagnostic:candidate'
+        'single:decision:baseline', 'single:decision:candidate',
+        'layers16:decision:baseline', 'layers16:decision:candidate',
+        'underlay:decision:baseline', 'underlay:decision:candidate'
     )
-    $phaseBounds = @(1950, 1950, 975, 975, 1950, 1950, 750, 750, 1125, 1125, 525, 525)
+    $phaseBounds = @(1950, 1950, 1950, 1950, 1125, 1125)
+    $phaseSetup = @(
+        [ordered]@{ canvas16_tap = 'empty'; canvas256_repeated_diagonal = 'empty' },
+        [ordered]@{ canvas256_layers16_tap = 'maximum_layers16'; canvas256_layers16_repeated_diagonal = 'maximum_layers16' },
+        [ordered]@{ canvas256_underlay_repeated_diagonal = 'underlay' })
     $measured = 0; $warmups = 0; $bounds = 0
     foreach ($protocol in @($legacy, $phase)) {
         $isPhase = $protocol -ceq $phase
-        $count = if ($isPhase) { 12 } else { 4 }
+        $count = if ($isPhase) { 6 } else { 4 }
         for ($sequence = 1; $sequence -le $count; $sequence++) {
-            $position = ($sequence - 1) % 4 + 1
-            $row = $groupRows[$(if ($isPhase) { [int][Math]::Floor(($sequence - 1) / 4) } else { 0 })]
+            $groupIndex = if ($isPhase) { [int][Math]::Floor(($sequence - 1) / 2) } else { 0 }
+            $position = if ($isPhase) { ($sequence - 1) % 2 + 1 } else { $sequence }
+            $row = $groupRows[$groupIndex]
             $role = if ($position % 2 -eq 1) { 'baseline' } else { 'candidate' }
             $runner = if ($position -le 2) { 'decision' } else { 'diagnostic' }
+            $diagnosticNames = @(if (-not $isPhase) { $row[4] })
             $slotId = if ($isPhase) { "frame-$sequence-$($row[0])-$role-$runner" } else { "frame-$sequence-$role-$runner" }
             $names = @($(if ($runner -ceq 'decision') { $row[3] } else { $row[4] }))
             $expected = [ordered]@{
@@ -126,9 +133,9 @@ try {
                     if ($isPhase) { "frame-$($sequence - 1)-$($row[0])-baseline-decision" } else { 'frame-1-baseline-decision' }
                 } else { $null }
                 baseline_production_commit = $row[2]; workload_order = $names
-                decision_workload_order = $row[3]; diagnostic_workload_order = $row[4]
+                decision_workload_order = $row[3]; diagnostic_workload_order = $diagnosticNames
                 workload_catalog = @(Expected-Workloads $names); decision_workload_catalog = @(Expected-Workloads $row[3])
-                diagnostic_workload_catalog = @(Expected-Workloads $row[4]); warmups = 5
+                diagnostic_workload_catalog = @(if (-not $isPhase) { Expected-Workloads $row[4] }); warmups = 5
                 samples = if ($runner -ceq 'decision') { 50 } else { 10 }
                 timeout_seconds = if ($isPhase) { $phaseBounds[$sequence - 1] } elseif ($runner -ceq 'decision') { 1950 } else { 975 }
                 comparison_order = if ($isPhase) { $phaseOrder } else { $legacyOrder }
@@ -136,8 +143,8 @@ try {
                 relative_p95_tolerance_ms = [double]1.0; relative_p99_tolerance_ms = [double]2.0
                 gross_overrun_ms = [double]33.34; gross_input_ms = [double]100.0; geometry_id = 'initial-fit-centered-v1'
                 association_workload = if ($isPhase -and $row[0] -ceq 'layers16') { 'canvas256_layers16_tap' } else { $null }
-                window_diagnostic_workload = if ($row[0] -ceq 'single') { 'canvas256_repeated_diagonal_window_x2' } else { $null }
-                setup_by_workload = $row[5]
+                window_diagnostic_workload = if (-not $isPhase -and $row[0] -ceq 'single') { 'canvas256_repeated_diagonal_window_x2' } else { $null }
+                setup_by_workload = if ($isPhase) { $phaseSetup[$groupIndex] } else { $row[5] }
             }
             $actual = Get-P4FrameExecutionContract -ProtocolId $protocol -SlotId $slotId
             Check-Record $actual $expected $slotId
@@ -152,13 +159,17 @@ try {
             if (-not $isPhase) { Check-Record (Get-P4FrameExecutionContract -SlotId $slotId) $expected "default $slotId" }
             if ($isPhase) { $measured += $names.Count * $actual.samples; $warmups += $names.Count * $actual.warmups; $bounds += $actual.timeout_seconds }
             # Mutate every returned mutable branch and require an exact pristine next invocation.
-            foreach ($field in @('workload_order', 'decision_workload_order', 'diagnostic_workload_order', 'comparison_order')) { $actual[$field][0] = 'foreign' }
-            foreach ($field in @('workload_catalog', 'decision_workload_catalog', 'diagnostic_workload_catalog')) { $actual[$field][0].workload = 'foreign'; $actual[$field][0].canvas_width = 999 }
-            $actual.setup_by_workload[$row[4][0]] = 'foreign'; $actual.slot_id = 'foreign'
+            if ($isPhase) {
+                Check (@($actual.diagnostic_workload_order).Count -eq 0 -and @($actual.diagnostic_workload_catalog).Count -eq 0 -and
+                    $null -eq $actual.window_diagnostic_workload -and -not $actual.setup_by_workload.Contains('canvas256_repeated_diagonal_window_x2')) "$slotId phase has no diagnostic workload"
+            }
+            foreach ($field in @('workload_order', 'decision_workload_order', 'diagnostic_workload_order', 'comparison_order')) { if (@($actual[$field]).Count -gt 0) { $actual[$field][0] = 'foreign' } }
+            foreach ($field in @('workload_catalog', 'decision_workload_catalog', 'diagnostic_workload_catalog')) { if (@($actual[$field]).Count -gt 0) { $actual[$field][0].workload = 'foreign'; $actual[$field][0].canvas_width = 999 } }
+            $actual.setup_by_workload[$row[3][0]] = 'foreign'; $actual.slot_id = 'foreign'
             Check-Record (Get-P4FrameExecutionContract -ProtocolId $protocol -SlotId $slotId) $expected "isolated $slotId"
         }
     }
-    Check ($measured -eq 620 -and $warmups -eq 110 -and $bounds -eq 14550) 'phase population and bound totals'
+    Check ($measured -eq 500 -and $warmups -eq 50 -and $bounds -eq 10050) 'phase population and bound totals'
     foreach ($unknown in @($null, '', 'unknown', $legacy.ToUpperInvariant(), $phase.ToUpperInvariant(), "$phase-extra")) {
         Refuses { Get-P4FrameExecutionContract -ProtocolId $unknown -SlotId 'frame-1-baseline-decision' } 'unknown protocol refusal'
     }
@@ -179,7 +190,7 @@ try {
     $expectedProjection = [ordered]@{
         schema = 'nene-pixel-p4-indexed-frame-experiment-v6'; protocol_id = $phase; experiment_id = $experimentId
         preflight_sha256 = $hash; comparison_order = $phaseOrder; slot_catalog = @(Get-P4FrameSlotCatalog -ProtocolId $phase)
-        slot_budget = 12; maximum_attempts_per_slot = 1; replacement_rule = 'none'
+        slot_budget = 6; maximum_attempts_per_slot = 1; replacement_rule = 'none'
     }
     Check-Record $projection $expectedProjection 'phase experiment projection'
     $projection.comparison_order[0] = 'foreign'; $projection.slot_catalog[0].id = 'foreign'
@@ -194,7 +205,7 @@ try {
     foreach ($goodId in @('a00', ('a' * 64))) {
         Equal (Get-P4LayerFrameExperimentContract -ExperimentId $goodId -PreflightSha256 $hash).experiment_id $goodId 'experiment identity allowed boundary'
     }
-    $result.status = 'PASS'; $result.contract_count = 16; $result.phase_measured = $measured
+    $result.status = 'PASS'; $result.contract_count = 10; $result.phase_measured = $measured
     $result.phase_warmups = $warmups; $result.phase_collector_bound_seconds = $bounds
 } catch {
     $result.error = $_.Exception.Message

@@ -517,7 +517,7 @@ function Get-P4FrameCaptureContract {
     [CmdletBinding()]
     param([Parameter(Mandatory)][ValidateSet('baseline', 'candidate')][string]$Role,
         [Parameter(Mandatory)][ValidateSet('decision', 'diagnostic')][string]$Runner,
-        [Parameter(Mandatory)][ValidateRange(1, 12)][int]$SequenceIndex,
+        [Parameter(Mandatory)][ValidateRange(1, 6)][int]$SequenceIndex,
         [Parameter(Mandatory)][ValidatePattern('^[0-9a-f]{40}\z')][string]$BuildCommit,
         [Parameter(Mandatory)][ValidatePattern('^[0-9a-f]{64}\z')][string]$ExpectedApkSha256,
         [Parameter(Mandatory)][string]$ExperimentId,
@@ -561,7 +561,7 @@ function Test-P4FrameCapture {
         [Parameter(Mandatory = $true)][string]$SlotDirectory,
         [Parameter(Mandatory = $true)][ValidateSet('baseline', 'candidate')][string]$Role,
         [Parameter(Mandatory = $true)][ValidateSet('diagnostic', 'decision')][string]$Runner,
-        [Parameter(Mandatory = $true)][ValidateRange(1, 12)][int]$SequenceIndex,
+        [Parameter(Mandatory = $true)][ValidateRange(1, 6)][int]$SequenceIndex,
         [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{40}\z')][string]$BuildCommit,
         [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}\z')][string]$ExpectedApkSha256,
         [Parameter(Mandatory = $true)][System.Collections.IDictionary]$ExpectedBounds,
@@ -863,6 +863,7 @@ function Test-P4FrameCapture {
     }
     $families = [ordered]@{}
     $ordinal = 0
+    $slotMaximumOverrun = $null; $slotMaximumInput = $null
     foreach ($workload in $presentWorkloads) {
         $familySamples = @($samples | Where-Object { $_.workload -ceq $workload })
         $familyFrames = @($frames | Where-Object { $_.workload -ceq $workload })
@@ -983,6 +984,8 @@ function Test-P4FrameCapture {
         # The collector records gross regression only; the analyzer alone owns pass/fail (Lane 3).
         $inputPassed = if ($phase) { (ConvertTo-P4FrameDecimal $recomputed["${workload}_input_to_committed_result_p95_ms"] 'Phase input p95') -le [decimal]$inputGate } else { $inputP95 -le $inputGate }
         $gross = $maximumOverrun -gt $grossOverrun -or $maximumInput -gt $grossInput
+        if ($null -eq $slotMaximumOverrun -or $maximumOverrun -gt $slotMaximumOverrun) { $slotMaximumOverrun = $maximumOverrun }
+        if ($null -eq $slotMaximumInput -or $maximumInput -gt $slotMaximumInput) { $slotMaximumInput = $maximumInput }
         Assert-P4FrameMetadataValue $metadata "${workload}_diagnostic_gross_regression" $(if ($gross) { 'true' } else { 'false' }) | Out-Null
         $baselineP95 = $null; $baselineP99 = $null; $p95Margin = $null; $p99Margin = $null; $relativeStatus = $null
         if ($isRelativeCandidate) {
@@ -1076,6 +1079,16 @@ function Test-P4FrameCapture {
         foreach ($key in $identity.Keys) { $result[$key] = $identity[$key] }
         $result.production_commit = $PhaseContext.production_commit
         $result.experiment_sha256 = $experimentSha256
+        # R2 (2026-10-06): the decision slot itself records the gross-regression stop signal; the
+        # verdict is unchanged and the slot driver decides whether later frame slots continue.
+        $result.gross_regression = $anyGross
+        $result.gross_regression_basis = [ordered]@{
+            maximum_frame_overrun_ms = Format-P4FrameMetric $slotMaximumOverrun
+            maximum_input_to_committed_result_ms = Format-P4FrameMetric $slotMaximumInput
+            gross_overrun_threshold_ms = Format-P4FrameMetric $grossOverrun
+            gross_input_threshold_ms = Format-P4FrameMetric $grossInput
+            families = @($families.Keys | Where-Object { $families[$_].gross_regression })
+        }
     }
     return $result
 }

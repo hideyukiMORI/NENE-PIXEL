@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([switch]$DiagnosticBoundariesOnly, [switch]$BaselineBindingOnly, [switch]$StateNativeIntegersOnly, [switch]$BaselineGrossReferenceOnly)
+param([switch]$GrossBoundariesOnly, [switch]$BaselineBindingOnly, [switch]$StateNativeIntegersOnly, [switch]$BaselineGrossReferenceOnly)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -176,10 +176,10 @@ function Save-LayerBaseline {
     $Analysis | ConvertTo-Json -Depth 20 | Set-Content (Join-Path $outer 'analysis.json') -Encoding utf8NoBOM
 }
 $contracts = @(Get-P4FrameSlotCatalog -ProtocolId $protocol | ForEach-Object { Get-P4FrameExecutionContract -ProtocolId $protocol -SlotId $_.id })
-if ($BaselineGrossReferenceOnly -or -not ($DiagnosticBoundariesOnly -or $BaselineBindingOnly -or $StateNativeIntegersOnly)) {
+if ($BaselineGrossReferenceOnly -or -not ($GrossBoundariesOnly -or $BaselineBindingOnly -or $StateNativeIntegersOnly)) {
 $grossRoot = Join-Path $evidenceRoot 'decision-baseline-gross-reference'; New-Item -ItemType Directory $grossRoot | Out-Null
 Copy-Item (Join-Path $primaryRoot 'experiment.json') $grossRoot
-$grossSlot = New-LayerFrameFixture -Contract $contracts[4] -Root $grossRoot
+$grossSlot = New-LayerFrameFixture -Contract $contracts[2] -Root $grossRoot
 $path = Join-Path $grossSlot 'frames.csv'; $rows = @(Import-Csv $path)
 # One true outlier among150 tap frames leaves nearest-rank p95/p99=-1ms; UP p95 stays16ms.
 $rows[2].frame_completed_nanos = '1152000000'; $rows[2].frame_deadline_nanos = '1112000000'
@@ -197,22 +197,25 @@ $path = Join-Path $grossSlot 'metadata.txt'
     $key = $_.Split('=', 2)[0]
     if ($replacements.ContainsKey($key)) { "$key=$($replacements[$key])" } else { $_ }
 }) | Set-Content $path -Encoding utf8NoBOM
-$args = Get-LayerFixtureArguments $contracts[4] $grossSlot
+$args = Get-LayerFixtureArguments $contracts[2] $grossSlot
 $grossResult = Test-P4FrameCapture @args
 Assert-LayerFrame ($grossResult.verdict -ceq 'baseline-recorded' -and $grossResult.families.canvas256_layers16_tap.gross_regression) 'baseline guard permits true outlier gross with valid p95'
+Assert-LayerFrame ($grossResult.gross_regression -eq $true -and $grossResult.gross_regression_basis.maximum_frame_overrun_ms -ceq '40.000000' -and
+    $grossResult.gross_regression_basis.maximum_input_to_committed_result_ms -ceq '50.000000' -and
+    (@($grossResult.gross_regression_basis.families) -join '|') -ceq 'canvas256_layers16_tap') 'decision baseline records slot gross_regression with its basis'
 Save-LayerBaseline $grossResult $grossSlot
-$slot = New-LayerFrameFixture -Contract $contracts[5] -Root $grossRoot
-$args = Get-LayerFixtureArguments $contracts[5] $slot
+$slot = New-LayerFrameFixture -Contract $contracts[3] -Root $grossRoot
+$args = Get-LayerFixtureArguments $contracts[3] $slot
 Assert-LayerFrame ((Test-P4FrameCapture @args).verdict -ceq 'pass') 'candidate reference accepts valid baseline gross true'
 }
 if ($BaselineGrossReferenceOnly) { "PASS: $script:assertions assertions; baseline gross reference only; evidence $evidenceRelative"; return }
-if ($StateNativeIntegersOnly -or -not ($DiagnosticBoundariesOnly -or $BaselineBindingOnly -or $BaselineGrossReferenceOnly)) {
+if ($StateNativeIntegersOnly -or -not ($GrossBoundariesOnly -or $BaselineBindingOnly -or $BaselineGrossReferenceOnly)) {
 foreach ($field in @('comparison_sequence_index', 'attempt', 'measured_operation_count',
         'canvas256_layers16_tap', 'canvas256_layers16_repeated_diagonal', 'positive')) {
     $root = Join-Path $evidenceRoot ('native-state-' + $field); New-Item -ItemType Directory $root | Out-Null
     Copy-Item (Join-Path $primaryRoot 'experiment.json') $root
-    $slot = New-LayerFrameFixture -Contract $contracts[4] -Root $root
-    $args = Get-LayerFixtureArguments $contracts[4] $slot
+    $slot = New-LayerFrameFixture -Contract $contracts[2] -Root $root
+    $args = Get-LayerFixtureArguments $contracts[2] $slot
     if ($field -ceq 'positive') { Assert-LayerFrame ((Test-P4FrameCapture @args).verdict -ceq 'baseline-recorded') 'native JSON integers positive'; continue }
     $path = Join-Path $slot 'run-state.json'; $state = Get-Content -Raw $path | ConvertFrom-Json -AsHashtable
     if ($field.StartsWith('canvas', [StringComparison]::Ordinal)) { $state.measured_workload_counts[$field] = [string]$state.measured_workload_counts[$field] }
@@ -224,34 +227,43 @@ foreach ($field in @('comparison_sequence_index', 'attempt', 'measured_operation
 if ($StateNativeIntegersOnly) { "PASS: $script:assertions assertions; state native integers only; evidence $evidenceRelative"; return }
 if (-not $BaselineBindingOnly) {
 # New direct concern uses this narrow selector; the already passing 295-case population is reusable.
+# R2: the decision slot itself owns the gross boundary (> 33.34 ms overrun or > 100 ms UP-to-committed).
+# The verdict is unchanged (input p95 gate); only the slot gross_regression record moves.
 foreach ($case in @(
-        @{ name = 'diagnostic-overrun-inclusive'; input = 50000000L; overrun = 33340000L; verdict = 'inconclusive' },
-        @{ name = 'diagnostic-overrun-one-nanosecond'; input = 50000000L; overrun = 33340001L; verdict = 'PERFORMANCE_FAIL' },
-        @{ name = 'diagnostic-input-inclusive'; input = 100000000L; overrun = -1000000L; verdict = 'inconclusive' },
-        @{ name = 'diagnostic-input-one-nanosecond'; input = 100000001L; overrun = -1000000L; verdict = 'PERFORMANCE_FAIL' })) {
+        @{ name = 'decision-gross-overrun-inclusive'; input = 32000000L; overrun = 33340000L; verdict = 'baseline-recorded'; gross = $false; overrunText = '33.340000'; inputText = '32.000000' },
+        @{ name = 'decision-gross-overrun-one-nanosecond'; input = 32000000L; overrun = 33340001L; verdict = 'baseline-recorded'; gross = $true; overrunText = '33.340001'; inputText = '32.000000' },
+        @{ name = 'decision-gross-input-inclusive'; input = 100000000L; overrun = -1000000L; verdict = 'baseline-invalid'; gross = $false; overrunText = '-1.000000'; inputText = '100.000000' },
+        @{ name = 'decision-gross-input-one-nanosecond'; input = 100000001L; overrun = -1000000L; verdict = 'baseline-invalid'; gross = $true; overrunText = '-1.000000'; inputText = '100.000001' })) {
     $root = Join-Path $evidenceRoot $case.name; New-Item -ItemType Directory $root | Out-Null
     Copy-Item (Join-Path $primaryRoot 'experiment.json') $root
-    $slot = New-LayerFrameFixture -Contract $contracts[10] -Root $root -InputNs $case.input -CommitOverrunNs $case.overrun
-    $args = Get-LayerFixtureArguments $contracts[10] $slot
-    Assert-LayerFrame ((Test-P4FrameCapture @args).verdict -ceq $case.verdict) $case.name
+    $slot = New-LayerFrameFixture -Contract $contracts[4] -Root $root -InputNs $case.input -CommitOverrunNs $case.overrun
+    $args = Get-LayerFixtureArguments $contracts[4] $slot
+    $result = Test-P4FrameCapture @args
+    $basis = $result.gross_regression_basis
+    Assert-LayerFrame ($result.verdict -ceq $case.verdict -and $result.gross_regression -eq $case.gross -and
+        $basis.maximum_frame_overrun_ms -ceq $case.overrunText -and $basis.maximum_input_to_committed_result_ms -ceq $case.inputText -and
+        $basis.gross_overrun_threshold_ms -ceq '33.340000' -and $basis.gross_input_threshold_ms -ceq '100.000000' -and
+        @($basis.families).Count -eq $(if ($case.gross) { 1 } else { 0 })) $case.name
 }
 }
-if ($DiagnosticBoundariesOnly) { "PASS: $script:assertions assertions; diagnostic boundaries only; evidence $evidenceRelative"; return }
+if ($GrossBoundariesOnly) { "PASS: $script:assertions assertions; decision gross boundaries only; evidence $evidenceRelative"; return }
 # Direct isolated source import proves phase functions do not depend on the caller importing preflight.
 $isolated = & {
     . (Join-Path $PSScriptRoot 'measurements/p4-indexed-frame-analysis.ps1')
-    Get-P4FrameCaptureContract -Role baseline -Runner decision -SequenceIndex 9 -BuildCommit $build -ExpectedApkSha256 $apk `
-        -ExperimentId $experimentId -PhaseContext ([ordered]@{ protocol_id = $protocol; slot_id = $contracts[8].slot_id
-            preflight_sha256 = $preflightHash; production_commit = $contracts[8].baseline_production_commit; baseline_reference = $null })
+    Get-P4FrameCaptureContract -Role baseline -Runner decision -SequenceIndex 5 -BuildCommit $build -ExpectedApkSha256 $apk `
+        -ExperimentId $experimentId -PhaseContext ([ordered]@{ protocol_id = $protocol; slot_id = $contracts[4].slot_id
+            preflight_sha256 = $preflightHash; production_commit = $contracts[4].baseline_production_commit; baseline_reference = $null })
 }
-Assert-LayerFrame ($isolated.slot_id -ceq $contracts[8].slot_id) 'direct import resolves canonical underlay contract'
+Assert-LayerFrame ($isolated.slot_id -ceq $contracts[4].slot_id) 'direct import resolves canonical underlay contract'
+Assert-LayerFrame ($contracts.Count -eq 6 -and @($contracts | Where-Object { $_.runner -cne 'decision' }).Count -eq 0) 'phase frame catalog is six decision slots'
 foreach ($contract in $contracts) {
-    if ($BaselineBindingOnly -and $contract.runner -ceq 'diagnostic') { continue }
     $slot = New-LayerFrameFixture $contract
     $args = Get-LayerFixtureArguments $contract $slot
     $result = Test-P4FrameCapture @args
-    $expectedVerdict = if ($contract.runner -ceq 'diagnostic') { 'inconclusive' } elseif ($contract.role -ceq 'baseline') { 'baseline-recorded' } else { 'pass' }
-    Assert-LayerFrame ($result.verdict -ceq $expectedVerdict) "12 slot verdict $($contract.slot_id)"
+    $expectedVerdict = if ($contract.role -ceq 'baseline') { 'baseline-recorded' } else { 'pass' }
+    Assert-LayerFrame ($result.verdict -ceq $expectedVerdict) "6 slot verdict $($contract.slot_id)"
+    Assert-LayerFrame ($result.gross_regression -eq $false -and $result.gross_regression_basis.maximum_frame_overrun_ms -ceq '-1.000000' -and
+        $result.gross_regression_basis.maximum_input_to_committed_result_ms -ceq '16.000000' -and @($result.gross_regression_basis.families).Count -eq 0) "6 slot gross record $($contract.slot_id)"
     foreach ($key in @('protocol_id', 'group_id', 'slot_id', 'artifact_role')) { Assert-LayerFrame ($result[$key] -ceq $contract[$key]) "$key $($contract.slot_id)" }
     Assert-LayerFrame ($result.experiment_sha256 -ceq $experimentHash -and $result.preflight_sha256 -ceq $preflightHash) "experiment binding $($contract.slot_id)"
     foreach ($workload in $contract.workload_order) {
@@ -266,7 +278,7 @@ foreach ($contract in $contracts) {
     if ($contract.role -ceq 'baseline' -and $contract.runner -ceq 'decision') { Save-LayerBaseline $result $slot }
 }
 # Fresh runspace has no caller-sourced functions; Test-P4FrameCapture must import its own resolver.
-$directArguments = Get-LayerFixtureArguments $contracts[8] (Join-Path $primaryRoot $contracts[8].frame_directory_name)
+$directArguments = Get-LayerFixtureArguments $contracts[4] (Join-Path $primaryRoot $contracts[4].frame_directory_name)
 $isolatedShell = [PowerShell]::Create()
 try {
     $isolatedShell.AddScript('param($Source, $Arguments) . $Source; Test-P4FrameCapture @Arguments').
@@ -276,7 +288,7 @@ try {
 } finally { $isolatedShell.Dispose() }
 
 function Copy-LayerCase {
-    param([string]$Name, [int]$ContractIndex = 5)
+    param([string]$Name, [int]$ContractIndex = 3)
     $root = Join-Path $evidenceRoot $Name
     New-Item -ItemType Directory -Path $root | Out-Null
     Copy-Item -LiteralPath (Join-Path $primaryRoot 'experiment.json') -Destination $root
@@ -315,31 +327,33 @@ function Set-LayerBaselineField {
 
 # Decimal boundaries are encoded with integer nanoseconds, with independent literal expectations.
 foreach ($case in @(
-        @{ name = 'candidate-16670000'; index = 5; ns = 16670000L; verdict = 'pass' },
-        @{ name = 'candidate-16670001'; index = 5; ns = 16670001L; verdict = 'PERFORMANCE_FAIL' },
-        @{ name = 'baseline-33330000'; index = 4; ns = 33330000L; verdict = 'baseline-recorded' },
-        @{ name = 'baseline-33330001'; index = 4; ns = 33330001L; verdict = 'baseline-invalid' })) {
+        @{ name = 'candidate-16670000'; index = 3; ns = 16670000L; verdict = 'pass' },
+        @{ name = 'candidate-16670001'; index = 3; ns = 16670001L; verdict = 'PERFORMANCE_FAIL' },
+        @{ name = 'baseline-33330000'; index = 2; ns = 33330000L; verdict = 'baseline-recorded' },
+        @{ name = 'baseline-33330001'; index = 2; ns = 33330001L; verdict = 'baseline-invalid' })) {
     $root = Join-Path $evidenceRoot $case.name; New-Item -ItemType Directory $root | Out-Null
     Copy-Item (Join-Path $primaryRoot 'experiment.json') $root
-    if ($case.index -eq 5) {
-        Copy-Item (Join-Path $primaryRoot $contracts[4].frame_directory_name) $root -Recurse
-        $record = Get-Content -Raw (Join-Path (Join-Path (Join-Path $primaryRoot 'outer-slots') $contracts[4].slot_id) 'analysis.json') | ConvertFrom-Json -AsHashtable
-        Save-LayerBaseline $record (Join-Path $root $contracts[4].frame_directory_name)
+    if ($case.index -eq 3) {
+        Copy-Item (Join-Path $primaryRoot $contracts[2].frame_directory_name) $root -Recurse
+        $record = Get-Content -Raw (Join-Path (Join-Path (Join-Path $primaryRoot 'outer-slots') $contracts[2].slot_id) 'analysis.json') | ConvertFrom-Json -AsHashtable
+        Save-LayerBaseline $record (Join-Path $root $contracts[2].frame_directory_name)
     }
     $slot = New-LayerFrameFixture -Contract $contracts[$case.index] -Root $root -InputNs $case.ns
     $args = Get-LayerFixtureArguments $contracts[$case.index] $slot
     Assert-LayerFrame ((Test-P4FrameCapture @args).verdict -ceq $case.verdict) $case.name
 }
-foreach ($case in @(@{ name = 'relative-p95-inclusive'; ns = 0L; verdict = 'pass' },
-        @{ name = 'relative-p95-plus-nanosecond'; ns = 1L; verdict = 'PERFORMANCE_FAIL' })) {
+foreach ($case in @(@{ name = 'relative-p95-inclusive'; ns = 0L; input = 16000000L; verdict = 'pass'; gross = $false },
+        @{ name = 'relative-p95-plus-nanosecond'; ns = 1L; input = 16000000L; verdict = 'PERFORMANCE_FAIL'; gross = $false },
+        @{ name = 'decision-candidate-gross'; ns = 33340001L; input = 32000000L; verdict = 'PERFORMANCE_FAIL'; gross = $true })) {
     $root = Join-Path $evidenceRoot $case.name; New-Item -ItemType Directory $root | Out-Null
     Copy-Item (Join-Path $primaryRoot 'experiment.json') $root
-    Copy-Item (Join-Path $primaryRoot $contracts[4].frame_directory_name) $root -Recurse
-    $record = Get-Content -Raw (Join-Path (Join-Path (Join-Path $primaryRoot 'outer-slots') $contracts[4].slot_id) 'analysis.json') | ConvertFrom-Json -AsHashtable
-    Save-LayerBaseline $record (Join-Path $root $contracts[4].frame_directory_name)
-    $slot = New-LayerFrameFixture -Contract $contracts[5] -Root $root -CommitOverrunNs $case.ns
-    $args = Get-LayerFixtureArguments $contracts[5] $slot
-    Assert-LayerFrame ((Test-P4FrameCapture @args).verdict -ceq $case.verdict) $case.name
+    Copy-Item (Join-Path $primaryRoot $contracts[2].frame_directory_name) $root -Recurse
+    $record = Get-Content -Raw (Join-Path (Join-Path (Join-Path $primaryRoot 'outer-slots') $contracts[2].slot_id) 'analysis.json') | ConvertFrom-Json -AsHashtable
+    Save-LayerBaseline $record (Join-Path $root $contracts[2].frame_directory_name)
+    $slot = New-LayerFrameFixture -Contract $contracts[3] -Root $root -CommitOverrunNs $case.ns -InputNs $case.input
+    $args = Get-LayerFixtureArguments $contracts[3] $slot
+    $result = Test-P4FrameCapture @args
+    Assert-LayerFrame ($result.verdict -ceq $case.verdict -and $result.gross_regression -eq $case.gross) $case.name
 }
 
 foreach ($field in @('schema', 'experiment_schema', 'verdict_rule', 'protocol_id', 'preflight_sha256', 'group_id', 'slot_id', 'artifact_role',
@@ -371,12 +385,12 @@ $args = Copy-LayerCase 'baseline-analysis-byte-hash'; Add-Content $args.Baseline
 Assert-LayerRefuses { Test-P4FrameCapture @args } 'baseline analysis actual byte hash'
 $args = Copy-LayerCase 'baseline-seal-byte-hash'; Add-Content (Join-Path (Split-Path -Parent $args.BaselineAnalysisPath) 'capture-seal.json') ' '
 Assert-LayerRefuses { Test-P4FrameCapture @args } 'baseline seal actual byte hash'
-$args = Copy-LayerCase 'baseline-sealed-file'; Add-Content (Join-Path (Join-Path (Split-Path -Parent $args.SlotDirectory) $contracts[4].frame_directory_name) 'metadata.txt') 'tampered=true'
+$args = Copy-LayerCase 'baseline-sealed-file'; Add-Content (Join-Path (Join-Path (Split-Path -Parent $args.SlotDirectory) $contracts[2].frame_directory_name) 'metadata.txt') 'tampered=true'
 Assert-LayerRefuses { Test-P4FrameCapture @args } 'baseline seal verifies listed file bytes'
 $args = Copy-LayerCase 'baseline-foreign-path'; $args.BaselineAnalysisPath = Join-Path (Join-Path (Join-Path $primaryRoot 'outer-slots') $contracts[0].slot_id) 'analysis.json'
 $args.PhaseContext.baseline_reference.analysis_sha256 = Get-FileSha256 $args.BaselineAnalysisPath
 Assert-LayerRefuses { Test-P4FrameCapture @args } 'foreign single-group path with identical metrics'
-$args = Copy-LayerCase 'baseline-analysis-in-raw'; $rawPath = Join-Path (Join-Path (Split-Path -Parent $args.SlotDirectory) $contracts[4].frame_directory_name) 'analysis.json'
+$args = Copy-LayerCase 'baseline-analysis-in-raw'; $rawPath = Join-Path (Join-Path (Split-Path -Parent $args.SlotDirectory) $contracts[2].frame_directory_name) 'analysis.json'
 Copy-Item -LiteralPath $args.BaselineAnalysisPath -Destination $rawPath
 $args.BaselineAnalysisPath = $rawPath
 Assert-LayerRefuses { Test-P4FrameCapture @args } 'analysis cannot substitute raw frame directory for canonical outer slot'
@@ -390,7 +404,7 @@ foreach ($case in @(@{ name = 'relative-p99-inclusive'; overrun = '1.000000'; ns
         $rows[$index].frame_deadline_nanos = ([long]$rows[$index].frame_completed_nanos - $case.ns).ToString()
     }
     $rows | Export-Csv -NoTypeInformation -Encoding utf8 $path
-    foreach ($workload in $contracts[5].workload_order) {
+    foreach ($workload in $contracts[3].workload_order) {
         Set-LayerMetadata $args.SlotDirectory "${workload}_frame_overrun_p99_ms" $case.overrun
         Set-LayerMetadata $args.SlotDirectory "${workload}_maximum_frame_overrun_ms" $case.overrun
     }
@@ -519,10 +533,9 @@ foreach ($mutation in @('explicit-null', 'extra-key', 'array-hash', 'protocol', 
     }
     Assert-LayerRefuses { Test-P4FrameCapture @args } "context $mutation"
 }
-# Complete family prefixes are allowed only in diagnostics with a numeric gross-regression reason.
-foreach ($case in @(@{ name = 'diagnostic-gross-prefix'; index = 6; ns = 33340001L; verdict = 'PERFORMANCE_FAIL' },
-        @{ name = 'diagnostic-no-gross-prefix'; index = 6; ns = -1000000L; verdict = 'refuse' },
-        @{ name = 'decision-prefix'; index = 4; ns = 33340001L; verdict = 'refuse' })) {
+# Phase slots are decision-only: a family prefix is refused even with a gross regression (R2 records, never truncates).
+foreach ($case in @(@{ name = 'decision-gross-prefix'; index = 2; ns = 33340001L; verdict = 'refuse' },
+        @{ name = 'decision-no-gross-prefix'; index = 2; ns = -1000000L; verdict = 'refuse' })) {
     $root = Join-Path $evidenceRoot $case.name; New-Item -ItemType Directory $root | Out-Null
     Copy-Item (Join-Path $primaryRoot 'experiment.json') $root
     $inputNs = if ($case.ns -gt 0) { 50000000L } else { 16000000L }
@@ -548,7 +561,7 @@ $comparisonOrder = 'decision:baseline|decision:candidate|diagnostic:baseline|dia
 $profileId = 'NENE-P2-ALLDOCUBE-IPL80MP-A16-API36'
 $slot = New-P4FrameSlotFixture -Name 'baseline' -Role baseline -Runner decision -SequenceIndex 1 -Families $workloadOrder
 $result = Invoke-P4FrameFixtureAnalysis -SlotDirectory $slot -Role baseline -Runner decision -SequenceIndex 1
-Assert-LayerFrame ($result.verdict -ceq 'baseline-recorded' -and $result.schema -ceq 'nene-pixel-p4-indexed-actual-app-frame-v8' -and -not $result.Contains('protocol_id')) 'legacy unchanged v8 shape and20ms admission'
+Assert-LayerFrame ($result.verdict -ceq 'baseline-recorded' -and $result.schema -ceq 'nene-pixel-p4-indexed-actual-app-frame-v8' -and -not $result.Contains('protocol_id') -and -not $result.Contains('gross_regression')) 'legacy unchanged v8 shape and20ms admission'
 $baselinePath = Save-P4FrameAnalysis $result (Join-Path $temporaryRoot 'baseline-analysis.json')
 $slot = New-P4FrameSlotFixture -Name 'candidate' -Role candidate -Runner decision -SequenceIndex 2 -Families $workloadOrder
 $result = Invoke-P4FrameFixtureAnalysis -SlotDirectory $slot -Role candidate -Runner decision -SequenceIndex 2 -BaselineAnalysisPath $baselinePath
