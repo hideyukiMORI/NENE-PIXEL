@@ -50,20 +50,91 @@ function Assert-P4DeviceLaneContract {
     }
 }
 
+function Test-P4PhaseManifest {
+    # Issue #145 R4/R7 point 2: the manifest's protocol id alone selects the layer phase path.
+    param($Manifest)
+    return $Manifest -is [Collections.IDictionary] -and $Manifest.Contains('protocol') -and
+        $Manifest.protocol -is [Collections.IDictionary] -and $Manifest.protocol.Contains('id') -and
+        [string]$Manifest.protocol.id -ceq 'nene-pixel-p4-layer-phase-verification-v1'
+}
+
+function Get-P4SlotProtocolId {
+    # A phase catalog slot carries its protocol id; a v7 slot does not and keeps the v7 protocol.
+    param($Slot)
+    if ($Slot -is [Collections.IDictionary] -and $Slot.Contains('protocol_id')) { return [string]$Slot.protocol_id }
+    return $script:P4ProtocolId
+}
+
+function Get-P4SlotArtifactRole {
+    # The manifest role whose build a slot runs. Phase: the slot's artifact role (baseline_single,
+    # baseline_layers16, baseline_underlay or candidate), resolved by the canonical catalog. v7: the
+    # comparison role itself, exactly as before. A slot and a manifest of different protocols are refused.
+    param($Manifest, $Slot)
+    $phaseManifest = Test-P4PhaseManifest $Manifest
+    $protocol = Get-P4SlotProtocolId $Slot
+    if (-not $phaseManifest) {
+        if ($protocol -cne $script:P4ProtocolId) { throw "Slot $($Slot.id) belongs to $protocol, not to this manifest." }
+        return [string]$Slot.role
+    }
+    if ($protocol -cne [string]$Manifest.protocol.id) { throw "Slot $($Slot.id) does not belong to the phase manifest." }
+    $role = Resolve-P4ArtifactRole $protocol ([string]$Slot.id)
+    if ($Manifest.roles -isnot [Collections.IDictionary] -or -not $Manifest.roles.Contains($role)) {
+        throw "The phase manifest does not declare artifact role $role."
+    }
+    return [string]$role
+}
+
+function Get-P4SlotSource {
+    param($Manifest, $Slot)
+    return $Manifest.roles[(Get-P4SlotArtifactRole $Manifest $Slot)]
+}
+
+function Get-P4IndexedSlotRoute {
+    <#
+        The one selection of catalog, slot and roles for Invoke-P4IndexedSlot. Phase: the 18-slot catalog
+        of Get-P4SlotCatalog; the artifact role picks the manifest build, the comparison role (baseline /
+        candidate) keeps its verdict meaning. v7: Issue #120's frame catalog or Issue #106's catalog, as before.
+    #>
+    param([Parameter(Mandatory = $true)][Collections.IDictionary]$Manifest, [Parameter(Mandatory = $true)][string]$SlotId)
+    $phase = Test-P4PhaseManifest $Manifest
+    if ($phase) {
+        $protocol = [string]$Manifest.protocol.id
+        $catalog = @(Get-P4SlotCatalog -ProtocolId $protocol)
+    } else {
+        $protocol = $script:P4ProtocolId
+        # Frame slots chain within Issue #120's own four-slot catalog, outside Issue #106's order.
+        $frameCatalog = @(Get-P4FrameSlotCatalog)
+        $catalog = if (@($frameCatalog | Where-Object { $_.id -ceq $SlotId }).Count -eq 1) { $frameCatalog }
+            else { @(Get-P4SlotCatalog) }
+    }
+    $selected = @($catalog | Where-Object { $_.id -ceq $SlotId })
+    if ($selected.Count -ne 1) { throw 'Unknown slot; no substitute or extra attempt is permitted.' }
+    $slot = $selected[0]
+    return [ordered]@{ phase = $phase; protocol_id = $protocol; catalog = $catalog; slot = $slot
+        artifact_role = (Get-P4SlotArtifactRole $Manifest $slot); comparison_role = [string]$slot.role }
+}
+
 function Get-P4SlotDeviceContext {
     # The same four-field context the collector builds, so the wrapper's own adb work travels the same
     # bounded path and lands its logs inside the slot directory (and therefore inside the capture seal).
+    # Phase: the repository is the artifact role's clone, and `phase_context` is the lane planner's own
+    # 11/12-field identity context (never a second definition).
     param(
         [Parameter(Mandatory = $true)][System.Collections.IDictionary]$Manifest,
         [Parameter(Mandatory = $true)][System.Collections.IDictionary]$Slot,
-        [Parameter(Mandatory = $true)][ValidateNotNullOrEmpty()][string]$Directory
+        [Parameter(Mandatory = $true)][ValidateNotNullOrEmpty()][string]$Directory,
+        [string]$ManifestSha256 = ''
     )
-    return [ordered]@{
-        repository_root = [IO.Path]::GetFullPath($Manifest.roles[$Slot.role].worktree)
+    $context = [ordered]@{
+        repository_root = [IO.Path]::GetFullPath((Get-P4SlotSource $Manifest $Slot).worktree)
         output_directory = [IO.Path]::GetFullPath($Directory)
         adb_path = [IO.Path]::GetFullPath($Manifest.tools.adb.path)
         serial = [string]$Manifest.device.serial
     }
+    if (Test-P4PhaseManifest $Manifest) {
+        $context.phase_context = (Get-P4DeviceLanePlan -Manifest $Manifest -Slot $Slot -ManifestSha256 $ManifestSha256).phase_context
+    }
+    return $context
 }
 
 function Get-P4SlotCollectorBudget {
@@ -75,8 +146,17 @@ function Get-P4SlotCollectorBudget {
         `timeout_seconds` (protocol:362-374 for frame, where `timeout_seconds` is itself derived from
         the slot's operation count by Get-P4FrameWrapperBound).
     #>
-    param($Manifest, $Slot)
+    param($Manifest, $Slot, [string]$ManifestSha256 = '')
     Assert-P4DeviceLaneContract
+    if (Test-P4PhaseManifest $Manifest) {
+        # Phase: the planner's budget (writer count from the role's installed packages), unchanged, so
+        # the collector's own reservation check (started.collector_budget) sees the same projection.
+        $phasePlan = Get-P4DeviceLanePlan -Manifest $Manifest -Slot $Slot -ManifestSha256 $ManifestSha256
+        if ([int]$phasePlan.collector_budget.collector_timeout_seconds -lt [int]$Slot.timeout_seconds) {
+            throw "The phase collector bound for $($Slot.id) is shorter than its slot bound."
+        }
+        return [ordered]@{ plan = $phasePlan; budget = $phasePlan.collector_budget }
+    }
     if ($Slot.lane -ceq 'host') {
         $hostBudget = [ordered]@{
             schema = 'nene-pixel-p4-collector-budget-v1'; lane = 'host'; slot_id = [string]$Slot.id;
@@ -124,6 +204,17 @@ function Get-P4ManifestPackages {
         throw 'The manifest does not declare roles; remote packages cannot be derived.'
     }
     $packages = [Collections.Generic.SortedSet[string]]::new([StringComparer]::Ordinal)
+    if (Test-P4PhaseManifest $Manifest) {
+        # Phase: every artifact role of the canonical artifact catalog, through the planner's package reader.
+        foreach ($entry in @(Get-P4LayerArtifactCatalog $Manifest.protocol.id)) {
+            $lane = Get-P4LanePackages $Manifest $entry.role $Manifest.protocol.id
+            foreach ($value in @($lane.application, $lane.application_test, $lane.publication_test)) {
+                if ($null -ne $value) { $packages.Add([string]$value) | Out-Null }
+            }
+        }
+        if ($packages.Count -eq 0) { throw 'No remote package could be derived from the phase artifacts.' }
+        return ([string[]]$packages)
+    }
     foreach ($role in @('baseline', 'candidate')) {
         if (-not $Manifest.roles.Contains($role)) {
             throw "The manifest does not declare the $role role; remote packages cannot be derived."
@@ -155,7 +246,7 @@ function Get-P4ManifestPackages {
 function Assert-P4RemotePackageAbsent {
     # One shared rule for every absence check: `adb shell pidof <pkg>` must exit 1 with empty output.
     param($Manifest, $Slot, [string]$Directory, [string]$LogName, [string]$Package)
-    $result = Invoke-BoundedNativeCommand -RepositoryRoot $Manifest.roles[$Slot.role].worktree `
+    $result = Invoke-BoundedNativeCommand -RepositoryRoot (Get-P4SlotSource $Manifest $Slot).worktree `
         -ExecutablePath $Manifest.tools.adb.path -LogPath (Join-Path $Directory "$LogName.log") `
         -NativeArguments @('-s', $Manifest.device.serial, 'shell', 'pidof', $Package) -TimeoutSeconds 10
     if ($result.ExitCode -ne 1 -or -not [string]::IsNullOrWhiteSpace((@($result.OutputLines) -join ''))) {
@@ -521,9 +612,10 @@ function Assert-P4CompletedChain {
         $expected = if ($prior.lane -ceq 'host') { @('valid-descriptive') }
             elseif ($prior.lane -ceq 'frame') { Get-P4FrameContinuingVerdicts $prior }
             elseif ($prior.lane -ceq 'publication') { @('valid-constants-retained', 'valid-constants-revision-required') }
+            elseif ($prior.lane -ceq 'saf-save') { @('valid-descriptive') }
             else { @('pass') }
         if ([string]$result.slot_id -cne $prior.id -or [string]$result.verdict -cnotin $expected -or
-            [string]$result.status -cne 'completed' -or [string]$result.protocol_id -cne $script:P4ProtocolId -or
+            [string]$result.status -cne 'completed' -or [string]$result.protocol_id -cne (Get-P4SlotProtocolId $prior) -or
             [string]$result.preflight_sha256 -cne $ManifestHash -or
             (Test-Path -LiteralPath (Join-Path $priorDirectory 'invalid.json'))) {
             throw "Prior slot stopped the experiment: $($prior.id)"
@@ -545,6 +637,9 @@ function Assert-P4CompletedChain {
         if (-not $priorAnalysis.Contains('capture_seal_sha256') -or
             [string]$priorAnalysis.capture_seal_sha256 -cne [string]$result.capture_seal_sha256) {
             throw "Completed chain drifted: analysis capture seal binding of $($prior.id)"
+        }
+        if ((Get-P4SlotProtocolId $prior) -ceq 'nene-pixel-p4-layer-phase-verification-v1') {
+            Assert-P4PhaseAnalysisIdentity -Analysis $priorAnalysis -Slot $prior -ManifestHash $ManifestHash
         }
         if ($prior.lane -ceq 'host') {
             if ([string]$result.restoration_sha256 -cne 'not-applicable') {
@@ -619,13 +714,14 @@ function Invoke-P4SlotAdmission {
         $problems = @(@($hostRecord.offending) | ForEach-Object { "$($_.pattern) (pid $($_.process_id))" }) +
             @($remoteRecord.errors)
         if ($problems.Count -gt 0) { throw "Shared quiescence was not confirmed: $($problems -join '; ')" }
-        $worktree = Get-P4WorktreeState -Worktree $Manifest.roles[$Slot.role].worktree -Stage 'before' -Directory $staging
-        Assert-P4WorktreeState -State $worktree -ExpectedCommit $Manifest.roles[$Slot.role].build_commit `
+        $source = Get-P4SlotSource $Manifest $Slot
+        $worktree = Get-P4WorktreeState -Worktree $source.worktree -Stage 'before' -Directory $staging
+        Assert-P4WorktreeState -State $worktree -ExpectedCommit $source.build_commit `
             -Context "slot $($Slot.id) admission"
         if ($Slot.lane -cne 'host') {
             Assert-P4DeviceStateContract
             $state = Get-P4LiveDeviceState -AdbPath $Manifest.tools.adb.path -Serial $Manifest.device.serial `
-                -Directory $staging -Stage 'before' -RepositoryRoot $Manifest.roles[$Slot.role].worktree
+                -Directory $staging -Stage 'before' -RepositoryRoot $source.worktree
             Assert-P4DeviceStateMatches -Expected $Manifest.device -Observed $state -Context "slot $($Slot.id) admission" | Out-Null
         }
         return [ordered]@{ directory = $staging }
@@ -651,7 +747,7 @@ function Invoke-P4SlotRestoration {
     try {
         Assert-P4DeviceStateContract
         $after = Get-P4LiveDeviceState -AdbPath $Manifest.tools.adb.path -Serial $Manifest.device.serial `
-            -Directory $restoreDirectory -Stage 'after' -RepositoryRoot $Manifest.roles[$Slot.role].worktree
+            -Directory $restoreDirectory -Stage 'after' -RepositoryRoot (Get-P4SlotSource $Manifest $Slot).worktree
         Assert-P4DeviceStateMatches -Expected $Manifest.device -Observed $after -Context "slot $($Slot.id) cleanup" | Out-Null
         $deviceAfterSha = Get-FileSha256 (Join-Path $restoreDirectory 'device-state-after.json')
     } catch { $errors.Add($_.Exception.Message) }
@@ -665,6 +761,39 @@ function Invoke-P4SlotRestoration {
         message = "Device restoration is not proven: $(@($errors) -join '; ')" }
 }
 
+function Assert-P4PhaseAnalysisIdentity {
+    <#
+        Issue #145 R4/R7 point 2: a phase analysis names the phase protocol, the slot, the reserved
+        manifest, the comparison role, and the slot's artifact role. The frame analysis carries
+        `artifact_role` at the top; memory and storage carry it in the planner's `phase_context`. Every
+        declared copy must agree; an analysis that declares none is refused.
+    #>
+    param($Analysis, $Slot, [string]$ManifestHash)
+    $protocol = Get-P4SlotProtocolId $Slot
+    if ($protocol -cne 'nene-pixel-p4-layer-phase-verification-v1') { throw "Not a phase slot: $($Slot.id)" }
+    $artifactRole = [string](Resolve-P4ArtifactRole $protocol ([string]$Slot.id))
+    if ([string]$Analysis.protocol_id -cne $protocol -or [string]$Analysis.slot_id -cne $Slot.id -or
+        [string]$Analysis.role -cne [string]$Slot.role -or [string]$Analysis.preflight_sha256 -cne $ManifestHash) {
+        throw "Phase analysis identity does not match the reserved slot: $($Slot.id)"
+    }
+    $declared = [Collections.Generic.List[string]]::new()
+    if ($Analysis.Contains('artifact_role')) { $declared.Add([string]$Analysis.artifact_role) }
+    if ($Analysis.Contains('phase_context')) {
+        $context = $Analysis.phase_context
+        if ($context -isnot [Collections.IDictionary]) { throw "Phase analysis context is not an object: $($Slot.id)" }
+        foreach ($pair in @(@('protocol_id', $protocol), @('slot_id', [string]$Slot.id), @('preflight_sha256', $ManifestHash))) {
+            if ($context.Contains($pair[0]) -and [string]$context[$pair[0]] -cne $pair[1]) {
+                throw "Phase analysis context differs at $($pair[0]): $($Slot.id)"
+            }
+        }
+        if ($context.Contains('artifact_role')) { $declared.Add([string]$context.artifact_role) }
+    }
+    if ($declared.Count -eq 0) { throw "Phase analysis does not declare its artifact role: $($Slot.id)" }
+    foreach ($role in $declared) {
+        if ($role -cne $artifactRole) { throw "Phase analysis names artifact role $role, not ${artifactRole}: $($Slot.id)" }
+    }
+}
+
 function Read-P4FreshAnalysis {
     param([string]$Path, $Slot, [string]$ManifestHash, [datetime]$StartedUtc, [string]$CaptureSealSha256)
     $file = Get-Item -LiteralPath $Path
@@ -674,7 +803,11 @@ function Read-P4FreshAnalysis {
     $result = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json -AsHashtable
     Assert-P4RequiredKeys $result @('schema', 'protocol_id', 'slot_id', 'preflight_sha256', 'role', 'verdict',
         'created_utc', 'capture_seal_sha256') 'analysis'
-    if ($result.protocol_id -cne $script:P4ProtocolId -or $result.slot_id -cne $Slot.id -or
+    # v7 slots carry no protocol_id, so Get-P4SlotProtocolId returns the v7 id and this comparison is unchanged.
+    if ((Get-P4SlotProtocolId $Slot) -ceq 'nene-pixel-p4-layer-phase-verification-v1') {
+        Assert-P4PhaseAnalysisIdentity -Analysis $result -Slot $Slot -ManifestHash $ManifestHash
+    }
+    if ($result.protocol_id -cne (Get-P4SlotProtocolId $Slot) -or $result.slot_id -cne $Slot.id -or
         $result.role -cne $Slot.role -or $result.preflight_sha256 -cne $ManifestHash -or
         ([datetime]$result.created_utc).ToUniversalTime() -lt $StartedUtc.AddSeconds(-1)) {
         throw 'Analyzer identity does not match the reserved slot.'
@@ -686,6 +819,7 @@ function Read-P4FreshAnalysis {
     $allowed = switch ($Slot.lane) {
         'host' { @('valid-descriptive') }
         'publication' { @('valid-constants-retained', 'valid-constants-revision-required') }
+        'saf-save' { @('valid-descriptive') }
         'frame' { Get-P4FrameAnalyzerVerdicts $Slot }
         default { @('pass', 'PERFORMANCE_FAIL') }
     }
@@ -706,16 +840,15 @@ function Invoke-P4IndexedSlot {
     # `-Stage slot` skips the reservation-only checks (live device admission and the Issue/protocol
     # agreement query): this wrapper performs its own live device admission per slot.
     Assert-P4ManifestArtifacts $manifest $manifest.roles.candidate.worktree -Stage 'slot'
-    # Frame slots chain within Issue #120's own four-slot catalog, outside Issue #106's order.
-    $frameCatalog = @(Get-P4FrameSlotCatalog)
-    $catalog = if (@($frameCatalog | Where-Object { $_.id -ceq $SlotId }).Count -eq 1) { $frameCatalog }
-        else { @(Get-P4SlotCatalog) }
-    $selected = @($catalog | Where-Object { $_.id -ceq $SlotId })
-    if ($selected.Count -ne 1) { throw 'Unknown slot; no substitute or extra attempt is permitted.' }
-    $slot = $selected[0]
+    # One route: the phase manifest selects the 18-slot phase catalog and the slot's artifact role; a v7
+    # manifest keeps Issue #120's frame catalog or Issue #106's catalog and the comparison role.
+    $route = Get-P4IndexedSlotRoute -Manifest $manifest -SlotId $SlotId
+    $catalog = $route.catalog
+    $slot = $route.slot
+    $source = Get-P4SlotSource $manifest $slot
     # Derived before any reservation: a plan the manifest cannot describe refuses the slot without
     # consuming it. `$lanePlan` is $null for the host lane, which owns no device plan.
-    $budgetRecord = Get-P4SlotCollectorBudget -Manifest $manifest -Slot $slot
+    $budgetRecord = Get-P4SlotCollectorBudget -Manifest $manifest -Slot $slot -ManifestSha256 $manifestHash
     $collectorBudget = $budgetRecord.budget
     $lanePlan = $budgetRecord.plan
     $collectorTimeoutSeconds = [int]$collectorBudget.collector_timeout_seconds
@@ -785,7 +918,7 @@ function Invoke-P4IndexedSlot {
                     throw "Wrapper-owned slot evidence exists before collection: $name"
                 }
             }
-            $execution = Invoke-BoundedNativeCommand -RepositoryRoot $manifest.roles[$slot.role].worktree `
+            $execution = Invoke-BoundedNativeCommand -RepositoryRoot $source.worktree `
                 -ExecutablePath (Join-Path $PSHOME 'pwsh.exe') -LogPath (Join-Path $directory 'collector.log') `
                 -TimeoutSeconds $collectorTimeoutSeconds -NativeArguments @('-NoProfile', '-File', $manifest.tools.runner.path,
                     '-ManifestPath', $reserved, '-SlotId', $SlotId, '-OutputDirectory', $directory)
@@ -812,7 +945,8 @@ function Invoke-P4IndexedSlot {
             # failed, because a still-running package is precisely the case where the device output must
             # not be left where the next slot's fail-if-present reservation will find it; `run-as mv` of a
             # closed, already-written file is safe, and the pre-move sha256 records what was moved.
-            if ($null -ne $lanePlan -and $slot.lane -cin @('command', 'memory', 'publication')) {
+            # The phase does not use this v7 quarantine (its plan declares none); the phase cleanup replaces it.
+            if (-not $route.phase -and $null -ne $lanePlan -and $slot.lane -cin @('command', 'memory', 'publication')) {
                 try {
                     Assert-P4DeviceLaneContract
                     Invoke-P4PrivateFileQuarantine `
@@ -834,8 +968,8 @@ function Invoke-P4IndexedSlot {
                 } catch { $cleanupErrors.Add($_.Exception.Message) }
             }
             try {
-                $after = Get-P4WorktreeState -Worktree $manifest.roles[$slot.role].worktree -Stage 'after' -Directory $directory
-                Assert-P4WorktreeState -State $after -ExpectedCommit $manifest.roles[$slot.role].build_commit `
+                $after = Get-P4WorktreeState -Worktree $source.worktree -Stage 'after' -Directory $directory
+                Assert-P4WorktreeState -State $after -ExpectedCommit $source.build_commit `
                     -Context "slot $SlotId cleanup"
                 $worktreeAfterHash = Get-FileSha256 (Join-Path $directory 'worktree-after.json')
             } catch { $cleanupErrors.Add($_.Exception.Message) }

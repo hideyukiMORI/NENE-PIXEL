@@ -35,7 +35,8 @@ function Function-Ast([string]$Name) {
     Check ($null -ne $node) "Missing function $Name"; return $node
 }
 foreach ($name in @('Get-P4FrameContinuingVerdicts', 'Get-P4FrameAnalyzerVerdicts', 'Test-P4PhaseFrameSlot',
-        'Get-P4PhaseFrameGrossStop', 'Get-P4PhaseFrameChainRecord', 'Assert-P4CompletedChain')) {
+        'Get-P4PhaseFrameGrossStop', 'Get-P4PhaseFrameChainRecord', 'Assert-P4CompletedChain',
+        'Get-P4SlotProtocolId', 'Assert-P4PhaseAnalysisIdentity')) {
     . ([scriptblock]::Create((Function-Ast $name).Extent.Text))
 }
 # The capture seal is outside this check: the chain's own seal reading is covered by its existing validators.
@@ -51,6 +52,13 @@ $basis = [ordered]@{ maximum_frame_overrun_ms = '41.000000'; maximum_input_to_co
 
 function New-Analysis($Slot, [bool]$Phase, [bool]$Gross) {
     $analysis = [ordered]@{ slot_id = $Slot.id; capture_seal_sha256 = $seal }
+    if ($Phase -and $Slot.Contains('protocol_id')) {
+        # T5b: a phase analysis names its protocol, comparison role, manifest and artifact role.
+        $analysis.protocol_id = $Slot.protocol_id; $analysis.role = $Slot.role; $analysis.preflight_sha256 = $hash
+        if ($Slot.lane -ceq 'frame') { $analysis.artifact_role = $Slot.artifact_role }
+        else { $analysis.phase_context = [ordered]@{ protocol_id = $Slot.protocol_id; slot_id = $Slot.id
+            preflight_sha256 = $hash; artifact_role = $Slot.artifact_role } }
+    }
     if ($Phase -and $Slot.lane -ceq 'frame') {
         $analysis.gross_regression = $Gross
         $analysis.gross_regression_basis = if ($Gross) { $basis } else {
@@ -66,7 +74,7 @@ function Complete-Slot([string]$Root, $Slot, $Analysis, [string]$Verdict) {
     Save-Json (Join-Path $directory 'analysis.json') $Analysis
     Save-Json (Join-Path $directory 'restoration.json') @{ restored = $true }
     Save-Json (Join-Path $directory 'worktree-after.json') @{ clean = $true }
-    $completed = [ordered]@{ slot_id = $Slot.id; verdict = $Verdict; status = 'completed'; protocol_id = $script:P4ProtocolId
+    $completed = [ordered]@{ slot_id = $Slot.id; verdict = $Verdict; status = 'completed'; protocol_id = (Get-P4SlotProtocolId $Slot)
         preflight_sha256 = $hash; capture_seal_sha256 = $seal
         analysis_sha256 = Get-FileSha256 (Join-Path $directory 'analysis.json')
         restoration_sha256 = Get-FileSha256 (Join-Path $directory 'restoration.json')
@@ -78,6 +86,7 @@ function Complete-Slot([string]$Root, $Slot, $Analysis, [string]$Verdict) {
 function Get-DefaultVerdict($Slot) {
     if ($Slot.lane -ceq 'frame') { return @(Get-P4FrameContinuingVerdicts $Slot)[0] }
     if ($Slot.lane -ceq 'publication') { return 'valid-constants-retained' }
+    if ($Slot.lane -ceq 'saf-save') { return 'valid-descriptive' }
     return 'pass'
 }
 
@@ -190,7 +199,8 @@ try {
     }
     Case 'boundary: a phase frame analysis without gross_regression is refused' {
         $root = Join-Path $OutputDirectory 'missing-gross'
-        $analysis = New-Analysis $phaseCatalog[0] $false $false
+        $analysis = New-Analysis $phaseCatalog[0] $true $false
+        $analysis.Remove('gross_regression'); $analysis.Remove('gross_regression_basis')
         Complete-Slot $root $phaseCatalog[0] $analysis 'baseline-recorded'
         $failure = Get-ChainFailure { Assert-P4CompletedChain -Root $root -Catalog $phaseCatalog -SlotId $frameIds[1] -ManifestHash $hash }
         Check ("$failure" -match 'does not declare gross_regression') "$failure"
