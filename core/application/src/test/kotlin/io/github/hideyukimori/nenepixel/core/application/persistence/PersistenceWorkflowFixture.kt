@@ -38,7 +38,6 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
@@ -56,6 +55,7 @@ internal class Fixture(
     inspection: RecoveryInspection = RecoveryInspection.Missing,
     val underlayMemory: FakeUnderlayMemoryPort = FakeUnderlayMemoryPort(),
 ) {
+    private val dispatchers = TestCoroutineDispatchers()
     val ids = SequentialDocumentIdSource()
     val runtime = EditorRuntime.create(canvas(4, 4), definition(blackIndex, black, red, green), ids)
     val storage = FakeProjectStoragePort()
@@ -78,7 +78,7 @@ internal class Fixture(
                 pngImports,
                 underlayMemory,
             ),
-            Dispatchers.Unconfined,
+            dispatchers.inline,
         )
 
     suspend fun initialize() {
