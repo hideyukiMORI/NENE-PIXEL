@@ -421,6 +421,7 @@ function Assert-P4AnalysisSealAgreement {
 
 function Get-P4FrameContinuingVerdicts {
     param($Slot)
+    # The diagnostic branch is v7-only: the layer phase catalog registers decision slots only (R1).
     if ($Slot.runner -ceq 'diagnostic') { return @('inconclusive') }
     if ($Slot.role -ceq 'baseline') { return @('baseline-recorded') }
     return @('pass', 'PERFORMANCE_FAIL')
@@ -428,16 +429,87 @@ function Get-P4FrameContinuingVerdicts {
 
 function Get-P4FrameAnalyzerVerdicts {
     param($Slot)
+    # The diagnostic branch is v7-only: the layer phase catalog registers decision slots only (R1).
     if ($Slot.runner -ceq 'diagnostic') { return @('inconclusive', 'PERFORMANCE_FAIL') }
     if ($Slot.role -ceq 'baseline') { return @('baseline-recorded', 'baseline-invalid') }
     return @('pass', 'PERFORMANCE_FAIL')
 }
 
+function Test-P4PhaseFrameSlot {
+    param($Slot)
+    return $Slot.lane -ceq 'frame' -and $Slot -is [Collections.IDictionary] -and $Slot.Contains('protocol_id') -and
+        $Slot.protocol_id -ceq 'nene-pixel-p4-layer-phase-verification-v1'
+}
+
+function Get-P4PhaseFrameGrossStop {
+    # Issue #145 R2: gross regression is judged by each decision slot's own analysis. It is not a verdict:
+    # a gross slot keeps its verdict and only stops the subsequent frame slots.
+    param($Slot, $Analysis)
+    if (-not $Analysis.Contains('gross_regression') -or $Analysis.gross_regression -isnot [bool]) {
+        throw "The phase frame analysis does not declare gross_regression: $($Slot.id)"
+    }
+    if (-not $Analysis.gross_regression) { return $null }
+    if (-not $Analysis.Contains('gross_regression_basis') -or $Analysis.gross_regression_basis -isnot [Collections.IDictionary]) {
+        throw "The phase frame analysis does not declare gross_regression_basis: $($Slot.id)"
+    }
+    return [ordered]@{ reason = 'gross-regression'; slot_id = [string]$Slot.id; group_id = [string]$Slot.group_id
+        role = [string]$Slot.role
+        group_comparability = if ($Slot.role -ceq 'baseline') { 'not-comparable' } else { 'comparable' }
+        gross_regression_basis = $Analysis.gross_regression_basis }
+}
+
+function Get-P4PhaseFrameChainRecord {
+    # Issue #145 R2, the one stop rule of the phase chain. `$Analyses` maps a completed slot id to its
+    # analysis. After the first gross decision slot every later frame slot is stopped; memory and storage
+    # slots continue. A gross baseline marks its group not comparable (its candidate is stopped too).
+    param([object[]]$Catalog, [hashtable]$Analyses)
+    $stop = $null
+    $slots = [Collections.Generic.List[object]]::new()
+    $groups = [ordered]@{}
+    foreach ($slot in $Catalog) {
+        if ($slot.lane -cne 'frame') {
+            $slots.Add([ordered]@{ slot_id = [string]$slot.id; lane = [string]$slot.lane; chain = 'continue'; stopped_by = $null })
+            continue
+        }
+        if (-not (Test-P4PhaseFrameSlot $slot) -or $slot.runner -cne 'decision') {
+            throw "The phase chain admits phase decision frame slots only: $($slot.id)"
+        }
+        if (-not $groups.Contains($slot.group_id)) { $groups[$slot.group_id] = 'comparable' }
+        if ($null -ne $stop) {
+            $slots.Add([ordered]@{ slot_id = [string]$slot.id; lane = 'frame'; chain = 'stopped'; stopped_by = $stop })
+            if ($groups[$slot.group_id] -ceq 'comparable') { $groups[$slot.group_id] = 'not-collected' }
+            continue
+        }
+        $slots.Add([ordered]@{ slot_id = [string]$slot.id; lane = 'frame'; chain = 'continue'; stopped_by = $null })
+        if ($Analyses.ContainsKey([string]$slot.id)) {
+            $gross = Get-P4PhaseFrameGrossStop $slot $Analyses[[string]$slot.id]
+            if ($null -ne $gross) {
+                $stop = $gross
+                if ($slot.role -ceq 'baseline') { $groups[$slot.group_id] = 'not-comparable' }
+            }
+        }
+    }
+    return [ordered]@{ protocol_id = 'nene-pixel-p4-layer-phase-verification-v1'; stop = $stop; groups = $groups
+        slots = $slots.ToArray() }
+}
+
 function Assert-P4CompletedChain {
     param([string]$Root, [object[]]$Catalog, [string]$SlotId, [string]$ManifestHash)
+    # The phase chain (Issue #145 R2) skips the frame slots a gross decision slot stopped; v7 is unchanged.
+    $phaseChain = @($Catalog | Where-Object { Test-P4PhaseFrameSlot $_ }).Count -gt 0
+    $phaseAnalyses = @{}
     foreach ($prior in $Catalog) {
         if ($prior.id -ceq $SlotId) { break }
         $priorDirectory = Join-Path $Root $prior.id
+        if ($phaseChain) {
+            $chainRecord = Get-P4PhaseFrameChainRecord $Catalog $phaseAnalyses
+            if (@($chainRecord.slots | Where-Object { $_.slot_id -ceq $prior.id -and $_.chain -ceq 'stopped' }).Count -eq 1) {
+                if (Test-Path -LiteralPath $priorDirectory) {
+                    throw "A frame slot stopped by gross regression was consumed: $($prior.id)"
+                }
+                continue
+            }
+        }
         $path = Join-Path $priorDirectory 'completed.json'
         if (-not (Test-Path -LiteralPath $path)) { throw "Prior slot is incomplete: $($prior.id)" }
         $result = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json -AsHashtable
@@ -489,6 +561,18 @@ function Assert-P4CompletedChain {
         if (-not (Test-Path -LiteralPath $worktreePath -PathType Leaf) -or
             (Get-FileSha256 $worktreePath) -cne [string]$result.worktree_after_sha256) {
             throw "Completed chain drifted: worktree proof of $($prior.id)"
+        }
+        if ($phaseChain -and $prior.lane -ceq 'frame') { $phaseAnalyses[[string]$prior.id] = $priorAnalysis }
+    }
+    if ($phaseChain) {
+        $target = @($Catalog | Where-Object { $_.id -ceq $SlotId })
+        $chainRecord = Get-P4PhaseFrameChainRecord $Catalog $phaseAnalyses
+        if ($target.Count -eq 1 -and $target[0].lane -ceq 'frame' -and $null -ne $chainRecord.stop) {
+            $stopped = [InvalidOperationException]::new(
+                "Frame slot $SlotId is stopped by the gross regression of $($chainRecord.stop.slot_id).")
+            $stopped.Data['p4_chain_stop'] = ([ordered]@{ slot_id = $SlotId; stopped_by = $chainRecord.stop
+                groups = $chainRecord.groups } | ConvertTo-Json -Depth 12 -Compress)
+            throw $stopped
         }
     }
 }
@@ -648,8 +732,15 @@ function Invoke-P4IndexedSlot {
         try { Assert-P4CompletedChain -Root $root -Catalog $catalog -SlotId $SlotId -ManifestHash $manifestHash }
         catch {
             $chainFailure = $_
-            Write-P4AdmissionRefusal -Root $root -Slot $slot -ReasonCode 'completed-chain-drift' `
-                -Reason $chainFailure.Exception.ToString() -AdmissionDirectory 'not-produced'
+            # Issue #145 R2: a gross stop records the stopping slot id and its gross_regression_basis.
+            $chainStop = $chainFailure.Exception.Data['p4_chain_stop']
+            if ($null -ne $chainStop) {
+                Write-P4AdmissionRefusal -Root $root -Slot $slot -ReasonCode 'gross-regression-stop' `
+                    -Reason ([string]$chainStop) -AdmissionDirectory 'not-produced'
+            } else {
+                Write-P4AdmissionRefusal -Root $root -Slot $slot -ReasonCode 'completed-chain-drift' `
+                    -Reason $chainFailure.Exception.ToString() -AdmissionDirectory 'not-produced'
+            }
             throw $chainFailure
         }
         if (Test-Path -LiteralPath $directory) { throw 'Slot already consumed; retries are prohibited.' }
