@@ -6,6 +6,13 @@ not yet admitted. No sample collection is authorized by this document's current 
 
 Rules: ADR 0030/0031/0035; QLT-011 through QLT-019. Active waivers: none.
 
+Revision record (2026-10-06, Issue #145): the owner's rulings cut the collection to 18 slots (six
+frame, ten memory, two storage; 550 operations), moved the gross-regression stop onto the decision
+slots, moved private-data preservation to once per phase, dropped the underlay quiescence proof and
+removed links to untracked reports. Every acceptance line is unchanged: UP-to-committed p95 at most
+16.67 ms, all-frame overrun p95 within +1.0 ms and p99 within +2.0 ms, zero fatal/ANR/process-death,
+and separate memory, storage and history-byte verdicts.
+
 ## Scope and historical boundary
 
 The phase owns the registered single-layer, fully covered 16-layer and alpha-128 underlay workloads,
@@ -98,8 +105,13 @@ also prove a fresh work, successful pick, correct pattern, shown control, closed
 adjust bar. A rounded 50-percent label is supplementary evidence, never proof of integer alpha 128.
 No opacity slider, fit command or adjustment gesture is sent. The pick result replaces any restored
 underlay through the production operation; a stale remembered image cannot stand in for the PNG.
-Before timing, no pending recall/publication or setup frame may contaminate capture. The later
-admission work must establish that quiescence and visible correctness on the actual device.
+ADR 0034's recall and publication are the candidate's production behavior and part of the measured
+condition, not something to exclude. Recall runs once after install, off the main thread, and ends
+before fixture loading finishes. Publication is a 40-byte write 500 ms after the last change, also
+off the main thread; the staged slot's warmup (at least 10 operations, at least 2 minutes) far
+exceeds that 500 ms. In single and layers16 slots there is no underlay: the slot reset moves the
+remembered underlay away, so recall finds nothing. No quiescence proof is required, and a fixed
+sleep or a stable screenshot is never called a proof.
 
 The existing repeated-diagonal and one-Undo reset sequence remains unchanged. PNG decode/hash,
 full-pixel verification, fixture selection and setup observations stay outside every timed gesture.
@@ -165,25 +177,31 @@ One phase experiment has three comparison groups in this exact order. `baseline`
 remain comparison roles; an artifact role independently selects the immutable build. The candidate
 artifact is the same in all three groups, rather than a rebuilt candidate per comparison.
 
-| Group | Baseline artifact role / production commit | Decision families, in order | Diagnostic families, in order |
-| --- | --- | --- | --- |
-| `single` | `baseline_single` / `8120c06fae1a372b23d2a7af4f50aa2b9cdfeff9` | `canvas16_tap`, `canvas256_repeated_diagonal` | the same two, then `canvas256_repeated_diagonal_window_x2` |
-| `layers16` | `baseline_layers16` / `169b59287ca60e77e07ac91690450dd1a44b9ba4` | `canvas256_layers16_tap`, `canvas256_layers16_repeated_diagonal` | the same two |
-| `underlay` | `baseline_underlay` / `f92b1006be5f7145a32258446474f8640b14b60b` | `canvas256_underlay_repeated_diagonal` | the same one |
+| Group | Baseline artifact role / production commit | Decision families, in order |
+| --- | --- | --- |
+| `single` | `baseline_single` / `8120c06fae1a372b23d2a7af4f50aa2b9cdfeff9` | `canvas16_tap`, `canvas256_repeated_diagonal` |
+| `layers16` | `baseline_layers16` / `169b59287ca60e77e07ac91690450dd1a44b9ba4` | `canvas256_layers16_tap`, `canvas256_layers16_repeated_diagonal` |
+| `underlay` | `baseline_underlay` / `f92b1006be5f7145a32258446474f8640b14b60b` | `canvas256_underlay_repeated_diagonal` |
 
-Within each group the order is decision baseline, decision candidate, diagnostic baseline,
-diagnostic candidate. Each family has five warmups, then 50 decision or 10 diagnostic operations.
-No samples are pooled between families, groups, or decision/diagnostic populations. This gives:
+Within each group the order is decision baseline, then decision candidate. Each family has five
+warmups, then 50 decision operations. No samples are pooled between families or groups. The
+diagnostic slots (baseline/candidate diagnostic and the `window_x2` family) are not part of this
+collection: they never entered a verdict. If a candidate FAILs, the one next collection allowed by
+ADR 0031 may register diagnostic slots, if reading them is needed. This gives:
 
-| Group | Measured operations | Warmups | Total operations | Decision slot bound | Diagnostic slot bound |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| `single` | 260 | 50 | 310 | 1,950 s | 975 s |
-| `layers16` | 240 | 40 | 280 | 1,950 s | 750 s |
-| `underlay` | 120 | 20 | 140 | 1,125 s | 525 s |
-| Total | 620 | 110 | 730 | — | — |
+| Group | Measured operations | Warmups | Total operations | Decision slot bound |
+| --- | ---: | ---: | ---: | ---: |
+| `single` | 200 | 20 | 220 | 1,950 s |
+| `layers16` | 200 | 20 | 220 | 1,950 s |
+| `underlay` | 100 | 10 | 110 | 1,125 s |
+| Total | 500 | 50 | 550 | — |
 
-There are exactly 12 frame slots, numbered 1 through 12, each with attempt 1 only. Their IDs are
-`frame-<sequence>-<group>-<comparison-role>-<runner>`. Each candidate decision slot references its
+There are exactly six frame slots, numbered 1 through 6, each with attempt 1 only. Their IDs are
+`frame-<sequence>-<group>-<comparison-role>-<runner>`, in the order `frame-1` single baseline,
+`frame-2` single candidate, `frame-3` layers16 baseline, `frame-4` layers16 candidate, `frame-5`
+underlay baseline, `frame-6` underlay candidate. No earlier phase-identity collection exists, so
+this numbering breaks no recorded identity. The whole phase has 18 slots with `sequence_index`
+frame 1-6, memory 7-16, publication 17 and SAF 18. Each candidate decision slot references its
 own group's preceding decision-baseline slot. Its baseline reference must bind the same experiment,
 group, family catalog, device/display conditions and the group's fixed baseline production commit;
 an analysis file for another group cannot substitute even if its numbers or artifact hash match.
@@ -191,26 +209,30 @@ The slot also records `artifact_role`, resolved to that group's baseline role or
 `candidate` role. Artifact selection must never change the meaning of comparison role.
 
 The existing bound `300 + 15 * operations` seconds applies to each frame collector invocation.
-The sum of collector bounds is 14,550 seconds; this is a hang bound, not an estimated duration.
+The sum of collector bounds is 10,050 seconds; this is a hang bound, not an estimated duration.
+Extrapolated from the v7 measurements, the frame slots take about two hours (a 110-operation
+slot about 24 minutes, a 55-operation slot about 12 minutes).
 The existing 90-second cleanup reserve and 120-second analysis bound apply to each slot separately.
 The existing 3,600-second native invocation cap is unchanged. A missing or extra family, changed
 population/order/bound, unrecognized group/role, or missing predecessor refuses admission.
 
 Every complete decision population is retained before its numeric verdict. A candidate numeric
-failure does not cancel that group's predeclared diagnostics. A gross diagnostic regression
-(maximum overrun above 33.34 ms or maximum UP-to-committed above 100.0 ms), invalid association,
-fatal error, ANR or process death stops subsequent slots. No automatic slot retry or new identity
-to retry the same candidate is permitted. Any corrective collection needs a recorded new plan under
-QLT-015/019; the failed and unexecuted portions of this experiment remain explicit.
+failure does not cancel the other groups' slots. Gross regression is judged by each decision slot's
+own analysis: a slot whose maximum overrun is above 33.34 ms or whose maximum UP-to-committed is
+above 100.0 ms is recorded as `gross_regression` and stops the subsequent frame slots; memory and
+storage slots continue, because they are separate verdicts. If a baseline decision slot is gross,
+that group is recorded as not comparable and stops. Invalid association, fatal error, ANR or process
+death also stops subsequent slots. No automatic slot retry or new identity to retry the same
+candidate is permitted. Any corrective collection needs a recorded new plan under QLT-015/019; the
+failed and unexecuted portions of this experiment remain explicit.
 
 The candidate decision families each require UP-to-committed nearest-rank p95 at most 16.67 ms,
 all-frame overrun p95 at most the matched baseline plus 1.0 ms, and p99 at most baseline plus
-2.0 ms. The diagnostic window family remains descriptive and has the same gross-regression stop.
-The historical baseline admission guard remains p95 at most 33.33 ms and zero fatal/ANR/process-death
-matches. A miss is retained as `baseline-invalid` with its numeric reason and stops later slots;
-it cannot be retried under an invalid-harness recovery allowance. A recorded baseline is a
-comparison reference, not an M5 acceptance of that old build. The candidate's stricter 16.67 ms
-requirement is mandatory even when its matched baseline is slower. No threshold is relaxed.
+2.0 ms. The historical baseline admission guard remains p95 at most 33.33 ms and zero
+fatal/ANR/process-death matches. A miss is retained as `baseline-invalid` with its numeric reason
+and stops later slots; it cannot be retried under an invalid-harness recovery allowance. A recorded
+baseline is a comparison reference, not an M5 acceptance of that old build. The candidate's stricter
+16.67 ms requirement is mandatory even when its matched baseline is slower. No threshold is relaxed.
 
 ## Executable DOWN-only association contract
 
@@ -231,7 +253,7 @@ precision. Integer fields must not be accepted through truncating or rounding co
 
 The first row's own association is descriptive; tap all-frame relative and committed-result gates
 continue to use the full population. The helper does not prove an input was visibly presented.
-Before collection, the caller must independently prove the DOWN-only sequence, setup quiescence,
+Before collection, the caller must independently prove the DOWN-only sequence,
 preview/capture completeness and visible correctness. Full collector/analyzer integration must
 reconcile the sample association with retained raw rows, and reject first-preview fields on a
 diagonal or another workload. The pure helper alone cannot admit a capture or a phase.
@@ -265,14 +287,14 @@ protocol ID and canonical slot ID. It derives role, artifact role, group, global
 group-local position, workload/event catalogs, directory identity, baseline reference and numeric
 rules from the registered catalogs. The collector and analyzer consume that same definition.
 Historical v7 resolves the original four slots, v8/v5 records and original workload/event catalogs;
-the new phase resolves the twelve slots and v9/v6 records. Unknown or mixed identities are errors.
+the new phase resolves the six frame slots and v9/v6 records. Unknown or mixed identities are errors.
 The legacy collector directory spelling is preserved. A phase frame directory is
 `slot-<two-digit-global-sequence>-<group>-<runner>-<comparison-role>-attempt-1` below the single
 frame experiment root; group changes never create a new experiment or an editable role projection.
 
 The v6 `experiment.json` is a canonical projection of that same preflight: exactly `schema`,
-`protocol_id`, `experiment_id`, `preflight_sha256`, the twelve-entry `comparison_order` and
-`slot_catalog`, `slot_budget` 12, `maximum_attempts_per_slot` 1 and `replacement_rule` `none`.
+`protocol_id`, `experiment_id`, `preflight_sha256`, the six-entry `comparison_order` and
+`slot_catalog`, `slot_budget` 6, `maximum_attempts_per_slot` 1 and `replacement_rule` `none`.
 The shared preflight helper constructs it; the writer and analyzer compare its complete contents.
 Phase metadata and run state also record its actual `experiment_sha256`. It contains no independently
 editable artifact copies. A phase frame-slot record uses `nene-pixel-p4-frame-slot-v2`, the checked
@@ -323,7 +345,7 @@ compares every sample field to raw rows and reports first-preview service/overru
 descriptively. The complete tap frame population still supplies the existing relative gates.
 The tap family result adds `first_preview_operation_count`, `first_preview_service_p95_ms`,
 `first_preview_overrun_p95_ms` and `first_preview_overrun_p99_ms`, from exactly that family's
-predeclared 50 or 10 operations. Other families do not publish a first-preview population.
+predeclared 50 operations. Other families do not publish a first-preview population.
 
 This connection work does not open collection admission. The phase entry points continue to refuse
 live work until fixture setup, complete manifest/artifact/device bindings, all lane schemas and
@@ -414,7 +436,7 @@ five immediate checkpoint records and final report. The existing memory analyzer
 contract only when an explicit phase context is supplied; its four historical families are unchanged.
 The no-device validators cover numerical boundaries, malformed or foreign evidence, predecessor
 order/freshness, and Android report-field agreement. Both candidate and fixed layer baseline compile
-the same test overlay. See the [implementation report](../reports/2026-10-03-layer-editor-memory.md).
+the same test overlay.
 
 These checks do not establish device grant/load/render behavior or admit a phase. The manifest,
 outer instrumentation wrapper, complete artifact inventories and preservation chain still need the
@@ -468,7 +490,7 @@ decision, not a performance PASS label. SAF min/max is descriptive, with exact s
 and the predeclared anomaly guard required; the autosave 250 ms boundary is not a SAF acceptance
 threshold. No speedup is claimed from different byte counts or transport paths.
 
-These decisions do not yet authorize execution: both schemas, exact owner/quiescence contracts,
+These decisions do not yet authorize execution: both schemas, exact owner contracts,
 real grants and artifact entries must be implemented and checked at their narrow boundaries,
 then bound into the one phase manifest and its preservation/restoration lifecycle. Storage and
 memory keep the existing `Invoke-P4InstrumentationLane` executor, rather than another collector.
@@ -504,8 +526,8 @@ must reconcile those two copies exactly. Complete/invalid status and the bounded
 after the worker, so reporting I/O is outside timed operations. Historical publication selection,
 file names, schemas and cleanup remain unchanged.
 
-The publication preparation implementation and 63-case host parser contract are recorded in the
-[publication report](../reports/2026-10-03-layer-publication.md). The real AndroidTest helper classes
+The publication preparation implementation has a 63-case host parser contract. The real
+AndroidTest helper classes
 also pass the no-device reservation/format boundary through the explicitly selected fixture init
 script. This is compile/host evidence only; actual AtomicFile timings and complete phase admission
 remain pending. Identity reconciliation requires exactly one JUnit start, identity bundle, test
@@ -550,14 +572,13 @@ byte verification only after the timed batch. Complete status is written only af
 No partial/successful source, output, quarantine or report file is deleted by the test.
 
 The opt-in runner and strict host parser now implement these contracts. Actual compiled pure
-journal/output helpers and 81 focused parser/source-agreement cases pass without a device; see the
-[SAF-save report](../reports/2026-10-03-layer-saf-save.md). The shared publication-context boundary
-is checked directly, while its unchanged numeric algorithm reuses its prior result. Real grants,
-save timings and complete phase admission remain pending.
+journal/output helpers and 81 focused parser/source-agreement cases pass without a device. The
+shared publication-context boundary is checked directly, while its unchanged numeric algorithm reuses
+its prior result. Real grants, save timings and complete phase admission remain pending.
 
 ## Frame fixture staging before release-like capture
 
-Each of the eight layer/underlay frame slots stages one new provider document before its
+Each of the four layer/underlay frame slots stages one new provider document before its
 release-like capture. Single-layer slots need no fixture staging. The opt-in app AndroidTest
 `p4LayerCollect=frame-fixtures-v1` uses the same real-SAF helper and target activity as memory/save
 preparation. It has a 240-second JUnit bound and a 300-second native bound, separate from the frame
@@ -586,8 +607,8 @@ normal app picker operation or its visible/quiescent checks.
 These extra setup invocations/installations must be included in the derived phase wrapper budget
 before admission. The already fixed frame gesture counts and numerical gates are unchanged.
 
-The [staging implementation report](../reports/2026-10-03-layer-frame-staging.md) records candidate
-and oldest-baseline compilation, actual spec/catalog agreement and retained identity checks.
+Staging preparation has been checked by candidate and oldest-baseline compilation, actual
+spec/catalog agreement and retained identity checks.
 
 ## Release-like UI and functional preview preparation
 
@@ -598,8 +619,8 @@ the exact provider name. The five-field frame context remains unchanged. The set
 not itself attest preservation, native completion or full admission; the outer caller owns those.
 
 Each non-single family performs one functional gesture before its warmups, with screenshots before,
-while preview is held and after commit. This is twelve additional functional gestures across the
-eight staged slots, outside the unchanged 620 measured and 110 warmup operations. Pixel probes at
+while preview is held and after commit. This is six additional functional gestures across the
+four staged slots, outside the unchanged 500 measured and 50 warmup operations. Pixel probes at
 fixed document-cell centres verify opaque black on the intended stroke and unchanged off-stroke
 pixels. The layered background must match the pinned grayscale composite. The underlay pattern
 must match its fixed source formula composited at alpha 128 over the actual empty-work screenshot
@@ -619,12 +640,16 @@ failure prefix is retained under fresh names. Expiry invalidates the slot withou
 retry. This allowance is included in the complete collector budget in the routing section below.
 
 ADR 0034 underlay memory runs on a separate asynchronous path and exposes no completion status
-in the UI. A successful picker, stable screenshot or fixed sleep does not prove that its recall or
-publication has settled. This remains an explicit admission gap: these preparation helpers leave
-the frame live barrier closed until that proof and outer preservation/manifest routing are complete.
+in the UI. It is production behavior and part of the measured condition: recall runs once after
+install, off the main thread, and ends before fixture loading finishes; publication is a 40-byte
+write 500 ms after the last change, off the main thread. The staged slot's warmup (at least 10
+operations, at least 2 minutes) far exceeds that 500 ms. Single and layers16 slots have no underlay
+because the slot reset moves the remembered underlay away, so recall finds nothing. No quiescence
+proof is required, and a fixed sleep or stable PNG is never called a proof. The frame live barrier
+stays closed only until fixture preparation, the complete manifest and preservation are connected.
 
-The [UI preparation report](../reports/2026-10-03-layer-frame-ui.md) records the host pixel,
-picker, retained failure, source compatibility and bounded-call checks.
+The UI preparation has host pixel, picker, retained-failure, source-compatibility and
+bounded-call checks.
 
 ## Pending admission decisions
 
@@ -644,8 +669,8 @@ Memory analysis consumes every preceding memory analysis in order, each bound to
 slot's seal. Publication and SAF use the existing strict parsers with their full raw identity inputs.
 Phase analyses declare canonical `raw_inputs` names, sizes and hashes. Frame analyses additionally
 revalidate the retained setup sequence, bounded cumulative time and actual PNG pixels using the
-same geometry implementation as collection. The [routing report](../reports/2026-10-04-layer-slot-routing.md)
-records the focused checks and remaining outer admission requirements.
+same geometry implementation as collection. Focused routing checks exist; the outer admission
+requirements remain below.
 
 Non-single frame preparation runs in a fresh `fixture-preparation` directory. Its native setup is
 followed by stopping all three writer packages and bounded report capture even on failure. Only
@@ -667,7 +692,7 @@ sufficient. Baseline roles require only their declared three APKs; candidate add
 
 Memory and SAF run on debug app/test with verify compilation. Publication is self-instrumenting
 and uses only its candidate publication APK, also verify compiled. Frame preparation installs the
-debug app and, for the eight staged slots, app-test; the existing frame collector later installs and
+debug app and, for the four staged slots, app-test; the existing frame collector later installs and
 verifies release-like with speed-profile. A staged frame uses its additional fixed 300-second setup
 invocation. These extra bounded calls are added to the fixed gesture-derived frame allowance.
 
@@ -675,9 +700,8 @@ The collector budget charges 120 seconds per install/dexopt, 30 seconds per quie
 report-reservation check, the complete instrumentation/setup allowance and 60 seconds host reserve.
 Each install reserves four identity probes for before/after pm-path and SHA-256. Frame collector's
 own release-like work remains in its existing bound. Every derived collector bound must be at most
-3600 seconds before a slot is reserved. This does not yet define the whole phase deadline: stopped
-report capture, provider/work archives, original verification and restoration have separate pending
-cleanup/session budgets and must be fully accounted before admission.
+3600 seconds before a slot is reserved. The whole phase deadline is defined below, in the stopped
+cleanup section: snapshot, the slots with their cleanups, and restoration.
 
 An explicitly supplied phase operation budget shares one running monotonic clock across its
 native observation, snapshot, install and restoration calls. Its integer allowance is 1–3600
@@ -702,51 +726,72 @@ outputs refuse replacement. The remote read also checks process absence and regu
 components. Missing reports are retained as missing evidence and invalidate an otherwise successful
 slot. No phase report is moved or deleted, and legacy quarantine is not used for these unique paths.
 
-### Stopped capture, archive and reset composition
+### Phase preservation and per-slot stopped cleanup
 
-Before sealing a phase slot, one shared 3000-second operation clock covers writer stops, pinned
-debug access, report recovery, full private/APK snapshots and measurement-state reset. It retains
-the native 15-second termination/drain reserve. All three writer packages must be confirmed stopped
-before any private read or mutation. The cleanup verifies preservation-v2 identity and uses the
-existing phase install intent/readback path to restore the exact artifact role's debug APK access.
+Private data is preserved once per phase, following ADR 0035. At the phase start,
+`New-P4PrivateSnapshot` archives the durable app data and pins its inventory (ADR 0035 (a)), then
+`Invoke-P4PrivateIsolation` moves the underlay directory, recovery files and the two ProfileInstaller
+files into the guard while the app is stopped (ADR 0035 (b)). At the phase end, on success and on
+failure alike (a finally path), `Invoke-P4PrivateRestoration` stores the measurement-created files
+separately and returns the originals (ADR 0035 (c)). The result of a slot's reset is an input to
+that original restoration, not an input to any archive. ADR 0035 asks for one archive at the phase
+start and one restoration at the end; it asks for no per-slot archive.
 
-Archive the app for every slot, its test/provider package when that slot installs `test_debug`,
-and the self-instrumenting publication package for the publication slot. Do not install an auxiliary
-package just to archive it. Each archive uses the existing read-only snapshot/inventory/tar verifier
-with a 256 MiB private-archive cap, 128 MiB APK cap and 4096-entry inventory cap. These are finite
-refusal bounds, not promised durations. Missing packages, timeouts and cap failures retain all
-partial host outputs; reset may start only after report capture and every required archive succeed.
+A slot's stopped cleanup is only: stop, then (on failure) recover the partial record and reports,
+then reset the six roots, then seal. One shared operation clock covers the cleanup, with the native
+15-second termination/drain reserve. All three writer packages must be confirmed stopped before any
+private read or mutation. The cleanup verifies preservation-v2 identity and uses the existing phase
+install intent/readback path to restore the exact artifact role's debug APK access. The APK's
+identity is decided by the manifest hash; no APK archive is taken. The reset (next section) needs
+only the verified preservation-v2 record and the expected APK hash. A missing package, a timeout or
+a failed step retains all partial host outputs; the seal follows only after report capture and the
+reset have succeeded or have been recorded as failed.
+
+The former common 3000-second clock is replaced by a value derived from this reduced cleanup (three
+stops of 30 seconds, report recovery, two reset inventories and the move); the executable constant
+and its number are fixed with the cleanup implementation. The whole phase deadline is
+`snapshot + sum(slot timeout + slot cleanup) + restoration`. The slot timeouts sum to 13,770 seconds
+(frame 10,050; memory 10 x 300; publication 300; SAF 420), and the same sum is written into the
+manifest. This is a hang bound, not an estimated duration; a derived slot bound above 3,600 seconds
+is refused.
 
 A successful frame retains its already captured fixture evidence. Failed staging may recover that
 slot's unique fixture report into a fresh diagnostic directory after debug access. If the collector
 was killed before producing frame-slot-v2, the outer cleanup inventories the canonical partial
 frame directory before sealing; it never replaces an existing frame record. The cleanup record
-binds its components and errors. Final settings/sealing and whole-session deadlines still belong to
+binds its components and errors. Final settings/sealing and the whole-phase deadline belong to
 the outer wrapper, and all live-admission requirements remain in force.
 
 ### Measurement state between slots
 
 Each slot's stopped cleanup uses the existing ADR0035 planner to move only measurement-created
 recovery files, remembered underlays and the two ProfileInstaller files to the fresh
-`no_backup/p4-layer-slots/<session>/<slot-id>/` archive. The original guard stays isolated until
+`no_backup/p4-layer-slots/<session>/<slot-id>/` directory. The original guard stays isolated until
 the whole phase finishes or stops. Full inventory checks surround each no-overwrite mkdir/move;
 the current installed APK, preservation record, preflight and slot bind the retained result.
 No-op resets issue no mutation. A failure consumes no extra attempt and preserves every applied
-prefix for the existing final restoration policy. Full app/provider host archives and the outer
-finite lifecycle are still required before admission; a reset result is not phase acceptance.
+prefix for the existing final restoration policy. The reset does not depend on any archive. The outer
+finite lifecycle is still required before admission; a reset result is not phase acceptance.
 
 ### Four immutable artifact roles and complete source inventory
 
 The phase preflight schema is `nene-pixel-p4-layer-preflight-v1`. Its role keys are exactly
 `baseline_single`, `baseline_layers16`, `baseline_underlay`, and `candidate`, in that build order.
 The baseline production commits remain the group table above. The shared candidate production is
-`1f9bb1637058d3fa4a98122f4942406211bd1c69` (accepted #172). Each measurement build is a descendant
+pinned after the Baseline Profile chore has merged to main, because the profile is a production
+input; the three baselines keep the profile of their own time (historical builds). This replaces
+the earlier candidate pin `1f9bb1637058d3fa4a98122f4942406211bd1c69` (accepted #172). Each real role
+clone lives under `D:/NENE-PIXEL/clones/` (a worktree breaks AGP's VCS information) with a name of
+at most 34 characters: `n145-base-single`, `n145-base-layers16`, `n145-base-underlay` and
+`n145-candidate`; a build is that production plus the tooling overlay. Each measurement build is a descendant
 test overlay whose production-tree hash equals its declared production commit; documentation and
 test-source changes cannot select another production implementation. A future correction requires
 a recorded new candidate/collection plan, not an editable role alias inside this experiment.
 
-Every role has `app_debug`, `test_debug`, and `app_release_like`. Only candidate has
-`publication_test`, because no baseline publication is registered. Debug app/test are used for
+Every role has `app_debug` and `app_release_like`; `baseline_layers16`, `baseline_underlay` and
+`candidate` also have `test_debug`. `baseline_single` has no `test_debug` (its slots stage no
+fixture and run no memory lane). Only candidate has `publication_test`, because no baseline
+publication is registered. Debug app/test are used for
 fixture/grant preparation and, for the layer baseline and candidate, retained memory; release-like
 is the measured frame APK. They keep the existing package, variant, debuggability, instrumentation
 and dexopt contracts. APK embedded revision must equal that role's measurement build commit.
@@ -770,7 +815,7 @@ checks remain distinct; generated bytes or test-source compilation alone do not 
 
 The existing preflight gains explicit phase catalogs/inventory checks before its complete admission
 branch is enabled. Its historical default remains v7. The unified phase schedule is the existing
-twelve frame slots, ten memory slots and two storage slots in order, with exactly one attempt each.
+six frame slots, ten memory slots and two storage slots in order, with exactly one attempt each.
 These additions do not reopen collection while frame setup, executable wrappers, current native
 preservation and final profile/artifact/budget agreement are pending.
 

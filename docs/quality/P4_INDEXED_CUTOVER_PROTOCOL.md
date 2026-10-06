@@ -29,7 +29,7 @@ One phase experiment will use the existing collector with an explicit comparator
 
 | Family group | Baseline production | Reason |
 | --- | --- | --- |
-| Existing single-layer families, including the X2 diagnostic | `8120c06fae1a372b23d2a7af4f50aa2b9cdfeff9` | Retain the pre-layer baseline and the non-regression question of #142 |
+| Existing single-layer families (the X2 diagnostic is not collected in the first phase run) | `8120c06fae1a372b23d2a7af4f50aa2b9cdfeff9` | Retain the pre-layer baseline and the non-regression question of #142 |
 | Fully covered 256 x 256, 16 visible layers | `169b59287ca60e77e07ac91690450dd1a44b9ba4` | First accepted stroke-aware preview composite with the same layered preview semantics as the current implementation |
 | 256 x 256 diagonal with a visible alpha-128 underlay | `f92b1006be5f7145a32258446474f8640b14b60b` | First accepted nearest-neighbour underlay sampling, matching the current display semantics |
 
