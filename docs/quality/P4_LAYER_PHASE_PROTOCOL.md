@@ -6,7 +6,9 @@ not yet admitted. No sample collection is authorized by this document's current 
 
 Rules: ADR 0030/0031/0035; QLT-011 through QLT-019. Active waivers: none.
 
-Revision record (2026-10-06, Issue #145): the owner's rulings cut the collection to 18 slots (six
+Revision record (2026-10-07, Issue #145): the cleanup clocks, slot deadlines, phase bound (45,960 s) and
+manifest admission are fixed as numbers below and the manifest admission is open.
+Record (2026-10-06, Issue #145): the owner's rulings cut the collection to 18 slots (six
 frame, ten memory, two storage; 550 operations), moved the gross-regression stop onto the decision
 slots, moved private-data preservation to once per phase, dropped the underlay quiescence proof and
 removed links to untracked reports. Every acceptance line is unchanged: UP-to-committed p95 at most
@@ -221,7 +223,15 @@ failure does not cancel the other groups' slots. Gross regression is judged by e
 own analysis: a slot whose maximum overrun is above 33.34 ms or whose maximum UP-to-committed is
 above 100.0 ms is recorded as `gross_regression` and stops the subsequent frame slots; memory and
 storage slots continue, because they are separate verdicts. If a baseline decision slot is gross,
-that group is recorded as not comparable and stops. Invalid association, fatal error, ANR or process
+that group is recorded as not comparable and stops.
+
+The analysis output carries `gross_regression` (bool) and `gross_regression_basis`: the maximum
+overrun, the maximum UP-to-committed, the two thresholds (33.34 ms, 100.0 ms) and the array of
+families that crossed. A value exactly at a threshold is not gross; the verdict itself is unchanged.
+The chain reads `gross_regression` as its only stop input. A frame slot stopped by an earlier gross
+slot is recorded as skipped with reason `gross-regression-stop` (no attempt is consumed); if the
+gross slot is a baseline, its group is `not-comparable`. Memory and storage slots are never skipped
+by this rule. Invalid association, fatal error, ANR or process
 death also stops subsequent slots. No automatic slot retry or new identity to retry the same
 candidate is permitted. Any corrective collection needs a recorded new plan under QLT-015/019; the
 failed and unexecuted portions of this experiment remain explicit.
@@ -651,7 +661,7 @@ stays closed only until fixture preparation, the complete manifest and preservat
 The UI preparation has host pixel, picker, retained-failure, source-compatibility and
 bounded-call checks.
 
-## Pending admission decisions
+## Phase collection decisions
 
 ### Phase collector and analyzer routing
 
@@ -688,7 +698,7 @@ The existing lane planner selects phase behavior only from the explicit phase pr
 the canonical slot to its artifact role and derives the common eleven-field Android context from
 that role, the exact reserved manifest hash and `device.asset_preservation.session`. The latter must
 match the verified preservation-v2 record before admission; a caller-supplied attestation is not
-sufficient. Baseline roles require only their declared three APKs; candidate adds publication.
+sufficient. Baseline roles require only their declared APKs (baseline_single has two); candidate adds publication.
 
 Memory and SAF run on debug app/test with verify compilation. Publication is self-instrumenting
 and uses only its candidate publication APK, also verify compiled. Frame preparation installs the
@@ -747,13 +757,38 @@ only the verified preservation-v2 record and the expected APK hash. A missing pa
 a failed step retains all partial host outputs; the seal follows only after report capture and the
 reset have succeeded or have been recorded as failed.
 
-The former common 3000-second clock is replaced by a value derived from this reduced cleanup (three
-stops of 30 seconds, report recovery, two reset inventories and the move); the executable constant
-and its number are fixed with the cleanup implementation. The whole phase deadline is
-`snapshot + sum(slot timeout + slot cleanup) + restoration`. The slot timeouts sum to 13,770 seconds
-(frame 10,050; memory 10 x 300; publication 300; SAF 420), and the same sum is written into the
-manifest. This is a hang bound, not an estimated duration; a derived slot bound above 3,600 seconds
-is refused.
+The former common 3000-second clock is replaced by per-slot cleanup clocks derived from the
+reduced cleanup. The 276 ms per-call figure is the largest single call in the 2026-10-03 read-only
+observation and snapshot records on the device. Each clock is the call count times 276 ms times 2,
+plus the fixed parts (stop, install and probe, at their existing bounds), rounded up to 60 seconds.
+These are hang bounds, not estimates of how long a cleanup takes.
+
+| Slot group | Cleanup clock (s) | Slots |
+| --- | --- | --- |
+| frame single baseline | 540 | 1 |
+| frame single candidate | 600 | 1 |
+| frame staged (layers16, underlay) | 660 | 4 |
+| memory | 600 | 10 |
+| publication | 780 | 1 |
+| SAF | 720 | 1 |
+
+The cleanup clocks sum to 11,280 seconds over the 18 slots. The packages a slot's cleanup stops are
+those its role installs: the app package always, the test/provider package only for a role that has
+`test_debug`, and the publication package only for the publication slot.
+
+The whole phase deadline is defined in the next paragraph and in the phase wrapper's manifest.
+
+Each slot's deadline is its collector budget plus its cleanup clock plus the 90-second seal reserve
+and the 120-second analysis bound. The deadlines are 3,450, 3,540, 4,320 (x2) and 3,495 (x2) seconds
+for the six frame slots, 1,860 (x10) for memory, 1,920 for publication and 2,220 for SAF; the 18
+slots sum to 45,360 seconds. The snapshot bound is at least 60 seconds (the transfer time scales with
+the archive size; the 2026-10-03 measurement of a 10,335,232-byte tar in 3,204 ms and a 12,402,152-byte
+APK in 4,738 ms is the reference), isolation 180 seconds and restoration 360 seconds. The phase total
+is 45,960 seconds, a hang bound. Once the deadline is passed no new slot starts and a running slot is
+not stopped; cleanup and restoration always run. The rule refusing a derived bound above 3,600 seconds
+applies only to a collector bound (one native invocation), never to a slot deadline. The earlier 13,770
+seconds is the sum of slot timeouts, not the 30,300 seconds of collector budgets. The expected duration,
+extrapolated from the #142 measurements, is about three to four hours and is not a deadline.
 
 A successful frame retains its already captured fixture evidence. Failed staging may recover that
 slot's unique fixture report into a fresh diagnostic directory after debug access. If the collector
@@ -823,3 +858,19 @@ Collector/analyzer integration of first-preview association, the exact underlay 
 proof, executable memory/storage schema agreement and real SAF grant proof,
 artifact/profile bindings, complete phase stop/budget rules and preservation-v2 integration must be
 completed before collection. A verified read-only snapshot is not an isolated measurement session.
+
+### Manifest admission
+
+The phase manifest admission is open with schema `nene-pixel-p4-layer-preflight-v1`: four roles, 18
+slots, comparison role kept apart from artifact role, and `baseline_profile` pinned to the
+candidate's profile. It re-reads the preservation-v2 record and checks its hash, session and
+experiment; the record must be older than the manifest. The order is preservation, then manifest.
+The reservation's agreement Issue is 145, and live admission inspects dexopt on the four roles.
+
+## Pending admission decisions
+
+- Remove the `throw` in `measure-m2-frame.ps1`.
+- Re-attach the Compatibility reference commit.
+- Build the APKs of the four roles.
+- The Baseline Profile chore.
+- The candidate pin (after the chore has merged).
