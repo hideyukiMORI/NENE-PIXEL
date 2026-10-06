@@ -40,7 +40,10 @@ function Save-Json([string] $Path, $Value) { Write-P4SessionJson $Path $Value }
 # debug install 120, APK identity 4 x 30, reports 30 each, reset inventories 2 x 30, 6 moves x 30, reserve 15.
 function Expected-CleanupSeconds($DevicePlan) {
     if (@($DevicePlan.quiescence_packages).Count -ne 3) { throw 'Cleanup validator expects three writer packages' }
-    return 9 * 30 + 120 + 4 * 30 + 30 * @($DevicePlan.private_files).Count + 2 * 30 + 6 * 30 + 15
+    # Hang bound: 280 reset calls (16 + 24 x 11) x 0.276 s measured x 2, plus the unmeasured fixed parts
+    # (9 writer probes, install, 4 identity probes, 30 s per report, 15 s reserve), in whole minutes.
+    $milliseconds = (9 * 30 + 120 + 4 * 30 + 30 * @($DevicePlan.private_files).Count + 15) * 1000 + 280 * 276 * 2
+    return [int]([Math]::Ceiling($milliseconds / 60000.0) * 60)
 }
 # Slots are chosen from the catalog by meaning, never by a fixed id or count.
 function Catalog-Slot([string] $Lane, [string] $Group = '', [string] $Role = 'baseline') {
@@ -153,7 +156,7 @@ function Invoke-P4PrivateSlotReset {
 try {
     if ($CaseGroup -ceq 'Maps') {
         $manifest = New-Manifest
-        $catalog = @(Get-P4SlotCatalog $phase); $mapped = 0
+        $catalog = @(Get-P4SlotCatalog $phase); $mapped = 0; $total = 0
         foreach ($slot in $catalog) {
             $plan = Get-P4LayerSlotCleanupPlan $manifest $slot $hash
             $expectedSeconds = Expected-CleanupSeconds $plan.device_plan
@@ -162,11 +165,12 @@ try {
                 $plan.artifact_role -ceq $slot.artifact_role -and $plan.comparison_role -ceq $slot.role -and
                 $plan.debug_package -ceq (Get-P4LanePackages $manifest $plan.artifact_role $phase).application -and
                 $plan.timeout_seconds -eq $expectedSeconds -and $plan.timeout_seconds -le 3600) "cleanup map $($slot.id) = $expectedSeconds s"
-            $mapped++
+            $mapped++; $total += $plan.timeout_seconds
         }
         Check ($catalog.Count -gt 0 -and $mapped -eq $catalog.Count) "cleanup map covers every catalog slot ($($catalog.Count))"
+        Check ($catalog.Count -eq 18 -and $total -eq 13140) "18 slot cleanup clocks total 13140 s ($total s)"
         $single = Get-P4LayerSlotCleanupPlan $manifest (Get-P4ExecutionSlot $phase (Catalog-Slot 'frame' 'single')) $hash
-        Check ($single.timeout_seconds -eq 765) 'report-free cleanup clock is 765 s'
+        Check ($single.timeout_seconds -eq 720) 'report-free cleanup clock is 720 s'
         $slot = Get-P4ExecutionSlot $phase (Catalog-Slot 'memory' '' 'candidate')
         Refuses { Get-P4LayerSlotCleanupPlan $manifest $slot 'foreign' } '*ManifestSha256*' 'cleanup rejects unbound preflight'
         $bad = @{}; foreach ($key in $slot.Keys) { $bad[$key] = $slot[$key] }; $bad.role = 'baseline'

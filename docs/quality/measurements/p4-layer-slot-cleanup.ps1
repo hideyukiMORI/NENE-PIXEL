@@ -5,29 +5,41 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'p4-device-private-slot-reset.ps1')
 $script:P4LayerCleanupHelperPath = $PSCommandPath
 
-# The six fixed roots of Get-P4MoveRoots (three recovery files, reference-underlays and the two
-# ProfileInstaller files); a slot reset moves at most this many entries.
-$script:P4LayerCleanupMoveRootCount = 6
 # The native termination/drain reserve that ConvertTo-P4OperationTimeout keeps back from the clock.
 $script:P4LayerCleanupNativeReserveSeconds = 15
-# One shared cleanup clock, derived from the reduced cleanup (no per-slot private/APK archive):
-#   W x P4ProbeTimeoutSeconds              writer force-stop       (W = quiescence_packages, 3)
-# + W x P4ProbeTimeoutSeconds              writer absence (pidof)
-# + P4InstallTimeoutSeconds                role debug APK install
-# + 4 x P4ProbeTimeoutSeconds              installed APK identity (pm path + sha256, before and after)
-# + W x P4ProbeTimeoutSeconds              writers still stopped after debug access
-# + sum(private_files.timeout_seconds)     report recovery (30 s each)
-# + 2 x P4ProbeTimeoutSeconds              reset pre/final inventories
-# + P4LayerCleanupMoveRootCount x P4ProbeTimeoutSeconds   reset moves
-# + P4LayerCleanupNativeReserveSeconds     native termination/drain reserve
-# With W = 3 this is 765 + 30 x N seconds for N report files (frame single 765, staged frame 795).
+# The cleanup clock is a hang bound, not the sum of every native call's own 30 s limit (that sum is
+# 16 + 24 x I calls x 30 s >= 7680 s and cannot fit the 3600 s budget).
+# Measured source: the 2026-10-03 device records 145-native-device-readonly/20261003T155545623 and
+# 145-native-snapshot-device/20261003T160746439 (one tablet, 149 entries, 90 files, three
+# inventories plus four APK identity calls). Their elapsed_milliseconds give a per-call median of
+# 0.180 s and a maximum of 0.276 s (37 calls); one inventory took 1.8-2.0 s of call time (2.7 s wall).
+# 149 entries and 90 files make I = 8 + ceil(149/128) + ceil(90/128) = 11 calls per inventory.
+$script:P4LayerCleanupMeasuredCallMilliseconds = 276
+$script:P4LayerCleanupInventoryCallCount = 11
+# Assumed, not measured: later slot data keeps I = 11 (entries <= 256, files <= 128), and the
+# reset runs its worst shape of 16 + 24 x I native calls (five mkdir and six move steps).
+$script:P4LayerCleanupResetCallCount = 16 + 24 * $script:P4LayerCleanupInventoryCallCount
+$script:P4LayerCleanupMargin = 2
+# One shared cleanup clock, rounded up to whole minutes:
+#   reset calls x measured call x P4LayerCleanupMargin      (280 x 0.276 s x 2 = 154.56 s)
+# + the parts with no measurement, kept at their T4 upper bounds:
+#   3 x W x P4ProbeTimeoutSeconds   writer force-stop, absence, still-stopped (W = 3 writers)
+#   P4InstallTimeoutSeconds         role debug APK install
+#   4 x P4ProbeTimeoutSeconds       installed APK identity probes
+#   sum(private_files.timeout_seconds) report recovery (30 s each)
+#   P4LayerCleanupNativeReserveSeconds
+# With W = 3 and N report files: ceil((679.56 + 30 x N) / 60) x 60, so N = 0 or 1 -> 720 s,
+# N = 3 -> 780 s, N = 4 -> 840 s.
 function Get-P4LayerSlotCleanupTimeout([Collections.IDictionary] $DevicePlan) {
     $writers = @($DevicePlan.quiescence_packages).Count
     $reports = 0
     foreach ($file in @($DevicePlan.private_files)) { $reports += [int]$file.timeout_seconds }
-    return [int](3 * $writers * $script:P4ProbeTimeoutSeconds + $script:P4InstallTimeoutSeconds +
-        4 * $script:P4ProbeTimeoutSeconds + $reports + 2 * $script:P4ProbeTimeoutSeconds +
-        $script:P4LayerCleanupMoveRootCount * $script:P4ProbeTimeoutSeconds + $script:P4LayerCleanupNativeReserveSeconds)
+    $fixedSeconds = 3 * $writers * $script:P4ProbeTimeoutSeconds + $script:P4InstallTimeoutSeconds +
+        4 * $script:P4ProbeTimeoutSeconds + $reports + $script:P4LayerCleanupNativeReserveSeconds
+    $resetMilliseconds = [long]$script:P4LayerCleanupResetCallCount * $script:P4LayerCleanupMeasuredCallMilliseconds *
+        $script:P4LayerCleanupMargin
+    $totalMilliseconds = [long]$fixedSeconds * 1000 + $resetMilliseconds
+    return [int]([Math]::Ceiling($totalMilliseconds / 60000.0) * 60)
 }
 
 function Get-P4LayerSlotCleanupPlan {
