@@ -26,7 +26,6 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelY
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
@@ -110,6 +109,7 @@ internal class SchedulerFixture(
             io.github.hideyukimori.nenepixel.core.application.persistence.PngExportOutcome.Cancelled
         },
 ) {
+    private val dispatchers = TestCoroutineDispatchers()
     private val runtime = createEditorRuntime()
     val workflow =
         EditorPersistenceWorkflow.create(
@@ -140,7 +140,7 @@ internal class SchedulerFixture(
                 },
                 EmptyUnderlayMemoryPort,
             ),
-            Dispatchers.Unconfined,
+            dispatchers.inline,
         )
     private var nextX: Int = 0
 

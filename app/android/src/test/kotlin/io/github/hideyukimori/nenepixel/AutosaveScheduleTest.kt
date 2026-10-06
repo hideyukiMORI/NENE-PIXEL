@@ -26,7 +26,6 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelY
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
-import kotlinx.coroutines.Dispatchers
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
@@ -115,7 +114,7 @@ internal class AutosaveScheduleTest {
         val captured = idle().observed(capture(publishedState), START, POLICY)
         val publishedWithNewerCapture =
             captured.observed(
-                capture(pendingState, published = publishedState),
+                capture(pendingState, Publication(published = publishedState)),
                 START + CAP,
                 POLICY,
             )
@@ -125,7 +124,7 @@ internal class AutosaveScheduleTest {
 
         val settled =
             publishedWithNewerCapture.observed(
-                capture(null, published = pendingState),
+                capture(null, Publication(published = pendingState)),
                 START + CAP,
                 POLICY,
             )
@@ -150,14 +149,14 @@ internal class AutosaveScheduleTest {
         val pendingState = tokens.next()
         val first =
             idle().observed(
-                capture(pendingState, published = firstBranch),
+                capture(pendingState, Publication(published = firstBranch)),
                 START,
                 POLICY,
             )
 
         val replacement =
             first.observed(
-                capture(pendingState, published = replacementBranch),
+                capture(pendingState, Publication(published = replacementBranch)),
                 START + HALF_QUIET,
                 POLICY,
             )
@@ -175,13 +174,13 @@ internal class AutosaveScheduleTest {
         val initial = idle().observed(capture(publishingState), START, POLICY)
         val capturedDuringPublication =
             initial.observed(
-                capture(pendingState, publishing = publishingState),
+                capture(pendingState, Publication(publishing = publishingState)),
                 START + HALF_QUIET,
                 POLICY,
             )
         val coalescedDuringPublication =
             capturedDuringPublication.observed(
-                capture(coalescedState, publishing = publishingState),
+                capture(coalescedState, Publication(publishing = publishingState)),
                 START + QUIET,
                 POLICY,
             )
@@ -197,19 +196,19 @@ internal class AutosaveScheduleTest {
         val pendingState = tokens.next()
         val publishing =
             idle().observed(
-                capture(publishingState, publishing = publishingState),
+                capture(publishingState, Publication(publishing = publishingState)),
                 START,
                 POLICY,
             )
         val capturedDuringPublication =
             publishing.observed(
-                capture(pendingState, publishing = publishingState),
+                capture(pendingState, Publication(publishing = publishingState)),
                 START + HALF_QUIET,
                 POLICY,
             )
         val completed =
             capturedDuringPublication.observed(
-                capture(pendingState, published = publishingState),
+                capture(pendingState, Publication(published = publishingState)),
                 START + QUIET,
                 POLICY,
             )
@@ -226,7 +225,7 @@ internal class AutosaveScheduleTest {
         val beforePublication = idle().observed(capture(publishedState), START, POLICY)
         val afterPublication =
             beforePublication.observed(
-                capture(pendingState, published = publishedState),
+                capture(pendingState, Publication(published = publishedState)),
                 START + HALF_QUIET,
                 POLICY,
             )
@@ -240,7 +239,7 @@ internal class AutosaveScheduleTest {
         val stateToken = AutosaveStateTokens().next()
         val publishing =
             idle().observed(
-                capture(stateToken, publishing = stateToken),
+                capture(stateToken, Publication(publishing = stateToken)),
                 START,
                 POLICY,
             )
@@ -281,13 +280,12 @@ internal class AutosaveScheduleTest {
 
     private fun capture(
         stateToken: AutosaveStateToken?,
-        published: AutosaveStateToken? = null,
-        publishing: AutosaveStateToken? = null,
+        publication: Publication = Publication(),
         gate: Any? = GATE,
         flushes: Long = 0L,
     ): AutosaveObservation =
         AutosaveObservation(
-            states = AutosaveStateObservation(stateToken, published, publishing),
+            states = AutosaveStateObservation(stateToken, publication.published, publication.publishing),
             gate = gate,
             flushes = flushes,
         )
@@ -302,7 +300,14 @@ internal class AutosaveScheduleTest {
     }
 }
 
+/** The recovery publication side of an observation: the state already published and the one being published. */
+private data class Publication(
+    val published: AutosaveStateToken? = null,
+    val publishing: AutosaveStateToken? = null,
+)
+
 private class AutosaveStateTokens {
+    private val dispatchers = TestCoroutineDispatchers()
     private val runtime = createEditorRuntime()
     private val workflow =
         EditorPersistenceWorkflow.create(
@@ -345,7 +350,7 @@ private class AutosaveStateTokens {
                 },
                 EmptyUnderlayMemoryPort,
             ),
-            Dispatchers.Unconfined,
+            dispatchers.inline,
         )
     private var nextX: Int = 0
 

@@ -34,12 +34,12 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.underlay.Unde
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.document.LegacyRgbaSource
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 
 /** A real runtime and workflow whose underlay memory port records every call (ADR 0034). */
 internal class UnderlayMemorySchedulerFixture {
+    private val dispatchers = TestCoroutineDispatchers()
     private val runtime = createEditorRuntime()
     val port = RecordingUnderlayMemoryPort()
     val time = ManualQuietTime()
@@ -58,7 +58,7 @@ internal class UnderlayMemorySchedulerFixture {
                 PngImportPort { PngImportOutcome.Cancelled },
                 port,
             ),
-            Dispatchers.Unconfined,
+            dispatchers.inline,
         )
     val scheduler =
         UnderlayMemoryScheduler(
