@@ -92,11 +92,14 @@ internal class AndroidPngImportAdapterTest {
     fun `source read failure is a failure of its transport phase`() =
         runBlocking {
             val content =
-                MemoryProjectContent(inputFactory = {
-                    object : InputStream() {
-                        override fun read(): Int = throw IOException("test read")
-                    }
-                })
+                MemoryProjectContent(
+                    behavior =
+                        ProjectContentBehavior(inputFactory = {
+                            object : InputStream() {
+                                override fun read(): Int = throw IOException("test read")
+                            }
+                        }),
+                )
             assertEquals(
                 PngImportOutcome.Failed(ProjectStorageFailure.IoFailure(ProjectTransportPhase.SOURCE_READ)),
                 adapter(content).pick(),

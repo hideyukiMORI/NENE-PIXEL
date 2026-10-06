@@ -59,11 +59,14 @@ internal class AndroidReferenceImageAdapterTest {
     fun `source read failure maps to its transport phase`() =
         runBlocking {
             val content =
-                MemoryProjectContent(inputFactory = {
-                    object : InputStream() {
-                        override fun read(): Int = throw IOException("test read")
-                    }
-                })
+                MemoryProjectContent(
+                    behavior =
+                        ProjectContentBehavior(inputFactory = {
+                            object : InputStream() {
+                                override fun read(): Int = throw IOException("test read")
+                            }
+                        }),
+                )
             val decoder = RecordingDecoder()
             assertEquals(
                 ReferenceImageOutcome.Failed(ProjectStorageFailure.IoFailure(ProjectTransportPhase.SOURCE_READ)),
@@ -86,9 +89,12 @@ internal class AndroidReferenceImageAdapterTest {
     fun `unknown length stream one byte past the limit is too many bytes`() =
         runBlocking {
             val content =
-                MemoryProjectContent(inputFactory = {
-                    RepeatingInputStream(ReferenceImageLimits.MAX_ENCODED_BYTE_COUNT + 1L)
-                })
+                MemoryProjectContent(
+                    behavior =
+                        ProjectContentBehavior(inputFactory = {
+                            RepeatingInputStream(ReferenceImageLimits.MAX_ENCODED_BYTE_COUNT + 1L)
+                        }),
+                )
             val decoder = RecordingDecoder()
             assertEquals(rejected(ReferenceImageSourceRejection.TooManyBytes), adapter(content, decoder).pick())
             assertEquals(0, decoder.calls.size)

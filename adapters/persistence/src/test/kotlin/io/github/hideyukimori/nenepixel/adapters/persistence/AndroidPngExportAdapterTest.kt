@@ -54,7 +54,7 @@ internal class AndroidPngExportAdapterTest {
     @Test
     fun `read back mismatch preserves primary failure even if deletion fails`() =
         runBlocking {
-            val content = MemoryProjectContent(readBackMutation = { it[0] = 0 })
+            val content = MemoryProjectContent(behavior = ProjectContentBehavior(readBackMutation = { it[0] = 0 }))
             content.deleteResult = 0
             assertEquals(
                 PngExportOutcome.Failed(ProjectStorageFailure.ReadBackMismatch, PartialOutputCleanup.DELETE_FAILED),
@@ -67,11 +67,14 @@ internal class AndroidPngExportAdapterTest {
     fun `write IO failure closes and deletes fresh output`() =
         runBlocking {
             val content =
-                MemoryProjectContent(outputFactory = {
-                    object : OutputStream() {
-                        override fun write(value: Int): Unit = throw IOException("test write")
-                    }
-                })
+                MemoryProjectContent(
+                    behavior =
+                        ProjectContentBehavior(outputFactory = {
+                            object : OutputStream() {
+                                override fun write(value: Int): Unit = throw IOException("test write")
+                            }
+                        }),
+                )
             assertEquals(
                 PngExportOutcome.Failed(
                     ProjectStorageFailure.IoFailure(ProjectTransportPhase.DESTINATION_WRITE),
@@ -85,7 +88,7 @@ internal class AndroidPngExportAdapterTest {
     @Test
     fun `write cancellation closes and deletes before rethrow`() {
         val output = CancellingOutputStream()
-        val content = MemoryProjectContent(outputFactory = { output })
+        val content = MemoryProjectContent(behavior = ProjectContentBehavior(outputFactory = { output }))
         assertThrows(CancellationException::class.java) {
             runBlocking { adapter(content).export(PersistenceTestValues.minimalDocument) }
         }

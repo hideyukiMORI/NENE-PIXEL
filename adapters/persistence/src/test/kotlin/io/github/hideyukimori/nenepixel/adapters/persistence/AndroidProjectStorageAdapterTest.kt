@@ -73,7 +73,10 @@ internal class AndroidProjectStorageAdapterTest {
     @Test
     fun `read back mismatch keeps primary failure and reports cleanup`() =
         runBlocking {
-            val content = MemoryProjectContent(readBackMutation = { it[0] = (it[0].toInt() xor 1).toByte() })
+            val content =
+                MemoryProjectContent(
+                    behavior = ProjectContentBehavior(readBackMutation = { it[0] = (it[0].toInt() xor 1).toByte() }),
+                )
             val adapter = adapter(content, InternalPickerResult.Selected(TestLocation))
 
             val result = adapter.save(PersistenceTestValues.minimalDocument)
@@ -103,7 +106,7 @@ internal class AndroidProjectStorageAdapterTest {
     @Test
     fun `write cancellation closes and deletes before rethrow`() {
         val output = CancellingOutputStream()
-        val content = MemoryProjectContent(outputFactory = { output })
+        val content = MemoryProjectContent(behavior = ProjectContentBehavior(outputFactory = { output }))
         val adapter = adapter(content, InternalPickerResult.Selected(TestLocation))
 
         assertThrows(CancellationException::class.java) {
@@ -116,7 +119,7 @@ internal class AndroidProjectStorageAdapterTest {
     @Test
     fun `read cancellation closes before rethrow`() {
         val input = CancellingInputStream()
-        val content = MemoryProjectContent(inputFactory = { input })
+        val content = MemoryProjectContent(behavior = ProjectContentBehavior(inputFactory = { input }))
         val adapter = adapter(content, InternalPickerResult.Selected(TestLocation))
 
         assertThrows(CancellationException::class.java) {

@@ -79,11 +79,14 @@ internal class AndroidPaletteJsonImportAdapterTest {
     fun `source read failure maps to its transport phase`() =
         runBlocking {
             val content =
-                MemoryProjectContent(inputFactory = {
-                    object : InputStream() {
-                        override fun read(): Int = throw IOException("test read")
-                    }
-                })
+                MemoryProjectContent(
+                    behavior =
+                        ProjectContentBehavior(inputFactory = {
+                            object : InputStream() {
+                                override fun read(): Int = throw IOException("test read")
+                            }
+                        }),
+                )
             assertEquals(
                 PaletteJsonImportOutcome.Failed(ProjectStorageFailure.IoFailure(ProjectTransportPhase.SOURCE_READ)),
                 adapter(content).import(),
