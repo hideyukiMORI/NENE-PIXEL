@@ -286,9 +286,17 @@ try {
         [IO.File]::WriteAllText($recordPath2, (ConvertTo-Json -InputObject $old -Depth 10))
         Reject { Read-P4VerifiedSnapshot $recordPath2 $context2 } '*source set changed*' 'historical seven-source snapshot refused'
         $repository = $context.repository_root
-        foreach ($name in @('p4-device-private-preservation.ps1', 'p4-device-private-observation.ps1', 'p4-device-private-transport.ps1')) {
-            $diff = & git -C $repository diff 23a1e53 -- "docs/quality/measurements/$name"
-            Check ($LASTEXITCODE -eq 0 -and @($diff).Count -eq 0) "$name unchanged from accepted planner/transport inputs"
+        # Accepted planner/transport inputs pinned by git blob hash (git hash-object), not by a commit, so a squash
+        # merge keeps the baseline. Changing the baseline requires a commit that changes this table.
+        # preservation differs from 23a1e53 only by New-P4SlotResetPlan (#145, 52606fa); the others equal 23a1e53.
+        $acceptedBlobs = [ordered]@{
+            'p4-device-private-preservation.ps1' = '26280d570ac9b3691bd3980342ddb92e66d099f4'
+            'p4-device-private-observation.ps1' = '0798480071e6b6ba715e58cdd13848dd5799d2b4'
+            'p4-device-private-transport.ps1' = 'ed4572eb8945fba06e20e312016df547a8bd05ac'
+        }
+        foreach ($name in $acceptedBlobs.Keys) {
+            $blob = & git -C $repository hash-object -- "docs/quality/measurements/$name"
+            Check ($LASTEXITCODE -eq 0 -and $blob -ceq $acceptedBlobs[$name]) "$name matches accepted planner/transport inputs"
         }
         $files = @('p4-operation-budget.ps1', 'p4-indexed-device-lanes.ps1', 'p4-device-private-native.ps1',
             'p4-device-private-snapshot.ps1', 'p4-device-private-session.ps1', 'p4-device-private-restore.ps1')
