@@ -27,6 +27,13 @@ function Case([string]$Name, [scriptblock]$Body, [switch]$Refuse) {
     $script:cases.Add([ordered]@{ name = $Name; passed = $passed; refusal = [bool]$Refuse; error = $failure })
     Check $passed "Case failed: $Name : $failure"
 }
+function Slot([string]$Lane, [string]$Role, [string]$Group = $null, [int]$Sequence = 0) {
+    $found = @($script:slots | Where-Object { $_.lane -ceq $Lane -and $_.role -ceq $Role -and
+        ([string]::IsNullOrEmpty($Group) -or $_.group_id -ceq $Group) -and
+        ($Sequence -eq 0 -or $_.sequence_index -eq $Sequence) })
+    Check ($found.Count -eq 1) "Catalog slot $Lane/$Role/$Group/$Sequence is not unique: $($found.Count)"
+    return $found[0]
+}
 function New-Manifest {
     $manifest = [ordered]@{ protocol = @{ id = $phase }; experiment_id = 'layer-lane-contract';
         roles = [ordered]@{}; device = @{ serial = 'contract-only'; asset_preservation = @{ sha256 = 'b' * 64; session = 'layer-lane-contract' } } }
@@ -48,6 +55,7 @@ function New-Manifest {
 try {
     $manifest = New-Manifest
     $slots = @(Get-P4SlotCatalog $phase)
+    $script:slots = $slots
     if ($CaseGroup -ceq 'Plans') {
         $plans = @(foreach ($slot in $slots) {
             $plan = Get-P4DeviceLanePlan $manifest $slot $hash
@@ -104,11 +112,11 @@ try {
         } -Refuse
         Case 'publication target must be self' {
             $bad = Clone $manifest; $bad.roles.candidate.artifacts.publication_test.target_package = 'io.foreign.app'
-            Get-P4DeviceLanePlan $bad $slots[22] $hash | Out-Null
+            Get-P4DeviceLanePlan $bad (Slot publication candidate) $hash | Out-Null
         } -Refuse
         Case 'role app identity must agree' {
-            $bad = Clone $manifest; $bad.roles.baseline_single.artifacts.test_debug.test_package = 'io.foreign.test'
-            Get-P4DeviceLanePlan $bad $slots[0] $hash | Out-Null
+            $bad = Clone $manifest; $bad.roles.baseline_layers16.artifacts.test_debug.test_package = 'io.foreign.test'
+            Get-P4DeviceLanePlan $bad (Slot frame baseline layers16) $hash | Out-Null
         } -Refuse
         Case 'unknown package protocol refused' { Get-P4LanePackages $manifest 'candidate' 'foreign' | Out-Null } -Refuse
         Case 'bound above native cap refused' { Assert-P4CollectorBoundWithinCap @{ lane = 'frame'; collector_timeout_seconds = 3601 } } -Refuse
@@ -198,7 +206,7 @@ try {
             if ($script:mode -ceq 'partial' -and $leaf -ceq 'publication.csv') { throw 'simulated partial capture' }
             return @{ byte_count = 4; sha256 = Get-FileSha256 $DestinationPath }
         }
-        $plan = Get-P4DeviceLanePlan $manifest $slots[22] $hash
+        $plan = Get-P4DeviceLanePlan $manifest (Slot publication candidate) $hash
         foreach ($mode in @('complete', 'partial', 'running')) {
             Case "stopped capture $mode" {
                 $script:mode = $mode; $script:events.Clear()
@@ -270,12 +278,12 @@ try {
         Case 'common Android argument names agree' {
             $source = Get-Content -Raw (Join-Path $measurement 'P4LayerRunAdmission.kt')
             $keys = @([regex]::Matches($source, '"(p4Layer[A-Za-z0-9]+)"') | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
-            $plan = Get-P4DeviceLanePlan $manifest $slots[12] $hash
+            $plan = Get-P4DeviceLanePlan $manifest (Slot memory baseline -Sequence 7) $hash
             Check ($keys.Count -eq 12) 'Common Android argument count changed'
             foreach ($key in $keys) { Check ($plan.instrumentation_arguments.Contains($key)) "Missing actual Android key $key" }
         }
-        foreach ($index in @(4, 12, 22, 23)) {
-            $plan = Get-P4DeviceLanePlan $manifest $slots[$index] $hash
+        foreach ($selected in @((Slot frame baseline layers16), (Slot memory baseline -Sequence 7), (Slot publication candidate), (Slot saf-save candidate))) {
+            $plan = Get-P4DeviceLanePlan $manifest $selected $hash
             Case "actual runner binding $($plan.lane)" {
                 $className = $plan.class.Split('.')[-1]
                 $path = if ($plan.lane -ceq 'publication') {
@@ -307,8 +315,8 @@ try {
             if ($script:failInstrumentation) { throw 'simulated failed instrument' }
         }
         function Copy-P4PrivateFile { throw 'Live private copy must never run for phase' }
-        foreach ($index in @(12, 22, 23)) {
-            $plan = Get-P4DeviceLanePlan $manifest $slots[$index] $hash
+        foreach ($selected in @((Slot memory baseline -Sequence 7), (Slot publication candidate), (Slot saf-save candidate))) {
+            $plan = Get-P4DeviceLanePlan $manifest $selected $hash
             foreach ($fail in @($false, $true)) {
                 Case "instrumentation dispatch $($plan.lane) failure=$fail" {
                     $script:events.Clear(); $script:failInstrumentation = $fail

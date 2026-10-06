@@ -160,8 +160,8 @@ try {
         if ($CaseGroup -ceq 'Ui') { Case 'real picker drawer root and unique document click' {
             Queue-Ui "<node resource-id='com.android.documentsui:id/toolbar'><node class='android.widget.ImageButton' clickable='true' enabled='true' bounds='[0,0][20,20]'/></node>"
             Queue-Ui "<node clickable='true' enabled='true' bounds='[20,20][40,40]'><node resource-id='android:id/title' text='NENE-PIXEL Acceptance'/></node>"
-            Queue-Ui "<node resource-id='com.android.documentsui:id/toolbar'><node text='NENE-PIXEL Acceptance'/></node><node clickable='true' enabled='true' bounds='[40,40][60,60]'><node text='i89-145-aaaaaaaaaaaa-frame-5-layers16.nenepixel'/></node>"
-            Open-P4LayerSetupProviderDocument 'i89-145-aaaaaaaaaaaa-frame-5-layers16.nenepixel' 'application/octet-stream'
+            Queue-Ui "<node resource-id='com.android.documentsui:id/toolbar'><node text='NENE-PIXEL Acceptance'/></node><node clickable='true' enabled='true' bounds='[40,40][60,60]'><node text='i89-145-aaaaaaaaaaaa-frame-3-layers16.nenepixel'/></node>"
+            Open-P4LayerSetupProviderDocument 'i89-145-aaaaaaaaaaaa-frame-3-layers16.nenepixel' 'application/octet-stream'
             Check ($script:uiQueue.Count -eq 0 -and $script:adbCalls.Count -eq 4) 'Picker sequence differs'
             Check (($script:adbCalls[3] -join ' ') -ceq 'shell cmd input tap 50 50') 'Picker did not use clickable ancestor'
         } }
@@ -172,13 +172,13 @@ try {
         }
         if ($CaseGroup -ceq 'Ui') { Case 'ambiguous picker drawer refused' {
             Queue-Ui "<node resource-id='com.android.documentsui:id/toolbar'><node class='android.widget.ImageButton' clickable='true'/><node class='android.widget.ImageButton' clickable='true'/></node>"
-            Open-P4LayerSetupProviderDocument 'i89-145-aaaaaaaaaaaa-frame-9-underlay.png' 'image/png'
+            Open-P4LayerSetupProviderDocument 'i89-145-aaaaaaaaaaaa-frame-5-underlay.png' 'image/png'
         } -Refuse
         Case 'disabled clickable parent refused' {
             [xml]$ui = "<root><node enabled='false' clickable='true'><node text='target'/></node></root>"
             Invoke-P4LayerSetupClickable $ui.SelectSingleNode('//*[@text]')
         } -Refuse }
-        $resolvedOutput = $OutputDirectory; $PhaseContext = @{ slot_id = 'frame-5-layers16-baseline-decision' }
+        $resolvedOutput = $OutputDirectory; $PhaseContext = @{ slot_id = 'frame-3-layers16-baseline-decision' }
         Case 'setup retains UI and successful result' {
             Invoke-P4LayerFrameSetup 'valid-setup' { Save-P4LayerSetupUi '<hierarchy/>' }
             $record = Get-Content -Raw (Join-Path $script:layerSetupDirectory 'valid-setup.json') | ConvertFrom-Json

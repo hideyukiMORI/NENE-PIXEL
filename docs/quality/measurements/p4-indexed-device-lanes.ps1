@@ -78,9 +78,12 @@ function Get-P4LanePackages {
             throw 'Phase APK kind set differs.'
         }
         $application = Assert-P4PackageName ([string]$artifacts.app_debug.target_package) "$Role.app_debug"
-        $test = Assert-P4PackageName ([string]$artifacts.test_debug.test_package) "$Role.test_debug"
+        # baseline_single declares no test APK (R4): its role has no application_test package.
+        $test = if ($catalog[0].artifact_kinds -ccontains 'test_debug') {
+            Assert-P4PackageName ([string]$artifacts.test_debug.test_package) "$Role.test_debug"
+        } else { $null }
         if ($application -ceq $test -or $artifacts.app_release_like.target_package -cne $application -or
-            $artifacts.test_debug.target_package -cne $application) { throw 'Phase app/test package binding differs.' }
+            ($null -ne $test -and $artifacts.test_debug.target_package -cne $application)) { throw 'Phase app/test package binding differs.' }
         $publication = if ($Role -ceq 'candidate') {
             Assert-P4PackageName ([string]$artifacts.publication_test.test_package) "$Role.publication_test"
         } else { $null }
@@ -669,17 +672,20 @@ function Get-P4LayerDeviceLanePlan {
     $packages = Get-P4LanePackages $Manifest $role $protocol
     $candidatePackages = Get-P4LanePackages $Manifest 'candidate' $protocol
     if ($packages.application -cne $candidatePackages.application -or
-        $packages.application_test -cne $candidatePackages.application_test) { throw 'Phase package identities differ between roles.' }
+        ($null -ne $packages.application_test -and $packages.application_test -cne $candidatePackages.application_test)) {
+        throw 'Phase package identities differ between roles.'
+    }
     $context = [ordered]@{ protocol_id = $protocol; experiment_id = [string]$Manifest.experiment_id;
         preflight_sha256 = $ManifestSha256; preservation_sha256 = [string]$Manifest.device.asset_preservation.sha256;
         session = [string]$Manifest.device.asset_preservation.session; slot_id = [string]$Slot.id;
         artifact_role = $role; measurement_build_commit = [string]$source.build_commit;
         production_commit = [string]$source.production_commit; app_apk_sha256 = [string]$source.artifacts.app_debug.sha256;
-        test_apk_sha256 = [string]$source.artifacts.test_debug.sha256 }
+        test_apk_sha256 = if ($null -ne $packages.application_test) { [string]$source.artifacts.test_debug.sha256 } else { $null } }
     foreach ($key in @('experiment_id', 'session')) {
         if ($context[$key] -cnotmatch '^[a-z0-9][a-z0-9-]{2,63}$') { throw "Invalid phase $key" }
     }
     foreach ($key in @('preservation_sha256', 'app_apk_sha256', 'test_apk_sha256')) {
+        if ($key -ceq 'test_apk_sha256' -and $null -eq $packages.application_test) { continue }
         if ($context[$key] -cnotmatch '^[0-9a-f]{64}$') { throw "Invalid phase $key" }
     }
     $argumentKeys = [ordered]@{ protocol_id = 'p4LayerProtocolId'; experiment_id = 'p4LayerExperimentId';
@@ -692,7 +698,7 @@ function Get-P4LayerDeviceLanePlan {
     $prefix = $ManifestSha256.Substring(0, 12)
     $plan = [ordered]@{ protocol_id = $protocol; lane = $Slot.lane; slot_id = $Slot.id;
         role = $role; comparison_role = $Slot.role; phase_context = $context; packages = $packages;
-        quiescence_packages = @($packages.application, $packages.application_test, $candidatePackages.publication_test);
+        quiescence_packages = @($packages.application, $candidatePackages.application_test, $candidatePackages.publication_test);
         install_kinds = @('app_debug', 'test_debug'); dexopt_packages = @($packages.application);
         timeout_seconds = [int]$Slot.timeout_seconds; inner_timeout_seconds = [int]$Slot.timeout_seconds;
         setup_timeout_seconds = 0; expected_test_count = 1; test_package = $packages.application_test;

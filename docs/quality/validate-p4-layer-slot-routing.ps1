@@ -381,7 +381,8 @@ try {
         $selected=@($slots|Where-Object {$_.lane -ceq 'frame' -and
             (($_.group_id -ceq 'layers16' -and $_.runner -ceq 'decision') -or
              ($_.group_id -ceq 'single' -and $_.role -ceq 'baseline' -and $_.runner -ceq 'decision') -or
-             ($_.group_id -ceq 'underlay' -and $_.role -ceq 'baseline' -and $_.runner -ceq 'diagnostic'))})
+             ($_.group_id -ceq 'underlay' -and $_.role -ceq 'baseline' -and $_.runner -ceq 'decision'))})
+        Check ($selected.Count -eq 4) "Frame analysis routing selected $($selected.Count) of 4 slots"
         foreach($slot in $selected) {Case "complete frame analysis routing $($slot.id)" {
             $contract=Get-P4FrameExecutionContract $phase $slot.id;$frameDir=New-LayerFrameFixture $contract
             $context=Get-P4LayerFramePhaseContext $manifest $slot $hash;New-SetupFixture $slot $frameDir $context

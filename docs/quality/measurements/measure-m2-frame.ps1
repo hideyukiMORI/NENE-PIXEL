@@ -163,7 +163,7 @@ param(
     [string]$CandidateRole,
 
     [Parameter(Mandatory = $true)]
-    [ValidateRange(1, 12)]
+    [ValidateRange(1, 6)]
     [int]$ComparisonSequenceIndex,
 
     [Parameter(Mandatory = $true)]
