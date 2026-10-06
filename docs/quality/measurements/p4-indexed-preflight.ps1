@@ -331,8 +331,11 @@ function Get-P4LayerArtifactCatalog {
     param([Parameter(Mandatory)][string]$ProtocolId)
     $groups = @(Get-P4FrameGroupCatalog -ProtocolId $ProtocolId)
     foreach ($group in $groups) {
+        # baseline_single stages no fixture and runs no memory lane, so it has no test APK.
+        $kinds = if ($group.baseline_artifact_role -ceq 'baseline_single') { @('app_debug', 'app_release_like') }
+            else { @('app_debug', 'test_debug', 'app_release_like') }
         [ordered]@{ role = $group.baseline_artifact_role; production_commit = $group.baseline_production_commit
-            artifact_kinds = @('app_debug', 'test_debug', 'app_release_like') }
+            artifact_kinds = $kinds }
     }
     [ordered]@{ role = 'candidate'; production_commit = '1f9bb1637058d3fa4a98122f4942406211bd1c69'
         artifact_kinds = @('app_debug', 'test_debug', 'app_release_like', 'publication_test') }

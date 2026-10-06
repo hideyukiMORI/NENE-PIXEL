@@ -60,18 +60,26 @@ try {
             '169b59287ca60e77e07ac91690450dd1a44b9ba4,f92b1006be5f7145a32258446474f8640b14b60b,' +
             '1f9bb1637058d3fa4a98122f4942406211bd1c69')) 'Production commits'
         foreach ($role in $roles) {
-            $expected = 'app_debug,test_debug,app_release_like' + $(if ($role.role -ceq 'candidate') { ',publication_test' } else { '' })
+            $expected = switch -CaseSensitive ($role.role) {
+                'baseline_single' { 'app_debug,app_release_like' }
+                'candidate' { 'app_debug,test_debug,app_release_like,publication_test' }
+                default { 'app_debug,test_debug,app_release_like' }
+            }
             Require (($role.artifact_kinds -join ',') -ceq $expected) 'APK kind set'
         }
     }
-    Case 'unified schedule reuses exact subcatalog objects in 12-10-2 order' {
+    Case 'unified schedule reuses exact subcatalog objects in 6-10-2 order' {
         $schedule = @(Get-P4SlotCatalog $phase)
         $parts = @(Get-P4FrameSlotCatalog $phase) + @(Get-P4LayerMemorySlotCatalog $phase) + @(Get-P4LayerStorageSlotCatalog $phase)
-        Require ($schedule.Count -eq 24) 'Slot count'
+        Require ($schedule.Count -eq 18) 'Slot count'
         Require ((ConvertTo-Json $schedule -Depth 12 -Compress) -ceq (ConvertTo-Json $parts -Depth 12 -Compress)) 'Schedule projection drift'
-        Require (($schedule[12..21].id -join ',') -ceq (((1..5 | ForEach-Object { "memory-layers16-baseline-$_" }) +
+        $lanes = (@('frame') * 6) + (@('memory') * 10) + @('publication', 'saf-save')
+        Require ((@($schedule | ForEach-Object { $_.lane }) -join ',') -ceq ($lanes -join ',')) 'Lane order'
+        $memory = @($schedule | Where-Object { $_.lane -ceq 'memory' })
+        Require (($memory.id -join ',') -ceq (((1..5 | ForEach-Object { "memory-layers16-baseline-$_" }) +
             (1..5 | ForEach-Object { "memory-layers16-candidate-$_" })) -join ',')) 'Memory sequence'
-        Require ($schedule[22].id -ceq 'publication-layers16-candidate' -and $schedule[23].id -ceq 'saf-save-layers16-candidate') 'Storage sequence'
+        $storage = @($schedule | Where-Object { $_.lane -cin @('publication', 'saf-save') })
+        Require (($storage.id -join ',') -ceq 'publication-layers16-candidate,saf-save-layers16-candidate') 'Storage sequence'
         foreach ($slot in $schedule) { Require ((Resolve-P4ArtifactRole $phase $slot.id) -ceq $slot.artifact_role) 'Artifact resolution' }
     }
     Case 'old schedule default remains 29 nonframe slots with explicit-v7 equality' {
@@ -218,7 +226,7 @@ E: manifest (line=1)
                 Assert-P4RoleSource $bad $entry.role 'not-called' $phase
             } -Refuse
             Case "missing required APK kind $($entry.role)" {
-                $bad = Clone $roles[$entry.role]; $bad.artifacts.Remove('test_debug')
+                $bad = Clone $roles[$entry.role]; $bad.artifacts.Remove('app_debug')
                 Assert-P4RoleSource $bad $entry.role 'not-called' $phase
             } -Refuse
             Case "extra APK kind $($entry.role)" {
@@ -230,6 +238,10 @@ E: manifest (line=1)
                 Assert-P4GitLineage $bad
             } -Refuse
         }
+        Case 'baseline_single refuses an unplanned test APK' {
+            $bad = Clone $roles.baseline_single; $bad.artifacts.test_debug = [ordered]@{ path = 'not-read' }
+            Assert-P4RoleSource $bad 'baseline_single' 'not-called' $phase
+        } -Refuse
         Case 'unknown role refused before source access' { Assert-P4RoleSource $roles.candidate 'baseline' 'not-called' $phase } -Refuse
         Case 'unknown role-source protocol refused' { Assert-P4RoleSource $roles.candidate 'candidate' 'not-called' 'unknown' } -Refuse
         Case 'historical still requires compiled inventory' {
