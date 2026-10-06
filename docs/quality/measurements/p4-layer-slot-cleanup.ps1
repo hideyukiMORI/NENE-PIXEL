@@ -5,21 +5,38 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'p4-device-private-slot-reset.ps1')
 $script:P4LayerCleanupHelperPath = $PSCommandPath
 
+# The six fixed roots of Get-P4MoveRoots (three recovery files, reference-underlays and the two
+# ProfileInstaller files); a slot reset moves at most this many entries.
+$script:P4LayerCleanupMoveRootCount = 6
+# The native termination/drain reserve that ConvertTo-P4OperationTimeout keeps back from the clock.
+$script:P4LayerCleanupNativeReserveSeconds = 15
+# One shared cleanup clock, derived from the reduced cleanup (no per-slot private/APK archive):
+#   W x P4ProbeTimeoutSeconds              writer force-stop       (W = quiescence_packages, 3)
+# + W x P4ProbeTimeoutSeconds              writer absence (pidof)
+# + P4InstallTimeoutSeconds                role debug APK install
+# + 4 x P4ProbeTimeoutSeconds              installed APK identity (pm path + sha256, before and after)
+# + W x P4ProbeTimeoutSeconds              writers still stopped after debug access
+# + sum(private_files.timeout_seconds)     report recovery (30 s each)
+# + 2 x P4ProbeTimeoutSeconds              reset pre/final inventories
+# + P4LayerCleanupMoveRootCount x P4ProbeTimeoutSeconds   reset moves
+# + P4LayerCleanupNativeReserveSeconds     native termination/drain reserve
+# With W = 3 this is 765 + 30 x N seconds for N report files (frame single 765, staged frame 795).
+function Get-P4LayerSlotCleanupTimeout([Collections.IDictionary] $DevicePlan) {
+    $writers = @($DevicePlan.quiescence_packages).Count
+    $reports = 0
+    foreach ($file in @($DevicePlan.private_files)) { $reports += [int]$file.timeout_seconds }
+    return [int](3 * $writers * $script:P4ProbeTimeoutSeconds + $script:P4InstallTimeoutSeconds +
+        4 * $script:P4ProbeTimeoutSeconds + $reports + 2 * $script:P4ProbeTimeoutSeconds +
+        $script:P4LayerCleanupMoveRootCount * $script:P4ProbeTimeoutSeconds + $script:P4LayerCleanupNativeReserveSeconds)
+}
+
 function Get-P4LayerSlotCleanupPlan {
     param([Collections.IDictionary] $Manifest, [Collections.IDictionary] $Slot, [string] $ManifestSha256)
     $plan = Get-P4LayerDeviceLanePlan $Manifest $Slot $ManifestSha256
     $packages = Get-P4LanePackages $Manifest $plan.role $Manifest.protocol.id
-    $archives = @([ordered]@{ name = 'app'; package = $packages.application; kind = 'app_debug' })
-    if ($plan.install_kinds -ccontains 'test_debug') {
-        $archives += [ordered]@{ name = 'test-provider'; package = $packages.application_test; kind = 'test_debug' }
-    }
-    if ($plan.install_kinds -ccontains 'publication_test') {
-        $archives += [ordered]@{ name = 'publication'; package = $packages.publication_test; kind = 'publication_test' }
-    }
-    return [ordered]@{ schema = 'nene-pixel-p4-layer-slot-cleanup-plan-v1'; slot_id = $Slot.id;
+    return [ordered]@{ schema = 'nene-pixel-p4-layer-slot-cleanup-plan-v2'; slot_id = $Slot.id;
         artifact_role = $plan.role; comparison_role = $Slot.role; device_plan = $plan;
-        timeout_seconds = 3000; maximum_archive_bytes = 268435456L; maximum_apk_bytes = 134217728L;
-        archives = $archives }
+        debug_package = $packages.application; timeout_seconds = Get-P4LayerSlotCleanupTimeout $plan }
 }
 
 function New-P4LayerCleanupContext([Collections.IDictionary] $Context, [string] $Directory, [string] $Package) {
@@ -80,7 +97,7 @@ function Invoke-P4LayerSlotCleanup {
         throw 'Phase cleanup must own a fresh clock for the pinned device'
     }
     Assert-P4SealPathNotLinked $expectedRoot
-    $package = $cleanupPlan.archives[0].package
+    $package = $cleanupPlan.debug_package
     $child = New-P4LayerCleanupContext $Context (Join-Path $expectedRoot 'phase-cleanup') $package
     $child.operation_budget = New-P4OperationBudget $cleanupPlan.timeout_seconds
     Assert-P4NativeContext $child 'phase-cleanup'
@@ -89,13 +106,12 @@ function Invoke-P4LayerSlotCleanup {
     $captureContext.output_directory = $expectedRoot
     $recordPath = Join-Path $child.output_directory 'result.json'
     $errors = [Collections.Generic.List[string]]::new()
-    $archives = [Collections.Generic.List[object]]::new()
-    $record = [ordered]@{ schema = 'nene-pixel-p4-layer-slot-cleanup-v1'; status = 'failure';
+    $record = [ordered]@{ schema = 'nene-pixel-p4-layer-slot-cleanup-v2'; status = 'failure';
         protocol_id = $Manifest.protocol.id; slot_id = $Slot.id; artifact_role = $role;
         preflight_sha256 = $ManifestSha256; preservation_sha256 = $Manifest.device.asset_preservation.sha256;
         session = $Manifest.device.asset_preservation.session; experiment_id = $Manifest.experiment_id;
         collector_succeeded = $CollectorSucceeded; plan = $cleanupPlan; packages_stopped = $false;
-        debug_access = $null; report_capture = $null; archives = @(); reset = $null; frame_record = $null;
+        debug_access = $null; report_capture = $null; reset = $null; frame_record = $null;
         source_sha256 = [ordered]@{ snapshot = Get-P4SnapshotSources;
             reset_helper = Get-P4SnapshotHash $script:P4SlotResetHelperPath;
             session_helper = Get-P4SnapshotHash $script:P4SessionHelperPath;
@@ -108,9 +124,9 @@ function Invoke-P4LayerSlotCleanup {
         foreach ($writer in $plan.quiescence_packages) {
             $index++
             try {
-                $stop = Invoke-P4BoundedAdb $child "stop-$index.log" @('shell', 'am', 'force-stop', $writer) 10
+                $stop = Invoke-P4BoundedAdb $child "stop-$index.log" @('shell', 'am', 'force-stop', $writer) $script:P4ProbeTimeoutSeconds
                 if ($stop.ExitCode -ne 0) { throw "Writer stop failed: $writer" }
-                $absent = Invoke-P4BoundedAdb $child "absent-$index.log" @('shell', 'pidof', $writer) 10
+                $absent = Invoke-P4BoundedAdb $child "absent-$index.log" @('shell', 'pidof', $writer) $script:P4ProbeTimeoutSeconds
                 if ($absent.ExitCode -ne 1 -or -not [string]::IsNullOrWhiteSpace((@($absent.OutputLines) -join ''))) {
                     throw "Writer absence unconfirmed: $writer"
                 }
@@ -160,24 +176,7 @@ function Invoke-P4LayerSlotCleanup {
                             evidence = Get-P4LayerCleanupFileRecord (Join-Path $reportContext.output_directory 'private-report-capture.json') }
                     }
                 } catch { $errors.Add($_.Exception.Message) }
-                # Archive every required source even if another component failed; never retry or replace.
-                foreach ($archive in $cleanupPlan.archives) {
-                    $component = [ordered]@{ name = $archive.name; package = $archive.package;
-                        status = 'failure'; snapshot = $null; error = $null }
-                    try {
-                        $archiveContext = New-P4LayerCleanupContext $child (Join-Path $child.output_directory ("archive-" + $archive.name)) $archive.package
-                        $snapshot = New-P4PrivateSnapshot -Context $archiveContext -Stage 'capture' `
-                            -MaximumArchiveBytes $cleanupPlan.maximum_archive_bytes -MaximumApkBytes $cleanupPlan.maximum_apk_bytes
-                        $component.snapshot = Get-P4LayerCleanupFileRecord (Join-Path $archiveContext.output_directory 'capture-snapshot.json')
-                        if ($snapshot.status -cne 'verified-snapshot' -or $snapshot.package -cne $archive.package -or
-                            $snapshot.serial -cne $Manifest.device.serial -or
-                            $snapshot.apk_sha256 -cne $Manifest.roles[$role].artifacts[$archive.kind].sha256) {
-                            throw "Cleanup snapshot identity differs: $($archive.name)"
-                        }
-                        $component.status = 'archived'
-                    } catch { $component.error = $_.Exception.Message; $errors.Add($_.Exception.Message) }
-                    $archives.Add($component)
-                }
+                # The reset starts only after every stop, debug access and report recovery succeeded.
                 if ($errors.Count -eq 0) {
                     try {
                         $resetContext = New-P4LayerCleanupContext $child (Join-Path $child.output_directory 'reset') $package
@@ -189,10 +188,10 @@ function Invoke-P4LayerSlotCleanup {
                 }
             }
         }
-        if ($errors.Count -eq 0) { Assert-P4OperationActive $child; $record.status = 'captured-and-reset' }
+        if ($errors.Count -eq 0) { Assert-P4OperationActive $child; $record.status = 'stopped-and-reset' }
     } catch { $errors.Add($_.Exception.Message) }
     finally {
-        $record.archives = $archives.ToArray(); $record.errors = $errors.ToArray()
+        $record.errors = $errors.ToArray()
         $record.ended_utc = [datetime]::UtcNow.ToString('o')
         Write-P4SessionJson $recordPath $record
     }

@@ -12,7 +12,7 @@ $phase = 'nene-pixel-p4-layer-phase-verification-v1'; $hash = 'a' * 64
 $script:checks = [Collections.Generic.List[string]]::new()
 $script:refusals = [Collections.Generic.List[string]]::new()
 $script:events = [Collections.Generic.List[string]]::new()
-$script:clock = $null; $script:mode = ''; $script:activeManifest = $null
+$script:clock = $null; $script:mode = ''; $script:activeManifest = $null; $script:expectedTimeout = 0
 $watch = [Diagnostics.Stopwatch]::StartNew(); $status = 'failure'; $failure = $null
 function Check([bool] $Condition, [string] $Message) {
     if (-not $Condition) { throw "Cleanup validator: $Message" }
@@ -36,6 +36,20 @@ function Function-Text($Ast, [string] $Name) {
     return $node.Extent.Text
 }
 function Save-Json([string] $Path, $Value) { Write-P4SessionJson $Path $Value }
+# Independent restatement of the cleanup clock: 3 writers x (stop + absence + post-access absence) x 30,
+# debug install 120, APK identity 4 x 30, reports 30 each, reset inventories 2 x 30, 6 moves x 30, reserve 15.
+function Expected-CleanupSeconds($DevicePlan) {
+    if (@($DevicePlan.quiescence_packages).Count -ne 3) { throw 'Cleanup validator expects three writer packages' }
+    return 9 * 30 + 120 + 4 * 30 + 30 * @($DevicePlan.private_files).Count + 2 * 30 + 6 * 30 + 15
+}
+# Slots are chosen from the catalog by meaning, never by a fixed id or count.
+function Catalog-Slot([string] $Lane, [string] $Group = '', [string] $Role = 'baseline') {
+    $found = @(Get-P4SlotCatalog $phase | Where-Object { $_.lane -ceq $Lane -and $_.role -ceq $Role -and
+        ($Group -ceq '' -or ($_.Contains('group_id') -and $_.group_id -ceq $Group)) -and
+        ($Lane -cne 'frame' -or $_.id -clike '*-decision') })
+    if ($found.Count -eq 0) { throw "Catalog has no $Lane/$Group/$Role slot" }
+    return $found[0].id
+}
 $fixtureAst = Read-Ast (Join-Path $PSScriptRoot 'validate-p4-layer-device-lanes.ps1')
 . ([scriptblock]::Create((Function-Text $fixtureAst 'New-Manifest')))
 $fixtureAst = Read-Ast (Join-Path $PSScriptRoot 'validate-p4-layer-slot-routing.ps1')
@@ -65,11 +79,12 @@ function Fixture([string] $Name, [string] $SlotId, [string] $Mode = '', [switch]
         New-StagingFixture $slot $plan (Join-Path $directory 'fixture-preparation') | Out-Null
     }
     $script:activeManifest = $manifest
+    $script:expectedTimeout = Expected-CleanupSeconds (Get-P4LayerSlotCleanupPlan $manifest $slot $hash).device_plan
     return @{ Manifest = $manifest; Slot = $slot; Context = $context }
 }
 function Event([string] $Name, $Context) {
     if ($null -ne $Context) {
-        if ($Context.operation_budget.timeout_seconds -ne 3000) { throw 'Component got a different operation allowance' }
+        if ($Context.operation_budget.timeout_seconds -ne $script:expectedTimeout) { throw 'Component got a different operation allowance' }
         if ($null -eq $script:clock) { $script:clock = $Context.operation_budget.timer }
         elseif (-not [object]::ReferenceEquals($script:clock, $Context.operation_budget.timer)) { throw 'Component restarted the operation clock' }
     }
@@ -121,16 +136,8 @@ function Copy-P4LayerPrivateReports {
 }
 function New-P4PrivateSnapshot {
     param($Context, $Stage, $MaximumArchiveBytes, $MaximumApkBytes)
-    [void](Get-P4OperationTimeout $Context 30)
-    $name = Split-Path -Leaf $Context.output_directory
-    Event $name $Context
-    if ($MaximumArchiveBytes -ne 268435456 -or $MaximumApkBytes -ne 134217728) { throw 'Archive byte caps differ' }
-    [IO.File]::WriteAllText((Join-Path $Context.output_directory 'retained-archive-partial.bin'), 'partial')
-    $snapshot = @{ status = 'verified-snapshot'; serial = $Context.serial; package = $Context.package;
-        apk_sha256 = $(if ($script:mode -ceq 'archive-identity' -and $name -ceq 'archive-app') { 'f' * 64 } else { 'd' * 64 }) }
-    Save-Json (Join-Path $Context.output_directory 'capture-snapshot.json') $snapshot
-    if ($script:mode -ceq 'archive' -and $name -ceq 'archive-app') { throw 'Synthetic archive failure' }
-    return $snapshot
+    Event 'archive' $null
+    throw 'Per-slot cleanup must not archive private data or APKs'
 }
 function Invoke-P4PrivateSlotReset {
     param($Context, $PreservationPath, $PreservationSha256, $PreflightSha256, $SlotId, $ExpectedInstalledApkHash)
@@ -146,35 +153,48 @@ function Invoke-P4PrivateSlotReset {
 try {
     if ($CaseGroup -ceq 'Maps') {
         $manifest = New-Manifest
-        foreach ($slot in @(Get-P4SlotCatalog $phase)) {
+        $catalog = @(Get-P4SlotCatalog $phase); $mapped = 0
+        foreach ($slot in $catalog) {
             $plan = Get-P4LayerSlotCleanupPlan $manifest $slot $hash
-            $expected = if ($slot.lane -ceq 'publication') { 'app|publication' }
-                elseif ($slot.lane -ceq 'frame' -and $slot.group_id -ceq 'single') { 'app' } else { 'app|test-provider' }
-            Check (($plan.archives.name -join '|') -ceq $expected -and $plan.artifact_role -ceq $slot.artifact_role -and
-                $plan.comparison_role -ceq $slot.role -and $plan.timeout_seconds -eq 3000 -and
-                $plan.maximum_archive_bytes -eq 268435456 -and $plan.maximum_apk_bytes -eq 134217728) "cleanup map $($slot.id)"
+            $expectedSeconds = Expected-CleanupSeconds $plan.device_plan
+            Check ($plan.schema -ceq 'nene-pixel-p4-layer-slot-cleanup-plan-v2' -and -not $plan.Contains('archives') -and
+                -not $plan.Contains('maximum_archive_bytes') -and -not $plan.Contains('maximum_apk_bytes') -and
+                $plan.artifact_role -ceq $slot.artifact_role -and $plan.comparison_role -ceq $slot.role -and
+                $plan.debug_package -ceq (Get-P4LanePackages $manifest $plan.artifact_role $phase).application -and
+                $plan.timeout_seconds -eq $expectedSeconds -and $plan.timeout_seconds -le 3600) "cleanup map $($slot.id) = $expectedSeconds s"
+            $mapped++
         }
-        $slot = Get-P4ExecutionSlot $phase 'memory-layers16-candidate-1'
+        Check ($catalog.Count -gt 0 -and $mapped -eq $catalog.Count) "cleanup map covers every catalog slot ($($catalog.Count))"
+        $single = Get-P4LayerSlotCleanupPlan $manifest (Get-P4ExecutionSlot $phase (Catalog-Slot 'frame' 'single')) $hash
+        Check ($single.timeout_seconds -eq 765) 'report-free cleanup clock is 765 s'
+        $slot = Get-P4ExecutionSlot $phase (Catalog-Slot 'memory' '' 'candidate')
         Refuses { Get-P4LayerSlotCleanupPlan $manifest $slot 'foreign' } '*ManifestSha256*' 'cleanup rejects unbound preflight'
         $bad = @{}; foreach ($key in $slot.Keys) { $bad[$key] = $slot[$key] }; $bad.role = 'baseline'
         Refuses { Get-P4LayerSlotCleanupPlan $manifest $bad $hash } '*Phase slot drift*' 'cleanup rejects a changed comparison role'
     }
     if ($CaseGroup -ceq 'Flow') {
-        $flowIds = @('memory-layers16-candidate-1', 'publication-layers16-candidate', 'saf-save-layers16-candidate',
-            'frame-1-single-baseline-decision', 'frame-5-layers16-baseline-decision', 'frame-9-underlay-baseline-decision')
+        $flowIds = @((Catalog-Slot 'memory' '' 'candidate'), (Catalog-Slot 'publication' '' 'candidate'),
+            (Catalog-Slot 'saf-save' '' 'candidate'), (Catalog-Slot 'frame' 'single'), (Catalog-Slot 'frame' 'layers16'),
+            (Catalog-Slot 'frame' 'underlay'))
         foreach ($id in @($flowIds | Select-Object -Skip $FlowStartIndex)) {
             $fixture = Fixture $id $id
             $result = Invoke-P4LayerSlotCleanup $fixture.Context $fixture.Manifest $fixture.Slot $hash $true
             $record = $result.Record
-            Check ($record.status -ceq 'captured-and-reset' -and $record.packages_stopped -and $record.errors.Count -eq 0) "successful cleanup $id"
+            Check ($record.status -ceq 'stopped-and-reset' -and $record.schema -ceq 'nene-pixel-p4-layer-slot-cleanup-v2' -and
+                $record.packages_stopped -and $record.errors.Count -eq 0 -and -not $record.Contains('archives')) "successful cleanup $id"
             $observedEvents = $script:events.ToArray()
-            Check (@($observedEvents | Where-Object { $_ -like 'stop:*' }).Count -eq 3 -and
-                [array]::IndexOf($observedEvents, 'preservation') -gt [array]::LastIndexOf($observedEvents, "stop:$($fixture.Manifest.roles.candidate.artifacts.publication_test.test_package)") -and
-                $observedEvents[-1] -ceq 'reset' -and $null -ne $script:clock) "all writer stops precede shared-clock capture and final reset $id"
-            $expectedPlan = Get-P4LayerSlotCleanupPlan $fixture.Manifest $fixture.Slot $hash
-            $archives = @($expectedPlan.archives)
-            Check ($record.archives.Count -eq $archives.Count -and @($record.archives | Where-Object status -cne 'archived').Count -eq 0 -and
-                $record.reset.sha256 -ceq (Get-P4SnapshotHash $record.reset.path)) "required archives/reset bound $id"
+            $lastStop = [array]::LastIndexOf($observedEvents, "stop:$($fixture.Manifest.roles.candidate.artifacts.publication_test.test_package)")
+            $preservationAt = [array]::IndexOf($observedEvents, 'preservation')
+            $installAt = [array]::IndexOf($observedEvents, "install:$($record.artifact_role)/app_debug")
+            $reportsAt = [array]::IndexOf($observedEvents, 'reports')
+            Check (@($observedEvents | Where-Object { $_ -like 'stop:*' }).Count -eq 3 -and $lastStop -ge 0 -and
+                $preservationAt -gt $lastStop -and $installAt -gt $preservationAt -and
+                ($reportsAt -lt 0 -or $reportsAt -gt $installAt) -and $observedEvents[-1] -ceq 'reset' -and
+                [array]::IndexOf($observedEvents, 'reset') -eq ($observedEvents.Count - 1) -and $null -ne $script:clock) "stop, preservation, debug access and reports precede the single final reset $id"
+            Check ($observedEvents -cnotcontains 'archive' -and -not (Test-Path (Join-Path $fixture.Context.output_directory 'phase-cleanup/archive-app'))) "no per-slot archive $id"
+            Check ($record.plan.timeout_seconds -eq $script:expectedTimeout -and $record.reset.sha256 -ceq (Get-P4SnapshotHash $record.reset.path) -and
+                $record.debug_access.sha256 -ceq (Get-P4SnapshotHash $record.debug_access.path) -and
+                ($null -eq $record.report_capture.evidence -or $record.report_capture.evidence.sha256 -ceq (Get-P4SnapshotHash $record.report_capture.evidence.path))) "cleanup record binds clock, debug access, reports and reset $id"
             $frame = $fixture.Slot.lane -ceq 'frame'
             Check (($frame -and $record.report_capture.mode -ceq 'captured-frame-fixture' -and $record.frame_record.sha256 -ceq
                     (Get-P4SnapshotHash (Join-Path $fixture.Context.output_directory 'frame-slot.json')) -and $observedEvents -cnotcontains 'reports') -or
@@ -185,8 +205,8 @@ try {
         }
     }
     if ($CaseGroup -ceq 'Failures') {
-        foreach ($mode in @('stop', 'absence', 'preservation', 'install', 'restart', 'reports', 'archive', 'archive-identity', 'expired', 'reset')) {
-            $fixture = Fixture $mode 'memory-layers16-candidate-1' $mode
+        foreach ($mode in @('stop', 'absence', 'preservation', 'install', 'restart', 'reports', 'expired', 'reset')) {
+            $fixture = Fixture $mode (Catalog-Slot 'memory' '' 'candidate') $mode
             Refuses { Invoke-P4LayerSlotCleanup $fixture.Context $fixture.Manifest $fixture.Slot $hash $true } '*Phase cleanup failed*' "$mode propagates cleanup failure"
             $record = Get-Content (Join-Path $fixture.Context.output_directory 'phase-cleanup/result.json') -Raw | ConvertFrom-Json
             Check ($record.status -ceq 'failure' -and $record.errors.Count -gt 0) "$mode retains failed cleanup record"
@@ -195,23 +215,30 @@ try {
                     @($script:events | Where-Object { $_ -like 'stop:*' }).Count -eq 3) "$mode attempts every stop without private work"
             }
             if ($mode -cne 'reset') { Check ($script:events -cnotcontains 'reset') "$mode cannot reset incomplete capture" }
-            if ($mode -in @('reports', 'archive', 'archive-identity')) {
-                Check ($script:events -ccontains 'archive-app' -and $script:events -ccontains 'archive-test-provider' -and
-                    (Test-Path (Join-Path $fixture.Context.output_directory 'phase-cleanup/archive-app/retained-archive-partial.bin'))) "$mode retains partial archives and attempts remaining source"
+            Check ($script:events -cnotcontains 'archive' -and $null -eq $record.PSObject.Properties['archives']) "$mode takes no archive"
+            Check (@($record.errors | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }).Count -eq $record.errors.Count) "$mode errors are bound in the cleanup record"
+            if ($mode -ceq 'reports') {
+                Check ($null -eq $record.reset -and @($record.errors | Where-Object { $_ -like '*Synthetic report failure*' }).Count -eq 1 -and
+                    (Test-Path (Join-Path $fixture.Context.output_directory 'retained-report-partial.txt'))) 'failed report recovery keeps partial output and does not reset'
+            }
+            if ($mode -ceq 'reset') {
+                Check ($script:events -ccontains 'reset' -and $null -eq $record.reset -and
+                    @($record.errors | Where-Object { $_ -like '*Synthetic reset failure*' }).Count -eq 1 -and
+                    (Test-Path (Join-Path $fixture.Context.output_directory 'phase-cleanup/reset/result.json'))) 'failed reset keeps its partial result'
             }
             if ($mode -ceq 'expired') {
-                Check (@($script:events | Where-Object { $_ -like 'archive-*' }).Count -eq 0) 'expired shared clock prevents new archive native work'
+                Check ($script:events -ccontains 'reports' -and $script:events -cnotcontains 'reset') 'expired shared clock prevents reset native work'
             }
         }
         foreach ($key in @('output_directory', 'repository_root', 'adb_path', 'serial')) {
-            $fixture = Fixture "context-$key" 'memory-layers16-candidate-1'
+            $fixture = Fixture "context-$key" (Catalog-Slot 'memory' '' 'candidate')
             $fixture.Context[$key] = $(if ($key -ceq 'serial') { 'foreign' } else { Join-Path $OutputDirectory 'foreign' })
             Refuses { Invoke-P4LayerSlotCleanup $fixture.Context $fixture.Manifest $fixture.Slot $hash $true } '*Phase cleanup*' "foreign context $key refused"
             Check ($script:events.Count -eq 0) "foreign context $key starts no native work"
         }
     }
     if ($CaseGroup -ceq 'Frame') {
-        $fixture = Fixture 'existing-record' 'frame-1-single-baseline-decision'
+        $fixture = Fixture 'existing-record' (Catalog-Slot 'frame' 'single')
         $first = Complete-P4LayerPartialFrameRecord $fixture.Manifest $fixture.Slot $hash $fixture.Context
         $second = Complete-P4LayerPartialFrameRecord $fixture.Manifest $fixture.Slot $hash $fixture.Context
         Check ($first.sha256 -ceq $second.sha256) 'partial frame inventory reuses an existing record without overwrite'
@@ -219,7 +246,7 @@ try {
         Check ($raw.schema -ceq 'nene-pixel-p4-frame-slot-v2' -and $raw.files.Count -eq 1 -and
             $raw.files[0].relative_path -ceq 'partial.txt') 'outer-kill recovery inventories canonical partial bytes'
         foreach ($field in @('schema', 'slot_id', 'artifact_role', 'slot_directory', 'phase_context')) {
-            $fixture = Fixture "foreign-$field" 'frame-1-single-baseline-decision'
+            $fixture = Fixture "foreign-$field" (Catalog-Slot 'frame' 'single')
             $record = Complete-P4LayerPartialFrameRecord $fixture.Manifest $fixture.Slot $hash $fixture.Context
             $bad = Get-Content $record.path -Raw | ConvertFrom-Json -AsHashtable
             if ($field -ceq 'phase_context') { $bad.phase_context.preflight_sha256 = 'b' * 64 }
@@ -230,14 +257,16 @@ try {
             Refuses { Complete-P4LayerPartialFrameRecord $fixture.Manifest $fixture.Slot $hash $fixture.Context } '*' "existing frame refuses foreign $field"
             Check ((Get-P4SnapshotHash $record.path) -ceq $before) "foreign frame $field stays retained"
         }
-        $fixture = Fixture 'failed-frame' 'frame-5-layers16-baseline-decision'
+        $fixture = Fixture 'failed-frame' (Catalog-Slot 'frame' 'layers16')
         $result = Invoke-P4LayerSlotCleanup $fixture.Context $fixture.Manifest $fixture.Slot $hash $false
         Check ($result.Record.report_capture.mode -ceq 'diagnostic-fixture-recovery' -and $script:events -ccontains 'reports' -and
             (Test-Path (Join-Path $fixture.Context.output_directory 'phase-cleanup/frame-fixture-recovery/private-report-capture.json'))) 'failed frame recovers fixture into a fresh diagnostic directory'
-        $fixture = Fixture 'successful-frame-missing' 'frame-1-single-baseline-decision' -NoFrame
+        $fixture = Fixture 'successful-frame-missing' (Catalog-Slot 'frame' 'single') -NoFrame
         Refuses { Invoke-P4LayerSlotCleanup $fixture.Context $fixture.Manifest $fixture.Slot $hash $true } '*no canonical capture directory*' 'successful frame cannot omit capture directory'
-        Check ($script:events -cnotcontains 'reset' -and $script:events -ccontains 'archive-app') 'missing frame retains archive without resetting'
-        $fixture = Fixture 'early-failed-single' 'frame-1-single-baseline-decision' -NoFrame
+        $record = Get-Content (Join-Path $fixture.Context.output_directory 'phase-cleanup/result.json') -Raw | ConvertFrom-Json
+        Check ($script:events -cnotcontains 'reset' -and $script:events -cnotcontains 'archive' -and $record.status -ceq 'failure' -and
+            @($record.errors | Where-Object { $_ -like '*no canonical capture directory*' }).Count -eq 1) 'missing frame records its error without resetting'
+        $fixture = Fixture 'early-failed-single' (Catalog-Slot 'frame' 'single') -NoFrame
         $result = Invoke-P4LayerSlotCleanup $fixture.Context $fixture.Manifest $fixture.Slot $hash $false
         Check ($null -eq $result.Record.frame_record -and $result.Record.report_capture.mode -ceq 'not-required' -and
             $result.Record.collector_succeeded -eq $false) 'early failed single keeps cleanup distinct from collector success'
@@ -272,7 +301,7 @@ try {
         [void](Read-Ast $PSCommandPath)
         Check $true 'cleanup and validator parse'
         foreach ($field in @('status', 'slot_id', 'native_accepted')) {
-            $fixture = Fixture "staging-$field" 'frame-5-layers16-baseline-decision'
+            $fixture = Fixture "staging-$field" (Catalog-Slot 'frame' 'layers16')
             $path = Join-Path $fixture.Context.output_directory 'fixture-preparation/staging-result.json'
             $record = Get-Content $path -Raw | ConvertFrom-Json -AsHashtable
             $record[$field] = 'wrong'
