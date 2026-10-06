@@ -37,8 +37,8 @@ internal class ViewportTransformMappingTest {
         val first = bounds(transform.toSurfaceBounds(position(0, 0)))
         val last = bounds(transform.toSurfaceBounds(position(31, 7)))
 
-        assertBounds(first, 0.0, 150.0, 12.5, 162.5)
-        assertBounds(last, 387.5, 237.5, 400.0, 250.0)
+        assertBounds(first, ViewportSurfaceBounds(0.0, 150.0, 12.5, 162.5))
+        assertBounds(last, ViewportSurfaceBounds(387.5, 237.5, 400.0, 250.0))
     }
 
     @Test
@@ -83,7 +83,7 @@ internal class ViewportTransformMappingTest {
         val transform = transform(canvas(256, 256), surface(320, 160), state(1.0, 128.0, 128.0))
         val first = bounds(transform.toSurfaceBounds(position(0, 0)))
 
-        assertBounds(first, 80.0, 0.0, 80.625, 0.625)
+        assertBounds(first, ViewportSurfaceBounds(80.0, 0.0, 80.625, 0.625))
     }
 
     @Test
@@ -122,15 +122,12 @@ internal class ViewportTransformMappingTest {
 
     private fun assertBounds(
         actual: ViewportSurfaceBounds,
-        left: Double,
-        top: Double,
-        right: Double,
-        bottom: Double,
+        expected: ViewportSurfaceBounds,
     ) {
-        assertClose(left, actual.left)
-        assertClose(top, actual.top)
-        assertClose(right, actual.right)
-        assertClose(bottom, actual.bottom)
+        assertClose(expected.left, actual.left)
+        assertClose(expected.top, actual.top)
+        assertClose(expected.right, actual.right)
+        assertClose(expected.bottom, actual.bottom)
     }
 
     private fun assertClose(

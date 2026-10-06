@@ -9,7 +9,6 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRet
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRollbackOutcome
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentImportSource
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertArrayEquals
@@ -31,6 +30,8 @@ import java.util.concurrent.atomic.AtomicInteger
 private const val MAXIMUM_SINGLE_LAYER_V3_RECORD_BYTE_COUNT: Int = 74_827
 
 internal class AndroidRecoveryRecordAdapterTest {
+    private val dispatchers = TestCoroutineDispatchers()
+
     @Test
     fun `missing lineage publishes and verifies real retired generation one`() =
         runBlocking {
@@ -230,11 +231,11 @@ internal class AndroidRecoveryRecordAdapterTest {
             val writeEntered = CountDownLatch(1)
             val releaseWrite = CountDownLatch(1)
             val file = MemoryRecoveryAtomicFile(writeEntered = writeEntered, releaseWrite = releaseWrite)
-            val first = async(Dispatchers.Default) { adapter(file).retire(ExpectedRecoveryLineage.Missing) }
+            val first = async(dispatchers.parallel) { adapter(file).retire(ExpectedRecoveryLineage.Missing) }
             writeEntered.await()
             val secondStarted = CountDownLatch(1)
             val second =
-                async(Dispatchers.Default) {
+                async(dispatchers.parallel) {
                     secondStarted.countDown()
                     adapter(file).retire(ExpectedRecoveryLineage.Missing)
                 }
@@ -386,8 +387,7 @@ internal class AndroidRecoveryRecordAdapterTest {
             assertEquals(0, file.startCalls)
         }
 
-    private fun adapter(file: RecoveryAtomicFileAccess) =
-        AndroidRecoveryRecordAdapter.create(file, Dispatchers.Unconfined)
+    private fun adapter(file: RecoveryAtomicFileAccess) = AndroidRecoveryRecordAdapter.create(file, dispatchers.inline)
 
     private fun encodedRetired(generation: Long): ByteArray =
         (

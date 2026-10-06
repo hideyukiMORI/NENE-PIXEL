@@ -25,7 +25,6 @@ import io.github.hideyukimori.nenepixel.core.domain.document.LegacyRgbaSource
 import io.github.hideyukimori.nenepixel.presentation.compose.EditorFixture
 import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestValues
 import io.github.hideyukimori.nenepixel.presentation.compose.R
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -38,6 +37,8 @@ import org.junit.jupiter.api.Test
  * they are decided on the host against a real workflow with fake ports.
  */
 internal class RecoveryOfferStatusTest {
+    private val dispatchers = TestCoroutineDispatchers()
+
     @Test
     fun unadoptedCandidateReplacesTheStatusTextWithAnEnabledOffer() {
         val fixture = PresentationTestValues.fixture()
@@ -102,7 +103,7 @@ internal class RecoveryOfferStatusTest {
                 },
                 EmptyUnderlayMemoryPort,
             ),
-            Dispatchers.Unconfined,
+            dispatchers.inline,
         )
 
     private fun commitStroke(fixture: EditorFixture) {
@@ -130,7 +131,6 @@ internal class RecoveryOfferStatusTest {
                 fixture.runtime.captureSource(),
             )
         val commit = assertInstanceOf(WorkspaceReductionResult.CommitPrepared::class.java, prepared)
-        val target = fixture.runtime.state.documentState
         val result =
             fixture.runtime.execute(
                 ApplyStrokeCommand.create(fixture.runtime.captureSource(), commit.layerId, commit.stroke),

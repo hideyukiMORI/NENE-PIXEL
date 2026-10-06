@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.w3c.dom.Element
 import java.nio.file.Path
+import java.util.Locale
 import javax.xml.parsers.DocumentBuilderFactory
 
 /**
@@ -32,7 +33,7 @@ internal class AppVersionDisplayTest {
         val version = AppVersionDisplay.Available("0.1.0", 1L)
         val rendered =
             shippedLocales.map { directory ->
-                string(directory, "app_version").format(version.versionName, version.versionCode)
+                string(directory, "app_version").format(Locale.ROOT, version.versionName, version.versionCode)
             }
         assertEquals(listOf("Version 0.1.0 (1)", "バージョン 0.1.0 (1)", "版本 0.1.0 (1)"), rendered)
     }

@@ -31,12 +31,9 @@ internal object PersistenceTestValues {
     val minimalDocument: DocumentState =
         document(
             id = "000102030405060708090a0b0c0d0e0f",
-            width = 1,
-            height = 1,
             revision = 0L,
-            colors = intArrayOf(0x00000000, 0x11223344),
-            defaultIndex = 0,
-            indices = byteArrayOf(1),
+            definition = definition(colors = intArrayOf(0x00000000, 0x11223344), defaultIndex = 0),
+            snapshot = snapshot(width = 1, height = 1, indices = byteArrayOf(1)),
         )
 
     fun maximumDocument(): DocumentState {
@@ -44,12 +41,9 @@ internal object PersistenceTestValues {
         val indices = ByteArray(256 * 256) { index -> index.toByte() }
         return document(
             id = "f0e0d0c0b0a090807060504030201000",
-            width = 256,
-            height = 256,
             revision = Long.MAX_VALUE,
-            colors = colors,
-            defaultIndex = 255,
-            indices = indices,
+            definition = definition(colors = colors, defaultIndex = 255),
+            snapshot = snapshot(width = 256, height = 256, indices = indices),
         )
     }
 
@@ -119,21 +113,34 @@ internal object PersistenceTestValues {
 
     private fun document(
         id: String,
-        width: Int,
-        height: Int,
         revision: Long,
+        definition: PaletteDefinition,
+        snapshot: PixelSnapshot,
+    ): DocumentState =
+        created(
+            DocumentState.createSingleLayer(
+                created(DocumentId.create(id)),
+                created(Revision.create(revision)),
+                definition,
+                snapshot,
+            ),
+        )
+
+    private fun definition(
         colors: IntArray,
         defaultIndex: Int,
-        indices: ByteArray,
-    ): DocumentState {
-        val documentId = created(DocumentId.create(id))
-        val size = CanvasSize.create(created(CanvasWidth.create(width)), created(CanvasHeight.create(height)))
+    ): PaletteDefinition {
         val palette = created(Palette.create(colors.map(PixelColor::fromPackedRgba8888)))
-        val definition = created(PaletteDefinition.create(palette, created(PaletteIndex.create(defaultIndex))))
-        val snapshot = created(PixelSnapshot.createPackedIndices(size, indices))
-        return created(
-            DocumentState.createSingleLayer(documentId, created(Revision.create(revision)), definition, snapshot),
-        )
+        return created(PaletteDefinition.create(palette, created(PaletteIndex.create(defaultIndex))))
+    }
+
+    private fun snapshot(
+        width: Int,
+        height: Int,
+        indices: ByteArray,
+    ): PixelSnapshot {
+        val size = CanvasSize.create(created(CanvasWidth.create(width)), created(CanvasHeight.create(height)))
+        return created(PixelSnapshot.createPackedIndices(size, indices))
     }
 
     private fun <T> created(result: DomainValueResult<T>): T =

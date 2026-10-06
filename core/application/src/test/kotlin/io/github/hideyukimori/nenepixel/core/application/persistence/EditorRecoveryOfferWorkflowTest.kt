@@ -1,6 +1,7 @@
 package io.github.hideyukimori.nenepixel.core.application.persistence
 
 import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryAvailability
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.DocumentIdentity
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.canvas
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.position
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.red
@@ -141,7 +142,7 @@ internal class EditorRecoveryOfferWorkflowTest {
 }
 
 private val candidateDocument: DocumentState =
-    state(canvas(2, 2), revision = revision(4), documentId = documentId('a'))
+    state(canvas(2, 2), identity = DocumentIdentity(documentId('a'), revision(4)))
 
 private suspend fun candidateFixture(): Fixture =
     Fixture(

@@ -12,7 +12,6 @@ import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import io.github.hideyukimori.nenepixel.core.projectformat.palette.PaletteJsonBytes
 import io.github.hideyukimori.nenepixel.core.projectformat.palette.PaletteJsonCodec
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -23,6 +22,8 @@ import java.io.IOException
 import java.io.OutputStream
 
 internal class AndroidPaletteJsonExportAdapterTest {
+    private val dispatchers = TestCoroutineDispatchers()
+
     @Test
     fun `minimal palette writes golden bytes then closes and verifies`() =
         runBlocking {
@@ -52,7 +53,7 @@ internal class AndroidPaletteJsonExportAdapterTest {
             assertEquals(
                 PaletteJsonExportOutcome.Cancelled,
                 AndroidPaletteJsonExportAdapter
-                    .create(content, picker, Dispatchers.Unconfined)
+                    .create(content, picker, dispatchers.inline)
                     .export(minimalDefinition()),
             )
             assertEquals(0, content.openOutputCalls)
@@ -61,7 +62,7 @@ internal class AndroidPaletteJsonExportAdapterTest {
     @Test
     fun `read back mismatch preserves primary failure even if deletion fails`() =
         runBlocking {
-            val content = MemoryProjectContent(readBackMutation = { it[0] = 0 })
+            val content = MemoryProjectContent(behavior = ProjectContentBehavior(readBackMutation = { it[0] = 0 }))
             content.deleteResult = 0
             assertEquals(
                 PaletteJsonExportOutcome.Failed(
@@ -77,11 +78,14 @@ internal class AndroidPaletteJsonExportAdapterTest {
     fun `write IO failure closes and deletes fresh output`() =
         runBlocking {
             val content =
-                MemoryProjectContent(outputFactory = {
-                    object : OutputStream() {
-                        override fun write(value: Int): Unit = throw IOException("test write")
-                    }
-                })
+                MemoryProjectContent(
+                    behavior =
+                        ProjectContentBehavior(outputFactory = {
+                            object : OutputStream() {
+                                override fun write(value: Int): Unit = throw IOException("test write")
+                            }
+                        }),
+                )
             assertEquals(
                 PaletteJsonExportOutcome.Failed(
                     ProjectStorageFailure.IoFailure(ProjectTransportPhase.DESTINATION_WRITE),
@@ -95,7 +99,7 @@ internal class AndroidPaletteJsonExportAdapterTest {
     @Test
     fun `write cancellation closes and deletes before rethrow`() {
         val output = CancellingOutputStream()
-        val content = MemoryProjectContent(outputFactory = { output })
+        val content = MemoryProjectContent(behavior = ProjectContentBehavior(outputFactory = { output }))
         assertThrows(CancellationException::class.java) {
             runBlocking { adapter(content).export(minimalDefinition()) }
         }
@@ -119,7 +123,7 @@ internal class AndroidPaletteJsonExportAdapterTest {
         AndroidPaletteJsonExportAdapter.create(
             content,
             FixedProjectPicker(InternalPickerResult.Selected(TestLocation)),
-            Dispatchers.Unconfined,
+            dispatchers.inline,
         )
 
     private fun minimalDefinition(): PaletteDefinition = definition(listOf(0x00000000, 0xff0000ff.toInt()), 0)

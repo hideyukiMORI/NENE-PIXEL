@@ -16,12 +16,17 @@ internal class FixedProjectPicker(
     override suspend fun openDocument(request: DocumentOpenRequest): InternalPickerResult = result
 }
 
+/** How [MemoryProjectContent] departs from plain in-memory storage: supplied streams and read-back corruption. */
+internal class ProjectContentBehavior(
+    val inputFactory: (() -> InputStream)? = null,
+    val outputFactory: (() -> OutputStream)? = null,
+    val readBackMutation: (ByteArray) -> Unit = {},
+)
+
 internal class MemoryProjectContent(
     initialBytes: ByteArray? = null,
     private val knownByteCount: Long? = null,
-    private val inputFactory: (() -> InputStream)? = null,
-    private val outputFactory: (() -> OutputStream)? = null,
-    private val readBackMutation: (ByteArray) -> Unit = {},
+    private val behavior: ProjectContentBehavior = ProjectContentBehavior(),
 ) : ProjectContentAccess {
     private val stored = ByteArrayOutputStream()
 
@@ -47,10 +52,10 @@ internal class MemoryProjectContent(
 
     override fun openInput(location: ProjectLocation): InputStream {
         openInputCalls += 1
-        val supplied = inputFactory?.invoke()
+        val supplied = behavior.inputFactory?.invoke()
         if (supplied != null) return supplied
         val bytes = stored.toByteArray()
-        readBackMutation(bytes)
+        behavior.readBackMutation(bytes)
         return object : ByteArrayInputStream(bytes) {
             override fun close() {
                 inputClosed = true
@@ -61,7 +66,7 @@ internal class MemoryProjectContent(
 
     override fun openOutput(location: ProjectLocation): OutputStream {
         openOutputCalls += 1
-        val supplied = outputFactory?.invoke()
+        val supplied = behavior.outputFactory?.invoke()
         if (supplied != null) return supplied
         return object : OutputStream() {
             override fun write(value: Int) {

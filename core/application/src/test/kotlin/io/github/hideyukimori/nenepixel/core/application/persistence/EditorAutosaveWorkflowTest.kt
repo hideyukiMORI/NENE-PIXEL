@@ -1,5 +1,6 @@
 package io.github.hideyukimori.nenepixel.core.application.persistence
 
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.DocumentIdentity
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.canvas
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.green
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.position
@@ -525,7 +526,7 @@ internal class EditorAutosaveWorkflowTest {
         }
 
     private suspend fun directSaveFixtures(): List<Fixture> {
-        val recoveryDocument = state(canvas(2, 2), documentId = documentId('a'))
+        val recoveryDocument = state(canvas(2, 2), identity = DocumentIdentity(documentId('a')))
         val candidate =
             Fixture(
                 RecoveryInspection.Candidate(

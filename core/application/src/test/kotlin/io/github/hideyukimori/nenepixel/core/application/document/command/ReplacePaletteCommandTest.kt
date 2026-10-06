@@ -2,6 +2,7 @@ package io.github.hideyukimori.nenepixel.core.application.document.command
 
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandResultAssertions.applied
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandResultAssertions.rejected
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.DocumentIdentity
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.black
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.canvas
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.cellAt
@@ -161,9 +162,9 @@ internal class ReplacePaletteCommandTest {
         val initial =
             state(
                 canvas(2, 1),
-                revision = revision(Long.MAX_VALUE),
                 indices = listOf(paletteIndex(0), paletteIndex(1)),
                 definition = definition,
+                identity = DocumentIdentity(revision = revision(Long.MAX_VALUE)),
             )
         val gateway = CommandGateway.create(initial)
 

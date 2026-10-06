@@ -185,7 +185,6 @@ internal class CommandGatewayHistoryTest {
         applied(gateway.execute(strokeCommand(gateway, position(0, 0), redIndex)))
         val afterStroke = gateway.runtimeState.documentState
         applied(gateway.execute(UndoCommand.create(afterStroke.id, afterStroke.revision)))
-        val afterUndo = gateway.runtimeState.documentState
 
         applied(gateway.execute(strokeCommand(gateway, position(1, 0), greenIndex)))
 
@@ -254,7 +253,6 @@ internal class CommandGatewayHistoryTest {
         val gateway = CommandGateway.create(initial)
 
         repeat(PixelLimits.MAX_HISTORY_ENTRIES + 1) { index ->
-            val current = gateway.runtimeState.documentState
             val color = if (index % 2 == 0) redIndex else greenIndex
             applied(gateway.execute(strokeCommand(gateway, position(0, 0), color)))
         }

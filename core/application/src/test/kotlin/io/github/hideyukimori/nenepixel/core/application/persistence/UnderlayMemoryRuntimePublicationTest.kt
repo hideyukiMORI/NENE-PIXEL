@@ -10,7 +10,6 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceRedu
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportState
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportZoom
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -20,6 +19,8 @@ import org.junit.jupiter.api.Test
 
 /** ADR 0034: what the runtime asks to publish, and what the memory operations leave alone. */
 internal class UnderlayMemoryRuntimePublicationTest {
+    private val dispatchers = TestCoroutineDispatchers()
+
     @Test
     fun `an adjusting underlay stays settled until it rests`() {
         runBlocking {
@@ -74,7 +75,7 @@ internal class UnderlayMemoryRuntimePublicationTest {
             val fixture = initializedFixture()
             placeUnderlay(fixture, memoryUnderlay())
             val values = mutableListOf<UnderlayMemoryProjection>()
-            val collector = launch(Dispatchers.Unconfined) { fixture.runtime.underlayMemory.collect { values += it } }
+            val collector = launch(dispatchers.inline) { fixture.runtime.underlayMemory.collect { values += it } }
 
             drawAndNavigate(fixture)
             assertEquals(1, values.size)

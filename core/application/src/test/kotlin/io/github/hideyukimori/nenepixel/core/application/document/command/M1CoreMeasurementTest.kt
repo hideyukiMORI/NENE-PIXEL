@@ -1,6 +1,7 @@
 package io.github.hideyukimori.nenepixel.core.application.document.command
 
 import com.sun.management.ThreadMXBean
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.DocumentIdentity
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.blackIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.canvas
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.defaultDocumentId
@@ -53,10 +54,12 @@ internal class M1CoreMeasurementTest {
         val indices = List(size.pixelCount.toInt()) { blackIndex }
         val expected = snapshot(size)
         return measure(
-            name = "snapshot_create",
-            edge = edge,
-            strokePositions = 0,
-            boundary = "PixelSnapshot.create defensive row-major ownership",
+            MeasurementCase(
+                name = "snapshot_create",
+                edge = edge,
+                strokePositions = 0,
+                boundary = "PixelSnapshot.create defensive row-major ownership",
+            ),
         ) {
             MeasuredOperation(
                 execute = { PixelSnapshot.create(size, indices) },
@@ -68,10 +71,12 @@ internal class M1CoreMeasurementTest {
     private fun measurePatchCreation(edge: Int): MeasurementMetric {
         val fixture = fixture(edge)
         return measure(
-            name = "patch_create",
-            edge = edge,
-            strokePositions = fixture.stroke.positionCount,
-            boundary = "canonical rasterizeStroke including PixelChange list and PixelPatch creation",
+            MeasurementCase(
+                name = "patch_create",
+                edge = edge,
+                strokePositions = fixture.stroke.positionCount,
+                boundary = "canonical rasterizeStroke including PixelChange list and PixelPatch creation",
+            ),
         ) {
             MeasuredOperation(
                 execute = {
@@ -89,10 +94,12 @@ internal class M1CoreMeasurementTest {
 
     private fun measureStrokeApplication(edge: Int): MeasurementMetric =
         measure(
-            name = "command_apply_stroke",
-            edge = edge,
-            strokePositions = edge,
-            boundary = "CommandGateway.execute ApplyStrokeCommand including patch and next snapshot",
+            MeasurementCase(
+                name = "command_apply_stroke",
+                edge = edge,
+                strokePositions = edge,
+                boundary = "CommandGateway.execute ApplyStrokeCommand including patch and next snapshot",
+            ),
         ) {
             val fixture = fixture(edge)
             val gateway = CommandGateway.create(fixture.initial)
@@ -112,10 +119,12 @@ internal class M1CoreMeasurementTest {
 
     private fun measureUndo(edge: Int): MeasurementMetric =
         measure(
-            name = "command_undo",
-            edge = edge,
-            strokePositions = edge,
-            boundary = "CommandGateway.execute UndoCommand using recorded inverse patch",
+            MeasurementCase(
+                name = "command_undo",
+                edge = edge,
+                strokePositions = edge,
+                boundary = "CommandGateway.execute UndoCommand using recorded inverse patch",
+            ),
         ) {
             val fixture = fixture(edge)
             val gateway = CommandGateway.create(fixture.initial)
@@ -138,10 +147,12 @@ internal class M1CoreMeasurementTest {
 
     private fun measureRedo(edge: Int): MeasurementMetric =
         measure(
-            name = "command_redo",
-            edge = edge,
-            strokePositions = edge,
-            boundary = "CommandGateway.execute RedoCommand using recorded forward patch",
+            MeasurementCase(
+                name = "command_redo",
+                edge = edge,
+                strokePositions = edge,
+                boundary = "CommandGateway.execute RedoCommand using recorded forward patch",
+            ),
         ) {
             val fixture = fixture(edge)
             val gateway = CommandGateway.create(fixture.initial)
@@ -195,10 +206,7 @@ internal class M1CoreMeasurementTest {
     }
 
     private fun <T : Any> measure(
-        name: String,
-        edge: Int,
-        strokePositions: Int,
-        boundary: String,
+        case: MeasurementCase,
         prepare: () -> MeasuredOperation<T>,
     ): MeasurementMetric {
         var deterministicResult: T? = null
@@ -221,14 +229,9 @@ internal class M1CoreMeasurementTest {
             deterministicResult = deterministicResult.assertDeterministic(result)
         }
         return MeasurementMetric(
-            name = name,
-            edge = edge,
-            strokePositions = strokePositions,
-            latencyMedianNanos = latencies.percentile(MEDIAN_PERCENTILE),
-            latencyP95Nanos = latencies.percentile(P95_PERCENTILE),
-            allocatedMedianBytes = allocations.percentile(MEDIAN_PERCENTILE),
-            allocatedP95Bytes = allocations.percentile(P95_PERCENTILE),
-            boundary = boundary,
+            case = case,
+            latencyNanos = latencies.percentiles(),
+            allocatedBytes = allocations.percentiles(),
         )
     }
 
@@ -243,7 +246,7 @@ internal class M1CoreMeasurementTest {
                 val y = index / edge
                 if (x == y) redIndex else blackIndex
             }
-        val expectedApplied = state(size, revision(1L), expectedPixels, defaultDocumentId)
+        val expectedApplied = state(size, expectedPixels, identity = DocumentIdentity(defaultDocumentId, revision(1L)))
         return CoreMeasurementFixture(
             initial = initial,
             expectedApplied = expectedApplied,
@@ -304,17 +307,17 @@ internal class M1CoreMeasurementTest {
     private fun MeasurementMetric.toCsvRow(): String =
         csvRow(
             "metric",
-            name,
+            case.name,
             "",
-            edge,
-            strokePositions,
+            case.edge,
+            case.strokePositions,
             WARMUP_ITERATIONS,
             SAMPLE_COUNT,
-            latencyMedianNanos,
-            latencyP95Nanos,
-            allocatedMedianBytes,
-            allocatedP95Bytes,
-            boundary,
+            latencyNanos.median,
+            latencyNanos.p95,
+            allocatedBytes.median,
+            allocatedBytes.p95,
+            case.boundary,
         )
 
     private fun csvRow(vararg values: Any): String =
@@ -336,6 +339,12 @@ internal class M1CoreMeasurementTest {
             is DomainValueResult.Rejected -> fail("Measurement value was rejected: $rejection")
         }
 
+    private fun LongArray.percentiles(): SamplePercentiles =
+        SamplePercentiles(
+            median = percentile(MEDIAN_PERCENTILE),
+            p95 = percentile(P95_PERCENTILE),
+        )
+
     private fun LongArray.percentile(percentile: Double): Long {
         val sorted = sortedArray()
         val index = ceil(sorted.size * percentile).toInt().coerceIn(1, sorted.size) - 1
@@ -347,15 +356,22 @@ internal class M1CoreMeasurementTest {
         val verify: (T) -> Unit,
     )
 
-    private data class MeasurementMetric(
+    private data class MeasurementCase(
         val name: String,
         val edge: Int,
         val strokePositions: Int,
-        val latencyMedianNanos: Long,
-        val latencyP95Nanos: Long,
-        val allocatedMedianBytes: Long,
-        val allocatedP95Bytes: Long,
         val boundary: String,
+    )
+
+    private data class SamplePercentiles(
+        val median: Long,
+        val p95: Long,
+    )
+
+    private data class MeasurementMetric(
+        val case: MeasurementCase,
+        val latencyNanos: SamplePercentiles,
+        val allocatedBytes: SamplePercentiles,
     )
 
     private data class CoreMeasurementFixture(
