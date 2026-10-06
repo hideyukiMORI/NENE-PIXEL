@@ -29,7 +29,6 @@ import io.github.hideyukimori.nenepixel.core.domain.importing.ImportRaster
 import io.github.hideyukimori.nenepixel.presentation.compose.EditorFixture
 import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestValues
 import io.github.hideyukimori.nenepixel.presentation.compose.requiredValue
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -132,6 +131,8 @@ internal class EditorImportCallbacksTest {
     }
 }
 
+private val dispatchers = TestCoroutineDispatchers()
+
 /** Picks [raster] through the workflow's PNG import, as the file surface's Import PNG button does. */
 internal fun pickPngImport(
     fixture: EditorFixture,
@@ -150,7 +151,7 @@ internal fun pickPngImport(
                 PngImportPort { PngImportOutcome.Picked(raster) },
                 EmptyUnderlayMemoryPort,
             ),
-            Dispatchers.Unconfined,
+            dispatchers.inline,
         )
     runBlocking {
         workflow.initializeRecovery()

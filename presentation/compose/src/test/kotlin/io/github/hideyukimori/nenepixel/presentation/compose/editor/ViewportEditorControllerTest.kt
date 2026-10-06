@@ -274,7 +274,6 @@ internal class ViewportEditorControllerTest {
             fixture.reducer
                 .reduce(workspace, WorkspaceAction.PrepareGestureCommit, fixture.runtime.captureSource())
         val commit = assertInstanceOf(WorkspaceReductionResult.CommitPrepared::class.java, prepared)
-        val target = fixture.runtime.state.documentState
         return DirectOutcome(
             commandResult =
                 fixture.runtime.execute(

@@ -49,15 +49,7 @@ internal object PresentationTestValues {
         val palette = Palette.create(paletteColors).requiredValue()
         val definition = PaletteDefinition.create(palette, paletteIndex(defaultIndex(paletteColors))).requiredValue()
         val runtime = EditorRuntime.create(canvas, definition, TestDocumentIdSource())
-        val reducer = WorkspaceReducer.create()
-        val initialState = runtime.state
-        return EditorFixture(
-            initialDocument = initialState.documentState,
-            runtime = runtime,
-            reducer = reducer,
-            initialWorkspace = initialState.workspaceState,
-            controller = EditorController.create(runtime),
-        )
+        return EditorFixture.create(runtime, WorkspaceReducer.create())
     }
 
     fun cellAt(
@@ -125,13 +117,33 @@ internal object PresentationTestValues {
         )
 }
 
-internal data class EditorFixture(
-    val initialDocument: DocumentState,
+internal class EditorFixture private constructor(
+    private val initial: InitialState,
     val runtime: EditorRuntime,
     val reducer: WorkspaceReducer,
-    val initialWorkspace: WorkspaceState,
     val controller: EditorController,
-)
+) {
+    val initialDocument: DocumentState get() = initial.document
+
+    val initialWorkspace: WorkspaceState get() = initial.workspace
+
+    /** The document and workspace the runtime held before the controller was created. */
+    private data class InitialState(
+        val document: DocumentState,
+        val workspace: WorkspaceState,
+    )
+
+    companion object {
+        fun create(
+            runtime: EditorRuntime,
+            reducer: WorkspaceReducer,
+        ): EditorFixture {
+            val initialState = runtime.state
+            val initial = InitialState(initialState.documentState, initialState.workspaceState)
+            return EditorFixture(initial, runtime, reducer, EditorController.create(runtime))
+        }
+    }
+}
 
 internal fun <T> DomainValueResult<T>.requiredValue(): T =
     when (this) {
