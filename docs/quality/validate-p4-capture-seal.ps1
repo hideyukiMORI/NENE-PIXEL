@@ -259,7 +259,8 @@ try {
     foreach ($drift in @('', 'file', 'seal', 'analysis', 'binding', 'restoration', 'worktree', 'incomplete')) {
         $f = New-Chain "completed-chain-$($drift)" $drift
         # Exercise the real consumer using a complete, correctly named prior slot directory.
-        $catalog = @(@{ id = $f.expected_slot; lane = 'frame'; role = 'baseline'; runner = 'decision' }, @{ id = 'next' })
+        # Every catalog slot carries its lane; the consumer's phase-chain test (#145 R2) reads it on each slot.
+        $catalog = @(@{ id = $f.expected_slot; lane = 'frame'; role = 'baseline'; runner = 'decision' }, @{ id = 'next'; lane = 'frame' })
         Boundary $f { Assert-P4CompletedChain -Root $f.root -Catalog $catalog -SlotId 'next' -ManifestHash ('a' * 64) } ($drift -ceq '') | Out-Null
     }
     foreach ($relative in $relativeSources) {

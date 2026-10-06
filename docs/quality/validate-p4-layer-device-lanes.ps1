@@ -295,7 +295,8 @@ try {
         $legacySlots = @(@(Get-P4SlotCatalog) + @(Get-P4FrameSlotCatalog) | Where-Object { $_.lane -cne 'host' })
         Check ($legacySlots.Count -eq $legacyPlanSha256.Count) 'Legacy slot set differs from the pinned plan table'
         # Frame plans carry the fixture's experiment directory under this run's output; it is hashed as <output>.
-        $outputJson = ($OutputDirectory | ConvertTo-Json -Compress).Trim('"')
+        # The output path is matched without a trailing separator, so '<dir>/' and '<dir>' hash the same.
+        $outputJson = ($OutputDirectory.TrimEnd('\', '/') | ConvertTo-Json -Compress).Trim('"')
         $legacyResults = @(foreach ($slot in $legacySlots) {
             $after = Get-P4DeviceLanePlan $legacyManifest $slot
             Case "legacy exact plan $($slot.id)" {
