@@ -27,19 +27,34 @@ function Find-Function { param($Ast, [string]$Name)
     }, $true)
 }
 try {
-    $historical = & git -C $repo show 'de2b8e24f1944b675777cdc82dedc4761a631da2:docs/quality/measurements/p4-indexed-memory-analysis.ps1'
-    if ($LASTEXITCODE -ne 0) { throw 'Pinned historical analyzer must be available.' }
-    $legacyPath = Join-Path $output 'historical-analyzer.ps1'
-    $historical | Set-Content -LiteralPath $legacyPath
-    $legacyAst = Read-Ast $legacyPath; $currentAst = Read-Ast $analysisPath
-    foreach ($name in @('Get-P4MemoryStatusBundles', 'Get-P4RequiredStatusValue', 'ConvertFrom-P4MemoryReport',
-        'Get-P4RequiredInt64', 'Assert-P4MemoryReportValue')) {
-        Assert-Equal (Find-Function $currentAst $name).Extent.Text (Find-Function $legacyAst $name).Extent.Text "unchanged $name"
+    # Pinned by hash, not by commit (a commit pin breaks under rebase/squash; #145 T7c). SHA-256 of the
+    # LF-normalised text of the historical analyzer's (de2b8e2) functions, of its Test-P4MemoryCapture statements
+    # (joined by LF), and of its four result objects (ConvertTo-Json -Depth 10), recorded from HEAD after checking
+    # HEAD equal to de2b8e2. Changing the historical baseline needs a commit that changes these tables.
+    $historicalFunctionSha256 = [ordered]@{
+        'Get-P4MemoryStatusBundles' = '9997663ffa428f2d7fe4851b87ba80f6ecb19cbdb9aa46d11d6bcf9cd11c6316'
+        'Get-P4RequiredStatusValue' = 'a554622a022d0a93594c8c89dfbfb884ac9a4aec0e2400eb8bfec52e76f9868c'
+        'ConvertFrom-P4MemoryReport' = '8194332662e97110ceb08bec82a6eae58200c2888e001662f354b1700663e594'
+        'Get-P4RequiredInt64' = '5d38a1b9ffd269b327f6d61c23af57cab11b9c5a094f525e70e75543c5bf4822'
+        'Assert-P4MemoryReportValue' = '8af6f5f4e873117bb71732d201cda7ac527ecbbda34aa319cf1353c1b0631f28'
     }
-    $oldBody = (Find-Function $legacyAst 'Test-P4MemoryCapture').Body.EndBlock.Statements
+    $historicalDispatchSha256 = 'da3ec0e92e72cad8cc4df72388248a8e9979cdec0f9f5d3a31d1cf87d57b02a9'
+    $historicalResultSha256 = [ordered]@{
+        'baseline-common-drawing-history' = 'f1faefd05156baf3150fcbb2a3b81eb74f45017442d399e54e1940f11fd44210'
+        'candidate-common-indexed-history' = '3ef4a505a88db14af94ab937954e54b234f457ee4cf10af690b944d33291a3fd'
+        'candidate-palette-history' = 'c318e900285c519ffbdfb7e018914887865ee4726efeac1399cd700aec12cd06'
+        'candidate-legacy-import' = '5d53eee696b038f54de68bd336af634fac10b479318cfc663d3c558e88f68347'
+    }
+    function Get-TextSha256 { param([string]$Text)
+        [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($Text.Replace("`r`n", "`n")))).ToLowerInvariant()
+    }
+    $currentAst = Read-Ast $analysisPath
+    foreach ($name in $historicalFunctionSha256.Keys) {
+        Assert-Equal (Get-TextSha256 (Find-Function $currentAst $name).Extent.Text) $historicalFunctionSha256[$name] "unchanged $name"
+    }
     $newBody = (Find-Function $currentAst 'Test-P4MemoryCapture').Body.EndBlock.Statements
-    Assert-Equal @($newBody | Select-Object -Skip 1 | ForEach-Object { $_.Extent.Text }) `
-        @($oldBody | ForEach-Object { $_.Extent.Text }) 'historical dispatch body unchanged after explicit phase branch'
+    Assert-Equal (Get-TextSha256 (@($newBody | Select-Object -Skip 1 | ForEach-Object { $_.Extent.Text }) -join "`n")) `
+        $historicalDispatchSha256 'historical dispatch body unchanged after explicit phase branch'
     $fixtureAst = Read-Ast (Join-Path $PSScriptRoot 'validate-p4-memory-evidence.ps1')
     . ([scriptblock]::Create((Find-Function $fixtureAst 'New-P4MemoryLines').Extent.Text))
     $commit = '0123456789abcdef0123456789abcdef01234567'
@@ -49,8 +64,7 @@ try {
         $lines = New-P4MemoryLines -Family $family
         $lines | Set-Content -LiteralPath (Join-Path $output "$family.txt")
         $actual = Test-P4MemoryCapture $lines $family 1 $commit
-        $expected = & { . $legacyPath; Test-P4MemoryCapture $lines $family 1 $commit }
-        Assert-Equal ($actual | ConvertTo-Json -Depth 10) ($expected | ConvertTo-Json -Depth 10) "$family unchanged result"
+        Assert-Equal (Get-TextSha256 ($actual | ConvertTo-Json -Depth 10)) $historicalResultSha256[$family] "$family unchanged result"
         Assert-Equal $actual.verdict 'pass' "$family valid"
     }
     $report = ConvertFrom-P4MemoryReport ((Get-Content -LiteralPath $SyntheticCapture |

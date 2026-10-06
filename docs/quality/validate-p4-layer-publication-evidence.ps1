@@ -219,24 +219,34 @@ Invoke-Case 'missing duplicate or reordered instrumentation identity' {
     Assert-Rejected { Invoke-Capture -Instrumentation ($instrumentation + 'INSTRUMENTATION_CODE: -1') }
 }
 Invoke-Case 'historical helper sources and result objects unchanged' {
-    $repo = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
-    $legacy = & git -C $repo show 'de2b8e24f1944b675777cdc82dedc4761a631da2:docs/quality/measurements/p4-indexed-publication-analysis.ps1'
-    if ($LASTEXITCODE -ne 0) { throw 'Pinned historical publication analyzer is required.' }
-    $oldPath = Join-Path $output 'historical-analysis.ps1'; $legacy | Set-Content -LiteralPath $oldPath
-    $oldAst = Read-Ast $oldPath
+    # Pinned by hash, not by commit (a commit pin breaks under rebase/squash; #145 T7c). SHA-256 of the
+    # LF-normalised text of the historical analyzer's (de2b8e2) helpers and of its four result objects
+    # (ConvertTo-Json -Depth 10), recorded from HEAD after checking HEAD equal to de2b8e2. Changing the historical
+    # baseline needs a commit that changes these tables.
+    $historicalHelperSha256 = [ordered]@{
+        'Read-P4PublicationPositiveInt64' = 'd14cc4ac2f85b621cd7a711fcc3e149a7c3cc79c3982ac43ab2af6cf29165dac'
+        'Get-P4PublicationGroups' = 'ccd164d19a7a3adbd21d2ac0f0458c546476d7a42c0dd13630aa9ee244976d00'
+        'Read-P4PublicationRow' = 'e251a72763bc38d84d43ccc319c14e69ef2147a54c06bac5bd36a79565b0ea2e'
+    }
+    $historicalResultSha256 = [ordered]@{
+        'baseline-250000000' = 'cf1541e50db04cc5a37e7b4e1c4e9d940c242cea4ee7dfd45f3648f4917b9b67'
+        'baseline-250000001' = 'd180f327b4f8568c46330229bafbfee1024fdccefdb2ef0980c68a2cfde8b8da'
+        'candidate-250000000' = '1c3894c919729efa6b6e9e0a7c284ad12caef829193e21cb99127452c703c907'
+        'candidate-250000001' = '9254f19f4f4453fcf25394f55716f949ecb1c078c5627a97883c99c126850509'
+    }
+    function Get-TextSha256 { param([string]$Text)
+        [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($Text.Replace("`r`n", "`n")))).ToLowerInvariant()
+    }
     $newAst = Read-Ast (Join-Path $PSScriptRoot 'measurements/p4-indexed-publication-analysis.ps1')
-    foreach ($name in @('Read-P4PublicationPositiveInt64', 'Get-P4PublicationGroups', 'Read-P4PublicationRow')) {
-        $oldText = (Get-FunctionText $oldAst $name) -replace "`r`n", "`n"
-        $newText = (Get-FunctionText $newAst $name) -replace "`r`n", "`n"
-        Assert-Contract ($oldText -ceq $newText) "Historical helper changed: $name"
+    foreach ($name in $historicalHelperSha256.Keys) {
+        Assert-Contract ((Get-TextSha256 (Get-FunctionText $newAst $name)) -ceq $historicalHelperSha256[$name]) "Historical helper changed: $name"
     }
     foreach ($role in @('baseline', 'candidate')) {
         foreach ($maximum in @(250000000L, 250000001L)) {
             $fixture = New-P4SyntheticPublicationCapture $role $maximum
             $fixture | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $output "legacy-$role-$maximum-input.json")
             $actual = Test-P4PublicationCapture $fixture.Lines $fixture.StatusLines $role
-            $expected = & { . $oldPath; Test-P4PublicationCapture $fixture.Lines $fixture.StatusLines $role }
-            Assert-Contract (($actual | ConvertTo-Json -Depth 10) -ceq ($expected | ConvertTo-Json -Depth 10)) 'Historical result changed.'
+            Assert-Contract ((Get-TextSha256 ($actual | ConvertTo-Json -Depth 10)) -ceq $historicalResultSha256["$role-$maximum"]) 'Historical result changed.'
             $actual | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $output "legacy-$role-$maximum-result.json")
         }
     }

@@ -252,23 +252,92 @@ try {
         } -Refuse }
     }
     if ($CaseGroup -cin @('Compatibility', 'CompatibilityLoops')) {
-        $oldText = (git -C $repository show dff79afd5cc9e04b68fe5c0cc694ae190a08d16b:docs/quality/measurements/measure-m2-frame.ps1) -join "`n"
-        if ($LASTEXITCODE -ne 0) { throw 'Cannot read pinned prior collector.' }
-        $oldAst = [Management.Automation.Language.Parser]::ParseInput($oldText, [ref]$tokens, [ref]$errors)
-        $oldFunctions = @($oldAst.EndBlock.Statements | Where-Object { $_ -is [Management.Automation.Language.FunctionDefinitionAst] })
-        foreach ($old in @($oldFunctions | Where-Object { $CaseGroup -ceq 'Compatibility' })) {
-            $current = @($functions | Where-Object { $_.Name -ceq $old.Name })
-            if ($old.Name -cin @('Get-Bounds', 'Get-InitialFitGeometry')) {
+        # Pinned by hash, not by commit (a commit pin breaks under rebase/squash; #145 T7c). Each value is the SHA-256
+        # of the LF-normalised text of a function (or timed loop) of the pre-layer collector (dff79af), recorded from
+        # HEAD after checking HEAD (with the layer branches below removed) equal to that collector. Changing the
+        # legacy baseline needs a commit that changes these tables.
+        $legacyFunctionSha256 = [ordered]@{
+            'Assert-M2ExperimentAttemptPolicy' = '334a069f66de767415cba1980b445d816d4d74e0aea8acc69831f407f66e91e6'
+            'Get-M2ZipEntrySha256' = 'b5a7ee258a8f45e7ce79ecac8e4fa9dfcae2709065e50f6b906e9622344cf5e5'
+            'Assert-M2PackagedArtifact' = '12aee1b7e65fbf4bfbbf672449f32139c155045ff63b78584e9777fc6668975e'
+            'Get-RunState' = '178be91b36a8483075bdc0c84120aad50c691e1f148a1d34c5f720e4fd23f256'
+            'Test-RunStateIdentity' = 'e8b197f47ba9f1b58dac4e973e5509858a0beb51012aa44ab25163e30e209dc5'
+            'Get-OperationTiming' = 'f245fcf113aa553d6976df28661b4b1e96c4067916b2208901718d57e9beedf3'
+            'Get-CompletedFamilyResult' = '1ecf8dac07036f032128119e3cf48856a3092192f765e1d53842cd19015705a2'
+            'Complete-FrameSampleRecord' = '58a6a380e8e947496a979798c7dc88c02be64e1cd3f6af0b7d2e9d78e6e3f8b8'
+            'Get-MeasuredOperationCount' = '1f0f5a460841cbefb268a92ee5a5f95357b5b32717c646062692f384ff87bba4'
+            'Write-RunState' = '41283b21f6738571b235f4f957c6113e22bbcb694efdeb26bf67aad2d35d76be'
+            'Invoke-TargetAdb' = '1ce12839133c5592dc95c8b3dd3fd808e587f50006601a9196dc6f945426a20a'
+            'Assert-M2InstalledApkIdentity' = '186879337484492fcf005956eb53b384b34a9d94edbb574dcdfce2ee4cae94a6'
+            'Get-TargetProperty' = '84f8c966a13c4c439bb44b3e313d5cc9e0f428ea438e77943e10d82b45eadc43'
+            'Get-PhysicalDeviceIdentity' = '08d9d462a8217b99db0915562fe8e6a59a3f2bc45ec8453173be5d65ddefbb74'
+            'Get-WindowRotationState' = '06f77135411b5c556800803cc9ec3ed6dfa39e2bed3c4ba1e2c7a2378b84ba3e'
+            'Assert-PinnedLandscapeRotation' = '7cf9a8a0b696f19919f8621ed23d111bcedc071e930618415c0a0b28bca6cbd0'
+            'Get-PhysicalCheckpoint' = 'd37e8516df0e589defd406bf951f308e4ac6141d3d487f39b8e2e69ea5007612'
+            'Get-ResourceNode' = 'bc33e1aca3409c6bf648a5bc00f943e2da773011bd940cc856aa3ff40af3bc1c'
+            'Get-ResourceNodeAttribute' = 'c5147b553da8f4ffa8369b1a7e85aa5cf6fa57ed2166533335ca578803ef2ace'
+            'Get-ResourceControlNode' = '8210a56d10b1cff65a5478c1bacd00cdc49cd4e9d2d35edd5ed9b6849808c1b8'
+            'Assert-LandscapeRootUi' = '6f80db8ee9a2812c2158adc9c01b8600b489834e4c235ae23244ed60e02bc019'
+            'Get-WorkloadSpec' = '98fdd4a03a647cb53ac5ea0164fd7ab7168b84d4eefe10335e8917f96cbfa26d'
+            'Assert-LandscapeEditorUi' = 'a970a616daecc63ecc2655de823f405bd88a87d5954af91d20ee91a55aea1645'
+            'Get-InitialFitGeometry' = '9561781ffd68187c00020f3456d1f144c4c3f0d05511d5b38e7a54238d3939f2'
+            'Format-InputCoordinate' = 'fadbdd1906e30a154b6eed0c72d945f2997c2c045829343d720ce26aca1ce82b'
+            'Get-RequiredMatchValue' = '041a55b17da556453ffa708cd79566dad7645e82bb4d722b7ada2537bb0fc6d2'
+            'Get-Bounds' = '71355982197c470ad7205245b9524a5faa44ae538b04fecbef682202d3577cfc'
+            'Get-NearestRank' = 'd417b3ef8dcf667917d2a71134ea6946965e13aa699103e407e39fd8df0d71f3'
+            'Get-FrameRows' = '65b56a918af04c754662604e33b7833770be0845ca5fde7ef119f3cdf9c33897'
+            'Get-OperationPhaseCapture' = 'a985cef9e6ceb9dea1db584c46d2e33c08eb0bb4f4f9d23beff1dbd834a5550c'
+            'Assert-UnchangedPhaseCapture' = '68e767eb2d384dfb95ee09feaf9f70dc4baf26c9d8fdb6afec9ff1c428a20b7a'
+            'Set-LatestUiFailureSnapshot' = '8896a3142838ca08be12bca640a43ce7e88b35e5f24036f79c35e291ee37f218'
+            'Write-Utf8CreateNew' = '1abee312bb94c1b684078c3235ddfd658e02e9a78091be901a1d511576e7c2a9'
+            'Save-LatestUiFailureSnapshots' = '617a22e6cbf9c9d6c5c2e22dbc76ca56de07a28fe3b9a62f935085da35dc29fa'
+            'Invoke-UndoToCleanCheckpoint' = 'cbd6f370a2c4157c1a900bec85c1437ca62062c09fd2a6b7704fc79f83c2f67d'
+            'Assert-CommittedResult' = '3e258c2f1f974fc5fd237f1bad29eeb231e7f123092cb7fb40e1e7864d291d72'
+            'Get-CurrentEditorUi' = 'ab2c2e261b6ad71b7fab51d35196988b3613c3fb00337c31d4eb8dfba073c984'
+            'Assert-CleanWorkloadReady' = '99909a560878915287a7d5f84769dc01cf4532f3cb7b43dafba95d4722d1f9a5'
+            'Invoke-NodeTap' = '125a1cf91daf867217a93518ea52e6c6110a1a16c588ffeb73f7304b52e2a24d'
+            'Set-BoundedDimensionField' = 'eda1b972c23182ca77b062ead22c58f661f9b7c5216cf4b98411d01837cdd2a3'
+            'New-DocumentThroughUi' = 'fdb03fd81ba5675d73e89133173ee7a865bb367dab49f0883883095670908885'
+            'Invoke-MotionEvent' = 'c54156921eac4338b3be7eeda2d2e406d3999bd784b24b7a79f8eb9f712e34aa'
+            'Invoke-PreviewEventSequence' = '2c4471db8e070f9eaee4f5636a60743c9b311f4cb963549ec0eee7006af5bd95'
+            'Invoke-CommitEventSequence' = '8d45fbbf0415d0b121e7a08ed2a206c9d53a51e245e37ac0f817f5b0f39a0caa'
+            'Add-ActualSizeWindowLog' = '2b8fd323defd812ffefaab235d5597388713a29220671c6ef7c3f43934079391'
+            'Get-ActualSizeWindowUiStep' = '63408c2b736b13c623cf88a5dc4b65611493c15e13b927213a29b63c5105086f'
+            'Get-ActualSizeWindowNodes' = '34fcd6187c7968224aac3c9bf1b5cf688a427ec3ef604fc635e3f5138c222d63'
+            'Show-ActualSizeWindowAtScale' = 'b8c89b7113d4bb514fd1c0ed47c2080dadb0369eb6a3a7921a13ec83e7b051cb'
+            'Hide-ActualSizeWindow' = '99f281b28156a97b4105006727a7109d25f0afda58a65f0e707632d896a4f937'
+            'Write-RotationStateArtifact' = '84a132d03cdeb5d20ddc23e2f4ed1c3a2b607cf914edee790c63e9b2a5e1409f'
+            'Initialize-PinnedRotation' = '4c3b8d0baf107f221f784065390f32b991a690d91d26416d329262eb1bb50e21'
+            'Restore-OriginalRotation' = '815f00b60c198dd82a71e586afeddb569f8f13425e0c4c1a189d18d26ebe8a94'
+            'Test-RemotePathExists' = '23578116c2fde38c4a25c0a0d0633f323629d2eb020d2e8ae4eb44abdfc32f53'
+            'Get-PerfettoSessionMatchCount' = 'b01dd9f47da0ce7dba465b501cee5319c9c3db533048f55b926ebfd16a32c9bc'
+            'Start-PhysicalPresentTrace' = '08f16fa0763990bbc396558bec1d4a25a876414f6987a1591b64047e79aa1c3f'
+            'Stop-PhysicalPresentTrace' = '77204081d3e6435a8c32e7bb649ba3e8831563dd4fe1b6a1cb9bb6f5bddcf29c'
+            'Get-NoSampleCanvasBounds' = '5e69d377e18e3600cd6a1d19e618294a7210eebe1e46ebc93a33e3ee55eac808'
+            'ConvertTo-NoSampleInspectionRecord' = '953865c4a3bd61ed9994dab588a2be9f0b9b629dbcc4acd4dc971b0cb74f1916'
+            'Restore-OriginalStayAwake' = '35dbdedf6faf19708ba92c68b2662a20820f71fd1172c590d0105ff284ac75d4'
+            'Invoke-NoSampleGeometryInspection' = '13a65502a1ad01246bc4f3efe0eaacc4de15e29678df689103f36203928fd630'
+        }
+        $legacyLoopSha256 = [ordered]@{
+            warmupIndex = @('2ab9234b23f5f59ede3023fa7d95bd6fbc84a49b2f47747abc92e1284351ebb7')
+            sampleIndex = @('d3b9483d2a1854d72badb98ef9172fd9dae153921c0847101a0d166ca2046a41', 'eb9f05c778cead7804082198edff2a9f084848453e12d795d93980dc567744d3')
+        }
+        function Get-LegacyTextSha256([string]$Text) {
+            [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($Text.Replace("`r`n", "`n")))).ToLowerInvariant()
+        }
+        foreach ($legacyName in @($legacyFunctionSha256.Keys | Where-Object { $CaseGroup -ceq 'Compatibility' })) {
+            $current = @($functions | Where-Object { $_.Name -ceq $legacyName })
+            if ($legacyName -cin @('Get-Bounds', 'Get-InitialFitGeometry')) {
                 $shared = [Management.Automation.Language.Parser]::ParseFile(
                     (Join-Path $PSScriptRoot 'measurements/p4-indexed-frame-analysis.ps1'), [ref]$null, [ref]$null)
                 $current = @($shared.EndBlock.Statements | Where-Object {
-                    $_ -is [Management.Automation.Language.FunctionDefinitionAst] -and $_.Name -ceq $old.Name
+                    $_ -is [Management.Automation.Language.FunctionDefinitionAst] -and $_.Name -ceq $legacyName
                 })
             }
-            Case "legacy function unchanged after explicit phase branch removal: $($old.Name)" {
+            Case "legacy function unchanged after explicit phase branch removal: $legacyName" {
                 Check ($current.Count -eq 1) 'Function missing/duplicate'
                 $text = $current[0].Extent.Text.Replace("`r`n", "`n")
-                switch ($old.Name) {
+                switch ($legacyName) {
                     'Invoke-TargetAdb' { $text = $text.Replace("    if (`$isLayerPhase -and `$script:layerSetupActive) {`n        return Invoke-P4LayerSetupAdb -AdbArguments `$AdbArguments`n    }`n", '') }
                     'Assert-CommittedResult' { $text = $text.Replace('"sample", "warmup", "preparation"', '"sample", "warmup"') }
                     'Get-CurrentEditorUi' { $text = $text.Replace("    if (`$isLayerPhase -and `$script:layerSetupActive) { Save-P4LayerSetupUi -Text `$text }`n", '') }
@@ -276,17 +345,17 @@ try {
                         $text = $text.Replace("    `$createdUi = if (`$isLayerPhase -and `$script:layerSetupActive) {`n        Wait-P4LayerSetupStatus 'New document created'`n    } else { Get-CurrentEditorUi }", '    $createdUi = Get-CurrentEditorUi')
                     }
                 }
-                Check ($text -ceq $old.Extent.Text.Replace("`r`n", "`n")) 'Historical function implementation changed'
+                Check ((Get-LegacyTextSha256 $text) -ceq $legacyFunctionSha256[$legacyName]) 'Historical function implementation changed'
             }
         }
         $variables = if ($CaseGroup -ceq 'CompatibilityLoops') { @('sampleIndex') } else { @('warmupIndex', 'sampleIndex') }
         foreach ($variable in $variables) {
             Case "unchanged actual $variable loop" {
                 $find = { param($a) $a -is [Management.Automation.Language.ForEachStatementAst] -and $a.Variable.VariablePath.UserPath -ceq $variable }
-                $oldLoop = @($oldAst.FindAll($find, $true)); $newLoop = @($collectorAst.FindAll($find, $true))
+                $oldLoop = @($legacyLoopSha256[$variable]); $newLoop = @($collectorAst.FindAll($find, $true))
                 Check ($oldLoop.Count -gt 0 -and $oldLoop.Count -eq $newLoop.Count) 'Timed/warmup loop count changed'
                 for ($i = 0; $i -lt $oldLoop.Count; $i++) {
-                    Check ($oldLoop[$i].Extent.Text.Replace("`r`n", "`n") -ceq $newLoop[$i].Extent.Text.Replace("`r`n", "`n")) 'Timed/warmup event sequence changed'
+                    Check ((Get-LegacyTextSha256 $newLoop[$i].Extent.Text) -ceq $oldLoop[$i]) 'Timed/warmup event sequence changed'
                 }
             }
         }

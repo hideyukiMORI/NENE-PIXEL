@@ -3,7 +3,7 @@
 # before the seal), and the original restoration in a finally path (ADR 0035 (c)). This file is a
 # library: the operator dot-sources it and calls Invoke-P4LayerPhase. It adds no collection entry
 # point. Its manifest is reserved through the preflight reservation stage (Issue #145 R7, agreement
-# #145, four-role dexopt); measure-m2-frame's refusal stays (T7b-2).
+# #145, four-role dexopt); measure-m2-frame no longer refuses layer-phase collection (T7b-2).
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 # The slot wrapper is dot-sourced without running its entry point (InvocationName '.'). It brings the

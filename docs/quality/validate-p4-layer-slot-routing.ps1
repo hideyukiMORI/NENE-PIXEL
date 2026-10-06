@@ -413,30 +413,40 @@ try {
         }}
     }
     if($CaseGroup -cin @('Compatibility','CompatibilityRemaining')) {
-        $old=[ordered]@{};$current=[ordered]@{}
-        foreach($name in @('p4-indexed-device-lanes.ps1','measure-m2-frame.ps1','analyze-p4-indexed-slot.ps1')) {
-            $text=(git -C $repository show "6f2b491:docs/quality/measurements/$name") -join "`n"
-            Check ($LASTEXITCODE -eq 0) 'Pinned previous source unavailable'
-            $path=Join-Path $OutputDirectory "previous-$name";[IO.File]::WriteAllText($path,$text)
-            $old[$name]=Read-Ast $path;$current[$name]=Read-Ast (Join-Path $PSScriptRoot "measurements/$name")
+        # Pinned by hash, not by commit (a commit pin breaks under rebase/squash; #145 T7c). SHA-256 of the LF-normalised
+        # text of the previous sources' (6f2b491) geometry functions, Invoke-P4SlotAnalysis lane switch and timed loops,
+        # and of the previous Get-P4FrameCollectorParameters output (ConvertTo-Json -Depth 20 -Compress, this run's output
+        # directory written as <output>, since the fixture's experiment directory lies under it), recorded from
+        # HEAD after checking HEAD equal to 6f2b491. Changing the previous baseline needs a commit that changes these tables.
+        $previousSha256=[ordered]@{
+            'Get-Bounds'='71355982197c470ad7205245b9524a5faa44ae538b04fecbef682202d3577cfc'
+            'Get-InitialFitGeometry'='9561781ffd68187c00020f3456d1f144c4c3f0d05511d5b38e7a54238d3939f2'
+            'lane-switch'='c1b40238eb50f407dbbae6b8a5858b3f18ddeb37049c643a74517854da0c9a9f'
+            'warmupIndex'=@('2ab9234b23f5f59ede3023fa7d95bd6fbc84a49b2f47747abc92e1284351ebb7')
+            'sampleIndex'=@('d3b9483d2a1854d72badb98ef9172fd9dae153921c0847101a0d166ca2046a41','eb9f05c778cead7804082198edff2a9f084848453e12d795d93980dc567744d3')
+            'frame-1-baseline-decision'='204c8d03c3199dbd334c39427c20276680cd50ff0aa9ebe452d308a11fc323ec'
+            'frame-2-candidate-decision'='6190e6d617fd10c78e16fd7f21800c456d234fb268c07703f5083bdff1997cbd'
+            'frame-3-baseline-diagnostic'='98cceac7a49d588f607565c7946d82fd3850f3159a8a23cab2dee06779015808'
+            'frame-4-candidate-diagnostic'='42a95fb005f1d67518827247a0a957ad989a77822520c8a4362ff3a762f9f816'
         }
+        function Get-PreviousSha256([string]$Text) {[Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($Text.Replace("`r`n","`n")))).ToLowerInvariant()}
+        $current=[ordered]@{}
+        foreach($name in @('measure-m2-frame.ps1','analyze-p4-indexed-slot.ps1')) {$current[$name]=Read-Ast (Join-Path $PSScriptRoot "measurements/$name")}
         $shared=Read-Ast (Join-Path $PSScriptRoot 'measurements/p4-indexed-frame-analysis.ps1')
         foreach($name in @(@('Get-Bounds','Get-InitialFitGeometry')|Where-Object {$CaseGroup -ceq 'Compatibility'})) {Case "canonical shared geometry unchanged $name" {
-            Check ((Function-Text $old['measure-m2-frame.ps1'] $name).Replace("`r`n","`n") -ceq
-                (Function-Text $shared $name).Replace("`r`n","`n")) 'Moved function changed'
+            Check ((Get-PreviousSha256 (Function-Text $shared $name)) -ceq $previousSha256[$name]) 'Moved function changed'
             Check ($null -eq $current['measure-m2-frame.ps1'].Find({param($n)$n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -ceq $name},$true)) 'Second geometry implementation remains'
         }}
         if($CaseGroup -ceq 'Compatibility') {Case 'legacy analysis switch body unchanged' {
-            $before=[Management.Automation.Language.Parser]::ParseInput((Function-Text $old['analyze-p4-indexed-slot.ps1'] 'Invoke-P4SlotAnalysis'),[ref]$null,[ref]$null)
             $after=[Management.Automation.Language.Parser]::ParseInput((Function-Text $current['analyze-p4-indexed-slot.ps1'] 'Invoke-P4SlotAnalysis'),[ref]$null,[ref]$null)
             $select={param($n)$n -is [Management.Automation.Language.SwitchStatementAst] -and $n.Condition.Extent.Text -ceq '$slot.lane'}
-            Check ($before.Find($select,$true).Extent.Text.Replace("`r`n","`n") -ceq $after.Find($select,$true).Extent.Text.Replace("`r`n","`n")) 'Legacy parser routing changed'
+            Check ((Get-PreviousSha256 $after.Find($select,$true).Extent.Text) -ceq $previousSha256['lane-switch']) 'Legacy parser routing changed'
         }}
         foreach($variable in @('warmupIndex','sampleIndex')) {Case "timed population loops unchanged $variable" {
             $select={param($n)$n -is [Management.Automation.Language.ForEachStatementAst] -and $n.Variable.VariablePath.UserPath -ceq $variable}
-            $before=@($old['measure-m2-frame.ps1'].FindAll($select,$true));$after=@($current['measure-m2-frame.ps1'].FindAll($select,$true))
+            $before=@($previousSha256[$variable]);$after=@($current['measure-m2-frame.ps1'].FindAll($select,$true))
             Check ($before.Count -gt 0 -and $before.Count -eq $after.Count) 'Loop count changed'
-            foreach($i in 0..($before.Count-1)) {Check ($before[$i].Extent.Text.Replace("`r`n","`n") -ceq $after[$i].Extent.Text.Replace("`r`n","`n")) 'Timed loop changed'}
+            foreach($i in 0..($before.Count-1)) {Check ((Get-PreviousSha256 $after[$i].Extent.Text) -ceq $before[$i]) 'Timed loop changed'}
         }}
         $ast=Read-Ast (Join-Path $PSScriptRoot 'validate-p4-frame-analysis.ps1')
         . ([scriptblock]::Create((Function-Text $ast 'New-P4LaneManifest')))
@@ -445,12 +455,12 @@ try {
         $applicationTestPackage="$applicationPackage.test";$publicationTestPackage="$applicationPackage.adapters.persistence.test"
         $fixtureExperimentId='legacy-plan-contract';$canvas16Bounds='[100,200][300,400]';$canvas256Bounds='[80,180][320,420]'
         $legacyManifest=New-P4LaneManifest;$legacySlots=@(Get-P4FrameSlotCatalog)
-        $module=New-Module -ScriptBlock ([scriptblock]::Create((Function-Text $old['p4-indexed-device-lanes.ps1'] 'Get-P4FrameCollectorParameters')))
-        $expected=@(& $module {param($m,$s)foreach($slot in $s) {Get-P4FrameCollectorParameters $m $slot}} $legacyManifest $legacySlots)
         . (Join-Path $PSScriptRoot 'measurements/p4-indexed-device-lanes.ps1')
+        $outputJson=($OutputDirectory|ConvertTo-Json -Compress).Trim('"')
         foreach($i in 0..3) {Case "legacy frame parameters $($legacySlots[$i].id)" {
-            $actual=Get-P4FrameCollectorParameters $legacyManifest $legacySlots[$i]
-            Check (($actual|ConvertTo-Json -Depth 20 -Compress) -ceq ($expected[$i]|ConvertTo-Json -Depth 20 -Compress)) 'Legacy parameters drifted'
+            $actual=(Get-P4FrameCollectorParameters $legacyManifest $legacySlots[$i]|ConvertTo-Json -Depth 20 -Compress).Replace($outputJson,'<output>')
+            Check ($previousSha256.Contains($legacySlots[$i].id) -and
+                (Get-PreviousSha256 $actual) -ceq $previousSha256[$legacySlots[$i].id]) 'Legacy parameters drifted'
         }}
     }
     if($CaseGroup -ceq 'Collector') {
