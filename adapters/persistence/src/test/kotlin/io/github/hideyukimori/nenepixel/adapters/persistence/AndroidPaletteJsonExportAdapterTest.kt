@@ -12,7 +12,6 @@ import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import io.github.hideyukimori.nenepixel.core.projectformat.palette.PaletteJsonBytes
 import io.github.hideyukimori.nenepixel.core.projectformat.palette.PaletteJsonCodec
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -23,6 +22,8 @@ import java.io.IOException
 import java.io.OutputStream
 
 internal class AndroidPaletteJsonExportAdapterTest {
+    private val dispatchers = TestCoroutineDispatchers()
+
     @Test
     fun `minimal palette writes golden bytes then closes and verifies`() =
         runBlocking {
@@ -52,7 +53,7 @@ internal class AndroidPaletteJsonExportAdapterTest {
             assertEquals(
                 PaletteJsonExportOutcome.Cancelled,
                 AndroidPaletteJsonExportAdapter
-                    .create(content, picker, Dispatchers.Unconfined)
+                    .create(content, picker, dispatchers.inline)
                     .export(minimalDefinition()),
             )
             assertEquals(0, content.openOutputCalls)
@@ -119,7 +120,7 @@ internal class AndroidPaletteJsonExportAdapterTest {
         AndroidPaletteJsonExportAdapter.create(
             content,
             FixedProjectPicker(InternalPickerResult.Selected(TestLocation)),
-            Dispatchers.Unconfined,
+            dispatchers.inline,
         )
 
     private fun minimalDefinition(): PaletteDefinition = definition(listOf(0x00000000, 0xff0000ff.toInt()), 0)

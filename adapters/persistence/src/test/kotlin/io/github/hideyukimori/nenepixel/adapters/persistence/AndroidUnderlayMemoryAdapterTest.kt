@@ -9,7 +9,6 @@ import io.github.hideyukimori.nenepixel.adapters.persistence.UnderlayMemoryStore
 import io.github.hideyukimori.nenepixel.core.application.persistence.UnderlayMemoryOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.UnderlayRecollection
 import io.github.hideyukimori.nenepixel.core.application.workspace.underlay.UnderlayVisibility
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
@@ -22,6 +21,8 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 internal class AndroidUnderlayMemoryAdapterTest {
+    private val dispatchers = TestCoroutineDispatchers()
+
     @Test
     fun `an IOException while recalling answers Absent`() {
         val adapter = adapter(ThrowingUnderlayRecordFiles { IOException("read failed") })
@@ -107,13 +108,13 @@ internal class AndroidUnderlayMemoryAdapterTest {
     @Test
     fun `a second call starts no file operation while the first one is inside the store`() {
         val files = GatedUnderlayRecordFiles()
-        val adapter = AndroidUnderlayMemoryAdapter(UnderlayMemoryStore(files), Dispatchers.IO)
+        val adapter = AndroidUnderlayMemoryAdapter(UnderlayMemoryStore(files), dispatchers.io)
 
         val operationsWhileHeld =
             runBlocking {
-                val first = async(Dispatchers.Default) { adapter.recall(document(1)) }
+                val first = async(dispatchers.parallel) { adapter.recall(document(1)) }
                 assertTrue(files.entered.await(LATCH_TIMEOUT_SECONDS, TimeUnit.SECONDS))
-                val second = async(Dispatchers.Default) { adapter.forget(document(2)) }
+                val second = async(dispatchers.parallel) { adapter.forget(document(2)) }
                 delay(SECOND_CALL_GRACE_MILLIS)
                 val held = files.operations
                 files.release()
@@ -130,7 +131,7 @@ internal class AndroidUnderlayMemoryAdapterTest {
     }
 
     private fun adapter(files: UnderlayRecordFiles): AndroidUnderlayMemoryAdapter =
-        AndroidUnderlayMemoryAdapter(UnderlayMemoryStore(files), Dispatchers.IO)
+        AndroidUnderlayMemoryAdapter(UnderlayMemoryStore(files), dispatchers.io)
 
     private fun shownUnderlay() = underlay(image(2, 2, 7), 1.5, UnderlayVisibility.Shown)
 

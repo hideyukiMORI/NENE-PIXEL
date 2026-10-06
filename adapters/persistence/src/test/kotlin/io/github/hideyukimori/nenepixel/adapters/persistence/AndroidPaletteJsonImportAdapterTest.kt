@@ -9,7 +9,6 @@ import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import io.github.hideyukimori.nenepixel.core.projectformat.palette.PaletteJsonBytes
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -18,6 +17,8 @@ import java.io.IOException
 import java.io.InputStream
 
 internal class AndroidPaletteJsonImportAdapterTest {
+    private val dispatchers = TestCoroutineDispatchers()
+
     @Test
     fun `golden two slot bytes import the definition and close the input`() =
         runBlocking {
@@ -104,7 +105,7 @@ internal class AndroidPaletteJsonImportAdapterTest {
                         return InternalPickerResult.Selected(TestLocation)
                     }
                 }
-            AndroidPaletteJsonImportAdapter.create(content, picker, Dispatchers.Unconfined).import()
+            AndroidPaletteJsonImportAdapter.create(content, picker, dispatchers.inline).import()
             assertEquals(listOf(DocumentOpenRequest(DocumentOutputFormat.PALETTE_JSON)), requests)
             assertEquals(0, content.openOutputCalls)
         }
@@ -112,7 +113,7 @@ internal class AndroidPaletteJsonImportAdapterTest {
     private fun adapter(
         content: ProjectContentAccess,
         pickerResult: InternalPickerResult = InternalPickerResult.Selected(TestLocation),
-    ) = AndroidPaletteJsonImportAdapter.create(content, FixedProjectPicker(pickerResult), Dispatchers.Unconfined)
+    ) = AndroidPaletteJsonImportAdapter.create(content, FixedProjectPicker(pickerResult), dispatchers.inline)
 
     private fun minimalDefinition(): PaletteDefinition =
         created(

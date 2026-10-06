@@ -5,7 +5,6 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.PngExportOu
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectStorageFailure
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectTransportPhase
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
@@ -15,6 +14,8 @@ import java.io.IOException
 import java.io.OutputStream
 
 internal class AndroidPngExportAdapterTest {
+    private val dispatchers = TestCoroutineDispatchers()
+
     @Test
     fun `maximum PNG writes closes and verifies through shared bounded transport`() =
         runBlocking {
@@ -44,7 +45,7 @@ internal class AndroidPngExportAdapterTest {
             assertEquals(
                 PngExportOutcome.Cancelled,
                 AndroidPngExportAdapter
-                    .create(content, picker, Dispatchers.Unconfined)
+                    .create(content, picker, dispatchers.inline)
                     .export(PersistenceTestValues.minimalDocument),
             )
             assertEquals(0, content.openOutputCalls)
@@ -96,6 +97,6 @@ internal class AndroidPngExportAdapterTest {
         AndroidPngExportAdapter.create(
             content,
             FixedProjectPicker(InternalPickerResult.Selected(TestLocation)),
-            Dispatchers.Unconfined,
+            dispatchers.inline,
         )
 }

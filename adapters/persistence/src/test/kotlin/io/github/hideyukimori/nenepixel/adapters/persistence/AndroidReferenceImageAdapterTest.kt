@@ -6,7 +6,6 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.ReferenceIm
 import io.github.hideyukimori.nenepixel.core.application.persistence.ReferenceImagePort
 import io.github.hideyukimori.nenepixel.core.application.persistence.ReferenceImageSourceRejection
 import io.github.hideyukimori.nenepixel.core.application.workspace.underlay.ReferenceImage
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -16,6 +15,8 @@ import java.io.IOException
 import java.io.InputStream
 
 internal class AndroidReferenceImageAdapterTest {
+    private val dispatchers = TestCoroutineDispatchers()
+
     @Test
     fun `picker receives one reference image open request`() =
         runBlocking {
@@ -31,7 +32,7 @@ internal class AndroidReferenceImageAdapterTest {
                         return InternalPickerResult.Selected(TestLocation)
                     }
                 }
-            AndroidReferenceImageAdapter.create(content, picker, Dispatchers.Unconfined, RecordingDecoder()).pick()
+            AndroidReferenceImageAdapter.create(content, picker, dispatchers.inline, RecordingDecoder()).pick()
             assertEquals(listOf(DocumentOpenRequest(DocumentOutputFormat.REFERENCE_IMAGE)), requests)
             assertEquals(0, content.openOutputCalls)
         }
@@ -140,7 +141,7 @@ internal class AndroidReferenceImageAdapterTest {
         decoder: ReferenceImageDecoder,
         pickerResult: InternalPickerResult = InternalPickerResult.Selected(TestLocation),
     ): ReferenceImagePort =
-        AndroidReferenceImageAdapter.create(content, FixedProjectPicker(pickerResult), Dispatchers.Unconfined, decoder)
+        AndroidReferenceImageAdapter.create(content, FixedProjectPicker(pickerResult), dispatchers.inline, decoder)
 
     private fun rejected(reason: ReferenceImageSourceRejection): ReferenceImageOutcome =
         ReferenceImageOutcome.Rejected(reason)

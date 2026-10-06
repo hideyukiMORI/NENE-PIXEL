@@ -8,7 +8,6 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.PngImportPo
 import io.github.hideyukimori.nenepixel.core.application.persistence.PngImportSourceRejection
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectStorageFailure
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectTransportPhase
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -18,6 +17,8 @@ import java.io.IOException
 import java.io.InputStream
 
 internal class AndroidPngImportAdapterTest {
+    private val dispatchers = TestCoroutineDispatchers()
+
     @Test
     fun `truecolour with alpha PNG is picked through one PNG open request`() =
         runBlocking {
@@ -41,7 +42,7 @@ internal class AndroidPngImportAdapterTest {
                         return InternalPickerResult.Selected(TestLocation)
                     }
                 }
-            val outcome = AndroidPngImportAdapter.create(content, picker, Dispatchers.Unconfined).pick()
+            val outcome = AndroidPngImportAdapter.create(content, picker, dispatchers.inline).pick()
             val raster = (outcome as PngImportOutcome.Picked).raster
             assertEquals(2, raster.width)
             assertEquals(2, raster.height)
@@ -145,7 +146,7 @@ internal class AndroidPngImportAdapterTest {
     private fun adapter(
         content: ProjectContentAccess,
         pickerResult: InternalPickerResult = InternalPickerResult.Selected(TestLocation),
-    ): PngImportPort = AndroidPngImportAdapter.create(content, FixedProjectPicker(pickerResult), Dispatchers.Unconfined)
+    ): PngImportPort = AndroidPngImportAdapter.create(content, FixedProjectPicker(pickerResult), dispatchers.inline)
 
     private fun rejected(reason: PngImportSourceRejection): PngImportOutcome = PngImportOutcome.Rejected(reason)
 }

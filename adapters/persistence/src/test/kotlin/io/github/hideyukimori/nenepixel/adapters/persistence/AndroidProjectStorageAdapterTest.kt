@@ -9,7 +9,6 @@ import io.github.hideyukimori.nenepixel.core.domain.document.DocumentImportSourc
 import io.github.hideyukimori.nenepixel.core.projectformat.ProjectFormatBytes
 import io.github.hideyukimori.nenepixel.core.projectformat.ProjectFormatCodec
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -23,6 +22,8 @@ import java.io.InputStream
 import java.io.OutputStream
 
 internal class AndroidProjectStorageAdapterTest {
+    private val dispatchers = TestCoroutineDispatchers()
+
     @Test
     fun `load returns typed current v2 source`() =
         runBlocking {
@@ -146,6 +147,6 @@ internal class AndroidProjectStorageAdapterTest {
     ) = AndroidProjectStorageAdapter.create(
         content,
         FixedProjectPicker(pickerResult),
-        Dispatchers.Unconfined,
+        dispatchers.inline,
     )
 }
