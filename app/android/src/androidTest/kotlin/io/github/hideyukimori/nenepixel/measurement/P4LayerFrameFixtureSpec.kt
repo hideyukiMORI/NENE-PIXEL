@@ -1,6 +1,11 @@
 package io.github.hideyukimori.nenepixel.measurement
 
-/** Local setup guard; the host still verifies the complete canonical phase slot and artifact catalog. */
+/**
+ * Local setup guard; the host still verifies the complete canonical phase slot and artifact catalog.
+ *
+ * Issue #145 R1 stages decision slots only: `layers16` is frame-3 baseline and frame-4 candidate,
+ * `underlay` is frame-5 baseline and frame-6 candidate. The single slots frame-1 and frame-2 are not staged.
+ */
 internal data class P4LayerFrameFixtureSpec(
     val sequence: Int,
     val group: String,
@@ -12,15 +17,14 @@ internal data class P4LayerFrameFixtureSpec(
         fun from(admission: P4LayerRunAdmission): P4LayerFrameFixtureSpec {
             val match =
                 checkNotNull(
-                    Regex("frame-([5-9]|1[0-2])-(layers16|underlay)-(baseline|candidate)-(decision|diagnostic)")
+                    Regex("frame-([3-6])-(layers16|underlay)-(baseline|candidate)-decision")
                         .matchEntire(admission.slotId),
                 )
-            val (number, group, role, runner) = match.destructured
+            val (number, group, role) = match.destructured
             val sequence = number.toInt()
-            val position = sequence - if (group == "layers16") 5 else 9
-            check(position in 0..3)
-            check(role == if (position % 2 == 0) "baseline" else "candidate")
-            check(runner == if (position < 2) "decision" else "diagnostic")
+            val position = sequence - if (group == "layers16") 3 else 5
+            check(position in 0..1)
+            check(role == if (position == 0) "baseline" else "candidate")
             check(admission.artifactRole == if (role == "baseline") "baseline_$group" else "candidate")
             val fixture = if (group == "layers16") P4LayerFixture.MAXIMUM else P4LayerFixture.UNDERLAY
             val extension = if (group == "layers16") "nenepixel" else "png"

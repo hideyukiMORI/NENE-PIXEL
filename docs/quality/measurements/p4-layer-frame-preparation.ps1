@@ -135,7 +135,7 @@ function Wait-P4LayerSetupStatus {
 
 function Open-P4LayerSetupProviderDocument {
     param([string]$Name, [ValidateSet('application/octet-stream', 'image/png')][string]$MimeType)
-    if ($Name -cnotmatch '\Ai89-145-[0-9a-f]{12}-frame-[1-6]-(layers16\.nenepixel|underlay\.png)\z') {
+    if ($Name -cnotmatch '\Ai89-145-[0-9a-f]{12}-frame-([34]-layers16\.nenepixel|[56]-underlay\.png)\z') {
         throw 'Unpinned frame fixture name.'
     }
     $lines = @(Invoke-TargetAdb -AdbArguments @('shell', 'cmd', 'package', 'resolve-activity', '--brief',

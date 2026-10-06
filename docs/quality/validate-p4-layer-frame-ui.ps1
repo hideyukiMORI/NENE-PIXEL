@@ -107,7 +107,7 @@ try {
     }
     if ($CaseGroup -ceq 'Fixtures') {
         if ([string]::IsNullOrWhiteSpace($StagingDirectory)) { throw 'Retained staging inputs required.' }
-        foreach ($index in 1..8) {
+        foreach ($index in 1..4) {
             $inputPath = Join-Path $StagingDirectory ('case-{0:D3}-input.json' -f $index)
             $inputRecord = Get-Content -Raw -LiteralPath $inputPath | ConvertFrom-Json -AsHashtable
             $identityPath = Join-Path $OutputDirectory "fixture-$index.txt"

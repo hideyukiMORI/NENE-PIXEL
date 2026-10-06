@@ -10,12 +10,11 @@ internal object P4LayerFrameFixtureHostContract {
         val directory = File(arguments.single())
         require(directory.isAbsolute && directory.mkdir())
         val rows = ArrayList<String>()
-        for (sequence in 5..12) {
-            val group = if (sequence < 9) "layers16" else "underlay"
+        for (sequence in 3..6) {
+            val group = if (sequence < 5) "layers16" else "underlay"
             val role = if (sequence % 2 == 1) "baseline" else "candidate"
-            val runner = if ((sequence - 1) % 4 < 2) "decision" else "diagnostic"
             val artifact = if (role == "baseline") "baseline_$group" else "candidate"
-            val admission = admission("frame-$sequence-$group-$role-$runner", artifact)
+            val admission = admission("frame-$sequence-$group-$role-decision", artifact)
             val spec = P4LayerFrameFixtureSpec.from(admission)
             check(spec.sequence == sequence && spec.group == group)
             check(spec.fixture == if (group == "layers16") P4LayerFixture.MAXIMUM else P4LayerFixture.UNDERLAY)
@@ -24,45 +23,19 @@ internal object P4LayerFrameFixtureHostContract {
             check(spec.reportDirectory == "p4-layer-frame-fixture-${"a".repeat(12)}-$sequence")
             rows.add("${admission.slotId},$artifact,${spec.name},${spec.fixture.asset},${spec.reportDirectory}")
             refuse(admission.copy(artifactRole = "baseline_single"))
-            refuse(
-                admission.copy(
-                    slotId =
-                        admission.slotId.replace(
-                            role,
-                            if (role ==
-                                "baseline"
-                            ) {
-                                "candidate"
-                            } else {
-                                "baseline"
-                            },
-                        ),
-                ),
-            )
-            refuse(
-                admission.copy(
-                    slotId =
-                        admission.slotId.replace(
-                            runner,
-                            if (runner ==
-                                "decision"
-                            ) {
-                                "diagnostic"
-                            } else {
-                                "decision"
-                            },
-                        ),
-                ),
-            )
+            val swapped = if (role == "baseline") "candidate" else "baseline"
+            refuse(admission.copy(slotId = admission.slotId.replace(role, swapped)))
+            refuse(admission.copy(slotId = admission.slotId.replace("decision", "diagnostic")))
         }
         for (slot in listOf(
             "frame-1-single-baseline-decision",
-            "frame-05-layers16-baseline-decision",
-            "frame-5-underlay-baseline-decision",
-            "frame-9-layers16-baseline-decision",
-            "frame-13-underlay-baseline-decision",
+            "frame-2-single-candidate-decision",
+            "frame-03-layers16-baseline-decision",
+            "frame-3-underlay-baseline-decision",
+            "frame-5-layers16-baseline-decision",
+            "frame-7-underlay-baseline-decision",
             "memory-layers16-candidate-1",
-            "frame-6-layers16-candidate-decision\n",
+            "frame-4-layers16-candidate-decision\n",
         )) {
             refuse(admission(slot, "candidate"))
         }
@@ -70,7 +43,7 @@ internal object P4LayerFrameFixtureHostContract {
             (listOf("slot_id,artifact_role,fixture_name,fixture_asset,report_directory") + rows)
                 .joinToString("\n", postfix = "\n"),
         )
-        File(directory, "result.txt").writeText("PASS: 8 valid slots and 31 direct refusals; no Android methods\n")
+        File(directory, "result.txt").writeText("PASS: 4 valid slots and 20 direct refusals; no Android methods\n")
     }
 
     private fun refuse(admission: P4LayerRunAdmission) {

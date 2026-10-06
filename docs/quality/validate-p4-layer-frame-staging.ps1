@@ -65,8 +65,8 @@ try {
     $slots = @(Get-P4FrameSlotCatalog $phase | Where-Object { $_.group_id -cne 'single' })
     $base = New-Evidence $slots[0]
     if (-not $SourceAgreementOnly) {
-    Check ($hostRows.Count -eq 8 -and $slots.Count -eq 8) 'Host/phase population differs'
-    for ($i = 0; $i -lt 8; $i++) {
+    Check ($hostRows.Count -eq 4 -and $slots.Count -eq 4) 'Host/phase population differs'
+    for ($i = 0; $i -lt 4; $i++) {
         $evidence = New-Evidence $slots[$i]
         $row = $hostRows[$i]
         Check ($row.slot_id -ceq $slots[$i].id -and $row.artifact_role -ceq $slots[$i].artifact_role -and
