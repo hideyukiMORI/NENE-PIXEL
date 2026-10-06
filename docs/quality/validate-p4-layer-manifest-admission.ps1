@@ -3,10 +3,12 @@
 # A real temporary Git history supplies the four production/overlay pairs. Only the native aapt2 call,
 # the profile acceptance reader and the preservation-v2 reader (each validated by its own validator)
 # and the role production pins (the real ones are not in the temporary history) are replaced.
+# Reservation (T7b-1, R7 ruling): the live stage replaces only gh (a simulated Issue body/state), the live
+# device state reader and the dexopt reader; the rest of Assert-P4LiveDeviceAdmission runs for real.
 # Usage: pwsh -NoProfile -File docs/quality/validate-p4-layer-manifest-admission.ps1 `
-#   -OutputDirectory <fresh lab path> [-CaseGroup Contract|Artifacts|Historical]
+#   -OutputDirectory <fresh lab path> [-CaseGroup Contract|Artifacts|Historical|Reservation]
 param([Parameter(Mandatory)][string]$OutputDirectory,
-    [ValidateSet('Contract', 'Artifacts', 'Historical')][string]$CaseGroup = 'Contract')
+    [ValidateSet('Contract', 'Artifacts', 'Historical', 'Reservation')][string]$CaseGroup = 'Contract')
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'measurements/nene-pixel-lab.ps1')
@@ -318,7 +320,6 @@ try {
         Case 'wrong device' { $bad = Clone $manifest; $bad.device.model = 'other'; Assert-P4ManifestContract $bad } -Refuse -Expect 'Wrong device/geometry contract.'
     } elseif ($CaseGroup -ceq 'Artifacts') {
         Case 'four roles pass offline admission at the slot stage' { Artifacts $manifest }
-        Case 'reservation stage stays closed for the phase' { Assert-P4ManifestArtifacts $manifest $candidateRoot -Stage reservation } -Refuse -Expect 'Layer phase reservation is not admitted'
         Case 'v7 protocol id under the phase schema' { $bad = Clone $manifest; $bad.protocol.id = $old; Artifacts $bad } -Refuse -Expect 'Wrong P4 layer manifest/protocol identity.'
         Case 'protocol bytes drift from the candidate tree' {
             $copy = Join-Path $OutputDirectory 'other-protocol.md'; Write-Text $copy "other protocol`n"
@@ -366,6 +367,120 @@ try {
             $bad = Clone $manifest; $bad.roles.baseline_underlay.production_commit = $script:productions.baseline_layers16; Artifacts $bad
         } -Refuse -Expect 'lineage differs: baseline_underlay'
         Case 'admission passes again after the refusals' { Artifacts $manifest }
+    } elseif ($CaseGroup -ceq 'Reservation') {
+        # --- Live boundaries: a simulated Issue tracker, device state and dexopt readers -------------
+        $script:issues = @{
+            '142' = @{ state = 'OPEN'; body = "agreement $old" }
+            '145' = @{ state = 'OPEN'; body = "agreement $phase" } }
+        $script:ghIssues = [Collections.Generic.List[string]]::new()
+        function gh {
+            $issue = [string]$args[2]; $script:ghIssues.Add($issue)
+            $filter = [string]$args[-1]
+            Require ($filter -cmatch 'contains\("([^"]+)"\)') 'agreement filter shape'
+            $global:LASTEXITCODE = 0
+            if (-not $script:issues.ContainsKey($issue)) { $global:LASTEXITCODE = 1; return }
+            return "$($script:issues[$issue].state)`t$($script:issues[$issue].body.Contains($Matches[1]).ToString().ToLowerInvariant())"
+        }
+        $script:deviceReads = 0
+        function Get-P4LiveDeviceState {
+            param($AdbPath, $Serial, $Directory, $Stage, $RepositoryRoot)
+            $script:deviceReads++
+            $state = [ordered]@{}
+            foreach ($key in $script:P4DeviceStateExactKeys) { $state[$key] = $device[$key] }
+            $state.thermal = 0; $state.battery = 100; $state.rotation = 1
+            return $state
+        }
+        $script:live = @{ 'io.github.hideyukimori.nenepixel' = 'speed-profile'; 'io.github.hideyukimori.nenepixel.test' = 'verify'
+            'io.github.hideyukimori.nenepixel.adapters.persistence.test' = 'verify' }
+        $script:dexoptReads = [Collections.Generic.List[string]]::new()
+        function Get-P4PackageDexoptStatus {
+            param($AdbPath, $Serial, $Directory, $Package, $Stage, $RepositoryRoot)
+            $script:dexoptReads.Add($Package)
+            return $script:live[$Package]
+        }
+        # The reserved manifest records the live dexopt of each artifact's package (the v7 convention).
+        $reserved = Clone $manifest
+        $reserved.tools.adb = Clone $reserved.tools.adb
+        foreach ($role in @($reserved.roles.Keys)) {
+            foreach ($kind in @($reserved.roles[$role].artifacts.Keys)) {
+                $artifact = $reserved.roles[$role].artifacts[$kind]
+                $artifact.observed_dexopt = $script:live[(Get-P4ArtifactDexoptPackage $artifact)]
+            }
+        }
+        function Reserve($Value, [string]$Name) {
+            $Value.output_directory = Join-Path $OutputDirectory "reserve-$Name"
+            $Value.frame_experiment.directory = Join-Path $Value.output_directory 'frame'
+            Assert-P4ManifestArtifacts $Value $candidateRoot -Stage reservation
+        }
+        function Record-Path([string]$Name) { Join-Path $OutputDirectory "reserve-$Name-preflight/reservation.json" }
+
+        Case 'phase reservation passes: Issue #145, four-role dexopt, reservation record' {
+            $script:ghIssues.Clear(); $script:dexoptReads.Clear()
+            Reserve (Clone $reserved) 'pass'
+            Require (($script:ghIssues -join ',') -ceq '145') "agreement Issue asked: $($script:ghIssues -join ',')"
+            $record = Get-Content -LiteralPath (Record-Path 'pass') -Raw | ConvertFrom-Json -AsHashtable
+            Require ($record.schema -ceq 'nene-pixel-p4-layer-reservation-v1' -and $record.agreement.issue -eq 145 -and
+                $record.agreement.state -ceq 'OPEN' -and $record.agreement.protocol_id_in_body) 'agreement record'
+            Require ((@($record.roles.Keys) -join ',') -ceq 'baseline_single,baseline_layers16,baseline_underlay,candidate') 'four roles recorded'
+            foreach ($role in @($record.roles.Keys)) {
+                Require ((@($record.roles[$role].Keys) -join ',') -ceq (@($reserved.roles[$role].artifacts.Keys) -join ',')) "kinds $role"
+                foreach ($kind in @($record.roles[$role].Keys)) {
+                    $entry = $record.roles[$role][$kind]; $artifact = $reserved.roles[$role].artifacts[$kind]
+                    Require ($entry.sha256 -ceq $artifact.sha256 -and $entry.live_dexopt -ceq $script:live[$entry.package] -and
+                        $entry.recorded_dexopt -ceq $entry.live_dexopt) "record $role.$kind"
+                }
+            }
+            Require ($record.roles.baseline_single.app_release_like.live_dexopt -ceq 'speed-profile' -and
+                $record.roles.candidate.app_release_like.requested_dexopt -ceq 'speed-profile') 'frame release-like is speed-profile'
+            Require ($record.preservation.session -ceq $session -and $record.preservation.sha256 -ceq $reserved.device.asset_preservation.sha256) 'preservation session'
+            Require ($script:dexoptReads.Count -eq 3) "one dexopt read per package: $($script:dexoptReads -join ',')"
+        }
+        Case 'reservation record is never overwritten' { Reserve (Clone $reserved) 'pass' } -Refuse -Expect 'Preflight device evidence already exists'
+        Case 'agreement only on Issue #142 is not the phase agreement' {
+            $saved = $script:issues['145']; $script:issues['145'] = @{ state = 'OPEN'; body = "agreement $old" }
+            $script:issues['142'] = @{ state = 'OPEN'; body = "agreement $old $phase" }
+            $reads = $script:deviceReads
+            try { Reserve (Clone $reserved) 'issue-142' } finally { $script:issues['145'] = $saved; Require ($script:deviceReads -eq $reads) 'device touched without agreement' }
+        } -Refuse -Expect 'Issue #145/layer protocol agreement is missing.'
+        Case 'closed Issue #145' {
+            $saved = $script:issues['145']; $script:issues['145'] = @{ state = 'CLOSED'; body = "agreement $phase" }
+            try { Reserve (Clone $reserved) 'issue-closed' } finally { $script:issues['145'] = $saved }
+        } -Refuse -Expect 'Issue #145/layer protocol agreement is missing.'
+        foreach ($role in @($reserved.roles.Keys)) {
+            Case "recorded dexopt differs from live: $role.app_release_like" {
+                $bad = Clone $reserved; $bad.roles[$role].artifacts.app_release_like.observed_dexopt = 'verify'
+                try { Reserve $bad "dexopt-$role" } finally { Require (-not (Test-Path -LiteralPath (Record-Path "dexopt-$role"))) 'record written' }
+            } -Refuse -Expect "Recorded dexopt state for $role.app_release_like"
+        }
+        Case 'live dexopt changed under the recorded state' {
+            $script:live['io.github.hideyukimori.nenepixel.test'] = 'speed-profile'
+            try { Reserve (Clone $reserved) 'dexopt-live' } finally { $script:live['io.github.hideyukimori.nenepixel.test'] = 'verify' }
+        } -Refuse -Expect 'Recorded dexopt state for baseline_layers16.test_debug'
+        Case 'preservation session differs from the verified record' {
+            $bad = Clone $reserved; $bad.device.asset_preservation.session = 's145-other'; $reads = $script:deviceReads
+            try { Reserve $bad 'preservation' } finally { Require ($script:deviceReads -eq $reads) 'device touched' }
+        } -Refuse -Expect 'does not pin its verified preservation-v2 record'
+        Case 'New-P4ExperimentReservation reserves the phase manifest and its record' {
+            $value = Clone $reserved; $value.output_directory = Join-Path $OutputDirectory 'reserve-file'
+            $value.frame_experiment.directory = Join-Path $value.output_directory 'frame'
+            $path = Join-Path $OutputDirectory 'reserve-file-manifest.json'; Write-Text $path (ConvertTo-Json $value -Depth 40)
+            $root = New-P4ExperimentReservation $path $candidateRoot
+            Require ((Sha (Join-Path $root 'preflight.json')) -ceq (Sha $path)) 'reserved copy'
+            Require (Test-Path -LiteralPath (Record-Path 'file')) 'reservation record'
+        }
+        Case 'v7 unchanged: P4AgreementIssue 142 and the two-role, four-kind dexopt loop' {
+            Require ($script:P4AgreementIssue -eq 142 -and $script:P4LayerAgreementIssue -eq 145) 'agreement Issues'
+            $v7 = [ordered]@{ output_directory = Join-Path $OutputDirectory 'reserve-v7'; tools = Clone $reserved.tools; device = Clone $reserved.device
+                roles = [ordered]@{ baseline = Clone $reserved.roles.candidate; candidate = Clone $reserved.roles.candidate } }
+            $script:dexoptReads.Clear()
+            Assert-P4LiveDeviceAdmission $v7 $candidateRoot
+            Require ($script:dexoptReads.Count -eq 3) 'v7 dexopt reads'
+            $v7.output_directory = Join-Path $OutputDirectory 'reserve-v7-bad'
+            $v7.roles.candidate.artifacts.publication_test.observed_dexopt = 'speed-profile'
+            $refused = $null; try { Assert-P4LiveDeviceAdmission $v7 $candidateRoot } catch { $refused = $_.Exception.Message }
+            Require ($refused -match 'Recorded dexopt state for candidate\.publication_test') "v7 refusal: $refused"
+            Require (-not (Test-Path -LiteralPath (Join-Path $OutputDirectory 'reserve-v7-preflight/reservation.json'))) 'v7 wrote a phase record'
+        }
     } else {
         $v7 = [ordered]@{ schema = 'nene-pixel-p4-indexed-preflight-v7'; protocol = [ordered]@{ id = $old }
             created_utc = '2026-09-29T00:00:00Z'; experiment_id = 'e142-v7-contract'; output_directory = $outputRoot

@@ -76,8 +76,15 @@ function Log([string]$Text) { $script:events.Add($Text) }
 function New-P4PrivateSnapshot {
     param($Context, $Stage, $MaximumArchiveBytes, $MaximumApkBytes)
     Log 'snapshot'
+    # The measured sizes the transfer bound scales with: 1,000 B of inventory files, a 2,000 B APK.
+    $inventoryPath = Join-Path $Context.output_directory "$Stage-inventory-before.json"
+    Save-Json $inventoryPath @([ordered]@{ Path = 'files'; Type = 'directory' },
+        [ordered]@{ Path = 'files/a'; Type = 'file'; Size = 600 }, [ordered]@{ Path = 'files/b'; Type = 'file'; Size = 400 })
+    $apkPath = Join-Path $Context.output_directory "$Stage-original.apk"
+    [IO.File]::WriteAllBytes($apkPath, [byte[]]::new(2000))
     $record = [ordered]@{ status = 'verified-snapshot'; stage = $Stage; apk_sha256 = $originalApk
-        maximum_archive_bytes = $MaximumArchiveBytes; maximum_apk_bytes = $MaximumApkBytes }
+        maximum_archive_bytes = $MaximumArchiveBytes; maximum_apk_bytes = $MaximumApkBytes
+        inventory_path = $inventoryPath; apk_path = $apkPath }
     Save-Json (Join-Path $Context.output_directory "$Stage-snapshot.json") $record
     return [pscustomobject]$record
 }
@@ -99,7 +106,7 @@ function Invoke-P4PrivateRestoration {
     Save-Json $path ([ordered]@{ status = 'restored' })
     return [pscustomobject]@{ ResultPath = $path; Record = [pscustomobject]@{ status = 'restored' } }
 }
-function Assert-P4ManifestArtifacts { param($Manifest, $Worktree, $Stage) }
+function Assert-P4ManifestArtifacts { param($Manifest, $Worktree, $Stage) if ($Stage -ceq 'reservation') { Log 'reservation' } }
 function Assert-P4CompletedChain { param($Root, $Catalog, $SlotId, $ManifestHash) }
 function Invoke-P4SlotAdmission {
     param($Manifest, $Slot, $Root)
@@ -191,8 +198,19 @@ function Invoke-Scenario([string]$Name, [hashtable]$Settings) {
     }
     $thrown = $null
     $returned = $null
-    try { $returned = Invoke-P4LayerPhase -Context $context -Session 's145-t6' -ExperimentId 'e145-t6' -ReserveManifest $reserve }
-    catch { $thrown = $_.Exception.Message }
+    try {
+        if ($Settings.ContainsKey('draft')) {
+            # The canonical reservation: a draft without the preservation pin, reserved through preflight.
+            $draft = New-PhaseManifest $root 'x' ('c' * 64)
+            if ($Settings.draft -ceq 'pinned') { $draft.device.asset_preservation.session = 's145-t6' }
+            else { [void]$draft.device.Remove('asset_preservation') }
+            $draftPath = Join-Path $directory 'draft.json'
+            Save-Json $draftPath $draft
+            $returned = Invoke-P4LayerPhase -Context $context -Session 's145-t6' -ExperimentId 'e145-t6' -ManifestDraftPath $draftPath
+        } else {
+            $returned = Invoke-P4LayerPhase -Context $context -Session 's145-t6' -ExperimentId 'e145-t6' -ReserveManifest $reserve
+        }
+    } catch { $thrown = $_.Exception.Message }
     $recordPath = Join-Path $directory 'p4-layer-phase-s145-t6-e145-t6.json'
     $record = if (Test-Path -LiteralPath $recordPath) { Get-Content -LiteralPath $recordPath -Raw | ConvertFrom-Json -AsHashtable } else { $null }
     return [pscustomobject]@{ Events = @($script:events.ToArray()); Record = $record; Thrown = $thrown; Directory = $directory
@@ -231,6 +249,64 @@ try {
         Check ($bounds.slots_seconds -eq 45360) "slots total $($bounds.slots_seconds)"
         Check ($bounds.phase_seconds -eq 45960 -and $bounds.phase_seconds -eq $p.preservation_seconds + $bounds.slots_seconds + $p.restoration_seconds) "phase sum $($bounds.phase_seconds)"
         Check ($bounds.kind -ceq 'hang-bound' -and $bounds.note -match 'not measured') 'hang-bound label'
+        # No snapshot yet: the 10-03 sizes stand in, labelled estimated (3,204 + 4,738 ms exactly).
+        Check ($p.snapshot_bytes.basis -ceq 'estimated' -and $p.snapshot_bytes.archive_bytes -eq 10335232 -and
+            $p.snapshot_bytes.apk_bytes -eq 12402152 -and $p.snapshot_transfer_milliseconds -eq 7942) "estimated transfer $($p.snapshot_transfer_milliseconds)"
+    }
+    Case 'Bounds' 'snapshot transfers scale with the measured bytes' {
+        # At the caps (268,435,456 B archive, 134,217,728 B APK): ceil(B / 10,335,232 x 3,204) = 83,218 ms,
+        # ceil(B / 12,402,152 x 4,738) = 51,276 ms; (26 x 276 + 83,218 + 51,276) x 2 = 283,340 ms -> 300 s.
+        $directory = Join-Path $OutputDirectory 'bounds-size'
+        [void][IO.Directory]::CreateDirectory($directory)
+        $inventory = Join-Path $directory 'inventory.json'
+        Save-Json $inventory @([ordered]@{ Path = 'files/big'; Type = 'file'; Size = 268435456 }, [ordered]@{ Path = 'files'; Type = 'directory' })
+        $apk = Join-Path $directory 'original.apk'
+        $stream = [IO.File]::Open($apk, [IO.FileMode]::CreateNew); try { $stream.SetLength(134217728) } finally { $stream.Dispose() }
+        $p = Get-P4LayerPhasePreservationBounds ([pscustomobject]@{ inventory_path = $inventory; apk_path = $apk })
+        Check ($p.snapshot_bytes.basis -ceq 'measured' -and $p.snapshot_tar_milliseconds -eq 83218 -and
+            $p.snapshot_apk_milliseconds -eq 51276 -and $p.snapshot_seconds -eq 300) "cap transfer $($p.snapshot_tar_milliseconds)/$($p.snapshot_apk_milliseconds)/$($p.snapshot_seconds)"
+        $manifest = New-PhaseManifest (Join-Path $OutputDirectory 'bounds-size-root') 'x' ('c' * 64)
+        $bounds = Get-P4LayerPhaseBounds -Manifest $manifest -ManifestSha256 ('a' * 64) -Catalog $catalog -Snapshot ([ordered]@{ inventory_path = $inventory; apk_path = $apk })
+        Check ($bounds.phase_seconds -eq 46200) "phase at the caps $($bounds.phase_seconds)"
+        Remove-Item -LiteralPath $apk
+    }
+
+    # Reservation: the canonical ReserveManifest pins this preservation into the draft and reserves it
+    # through the preflight reservation stage (Assert-P4ManifestArtifacts -Stage reservation).
+    Case 'Reservation' 'default reservation: draft pinned after isolation, reserved through preflight, 18 slots run' {
+        $run = Invoke-Scenario 'r-default' @{ draft = 'unpinned' }
+        Check ($null -eq $run.Thrown) "threw: $($run.Thrown)"
+        $e = $run.Events
+        Check ($e[0] -ceq 'snapshot' -and $e[1] -ceq 'isolation' -and $e[2] -ceq 'reservation' -and (Count $e 'reservation') -eq 1) "start order $($e[0..3] -join ' ')"
+        $r = $run.Record
+        Check ($r.status -ceq 'complete' -and (Count $e 'collector:') -eq 18) "status $($r.status)"
+        $pinnedPath = Join-Path $run.Directory 'p4-layer-manifest-s145-t6-e145-t6.json'
+        $pinned = Get-Content -LiteralPath $pinnedPath -Raw | ConvertFrom-Json -AsHashtable
+        Check ($pinned.device.asset_preservation.session -ceq 's145-t6' -and $pinned.device.asset_preservation.sha256 -ceq $r.preservation.sha256 -and
+            [IO.Path]::GetFullPath($pinned.device.asset_preservation.path) -ceq $r.preservation.path) 'pin'
+        Check ((Get-FileSha256 $pinnedPath) -ceq $r.manifest_sha256 -and $r.manifest_path -ceq [IO.Path]::GetFullPath((Join-Path $run.Root 'preflight.json'))) 'reserved copy'
+        Check ($r.deadline.preservation.snapshot_bytes.basis -ceq 'measured' -and $r.deadline.preservation.snapshot_bytes.archive_bytes -eq 1000 -and
+            $r.deadline.preservation.snapshot_bytes.apk_bytes -eq 2000 -and $r.deadline.preservation.snapshot_transfer_milliseconds -eq 2) 'measured snapshot bytes'
+    }
+    Case 'Reservation' 'a draft that already pins a preservation: no reservation, no slot, original restored' {
+        $run = Invoke-Scenario 'r-pinned' @{ draft = 'pinned' }
+        Check ($run.Thrown -match 'without a preservation pin') "thrown $($run.Thrown)"
+        Check ((Count $run.Events 'reservation') -eq 0 -and (Count $run.Events 'collector:') -eq 0 -and
+            (Count $run.Events "restoration:$originalApk") -eq 1) "events $($run.Events -join ' ')"
+    }
+    Case 'Reservation' 'both or neither of draft and callback: refused before any device action' {
+        Reset-Scenario @{}
+        foreach ($pair in @(@{ name = 'neither'; args = @{} }, @{ name = 'both'; args = @{ ManifestDraftPath = 'x.json'; ReserveManifest = { 'x' } } })) {
+            $directory = Join-Path $OutputDirectory "r-$($pair.name)"
+            [void][IO.Directory]::CreateDirectory($directory)
+            $context = [ordered]@{ repository_root = 'x'; output_directory = $directory; adb_path = 'x'; serial = 'T6SERIAL'; package = $app }
+            $arguments = $pair.args
+            $refused = $false
+            try { Invoke-P4LayerPhase -Context $context -Session 's145-t6' -ExperimentId 'e145-t6' @arguments | Out-Null }
+            catch { $refused = "$_" -match 'exactly one of ManifestDraftPath' }
+            Check $refused "not refused: $($pair.name)"
+            Check ($script:events.Count -eq 0 -and @(Get-ChildItem -LiteralPath $directory).Count -eq 0) "touched: $($pair.name)"
+        }
     }
 
     # (a) all 18 succeed.
@@ -372,6 +448,22 @@ try {
         Check ($text.Contains('-CollectorSucceeded ($null -eq $failure)')) 'success flag'
         Check ($text.Contains('$collectorTimeoutSeconds + $phaseCleanupSeconds +')) 'deadline'
         Check ($text.Contains('-not $route.phase -and $null -ne $lanePlan')) 'v7 quarantine gate'
+    }
+    Case 'Wiring' 'reservation: the wrapper default reaches the preflight reservation stage for the phase' {
+        $function = { param($Path, $Name) $errs = $null; $ast = [Management.Automation.Language.Parser]::ParseFile($Path, [ref]$null, [ref]$errs)
+            Check ($errs.Count -eq 0) "parse $Path"
+            $ast.Find({ param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -ceq $Name }, $true).Extent.Text }
+        $phaseText = & $function $phasePath 'Invoke-P4LayerPhase'
+        Check ($phaseText.Contains('Request-P4LayerPhaseReservation -DraftPath $draftPath')) 'default ReserveManifest'
+        $request = & $function $phasePath 'Request-P4LayerPhaseReservation'
+        Check ($request.Contains('New-P4ExperimentReservation -ManifestPath $pinned')) 'reservation through preflight'
+        $preflightPath = Join-Path $PSScriptRoot 'measurements/p4-indexed-preflight.ps1'
+        $reservation = & $function $preflightPath 'New-P4ExperimentReservation'
+        Check ($reservation.Contains('Assert-P4ManifestArtifacts $Manifest $RepositoryRoot -Stage reservation')) 'preflight reservation stage'
+        $layer = & $function $preflightPath 'Assert-P4LayerManifestArtifacts'
+        Check ($layer.Contains('gh issue view $script:P4LayerAgreementIssue') -and $layer.Contains('Assert-P4LiveDeviceAdmission $Manifest $RepositoryRoot $roleKinds $observed') -and
+            -not $layer.Contains('is not admitted')) 'phase reservation stage open'
+        Check ($script:P4LayerAgreementIssue -eq 145 -and $script:P4AgreementIssue -eq 142) 'agreement Issues (phase 145, v7 142)'
     }
     $result.status = 'success'
 } finally {

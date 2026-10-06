@@ -29,6 +29,10 @@ $script:P4BaselineProduction = '8120c06fae1a372b23d2a7af4f50aa2b9cdfeff9'
 # Issue #145 layer phase manifest identity. The v7 constants above keep the historical admission.
 $script:P4LayerPreflightSchema = 'nene-pixel-p4-layer-preflight-v1'
 $script:P4LayerProtocolPath = 'docs/quality/P4_LAYER_PHASE_PROTOCOL.md'
+# The phase reservation takes its Issue/protocol agreement from Issue #145 (design ruling, R7). The v7
+# route keeps P4AgreementIssue (142) above.
+$script:P4LayerAgreementIssue = 145
+$script:P4LayerReservationSchema = 'nene-pixel-p4-layer-reservation-v1'
 
 # Exactly one contract record per lane boundary. Absent, duplicate or unknown scopes are refusals.
 $script:P4CollectorContractScopes = @(
@@ -179,8 +183,8 @@ function Get-P4SlotCatalog {
 function Get-P4FrameGroupCatalog {
     <#
         The phase manifest (schema nene-pixel-p4-layer-preflight-v1) is admitted offline by
-        Assert-P4ManifestContract / Assert-P4ManifestArtifacts (Issue #145 R4/R7); its live reservation
-        stage stays closed. Comparison roles select baseline/candidate semantics; artifact roles select immutable builds.
+        Assert-P4ManifestContract / Assert-P4ManifestArtifacts (Issue #145 R4/R7) and reserved live
+        (agreement Issue #145, dexopt over the four artifact roles). Comparison roles select baseline/candidate semantics; artifact roles select immutable builds.
         Families and comparator commits have one definition here, consumed by the phase slot catalog.
     #>
     param([Parameter(Mandatory = $true)][AllowEmptyString()][AllowNull()][string]$ProtocolId)
@@ -1233,8 +1237,13 @@ function Assert-P4LiveDeviceAdmission {
     <#
         The only adb use in preflight. Raw dumps land beside the reserved output directory, which must
         not pre-exist, so nothing that a prior attempt recorded can be overwritten.
+        RoleKinds (role -> artifact kinds) defaults to the v7 pair over every kind; the layer phase
+        passes its four artifact roles. The same rule holds per role: each recorded observed_dexopt
+        equals the live state of its dexopt package. Observed, when given, receives one entry per
+        role.kind for the caller's record (nothing is written to the pipeline).
     #>
-    param([System.Collections.IDictionary]$Manifest, [string]$RepositoryRoot)
+    param([System.Collections.IDictionary]$Manifest, [string]$RepositoryRoot,
+        [System.Collections.IDictionary]$RoleKinds = $null, [System.Collections.IDictionary]$Observed = $null)
 
     $directory = [IO.Path]::GetFullPath($Manifest.output_directory) + '-preflight'
     if (Test-Path -LiteralPath $directory) { throw 'Preflight device evidence already exists; replacement is prohibited.' }
@@ -1245,9 +1254,12 @@ function Assert-P4LiveDeviceAdmission {
         -RepositoryRoot $RepositoryRoot
     Assert-P4DeviceStateMatches -Expected $Manifest.device -Observed $state -Context 'preflight'
 
+    if ($null -eq $RoleKinds) {
+        $RoleKinds = [ordered]@{ baseline = @($script:P4ArtifactContract.Keys); candidate = @($script:P4ArtifactContract.Keys) }
+    }
     $statuses = @{}
-    foreach ($role in @('baseline', 'candidate')) {
-        foreach ($kind in $script:P4ArtifactContract.Keys) {
+    foreach ($role in @($RoleKinds.Keys)) {
+        foreach ($kind in @($RoleKinds[$role])) {
             $artifact = $Manifest.roles[$role].artifacts[$kind]
             $package = Get-P4ArtifactDexoptPackage $artifact
             if (-not $statuses.ContainsKey($package)) {
@@ -1257,6 +1269,11 @@ function Assert-P4LiveDeviceAdmission {
             if ([string]$artifact.observed_dexopt -cne $statuses[$package]) {
                 throw ("Recorded dexopt state for $role.$kind ($package) is not the live state: " +
                     "$($artifact.observed_dexopt) vs $($statuses[$package]).")
+            }
+            if ($null -ne $Observed) {
+                $Observed["$role.$kind"] = [ordered]@{ role = $role; kind = $kind; sha256 = [string]$artifact.sha256
+                    package = $package; requested_dexopt = [string]$artifact.requested_dexopt
+                    recorded_dexopt = [string]$artifact.observed_dexopt; live_dexopt = $statuses[$package] }
             }
         }
     }
@@ -1562,12 +1579,15 @@ function Assert-P4LayerManifestArtifacts {
         Offline admission of the four immutable artifact roles. Each role reuses Assert-P4RoleSource
         (catalog variants, APK existence/SHA-256, embedded revision = build commit, production-tree
         hash = declared production, fixture APK entries, packaged provider, closed source inventory)
-        and Assert-P4GitLineage. The live `reservation` stage (Issue agreement and device admission
-        over four roles) has no accepted phase rule yet and refuses.
+        and Assert-P4GitLineage. The live `reservation` stage (design ruling, R7) adds the Issue #145
+        agreement and Assert-P4LiveDeviceAdmission over the four artifact roles (the v7 dexopt rule,
+        per role), then writes `reservation.json` (CreateNew) into the reserved `-preflight` evidence
+        directory: agreement Issue, each role's APK hashes with recorded and live dexopt, and the
+        pinned preservation session.
     #>
     param([System.Collections.IDictionary]$Manifest, [string]$RepositoryRoot, [string]$Stage)
     $phase = 'nene-pixel-p4-layer-phase-verification-v1'
-    if ($Stage -cne 'slot') { throw 'Layer phase reservation is not admitted: its live agreement/device stage is undecided.' }
+    if ($Stage -cnotin @('reservation', 'slot')) { throw "Unknown layer admission stage: $Stage" }
     Assert-P4ManifestContract $Manifest
     Assert-P4FileRecord $Manifest.protocol 'protocol'
     if ((Get-FileSha256 (Join-Path $RepositoryRoot $script:P4LayerProtocolPath)) -cne $Manifest.protocol.sha256) {
@@ -1582,6 +1602,35 @@ function Assert-P4LayerManifestArtifacts {
         Assert-P4FileRecord $Manifest.toolchain[$key] "toolchain.$key"
     }
     foreach ($file in $Manifest.toolchain.locks) { Assert-P4FileRecord $file 'dependency lock' }
+    if ($Stage -ceq 'reservation') {
+        # The body is judged inside jq; pwsh receives only ASCII (the v7 rule, on the phase Issue and id).
+        $agreementFilter = '[.state, (.body | contains("' + $phase + '"))] | @tsv'
+        $agreement = @(& gh issue view $script:P4LayerAgreementIssue --repo hideyukiMORI/NENE-PIXEL --json body,state --jq $agreementFilter) -join "`n"
+        if ($LASTEXITCODE -ne 0 -or $agreement -cne "OPEN`ttrue") {
+            throw "Issue #$($script:P4LayerAgreementIssue)/layer protocol agreement is missing."
+        }
+        $roleKinds = [ordered]@{}
+        foreach ($entry in @(Get-P4LayerArtifactCatalog -ProtocolId $phase)) { $roleKinds[$entry.role] = @($entry.artifact_kinds) }
+        $observed = [ordered]@{}
+        Assert-P4LiveDeviceAdmission $Manifest $RepositoryRoot $roleKinds $observed
+        $roles = [ordered]@{}
+        foreach ($role in @($roleKinds.Keys)) {
+            $roles[$role] = [ordered]@{}
+            foreach ($kind in @($roleKinds[$role])) { $roles[$role][$kind] = $observed["$role.$kind"] }
+        }
+        $pin = $Manifest.device.asset_preservation
+        $record = [ordered]@{ schema = $script:P4LayerReservationSchema; protocol_id = $phase
+            experiment_id = [string]$Manifest.experiment_id; serial = [string]$Manifest.device.serial
+            manifest_created_utc = (ConvertTo-P4LayerUtc $Manifest.created_utc 'manifest.created_utc').ToString('o')
+            recorded_utc = [datetime]::UtcNow.ToString('o')
+            agreement = [ordered]@{ issue = $script:P4LayerAgreementIssue; state = 'OPEN'; protocol_id_in_body = $true }
+            roles = $roles
+            preservation = [ordered]@{ path = [string]$pin.path; sha256 = [string]$pin.sha256; session = [string]$pin.session } }
+        $path = Join-Path ([IO.Path]::GetFullPath($Manifest.output_directory) + '-preflight') 'reservation.json'
+        $bytes = [Text.UTF8Encoding]::new($false).GetBytes(($record | ConvertTo-Json -Depth 12))
+        $stream = [IO.File]::Open($path, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::Read)
+        try { $stream.Write($bytes, 0, $bytes.Length) } finally { $stream.Dispose() }
+    }
 }
 
 function Assert-P4ManifestArtifacts {

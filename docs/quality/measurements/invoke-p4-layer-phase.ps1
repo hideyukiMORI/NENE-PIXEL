@@ -2,7 +2,8 @@
 # catalog slots through the existing outer slot wrapper (each slot's stopped cleanup runs inside it,
 # before the seal), and the original restoration in a finally path (ADR 0035 (c)). This file is a
 # library: the operator dot-sources it and calls Invoke-P4LayerPhase. It adds no collection entry
-# point and does not relax any live admission (preflight admission and measure-m2-frame's refusal stay).
+# point. Its manifest is reserved through the preflight reservation stage (Issue #145 R7, agreement
+# #145, four-role dexopt); measure-m2-frame's refusal stays (T7b-2).
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 # The slot wrapper is dot-sourced without running its entry point (InvocationName '.'). It brings the
@@ -28,13 +29,17 @@ $script:P4LayerPhaseClock = { [datetime]::UtcNow }
 # One private inventory is I calls (8 fixed + stat and hash batches); I is the cleanup's assumed
 # inventory shape (P4LayerCleanupInventoryCallCount, entries <= 256, files <= 128).
 # One mkdir/move step is a pre inventory, the run-as call and a post inventory: 2I + 1 calls.
-# The snapshot's two transfers are not call-shaped; each counts at its measured 10-03 duration x margin
-# (evidence 145-native-snapshot-device/20261003T160746439: original-original-tar.json, 10,335,232 B in
-# 3,204 ms; original-original-apk.json, 12,402,152 B in 4,738 ms). A larger archive takes longer; the
-# bound covers the measured size only (assumed, stated).
+# The snapshot's two transfers are not call-shaped; each scales with its size from the measured 10-03
+# rate (evidence 145-native-snapshot-device/20261003T160746439: original-original-tar.json, 10,335,232 B
+# in 3,204 ms; original-original-apk.json, 12,402,152 B in 4,738 ms), design ruling R7:
+#   tar = ceil(bytes / 10,335,232 x 3,204 ms), APK = ceil(bytes / 12,402,152 x 4,738 ms), then x margin.
+# Bytes are the snapshot's own (sum of file sizes in its inventory, the transferred APK size). Before a
+# snapshot exists, the 10-03 sizes stand in and the bound is labelled estimated.
 # The restoration APK install keeps its fixed 120 s (Invoke-P4RestorationApkInstall).
 $script:P4LayerPhaseSnapshotTarMilliseconds = 3204
 $script:P4LayerPhaseSnapshotApkMilliseconds = 4738
+$script:P4LayerPhaseSnapshotTarBytes = 10335232
+$script:P4LayerPhaseSnapshotApkBytes = 12402152
 $script:P4LayerPhaseRestorationInstallSeconds = 120
 # Worst step shapes (assumed, stated): isolation creates at most no_backup, p4-user-preservation,
 # <session> and original (4 mkdir) and moves at most the six Get-P4MoveRoots roots (6 moves).
@@ -43,7 +48,34 @@ $script:P4LayerPhaseRestorationInstallSeconds = 120
 $script:P4LayerPhaseIsolationSteps = 4 + 6
 $script:P4LayerPhaseRestorationSteps = 3 + 7 + 6
 
+function Get-P4LayerPhaseSnapshotBytes {
+    # The snapshot's measured sizes, or the 10-03 sizes (estimated) when no snapshot record exists yet.
+    param($Snapshot = $null)
+    $property = { param($Name) if ($null -eq $Snapshot) { $null } elseif ($Snapshot -is [Collections.IDictionary]) {
+            if ($Snapshot.Contains($Name)) { $Snapshot[$Name] } else { $null } }
+        elseif ($Snapshot.PSObject.Properties[$Name]) { $Snapshot.$Name } else { $null } }
+    $inventoryPath = [string](& $property 'inventory_path')
+    $apkPath = [string](& $property 'apk_path')
+    if ([string]::IsNullOrEmpty($inventoryPath) -or [string]::IsNullOrEmpty($apkPath)) {
+        return [ordered]@{ basis = 'estimated'; archive_bytes = [long]$script:P4LayerPhaseSnapshotTarBytes
+            apk_bytes = [long]$script:P4LayerPhaseSnapshotApkBytes
+            note = 'Estimated: no snapshot yet; the 10-03 snapshot sizes stand in.' }
+    }
+    $archive = [long]0
+    foreach ($item in @(Get-Content -LiteralPath $inventoryPath -Raw | ConvertFrom-Json)) {
+        if ([string]$item.Type -ceq 'file') { $archive += [long]$item.Size }
+    }
+    return [ordered]@{ basis = 'measured'; archive_bytes = $archive; apk_bytes = [long](Get-Item -LiteralPath $apkPath).Length
+        note = 'Measured at the snapshot: inventory file-size sum and the transferred APK size.' }
+}
+
 function Get-P4LayerPhasePreservationBounds {
+    param($Snapshot = $null)
+    $bytes = Get-P4LayerPhaseSnapshotBytes $Snapshot
+    $tarMilliseconds = [long][Math]::Ceiling(
+        [double]$bytes.archive_bytes / $script:P4LayerPhaseSnapshotTarBytes * $script:P4LayerPhaseSnapshotTarMilliseconds)
+    $apkMilliseconds = [long][Math]::Ceiling(
+        [double]$bytes.apk_bytes / $script:P4LayerPhaseSnapshotApkBytes * $script:P4LayerPhaseSnapshotApkMilliseconds)
     $inventory = [int]$script:P4LayerCleanupInventoryCallCount
     $step = 2 * $inventory + 1
     # Snapshot: inventory before, APK path+hash, inventory after, APK path+hash (+ APK copy and tar transfers).
@@ -54,24 +86,25 @@ function Get-P4LayerPhasePreservationBounds {
     $restorationCalls = 10 + 2 * $inventory + $script:P4LayerPhaseRestorationSteps * $step
     $call = [long]$script:P4LayerCleanupMeasuredCallMilliseconds
     $margin = [long]$script:P4LayerCleanupMargin
-    $transfers = [long]$script:P4LayerPhaseSnapshotTarMilliseconds + $script:P4LayerPhaseSnapshotApkMilliseconds
+    $transfers = $tarMilliseconds + $apkMilliseconds
     $minutes = { param([double]$Milliseconds) [int]([Math]::Ceiling($Milliseconds / 60000.0) * 60) }
     $snapshot = & $minutes (($snapshotCalls * $call + $transfers) * $margin)
     $isolation = & $minutes ($isolationCalls * $call * $margin)
     $restoration = & $minutes ($restorationCalls * $call * $margin + $script:P4LayerPhaseRestorationInstallSeconds * 1000)
     return [ordered]@{ inventory_calls = $inventory; measured_call_milliseconds = $call; margin = $margin
-        snapshot_calls = $snapshotCalls; snapshot_transfer_milliseconds = $transfers; snapshot_seconds = $snapshot
+        snapshot_calls = $snapshotCalls; snapshot_bytes = $bytes; snapshot_tar_milliseconds = $tarMilliseconds
+        snapshot_apk_milliseconds = $apkMilliseconds; snapshot_transfer_milliseconds = $transfers; snapshot_seconds = $snapshot
         isolation_calls = $isolationCalls; isolation_seconds = $isolation
         preservation_seconds = $snapshot + $isolation
         restoration_calls = $restorationCalls; restoration_install_seconds = $script:P4LayerPhaseRestorationInstallSeconds
         restoration_seconds = $restoration
-        derivation = 'calls x measured worst call (276 ms, 10-03) x margin 2, snapshot transfers at measured duration x 2, + restoration install 120 s, each rounded up to 60 s; call counts are assumed step shapes stated in invoke-p4-layer-phase.ps1' }
+        derivation = 'calls x measured worst call (276 ms, 10-03) x margin 2, snapshot transfers proportional to bytes at the 10-03 rates (tar 10,335,232 B / 3,204 ms, APK 12,402,152 B / 4,738 ms) x 2, + restoration install 120 s, each rounded up to 60 s; call counts are assumed step shapes stated in invoke-p4-layer-phase.ps1' }
 }
 
 function Get-P4LayerPhaseBounds {
     # Slot bound = the Invoke-P4IndexedSlot deadline: collector budget (planner) + stopped-cleanup clock
     # (Get-P4LayerSlotCleanupTimeout) + the existing seal reserve + the analysis budget.
-    param([Collections.IDictionary]$Manifest, [string]$ManifestSha256, [object[]]$Catalog)
+    param([Collections.IDictionary]$Manifest, [string]$ManifestSha256, [object[]]$Catalog, $Snapshot = $null)
     $slots = [Collections.Generic.List[object]]::new()
     $sum = 0
     foreach ($slot in $Catalog) {
@@ -83,7 +116,7 @@ function Get-P4LayerPhaseBounds {
             slot_seconds = $total })
         $sum += $total
     }
-    $preservation = Get-P4LayerPhasePreservationBounds
+    $preservation = Get-P4LayerPhasePreservationBounds $Snapshot
     return [ordered]@{ kind = 'hang-bound'
         note = 'Hang bounds, not measured or estimated durations.'
         preservation = $preservation; slots = $slots.ToArray(); slots_seconds = $sum
@@ -154,20 +187,67 @@ function Assert-P4LayerPhaseManifest {
     return [ordered]@{ manifest = $manifest; sha256 = Get-Sha256Hex $bytes }
 }
 
+function Request-P4LayerPhaseReservation {
+    <#
+        The canonical ReserveManifest. The operator's draft is the whole phase manifest except the
+        preservation pin, which only this phase can know. The pin {path, sha256, session} and
+        created_utc (the phase clock, after isolation) are added, the pinned manifest is written once
+        beside the phase record, and the preflight reservation stage reserves it
+        (New-P4ExperimentReservation: agreement Issue #145, four-role dexopt, reservation.json).
+    #>
+    param([Parameter(Mandatory)][string]$DraftPath, [Parameter(Mandatory)]$Preservation,
+        [Parameter(Mandatory)][string]$RepositoryRoot, [Parameter(Mandatory)][string]$PhaseDirectory)
+    $draft = [Text.UTF8Encoding]::new($false, $true).GetString([IO.File]::ReadAllBytes($DraftPath)) |
+        ConvertFrom-Json -AsHashtable -DateKind String
+    if ($null -eq $draft -or $draft.protocol -isnot [Collections.IDictionary] -or $draft.protocol.id -cne $script:P4LayerPhaseProtocolId) {
+        throw 'The manifest draft is not the layer phase.'
+    }
+    if ($draft.device -isnot [Collections.IDictionary] -or $draft.device.Contains('asset_preservation')) {
+        throw 'The manifest draft must carry a device section without a preservation pin; the phase pins its own.'
+    }
+    if ([string]$draft.experiment_id -cne [string]$Preservation.experiment_id) {
+        throw 'The manifest draft names another experiment than this phase.'
+    }
+    $draft.device.asset_preservation = [ordered]@{ path = [string]$Preservation.path; sha256 = [string]$Preservation.sha256
+        session = [string]$Preservation.session }
+    $draft.created_utc = (& $script:P4LayerPhaseClock).ToString('o')
+    $pinned = Join-Path $PhaseDirectory "p4-layer-manifest-$($Preservation.session)-$($Preservation.experiment_id).json"
+    Write-NewInvocationFile $pinned ($draft | ConvertTo-Json -Depth 40)
+    $root = New-P4ExperimentReservation -ManifestPath $pinned -RepositoryRoot $RepositoryRoot
+    return (Join-Path $root 'preflight.json')
+}
+
 # --- The phase ----------------------------------------------------------------------------------
 function Invoke-P4LayerPhase {
     <#
         Context: repository_root, adb_path, serial, package (the original app) and output_directory (an
-        existing phase directory under lab evidence). ReserveManifest receives the verified
-        preservation-v2 record {path, sha256, session, experiment_id} and returns the reserved
-        preflight.json that pins it (the manifest binds the preservation, so reservation follows isolation).
+        existing phase directory under lab evidence). ManifestDraftPath selects the canonical
+        reservation (Request-P4LayerPhaseReservation through the preflight reservation stage).
+        ReserveManifest replaces it for validators only. Either receives the verified preservation-v2
+        record {path, sha256, session, experiment_id} and returns the reserved preflight.json that pins
+        it (the manifest binds the preservation, so reservation follows isolation). Exactly one is given.
         Slot failures are recorded and the next slot runs; preservation or restoration failure throws
         after the record is written. Nothing is deleted.
     #>
     param([Parameter(Mandatory)][Collections.IDictionary]$Context, [Parameter(Mandatory)][string]$Session,
-        [Parameter(Mandatory)][string]$ExperimentId, [Parameter(Mandatory)][scriptblock]$ReserveManifest)
+        [Parameter(Mandatory)][string]$ExperimentId, [string]$ManifestDraftPath, [scriptblock]$ReserveManifest)
     Assert-P4Session $Session
     Assert-P4Session $ExperimentId
+    if (([string]::IsNullOrWhiteSpace($ManifestDraftPath)) -eq ($null -eq $ReserveManifest)) {
+        throw 'Give exactly one of ManifestDraftPath (the canonical reservation) or ReserveManifest (validators).'
+    }
+    if ($null -eq $ReserveManifest) {
+        $draftPath = [IO.Path]::GetFullPath($ManifestDraftPath)
+        if (-not (Test-Path -LiteralPath $draftPath -PathType Leaf)) { throw "Missing phase manifest draft: $draftPath" }
+        $repositoryRoot = [string]$Context.repository_root
+        $phaseRoot = [IO.Path]::GetFullPath([string]$Context.output_directory)
+        # Invoked below with `&` from this function, so the block reads these locals of this scope.
+        $ReserveManifest = {
+            param($Preservation)
+            Request-P4LayerPhaseReservation -DraftPath $draftPath -Preservation $Preservation `
+                -RepositoryRoot $repositoryRoot -PhaseDirectory $phaseRoot
+        }
+    }
     foreach ($key in @('repository_root', 'output_directory', 'adb_path', 'serial', 'package')) {
         if (-not $Context.Contains($key) -or [string]::IsNullOrWhiteSpace([string]$Context[$key])) { throw "Missing phase context: $key" }
     }
@@ -209,7 +289,7 @@ function Invoke-P4LayerPhase {
         $record.manifest_sha256 = $admitted.sha256
         $root = [IO.Path]::GetFullPath($manifest.output_directory)
         $catalog = @(Get-P4SlotCatalog -ProtocolId $script:P4LayerPhaseProtocolId)
-        $bounds = Get-P4LayerPhaseBounds -Manifest $manifest -ManifestSha256 $admitted.sha256 -Catalog $catalog
+        $bounds = Get-P4LayerPhaseBounds -Manifest $manifest -ManifestSha256 $admitted.sha256 -Catalog $catalog -Snapshot $snapshot
         # The phase deadline counts from the phase start, so the preservation time already spent is inside it.
         $deadlineUtc = $startedUtc.AddSeconds($bounds.phase_seconds)
         $bounds.started_utc = $startedUtc.ToString('o')

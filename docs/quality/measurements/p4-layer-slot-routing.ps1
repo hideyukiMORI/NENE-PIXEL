@@ -1,4 +1,4 @@
-# Phase bindings shared by the existing collector/analyzer. Full live admission stays in preflight.
+# Phase bindings shared by the existing collector/analyzer. Phase manifest admission (offline, and the live reservation: Issue #145, four-role dexopt) lives in preflight.
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'p4-indexed-frame-analysis.ps1')
 . (Join-Path $PSScriptRoot 'p4-indexed-capture-seal.ps1')
