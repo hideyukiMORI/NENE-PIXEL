@@ -36,13 +36,21 @@ function Function-Text($Ast, [string] $Name) {
     return $node.Extent.Text
 }
 function Save-Json([string] $Path, $Value) { Write-P4SessionJson $Path $Value }
-# Independent restatement of the cleanup clock: 3 writers x (stop + absence + post-access absence) x 30,
-# debug install 120, APK identity 4 x 30, reports 30 each, reset inventories 2 x 30, 6 moves x 30, reserve 15.
-function Expected-CleanupSeconds($DevicePlan) {
-    if (@($DevicePlan.quiescence_packages).Count -ne 3) { throw 'Cleanup validator expects three writer packages' }
+# Independent restatement of the cleanup clock: W writers x (stop + absence + post-access absence) x 30,
+# debug install 120, APK identity 4 x 30, reports 30 each, reserve 15, plus the measured reset bound.
+# W = the packages the slot's role installs: app; test when the role declares test_debug; publication
+# on the publication slot only.
+function Expected-Writers([Collections.IDictionary] $Manifest, $DevicePlan) {
+    $kinds = @($Manifest.roles[$DevicePlan.role].artifacts.Keys)
+    $writers = 1 + $(if ($kinds -ccontains 'test_debug') { 1 } else { 0 }) + $(if ($DevicePlan.lane -ceq 'publication') { 1 } else { 0 })
+    if (@($DevicePlan.quiescence_packages).Count -ne $writers) { throw "Cleanup validator expects $writers writer packages" }
+    return $writers
+}
+function Expected-CleanupSeconds($DevicePlan, [Collections.IDictionary] $Manifest) {
+    $writers = Expected-Writers $Manifest $DevicePlan
     # Hang bound: 280 reset calls (16 + 24 x 11) x 0.276 s measured x 2, plus the unmeasured fixed parts
-    # (9 writer probes, install, 4 identity probes, 30 s per report, 15 s reserve), in whole minutes.
-    $milliseconds = (9 * 30 + 120 + 4 * 30 + 30 * @($DevicePlan.private_files).Count + 15) * 1000 + 280 * 276 * 2
+    # (3W writer probes, install, 4 identity probes, 30 s per report, 15 s reserve), in whole minutes.
+    $milliseconds = (3 * $writers * 30 + 120 + 4 * 30 + 30 * @($DevicePlan.private_files).Count + 15) * 1000 + 280 * 276 * 2
     return [int]([Math]::Ceiling($milliseconds / 60000.0) * 60)
 }
 # Slots are chosen from the catalog by meaning, never by a fixed id or count.
@@ -82,7 +90,7 @@ function Fixture([string] $Name, [string] $SlotId, [string] $Mode = '', [switch]
         New-StagingFixture $slot $plan (Join-Path $directory 'fixture-preparation') | Out-Null
     }
     $script:activeManifest = $manifest
-    $script:expectedTimeout = Expected-CleanupSeconds (Get-P4LayerSlotCleanupPlan $manifest $slot $hash).device_plan
+    $script:expectedTimeout = Expected-CleanupSeconds (Get-P4LayerSlotCleanupPlan $manifest $slot $hash).device_plan $manifest
     return @{ Manifest = $manifest; Slot = $slot; Context = $context }
 }
 function Event([string] $Name, $Context) {
@@ -159,7 +167,7 @@ try {
         $catalog = @(Get-P4SlotCatalog $phase); $mapped = 0; $total = 0
         foreach ($slot in $catalog) {
             $plan = Get-P4LayerSlotCleanupPlan $manifest $slot $hash
-            $expectedSeconds = Expected-CleanupSeconds $plan.device_plan
+            $expectedSeconds = Expected-CleanupSeconds $plan.device_plan $manifest
             Check ($plan.schema -ceq 'nene-pixel-p4-layer-slot-cleanup-plan-v2' -and -not $plan.Contains('archives') -and
                 -not $plan.Contains('maximum_archive_bytes') -and -not $plan.Contains('maximum_apk_bytes') -and
                 $plan.artifact_role -ceq $slot.artifact_role -and $plan.comparison_role -ceq $slot.role -and
@@ -168,9 +176,19 @@ try {
             $mapped++; $total += $plan.timeout_seconds
         }
         Check ($catalog.Count -gt 0 -and $mapped -eq $catalog.Count) "cleanup map covers every catalog slot ($($catalog.Count))"
-        Check ($catalog.Count -eq 18 -and $total -eq 13140) "18 slot cleanup clocks total 13140 s ($total s)"
+        Check ($catalog.Count -eq 18 -and $total -eq 11280) "18 slot cleanup clocks total 11280 s ($total s)"
         $single = Get-P4LayerSlotCleanupPlan $manifest (Get-P4ExecutionSlot $phase (Catalog-Slot 'frame' 'single')) $hash
-        Check ($single.timeout_seconds -eq 720) 'report-free cleanup clock is 720 s'
+        Check ($single.artifact_role -ceq 'baseline_single' -and
+            (@($single.device_plan.quiescence_packages) -join '|') -ceq $manifest.roles.baseline_single.artifacts.app_debug.target_package -and
+            $single.timeout_seconds -eq 540) 'baseline_single stops the app alone and its cleanup clock is 540 s'
+        $publication = Get-P4LayerSlotCleanupPlan $manifest (Get-P4ExecutionSlot $phase (Catalog-Slot 'publication' '' 'candidate')) $hash
+        $candidate = $manifest.roles.candidate.artifacts
+        Check ((@($publication.device_plan.quiescence_packages) -join '|') -ceq (@($candidate.app_debug.target_package,
+            $candidate.test_debug.test_package, $candidate.publication_test.test_package) -join '|') -and
+            $publication.timeout_seconds -eq 780) 'publication stops app, test and publication packages; clock 780 s'
+        $memory = Get-P4LayerSlotCleanupPlan $manifest (Get-P4ExecutionSlot $phase (Catalog-Slot 'memory' '' 'candidate')) $hash
+        Check (@($memory.device_plan.quiescence_packages) -cnotcontains $candidate.publication_test.test_package -and
+            @($memory.device_plan.quiescence_packages).Count -eq 2 -and $memory.timeout_seconds -eq 600) 'non-publication slot does not stop the publication package; clock 600 s'
         $slot = Get-P4ExecutionSlot $phase (Catalog-Slot 'memory' '' 'candidate')
         Refuses { Get-P4LayerSlotCleanupPlan $manifest $slot 'foreign' } '*ManifestSha256*' 'cleanup rejects unbound preflight'
         $bad = @{}; foreach ($key in $slot.Keys) { $bad[$key] = $slot[$key] }; $bad.role = 'baseline'
@@ -187,11 +205,12 @@ try {
             Check ($record.status -ceq 'stopped-and-reset' -and $record.schema -ceq 'nene-pixel-p4-layer-slot-cleanup-v2' -and
                 $record.packages_stopped -and $record.errors.Count -eq 0 -and -not $record.Contains('archives')) "successful cleanup $id"
             $observedEvents = $script:events.ToArray()
-            $lastStop = [array]::LastIndexOf($observedEvents, "stop:$($fixture.Manifest.roles.candidate.artifacts.publication_test.test_package)")
+            $writers = @($record.plan.device_plan.quiescence_packages)
+            $lastStop = [array]::LastIndexOf($observedEvents, "stop:$($writers[-1])")
             $preservationAt = [array]::IndexOf($observedEvents, 'preservation')
             $installAt = [array]::IndexOf($observedEvents, "install:$($record.artifact_role)/app_debug")
             $reportsAt = [array]::IndexOf($observedEvents, 'reports')
-            Check (@($observedEvents | Where-Object { $_ -like 'stop:*' }).Count -eq 3 -and $lastStop -ge 0 -and
+            Check (@($observedEvents | Where-Object { $_ -like 'stop:*' }).Count -eq $writers.Count -and $lastStop -ge 0 -and
                 $preservationAt -gt $lastStop -and $installAt -gt $preservationAt -and
                 ($reportsAt -lt 0 -or $reportsAt -gt $installAt) -and $observedEvents[-1] -ceq 'reset' -and
                 [array]::IndexOf($observedEvents, 'reset') -eq ($observedEvents.Count - 1) -and $null -ne $script:clock) "stop, preservation, debug access and reports precede the single final reset $id"
@@ -216,7 +235,8 @@ try {
             Check ($record.status -ceq 'failure' -and $record.errors.Count -gt 0) "$mode retains failed cleanup record"
             if ($mode -in @('stop', 'absence')) {
                 Check (-not $record.packages_stopped -and $script:events -cnotcontains 'preservation' -and
-                    @($script:events | Where-Object { $_ -like 'stop:*' }).Count -eq 3) "$mode attempts every stop without private work"
+                    @($script:events | Where-Object { $_ -like 'stop:*' }).Count -eq @($record.plan.device_plan.quiescence_packages).Count -and
+                    @($record.plan.device_plan.quiescence_packages).Count -eq 2) "$mode attempts every stop without private work"
             }
             if ($mode -cne 'reset') { Check ($script:events -cnotcontains 'reset') "$mode cannot reset incomplete capture" }
             Check ($script:events -cnotcontains 'archive' -and $null -eq $record.PSObject.Properties['archives']) "$mode takes no archive"

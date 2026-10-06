@@ -696,9 +696,19 @@ function Get-P4LayerDeviceLanePlan {
     $arguments = [ordered]@{ p4LayerPreserved = 'true'; 'nene.p2.physicalProfileId' = $script:P4PhysicalProfileId }
     foreach ($key in $context.Keys) { $arguments[$argumentKeys[$key]] = $context[$key] }
     $prefix = $ManifestSha256.Substring(0, 12)
+    # Writers to stop are the packages this slot's role actually installs: the app always, the test
+    # (provider) package only when the role declares test_debug, the publication package only on the
+    # publication slot. baseline_single therefore stops the app alone.
+    $quiescence = [Collections.Generic.List[string]]::new()
+    $quiescence.Add($packages.application)
+    if ($null -ne $packages.application_test) { $quiescence.Add($packages.application_test) }
+    if ($Slot.lane -ceq 'publication') {
+        if ($null -eq $packages.publication_test) { throw 'Publication slot role has no publication package.' }
+        $quiescence.Add($packages.publication_test)
+    }
     $plan = [ordered]@{ protocol_id = $protocol; lane = $Slot.lane; slot_id = $Slot.id;
         role = $role; comparison_role = $Slot.role; phase_context = $context; packages = $packages;
-        quiescence_packages = @($packages.application, $candidatePackages.application_test, $candidatePackages.publication_test);
+        quiescence_packages = $quiescence.ToArray();
         install_kinds = @('app_debug', 'test_debug'); dexopt_packages = @($packages.application);
         timeout_seconds = [int]$Slot.timeout_seconds; inner_timeout_seconds = [int]$Slot.timeout_seconds;
         setup_timeout_seconds = 0; expected_test_count = 1; test_package = $packages.application_test;

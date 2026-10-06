@@ -51,6 +51,12 @@ function New-Manifest {
     }
     return $manifest
 }
+# Writers = packages the slot's role installs: app; test when the role declares test_debug;
+# publication on the publication slot only.
+function Expected-SlotWriters([Collections.IDictionary] $Manifest, [Collections.IDictionary] $Slot) {
+    $kinds = @($Manifest.roles[$Slot.artifact_role].artifacts.Keys)
+    return 1 + $(if ($kinds -ccontains 'test_debug') { 1 } else { 0 }) + $(if ($Slot.lane -ceq 'publication') { 1 } else { 0 })
+}
 
 try {
     $manifest = New-Manifest
@@ -66,11 +72,14 @@ try {
                 $budget = $plan.collector_budget
                 Check ($budget.collector_timeout_seconds -le 3600 -and $budget.collector_timeout_seconds -gt $slot.timeout_seconds) 'Collector bound differs'
                 Check ($budget.private_capture_seconds -eq 0) 'Capture belongs to cleanup'
+                $writers = Expected-SlotWriters $manifest $slot
+                Check (@($plan.quiescence_packages).Count -eq $writers -and $plan.quiescence_packages[0] -ceq $plan.packages.application) 'Writer packages differ from the role install set'
+                # One pidof (30 s) per writer; staged frame slots add two more per writer for staging capture.
                 $expected = switch ($slot.lane) {
-                    'memory' { 1080 }
-                    'publication' { 930 }
-                    'saf-save' { 1320 }
-                    'frame' { $slot.timeout_seconds + 420 + $(if ($slot.group_id -ceq 'single') { 390 } else { 1170 }) }
+                    'memory' { 990 + 30 * $writers }
+                    'publication' { 840 + 30 * $writers }
+                    'saf-save' { 1230 + 30 * $writers }
+                    'frame' { $slot.timeout_seconds + 420 + $(if ($slot.group_id -ceq 'single') { 300 + 30 * $writers } else { 900 + 90 * $writers }) }
                 }
                 Check ($budget.collector_timeout_seconds -eq $expected) "Unexpected exact bound $($budget.collector_timeout_seconds) / $expected"
                 foreach ($file in $plan.private_files) {
@@ -126,7 +135,8 @@ try {
             Case "frame setup budget $($slot.id)" {
                 $plan = Get-P4DeviceLanePlan $manifest $slot $hash
                 $budget = $plan.collector_budget
-                $expected = $slot.timeout_seconds + 420 + $(if ($slot.group_id -ceq 'single') { 390 } else { 1170 })
+                $writers = Expected-SlotWriters $manifest $slot
+                $expected = $slot.timeout_seconds + 420 + $(if ($slot.group_id -ceq 'single') { 300 + 30 * $writers } else { 900 + 90 * $writers })
                 Check ($budget.ui_setup_seconds -eq 300 -and $budget.collector_timeout_seconds -eq $expected -and
                     $budget.collector_timeout_seconds -le 3600) 'Frame UI allowance differs'
             }

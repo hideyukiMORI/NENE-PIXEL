@@ -23,13 +23,19 @@ $script:P4LayerCleanupMargin = 2
 # One shared cleanup clock, rounded up to whole minutes:
 #   reset calls x measured call x P4LayerCleanupMargin      (280 x 0.276 s x 2 = 154.56 s)
 # + the parts with no measurement, kept at their T4 upper bounds:
-#   3 x W x P4ProbeTimeoutSeconds   writer force-stop, absence, still-stopped (W = 3 writers)
+#   3 x W x P4ProbeTimeoutSeconds   writer force-stop, absence, still-stopped (W = writer packages)
 #   P4InstallTimeoutSeconds         role debug APK install
 #   4 x P4ProbeTimeoutSeconds       installed APK identity probes
 #   sum(private_files.timeout_seconds) report recovery (30 s each)
 #   P4LayerCleanupNativeReserveSeconds
-# With W = 3 and N report files: ceil((679.56 + 30 x N) / 60) x 60, so N = 0 or 1 -> 720 s,
-# N = 3 -> 780 s, N = 4 -> 840 s.
+# W is the device plan's quiescence_packages count, i.e. the packages the slot's role installs:
+# app always, test package when the role declares test_debug, publication package on the
+# publication slot only. Clock = ceil((154.56 + 90 x W + 255 + 30 x N) / 60) x 60:
+#   slot kind                         W  N  seconds     slot kind                  W  N  seconds
+#   frame single, baseline_single     1  0  540         memory (10)                2  0  600
+#   frame single, candidate           2  0  600         publication (candidate)    3  3  780
+#   frame staged layers16/underlay    2  1  660         saf-save (candidate)       2  4  720
+# 18 slots (single 2, staged 4, memory 10, publication 1, saf-save 1) total 11280 s.
 function Get-P4LayerSlotCleanupTimeout([Collections.IDictionary] $DevicePlan) {
     $writers = @($DevicePlan.quiescence_packages).Count
     $reports = 0
