@@ -1,5 +1,6 @@
 package io.github.hideyukimori.nenepixel.core.application.document.transition
 
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.DocumentIdentity
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.appliedSnapshot
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.blackIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.canvas
@@ -23,7 +24,7 @@ internal class ChangeSetTest {
     @Test
     fun `change set owns canonical patch inverse revisions and render invalidation`() {
         val canvas = canvas(4, 3)
-        val original = state(canvas, revision(4L))
+        val original = state(canvas, identity = DocumentIdentity(revision = revision(4L)))
         val input =
             mutableListOf(
                 PixelChange.create(position(3, 2), PixelCell.Covered(blackIndex), PixelCell.Covered(redIndex)),

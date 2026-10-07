@@ -8,7 +8,6 @@ import io.github.hideyukimori.nenepixel.core.domain.document.DocumentImportSourc
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.document.LegacyRgbaSource
 import io.github.hideyukimori.nenepixel.core.projectformat.ProjectFormatCodec
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -54,7 +53,8 @@ private class RecoveryHostEvidenceFixture {
         )
     private val candidateBytes = encoded(RecoveryRecordCodec.encodeCandidate(first, document))
     private val record = InMemoryRecoveryRecordFile(candidateBytes)
-    private val port: RecoveryRecordPort = AndroidRecoveryRecordAdapter.create(record, Dispatchers.Unconfined)
+    private val dispatchers = TestCoroutineDispatchers()
+    private val port: RecoveryRecordPort = AndroidRecoveryRecordAdapter.create(record, dispatchers.inline)
 
     fun groups(): List<RecoveryHostEvidenceGroup<*>> =
         listOf(

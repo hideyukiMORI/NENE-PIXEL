@@ -42,14 +42,19 @@ internal class StrokePreviewCompositeTest {
     @Test
     fun `a gesture on another canvas size is an invariant violation`() {
         val document = document(LayerVisibility.Visible)
-        val gesture = gesture(document, canvas(2, 1), 2, StrokeEffect.Erase, listOf(position(0, 0)))
+        val gesture =
+            gesture(
+                PreviewScene(document, canvas(2, 1)),
+                GestureStroke(2, StrokeEffect.Erase, listOf(position(0, 0))),
+            )
         assertThrows<IllegalStateException> { StrokePreviewComposite.prepare(document, gesture) }
     }
 
     @Test
     fun `a gesture on a hidden layer is an invariant violation`() {
         val document = document(LayerVisibility.Hidden)
-        val gesture = gesture(document, size, 2, StrokeEffect.Erase, listOf(position(0, 0)))
+        val gesture =
+            gesture(PreviewScene(document, size), GestureStroke(2, StrokeEffect.Erase, listOf(position(0, 0))))
         assertThrows<IllegalStateException> { StrokePreviewComposite.prepare(document, gesture) }
     }
 
@@ -57,7 +62,10 @@ internal class StrokePreviewCompositeTest {
     fun `a position outside the canvas is refused`() {
         val document = document(LayerVisibility.Visible)
         val preview =
-            StrokePreviewComposite.prepare(document, gesture(document, size, 1, StrokeEffect.Erase, path))
+            StrokePreviewComposite.prepare(
+                document,
+                gesture(PreviewScene(document, size), GestureStroke(1, StrokeEffect.Erase, path)),
+            )
         assertThrows<IllegalArgumentException> { preview.packedRgba8888At(position(4, 0)) }
     }
 
@@ -67,7 +75,7 @@ internal class StrokePreviewCompositeTest {
     ) {
         val document = document(LayerVisibility.Visible)
         val gateway = CommandGateway.create(document)
-        val gesture = gesture(document, size, target, effect, path, gateway)
+        val gesture = gesture(PreviewScene(document, size, gateway), GestureStroke(target, effect, path))
         val preview = StrokePreviewComposite.prepare(document, gesture)
         applied(gateway.execute(ApplyStrokeCommand.create(gesture.admission, layerId(target), gesture.prepareStroke())))
         val committed = DocumentComposite.render(gateway.runtimeState.documentState).copyPackedRgba8888()
@@ -78,15 +86,17 @@ internal class StrokePreviewCompositeTest {
     }
 
     private fun gesture(
-        document: DocumentState,
-        canvas: CanvasSize,
-        target: Int,
-        effect: StrokeEffect,
-        positions: List<PixelPosition>,
-        gateway: CommandGateway = CommandGateway.create(document),
+        scene: PreviewScene,
+        stroke: GestureStroke,
     ): ToolGesture =
-        positions.drop(1).fold(
-            ToolGesture.begin(canvas, positions.first(), effect, layerId(target), gateway.captureSource()),
+        stroke.positions.drop(1).fold(
+            ToolGesture.begin(
+                scene.canvas,
+                stroke.positions.first(),
+                stroke.effect,
+                layerId(stroke.target),
+                scene.gateway.captureSource(),
+            ),
         ) { gesture, next ->
             (gesture.extend(next) as ToolGestureExtensionResult.Extended).gesture
         }
@@ -97,7 +107,7 @@ internal class StrokePreviewCompositeTest {
             .createLayered(
                 defaultDocumentId,
                 Revision.initial(),
-                definition(paletteIndex(0), *palette),
+                definition(paletteIndex(0), *palette.toTypedArray()),
                 listOf(
                     layer(1, LayerVisibility.Visible, listOf(0, null, 1, 2, null, 0, 3, null)),
                     layer(2, middleVisibility, listOf(1, 1, null, null, 2, null, 0, null)),
@@ -117,13 +127,26 @@ internal class StrokePreviewCompositeTest {
         return Layer.create(layerId(id), LayerName.empty, visibility, snapshot)
     }
 
+    /** The document, canvas and gateway a preview gesture is admitted against. */
+    private data class PreviewScene(
+        val document: DocumentState,
+        val canvas: CanvasSize,
+        val gateway: CommandGateway = CommandGateway.create(document),
+    )
+
+    /** The target layer, effect and path of one preview gesture. */
+    private data class GestureStroke(
+        val target: Int,
+        val effect: StrokeEffect,
+        val positions: List<PixelPosition>,
+    )
+
     private companion object {
         /** Covers every pixel but (0, 1), with forward and backward segments. */
         val path: List<PixelPosition> = listOf(position(0, 0), position(3, 0), position(3, 1), position(1, 1))
 
-        val palette: Array<PixelColor> =
-            arrayOf(0x204060ff, 0xa0c0e080.toInt(), 0xff000040.toInt(), 0x00ff00ff)
+        val palette: List<PixelColor> =
+            listOf(0x204060ff, 0xa0c0e080.toInt(), 0xff000040.toInt(), 0x00ff00ff)
                 .map(PixelColor::fromPackedRgba8888)
-                .toTypedArray()
     }
 }

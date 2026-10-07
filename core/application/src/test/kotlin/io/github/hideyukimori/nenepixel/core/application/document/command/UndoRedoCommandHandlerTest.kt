@@ -2,6 +2,7 @@ package io.github.hideyukimori.nenepixel.core.application.document.command
 
 import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryEntry
 import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryPosition
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.DocumentIdentity
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.blackIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.canvas
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.greenIndex
@@ -21,7 +22,7 @@ internal class UndoRedoCommandHandlerTest {
     @Test
     fun `undo recorded patch canvas mismatch is typed and atomic`() {
         val fixture = historyFixture()
-        val current = state(canvas(2, 1), revision(1L))
+        val current = state(canvas(2, 1), identity = DocumentIdentity(revision = revision(1L)))
 
         val reason =
             assertRejected(
@@ -57,7 +58,7 @@ internal class UndoRedoCommandHandlerTest {
     @Test
     fun `undo recorded patch revision mismatch is typed and atomic`() {
         val fixture = historyFixture()
-        val current = state(fixture.initial.size, revision(2L))
+        val current = state(fixture.initial.size, identity = DocumentIdentity(revision = revision(2L)))
 
         val reason =
             assertRejected(
@@ -77,7 +78,7 @@ internal class UndoRedoCommandHandlerTest {
     @Test
     fun `redo recorded patch revision mismatch is typed and atomic`() {
         val fixture = historyFixture()
-        val current = state(fixture.initial.size, revision(2L))
+        val current = state(fixture.initial.size, identity = DocumentIdentity(revision = revision(2L)))
 
         val reason =
             assertRejected(
@@ -97,7 +98,12 @@ internal class UndoRedoCommandHandlerTest {
     @Test
     fun `undo rejects a conflicting current pixel atomically`() {
         val fixture = historyFixture()
-        val conflicting = state(fixture.initial.size, revision(1L), listOf(greenIndex, blackIndex, blackIndex))
+        val conflicting =
+            state(
+                fixture.initial.size,
+                listOf(greenIndex, blackIndex, blackIndex),
+                identity = DocumentIdentity(revision = revision(1L)),
+            )
         val command = UndoCommand.create(conflicting.id, conflicting.revision)
 
         val result = UndoCommandHandler().execute(conflicting, command, fixture.entry)

@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertInstanceOf
 import java.io.ByteArrayInputStream
+import java.util.Locale
 import javax.imageio.ImageIO
 
 /** Assertions on [PngImportDecoder.decode] for the import decoder tests. */
@@ -46,5 +47,5 @@ internal object TestPngDecoding {
         assertEquals(PngImportDecodeResult.Unsupported, PngImportDecoder.decode(bytes))
     }
 
-    private fun hex(value: Int): String = "%08x".format(value)
+    private fun hex(value: Int): String = "%08x".format(Locale.ROOT, value)
 }

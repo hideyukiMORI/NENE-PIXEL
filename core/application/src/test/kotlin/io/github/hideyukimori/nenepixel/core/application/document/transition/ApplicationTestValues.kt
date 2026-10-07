@@ -63,12 +63,13 @@ internal object ApplicationTestValues {
 
     fun state(
         canvas: CanvasSize,
-        revision: Revision = Revision.initial(),
         indices: List<PaletteIndex> = List(canvas.pixelCount.toInt()) { blackIndex },
-        documentId: DocumentId = defaultDocumentId,
         definition: PaletteDefinition = defaultDefinition,
+        identity: DocumentIdentity = DocumentIdentity(),
     ): DocumentState =
-        DocumentState.createSingleLayer(documentId, revision, definition, snapshot(canvas, indices)).value()
+        DocumentState
+            .createSingleLayer(identity.documentId, identity.revision, definition, snapshot(canvas, indices))
+            .value()
 
     fun stroke(
         canvas: CanvasSize,
@@ -136,4 +137,10 @@ internal object ApplicationTestValues {
 
     val defaultDocumentId: DocumentId = DocumentId.create("0".repeat(32)).value()
     val otherDocumentId: DocumentId = DocumentId.create("1".repeat(32)).value()
+
+    /** The document id and revision that a test [state] carries; most tests keep both defaults. */
+    data class DocumentIdentity(
+        val documentId: DocumentId = defaultDocumentId,
+        val revision: Revision = Revision.initial(),
+    )
 }

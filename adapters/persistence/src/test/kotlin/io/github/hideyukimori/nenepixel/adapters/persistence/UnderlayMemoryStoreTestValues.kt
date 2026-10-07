@@ -11,12 +11,13 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.underlay.Unde
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentId
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import org.junit.jupiter.api.Assertions.fail
+import java.util.Locale
 
 /** Values shared by the `UnderlayMemoryStore` tests. */
 internal object UnderlayMemoryStoreTestValues {
     /** The work whose id is [number] as 32 lower-case hexadecimal characters. */
     fun document(number: Int): DocumentId =
-        when (val result = DocumentId.create("%032x".format(number))) {
+        when (val result = DocumentId.create("%032x".format(Locale.ROOT, number))) {
             is DomainValueResult.Created -> result.value
             is DomainValueResult.Rejected -> fail("invalid document id $number: ${result.rejection}")
         }

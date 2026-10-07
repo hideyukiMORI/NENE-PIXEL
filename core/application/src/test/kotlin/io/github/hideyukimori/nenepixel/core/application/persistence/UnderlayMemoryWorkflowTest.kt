@@ -1,5 +1,6 @@
 package io.github.hideyukimori.nenepixel.core.application.persistence
 
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.DocumentIdentity
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.canvas
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.state
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceAction
@@ -156,7 +157,7 @@ internal suspend fun loadWork(
     fixture: Fixture,
     document: DocumentId,
 ) {
-    val loaded = state(canvas(4, 4), documentId = document)
+    val loaded = state(canvas(4, 4), identity = DocumentIdentity(document))
     fixture.storage.loadHandler = { ProjectLoadOutcome.Loaded(DocumentImportSource.Current(loaded)) }
     fixture.recovery.retireHandler = { expected -> RecoveryRetirementOutcome.Retired(nextGeneration(expected)) }
     assertCompleted(PersistenceLastOutcome.Loaded, fixture.workflow.load())

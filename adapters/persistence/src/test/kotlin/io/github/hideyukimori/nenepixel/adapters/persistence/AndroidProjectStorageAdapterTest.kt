@@ -9,7 +9,6 @@ import io.github.hideyukimori.nenepixel.core.domain.document.DocumentImportSourc
 import io.github.hideyukimori.nenepixel.core.projectformat.ProjectFormatBytes
 import io.github.hideyukimori.nenepixel.core.projectformat.ProjectFormatCodec
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -23,6 +22,8 @@ import java.io.InputStream
 import java.io.OutputStream
 
 internal class AndroidProjectStorageAdapterTest {
+    private val dispatchers = TestCoroutineDispatchers()
+
     @Test
     fun `load returns typed current v2 source`() =
         runBlocking {
@@ -72,7 +73,10 @@ internal class AndroidProjectStorageAdapterTest {
     @Test
     fun `read back mismatch keeps primary failure and reports cleanup`() =
         runBlocking {
-            val content = MemoryProjectContent(readBackMutation = { it[0] = (it[0].toInt() xor 1).toByte() })
+            val content =
+                MemoryProjectContent(
+                    behavior = ProjectContentBehavior(readBackMutation = { it[0] = (it[0].toInt() xor 1).toByte() }),
+                )
             val adapter = adapter(content, InternalPickerResult.Selected(TestLocation))
 
             val result = adapter.save(PersistenceTestValues.minimalDocument)
@@ -102,7 +106,7 @@ internal class AndroidProjectStorageAdapterTest {
     @Test
     fun `write cancellation closes and deletes before rethrow`() {
         val output = CancellingOutputStream()
-        val content = MemoryProjectContent(outputFactory = { output })
+        val content = MemoryProjectContent(behavior = ProjectContentBehavior(outputFactory = { output }))
         val adapter = adapter(content, InternalPickerResult.Selected(TestLocation))
 
         assertThrows(CancellationException::class.java) {
@@ -115,7 +119,7 @@ internal class AndroidProjectStorageAdapterTest {
     @Test
     fun `read cancellation closes before rethrow`() {
         val input = CancellingInputStream()
-        val content = MemoryProjectContent(inputFactory = { input })
+        val content = MemoryProjectContent(behavior = ProjectContentBehavior(inputFactory = { input }))
         val adapter = adapter(content, InternalPickerResult.Selected(TestLocation))
 
         assertThrows(CancellationException::class.java) {
@@ -146,6 +150,6 @@ internal class AndroidProjectStorageAdapterTest {
     ) = AndroidProjectStorageAdapter.create(
         content,
         FixedProjectPicker(pickerResult),
-        Dispatchers.Unconfined,
+        dispatchers.inline,
     )
 }

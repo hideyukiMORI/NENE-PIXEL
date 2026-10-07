@@ -5,7 +5,6 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.PngExportOu
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectStorageFailure
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectTransportPhase
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
@@ -15,6 +14,8 @@ import java.io.IOException
 import java.io.OutputStream
 
 internal class AndroidPngExportAdapterTest {
+    private val dispatchers = TestCoroutineDispatchers()
+
     @Test
     fun `maximum PNG writes closes and verifies through shared bounded transport`() =
         runBlocking {
@@ -44,7 +45,7 @@ internal class AndroidPngExportAdapterTest {
             assertEquals(
                 PngExportOutcome.Cancelled,
                 AndroidPngExportAdapter
-                    .create(content, picker, Dispatchers.Unconfined)
+                    .create(content, picker, dispatchers.inline)
                     .export(PersistenceTestValues.minimalDocument),
             )
             assertEquals(0, content.openOutputCalls)
@@ -53,7 +54,7 @@ internal class AndroidPngExportAdapterTest {
     @Test
     fun `read back mismatch preserves primary failure even if deletion fails`() =
         runBlocking {
-            val content = MemoryProjectContent(readBackMutation = { it[0] = 0 })
+            val content = MemoryProjectContent(behavior = ProjectContentBehavior(readBackMutation = { it[0] = 0 }))
             content.deleteResult = 0
             assertEquals(
                 PngExportOutcome.Failed(ProjectStorageFailure.ReadBackMismatch, PartialOutputCleanup.DELETE_FAILED),
@@ -66,11 +67,14 @@ internal class AndroidPngExportAdapterTest {
     fun `write IO failure closes and deletes fresh output`() =
         runBlocking {
             val content =
-                MemoryProjectContent(outputFactory = {
-                    object : OutputStream() {
-                        override fun write(value: Int): Unit = throw IOException("test write")
-                    }
-                })
+                MemoryProjectContent(
+                    behavior =
+                        ProjectContentBehavior(outputFactory = {
+                            object : OutputStream() {
+                                override fun write(value: Int): Unit = throw IOException("test write")
+                            }
+                        }),
+                )
             assertEquals(
                 PngExportOutcome.Failed(
                     ProjectStorageFailure.IoFailure(ProjectTransportPhase.DESTINATION_WRITE),
@@ -84,7 +88,7 @@ internal class AndroidPngExportAdapterTest {
     @Test
     fun `write cancellation closes and deletes before rethrow`() {
         val output = CancellingOutputStream()
-        val content = MemoryProjectContent(outputFactory = { output })
+        val content = MemoryProjectContent(behavior = ProjectContentBehavior(outputFactory = { output }))
         assertThrows(CancellationException::class.java) {
             runBlocking { adapter(content).export(PersistenceTestValues.minimalDocument) }
         }
@@ -96,6 +100,6 @@ internal class AndroidPngExportAdapterTest {
         AndroidPngExportAdapter.create(
             content,
             FixedProjectPicker(InternalPickerResult.Selected(TestLocation)),
-            Dispatchers.Unconfined,
+            dispatchers.inline,
         )
 }

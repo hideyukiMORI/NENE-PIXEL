@@ -1,5 +1,6 @@
 package io.github.hideyukimori.nenepixel.core.application.persistence
 
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.DocumentIdentity
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.canvas
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.position
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.red
@@ -49,7 +50,7 @@ internal class UnderlayMemoryRuntimeRecallTest {
     fun `a loaded document recalls`() {
         runBlocking {
             val fixture = initializedFixture()
-            val loaded = state(canvas(4, 4), documentId = documentId('b'))
+            val loaded = state(canvas(4, 4), identity = DocumentIdentity(documentId('b')))
             fixture.storage.loadHandler = { ProjectLoadOutcome.Loaded(DocumentImportSource.Current(loaded)) }
             fixture.recovery.retireHandler = { RecoveryRetirementOutcome.Retired(generation(1)) }
             assertCompleted(PersistenceLastOutcome.Loaded, fixture.workflow.load())
@@ -61,7 +62,7 @@ internal class UnderlayMemoryRuntimeRecallTest {
     @Test
     fun `an accepted recovery recalls`() {
         runBlocking {
-            val candidate = state(canvas(4, 4), documentId = documentId('c'))
+            val candidate = state(canvas(4, 4), identity = DocumentIdentity(documentId('c')))
             val fixture =
                 Fixture(RecoveryInspection.Candidate(generation(9), DocumentImportSource.Current(candidate)))
             fixture.initialize()

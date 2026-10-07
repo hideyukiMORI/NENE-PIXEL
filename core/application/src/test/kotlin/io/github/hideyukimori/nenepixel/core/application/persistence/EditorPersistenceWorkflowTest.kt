@@ -5,6 +5,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.command.Comman
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandResult
 import io.github.hideyukimori.nenepixel.core.application.document.command.UndoCommand
 import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryAvailability
+import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.DocumentIdentity
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.blackIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.canvas
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.green
@@ -133,7 +134,7 @@ internal class EditorPersistenceWorkflowTest {
     @Test
     fun `save preserves an unadopted recovery candidate`() =
         runBlocking {
-            val recoveryDocument = state(canvas(2, 2), documentId = documentId('a'))
+            val recoveryDocument = state(canvas(2, 2), identity = DocumentIdentity(documentId('a')))
             val fixture =
                 Fixture(
                     RecoveryInspection.Candidate(
@@ -156,7 +157,7 @@ internal class EditorPersistenceWorkflowTest {
     @Test
     fun `new document requires candidate-discard consent and retires that exact generation`() =
         runBlocking {
-            val recoveryDocument = state(canvas(2, 2), documentId = documentId('a'))
+            val recoveryDocument = state(canvas(2, 2), identity = DocumentIdentity(documentId('a')))
             val fixture =
                 Fixture(
                     RecoveryInspection.Candidate(
@@ -272,9 +273,8 @@ internal class EditorPersistenceWorkflowTest {
             val loaded =
                 state(
                     canvas(3, 2),
-                    revision = revision(5),
                     indices = listOf(redIndex, greenIndex, redIndex, greenIndex, redIndex, greenIndex),
-                    documentId = documentId('b'),
+                    identity = DocumentIdentity(documentId('b'), revision(5)),
                 )
             val loadEntered = CompletableDeferred<Unit>()
             val releaseLoad = CompletableDeferred<Unit>()
@@ -305,7 +305,7 @@ internal class EditorPersistenceWorkflowTest {
     fun `load requires fresh consent after a replacement branch changes the exact position`() =
         runBlocking {
             val fixture = initializedFixture()
-            val loaded = state(canvas(3, 2), documentId = documentId('b'))
+            val loaded = state(canvas(3, 2), identity = DocumentIdentity(documentId('b')))
             val loadEntered = CompletableDeferred<Unit>()
             val releaseLoad = CompletableDeferred<Unit>()
             fixture.storage.loadHandler = {
