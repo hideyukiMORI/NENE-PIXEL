@@ -309,64 +309,62 @@ try {
     if ($CaseGroup -ceq 'Legacy') { & {
         $names = @('Invoke-P4BoundedAdb', 'Invoke-P4NativeCapture', 'Invoke-P4NativeRunAs',
             'Invoke-P4SnapshotEncoded', 'Invoke-P4RestorationApkInstall', 'Copy-P4PrivateFile')
-        $definitions = [Collections.Generic.List[string]]::new()
-        foreach ($file in @('p4-indexed-device-lanes.ps1', 'p4-device-private-native.ps1',
-                'p4-device-private-snapshot.ps1', 'p4-device-private-restore.ps1')) {
-            $source = (& git -C (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path show "23a1e53:docs/quality/measurements/$file") -join "`n"
-            if ($LASTEXITCODE -ne 0) { throw 'Could not read historical source' }
-            $tokens = $null; $errors = $null
-            $ast = [Management.Automation.Language.Parser]::ParseInput($source, [ref]$tokens, [ref]$errors)
-            if ($errors.Count -ne 0) { throw 'Historical source parse failed' }
-            foreach ($node in $ast.FindAll({ param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] }, $false)) {
-                if ($node.Name -cin $names) { $definitions.Add($node.Extent.Text) }
-            }
+        # SHA-256 of the projections that matched 23a1e53 (accepted before #145); pinned by value, not by a branch commit
+        # (squash removes it), so changing the baseline requires a commit that changes this table. Projections are
+        # normalized with <output> / <repository> / <pwsh>.
+        $acceptedProjections = [ordered]@{
+            'Invoke-P4BoundedAdb' = '8557c0ac0a1f58f2dc13d4a1c46e91cd9e39d2ae72d4957c2f498e263a474ac7'
+            'Invoke-P4NativeCapture' = 'acd973abcb58b95d10b20662d64068109bcb464860f74f37d2d8ff0abf6bf695'
+            'Invoke-P4NativeRunAs' = '5245ccdcbdd1a67175d1288d4f017140e93492ca7ec018b7d2e6d2321c9faf04'
+            'Invoke-P4SnapshotEncoded' = 'b4ec98f5508ce946b4ecbc1e42415fc2c94df183c1612fb700803eeab7afa099'
+            'Invoke-P4RestorationApkInstall' = '0e001edd5ef73ba1b5bf35ffec5bbfe1a1d8401edd86dedf6a4622b374c5f45f'
+            'Copy-P4PrivateFile' = '80c6d3f420256b7984cfe2fbaf496a3183fb947cb1700432ddeeabd83995eae9'
         }
-        if ($definitions.Count -ne $names.Count) { throw 'Historical function coverage differs' }
-        $runs = @{}
-        foreach ($version in @('current', 'historical')) {
-            $runs[$version] = & {
-                if ($version -ceq 'historical') { foreach ($definition in $definitions) { Invoke-Expression $definition } }
-                function Invoke-P4RawAdbCapture {
-                    param($AdbPath, $AdbArguments, $TimeoutSeconds, $DestinationPath, $RecordPath, $MaximumBytes)
-                    if ([string]::IsNullOrEmpty($DestinationPath)) {
-                        $script:budgetCalls.Add([pscustomobject]@{ kind = 'legacy-bytes'; arguments = $AdbArguments; timeout = $TimeoutSeconds })
-                        return ,([byte[]]@(3, 4, 5))
-                    }
-                    return Mock-Raw @PSBoundParameters
+        $observed = & {
+            function Invoke-P4RawAdbCapture {
+                param($AdbPath, $AdbArguments, $TimeoutSeconds, $DestinationPath, $RecordPath, $MaximumBytes)
+                if ([string]::IsNullOrEmpty($DestinationPath)) {
+                    $script:budgetCalls.Add([pscustomobject]@{ kind = 'legacy-bytes'; arguments = $AdbArguments; timeout = $TimeoutSeconds })
+                    return ,([byte[]]@(3, 4, 5))
                 }
-                function Invoke-P4EncodedShellCapture {
-                    param($AdbPath, $Serial, $Script, $TimeoutSeconds, $DestinationPath, $RecordPath, $MaximumBytes)
-                    return Mock-Raw -AdbPath $AdbPath -AdbArguments @('-s', $Serial, 'shell', $Script) -TimeoutSeconds $TimeoutSeconds `
-                        -DestinationPath $DestinationPath -RecordPath $RecordPath -MaximumBytes $MaximumBytes
-                }
-                function Invoke-BoundedNativeCommand {
-                    param($RepositoryRoot, $LogPath, $ExecutablePath, $NativeArguments, $TimeoutSeconds)
-                    $script:budgetCalls.Add([pscustomobject]@{ kind = 'bounded'; arguments = $NativeArguments; timeout = $TimeoutSeconds;
-                        repository = $RepositoryRoot; executable = $ExecutablePath; log = $LogPath })
-                    return [pscustomobject]@{ ExitCode = 0; OutputLines = @('native') }
-                }
-                $observed = [ordered]@{}
-                foreach ($name in $names) {
-                    $context = New-Context "$version-$name"
-                    $start = $script:budgetCalls.Count
-                    $value = switch ($name) {
-                        'Invoke-P4BoundedAdb' { Invoke-P4BoundedAdb $context 'native.log' @('shell', 'a b') 120 }
-                        'Invoke-P4NativeCapture' { [Convert]::ToBase64String((Invoke-P4NativeCapture $context 'legacy' 'raw' @('features') 1024)) }
-                        'Invoke-P4NativeRunAs' { [Convert]::ToBase64String((Invoke-P4NativeRunAs $context 'legacy' 'runas' 'printf native' 1024)) }
-                        'Invoke-P4SnapshotEncoded' { Invoke-P4SnapshotEncoded $context 'legacy' 'snapshot' 'printf native' 1024 }
-                        'Invoke-P4RestorationApkInstall' { Invoke-P4RestorationApkInstall $context 'restore' @{ apk_path = 'original.apk'; apk_sha256 = 'a' * 64 } }
-                        'Copy-P4PrivateFile' { Copy-P4PrivateFile $context $context.package 'files/original' (Join-Path $context.output_directory 'copy.bin') }
-                    }
-                    $calls = @($script:budgetCalls.ToArray())[$start..($script:budgetCalls.Count - 1)]
-                    $projection = ConvertTo-Json -InputObject @{ result = $value; calls = $calls } -Depth 12 -Compress
-                    $escapedPath = (ConvertTo-Json $context.output_directory -Compress).Trim('"')
-                    $observed[$name] = $projection.Replace($escapedPath, '<output>')
-                }
-                return $observed
+                return Mock-Raw @PSBoundParameters
             }
+            function Invoke-P4EncodedShellCapture {
+                param($AdbPath, $Serial, $Script, $TimeoutSeconds, $DestinationPath, $RecordPath, $MaximumBytes)
+                return Mock-Raw -AdbPath $AdbPath -AdbArguments @('-s', $Serial, 'shell', $Script) -TimeoutSeconds $TimeoutSeconds `
+                    -DestinationPath $DestinationPath -RecordPath $RecordPath -MaximumBytes $MaximumBytes
+            }
+            function Invoke-BoundedNativeCommand {
+                param($RepositoryRoot, $LogPath, $ExecutablePath, $NativeArguments, $TimeoutSeconds)
+                $script:budgetCalls.Add([pscustomobject]@{ kind = 'bounded'; arguments = $NativeArguments; timeout = $TimeoutSeconds;
+                    repository = $RepositoryRoot
+                    executable = $(if ((Split-Path $ExecutablePath -Leaf) -match '^pwsh(\.exe)?$') { '<pwsh>' } else { $ExecutablePath }); log = $LogPath })
+                return [pscustomobject]@{ ExitCode = 0; OutputLines = @('native') }
+            }
+            $observed = [ordered]@{}
+            foreach ($name in $names) {
+                $context = New-Context "current-$name"
+                $start = $script:budgetCalls.Count
+                $value = switch ($name) {
+                    'Invoke-P4BoundedAdb' { Invoke-P4BoundedAdb $context 'native.log' @('shell', 'a b') 120 }
+                    'Invoke-P4NativeCapture' { [Convert]::ToBase64String((Invoke-P4NativeCapture $context 'legacy' 'raw' @('features') 1024)) }
+                    'Invoke-P4NativeRunAs' { [Convert]::ToBase64String((Invoke-P4NativeRunAs $context 'legacy' 'runas' 'printf native' 1024)) }
+                    'Invoke-P4SnapshotEncoded' { Invoke-P4SnapshotEncoded $context 'legacy' 'snapshot' 'printf native' 1024 }
+                    'Invoke-P4RestorationApkInstall' { Invoke-P4RestorationApkInstall $context 'restore' @{ apk_path = 'original.apk'; apk_sha256 = 'a' * 64 } }
+                    'Copy-P4PrivateFile' { Copy-P4PrivateFile $context $context.package 'files/original' (Join-Path $context.output_directory 'copy.bin') }
+                }
+                $calls = @($script:budgetCalls.ToArray())[$start..($script:budgetCalls.Count - 1)]
+                $projection = ConvertTo-Json -InputObject ([ordered]@{ result = $value; calls = $calls }) -Depth 12 -Compress
+                $escapedPath = (ConvertTo-Json $context.output_directory -Compress).Trim('"')
+                $escapedRoot = (ConvertTo-Json (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path -Compress).Trim('"')
+                $observed[$name] = $projection.Replace($escapedPath, '<output>').Replace($escapedRoot, '<repository>')
+            }
+            return $observed
         }
+        $sha = [Security.Cryptography.SHA256]::Create()
         foreach ($name in $names) {
-            Check ($runs.current[$name] -ceq $runs.historical[$name]) "$name omitted-budget native parameters and results match 23a1e53"
+            $hash = -join ($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($observed[$name])) | ForEach-Object { $_.ToString('x2') })
+            Check ($hash -ceq $acceptedProjections[$name]) "$name omitted-budget native parameters and results match the accepted projection"
         }
     } }
     # Separate groups keep successful checks reusable if a later fixture needs correction.
