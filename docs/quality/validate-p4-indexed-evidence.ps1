@@ -1038,6 +1038,8 @@ $stageManifest = [ordered]@{
             [ordered]@{ source_commit = ('a' * 40); scope = $_; command = 'synthetic'; exit_code = 0
                 log = $stageFileRecord } })
 }
+# Device-free checks do not depend on live GitHub; gh is a simulated agreement Issue reply
+# (precedent: validate-p4-layer-manifest-admission.ps1).
 $script:P4StageCallLog = [Collections.Generic.List[string]]::new()
 $invokeStage = {
     param([string]$Stage)
@@ -1051,6 +1053,16 @@ $invokeStage = {
         function Assert-P4DevicePreservation { param($Record, $Serial, $CreatedUtc) $script:P4StageCallLog.Add('preservation') }
         function Assert-P4NoSampleInspection { param($Record, $Manifest) $script:P4StageCallLog.Add('inspection') }
         function Assert-P4LiveDeviceAdmission { param($Manifest, $RepositoryRoot) $script:P4StageCallLog.Add('device') }
+        function gh {
+            $issue = [string]$args[2]; $script:P4StageCallLog.Add("agreement:$issue")
+            $filter = [string]$args[-1]
+            $global:LASTEXITCODE = 1
+            if ($filter -cmatch 'contains\("([^"]+)"\)' -and $issue -ceq [string]$script:P4AgreementIssue -and
+                $Matches[1] -ceq $script:P4ProtocolId) {
+                $global:LASTEXITCODE = 0
+                return "OPEN`ttrue"
+            }
+        }
         Assert-P4ManifestArtifacts $stageManifest $repositoryRoot -Stage $Stage
     }
     return [string[]]@($script:P4StageCallLog)
@@ -1061,11 +1073,17 @@ foreach ($required in @('contract', 'lineage', 'role:baseline', 'role:candidate'
     if ($slotCalls -cnotcontains $required) { throw "The slot stage skipped $required." }
 }
 if ($slotCalls -ccontains 'device') { throw 'The slot stage must not touch the device again.' }
+if (@($slotCalls | Where-Object { $_.StartsWith('agreement:', [StringComparison]::Ordinal) }).Count -gt 0) {
+    throw 'The slot stage must not read the agreement Issue.'
+}
 if (Test-Path -LiteralPath ((Join-Path $stageRoot 'experiment') + '-preflight')) {
     throw 'The slot stage created the reserved preflight device directory.'
 }
 $reservationCalls = & $invokeStage 'reservation'
 if ($reservationCalls -cnotcontains 'device') { throw 'The reservation stage must admit the live device.' }
+if ($reservationCalls -cnotcontains "agreement:$($script:P4AgreementIssue)") {
+    throw 'The reservation stage must read the agreement Issue.'
+}
 Assert-P4TestRejects { & $invokeStage 'midway' } 'unknown preflight stage'
 
 # The 2026-09-13 handoff barrier was retired on 2026-09-16 (hide's decision); preflight must not carry it.
@@ -1078,5 +1096,5 @@ Write-Output 'CASES=fixed-budget,five-host-populations,truncation,duplicate,reor
 Write-Output 'DEVICE_STATE_CASES=fixture-parse,exact-drift,thermal,battery,power-save,interactive,usb-power,rotation-recorded,absent-thermal,ambiguous-mode,rotation-disagreement,user-rotation-disagreement,absent-locale,absent-low-power,dexopt-verify,dexopt-not-installed,dexopt-section'
 Write-Output 'INVENTORY_CASES=expected-set,baseline-lane-separation,set-short,set-wide,path-escape,blob-mismatch,untracked,ancestor,lineage-identity,lineage-order,reparse,compiled-set,compiled-foreign,compiled-unbuilt,compiled-no-module-jar,probe-directory-coverage,probe-reader,probe-union-subset-all-three,probe-aggregate,probe-omission,probe-aggregate-mismatch,probe-selection-newest-candidates,probe-selection-older-incomplete-ignored,probe-selection-absent,probe-selection-newer-incomplete,probe-set-short,probe-selection-baseline-only,probe-role-unreadable,probe-runner-duplicate,probe-runner-coverage-accepted,probe-worktree-derived,probe-worktree-ambiguous,probe-worktree-partial,probe-worktree-unnamed,probe-worktree-relative-root,probe-worktree-gone,classpath-agreement,classpath-aggregate,classpath-subset-accepted,classpath-subset-union-aggregate,classpath-empty,classpath-undeclared,classpath-role'
 Write-Output 'PACKAGING_CASES=four-kinds,variant,dexopt,debuggable,instrumentation-absent,instrumentation-present,target-drift,publication-target,publication-apk'
-Write-Output 'ADMISSION_CASES=preservation-fresh,retired-guard,foreign-serial,preservation-schema,stale,postdated,noncanonical-path,inspection-valid,inspection-in-output,inspection-in-frame,inspection-bounds,inspection-outside,inspection-rotation,inspection-apk,inspection-commit,inspection-geometry,inspection-dump-single,inspection-dump-array,inspection-dump-sha,inspection-dump-missing,inspection-role-missing,contract-scopes,contract-missing,contract-duplicate,contract-unknown,contract-correctness,bounds,timestamps,assert-returns-nothing,template-filled,template-unfilled,template-slot-drift,stage-slot-no-device,stage-reservation-device,stage-unknown,readiness-barrier'
+Write-Output 'ADMISSION_CASES=preservation-fresh,retired-guard,foreign-serial,preservation-schema,stale,postdated,noncanonical-path,inspection-valid,inspection-in-output,inspection-in-frame,inspection-bounds,inspection-outside,inspection-rotation,inspection-apk,inspection-commit,inspection-geometry,inspection-dump-single,inspection-dump-array,inspection-dump-sha,inspection-dump-missing,inspection-role-missing,contract-scopes,contract-missing,contract-duplicate,contract-unknown,contract-correctness,bounds,timestamps,assert-returns-nothing,template-filled,template-unfilled,template-slot-drift,stage-slot-no-device,stage-reservation-device,stage-agreement-mock,stage-unknown,readiness-barrier'
 Write-Output "SYNTHETIC_FIXTURE_DIRECTORY=$testRoot"

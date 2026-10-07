@@ -73,3 +73,4 @@ An ADR must include:
 | [0032](0032-reference-underlay.md) | accepted | One workspace-owned reference underlay beneath the layers: bounded decoded image, document-pixel placement, adjust mode, display only |
 | [0033](0033-png-import.md) | accepted | PNG import as a new work or a new layer: own bounded exact PNG reader, deterministic colour planner without quantization, one command or one switch |
 | [0034](0034-underlay-memory.md) | accepted | The device remembers the reference underlay of each work: a fifth state category, two bounded app-private records per work, least-recently-used eviction, outside the persistence lease |
+| [0035](0035-measurement-private-data-preservation.md) | accepted | Phase measurements isolate original underlays and recovery, verify exact file identity and mtime, and retain measurement data before guarded restoration |
