@@ -286,22 +286,53 @@ try {
             $currentAst = [Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errors)
             Check ($errors.Count -eq 0) "$file parses"
             if ($file -ceq 'p4-device-private-preservation.ps1') {
-                $oldSource = (& git -C (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path show "7780204:docs/quality/measurements/$file") -join "`n"
-                if ($LASTEXITCODE -ne 0) { throw 'Old policy source unavailable' }
-                $oldAst = [Management.Automation.Language.Parser]::ParseInput($oldSource, [ref]$tokens, [ref]$errors)
+                # Hashes equal the accepted version (7780204) of each function body (Extent.Text, LF, UTF-8 SHA-256); not pinned to a
+                # branch commit, which a squash merge removes. Changing the baseline requires a commit that changes this table.
+                $acceptedFunctions = [ordered]@{
+                    'New-P4Map' = 'cf49df5e0f9903c0906568e9e372c2529e51cf1efdbe58abd0e46ee44a2c2340'
+                    'Assert-P4Path' = '4ca3c063b9b7f2c035a2535878e3eb9143c465781b732831e80837bc8860ad1c'
+                    'ConvertTo-P4InventoryMap' = '4ea20068a016d0d77943e017721c4b920c16d1e6c9db37c86ddea7ff25ba7f2a'
+                    'Get-P4Items' = '1de477a0bab8fd1ed83561256a784756435ec65633ab2124815147e8bf3657e5'
+                    'Add-P4Directory' = '384aff0c90aec098eeffb165f14bb4ee5970e236e8d8726fa9e25c979ca0a52e'
+                    'Add-P4Ancestors' = '23f83cc293dbb5ad54b2cee7c3578dd6d0d9859eea5c9a07997dfacb7ea906fa'
+                    'Test-P4Below' = '1591ee9ae8cd73719fa47b15b3cb1de303c07bd5d44ebecd4f00ba5278fffc55'
+                    'Assert-P4SameEntry' = 'a15dd9a55e645f3d365e0c5dfa3049c5ff672c3d748bdfb03eaba5eaf6295893'
+                    'Assert-P4ExactMap' = 'a8a29ea13d1b971824a79e53826f2dce758f937961d2b1e49d89906b703f9dc0'
+                    'Assert-P4Session' = 'f23eb20fe9cfdd4d277afbcf6acc2672a5306e91b2e10a11aee41d63d7e27e6d'
+                    'Get-P4MoveRoots' = '345f6984e6cb68422c8809ca34cc10fb9e8a77253aefcafb12f506cfb313a7ea'
+                    'Move-P4InventoryEntries' = 'e66622fbffb042eb7baa1c947dcf77c1dd2f7e4cb46f4e21f3fd631af96fe744'
+                    'Assert-P4MoveCount' = '44e888613f9f78d54ee38f2fe77257790e6a16549cde9d3d7d911cffdb3f774f'
+                    'New-P4IsolationPlan' = '4e336f909cdf3f0ed4e0da50dd470a05edea4cf34ade0956d0a53c26c0b65ed0'
+                    'Assert-P4Isolation' = 'cf3c52c62a8be40eb7a9350a80ab5c4ab930ff3bf0588a54c144e0a11f721b60'
+                    'Get-P4IsolatedState' = '10a71c2abc181a4a4236e5910559e9c0c1d94829e9099a83291ffa313cb3118e'
+                    'New-P4RestorationExpectedMap' = '1e47b5326960ca09605220c56bf4a5bac6a7593e18cf12900c041976e14d7dc8'
+                    'New-P4RestorationPlan' = 'a64249965a4aa7e072e8408c75a790a538206922ed6cb5bbcb23d97e710c7a7f'
+                    'Assert-P4Restored' = '9fd7e366a8d05f88198abb25972b6929d4bb7007301b1806705d70bb360efd70'
+                }
                 $currentFunctions = @{}
                 foreach ($node in $currentAst.FindAll({ param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] }, $false)) {
-                    $currentFunctions[$node.Name] = $node.Extent.Text.Replace("`r`n", "`n")
+                    $currentFunctions[$node.Name] = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData(
+                        [Text.Encoding]::UTF8.GetBytes($node.Extent.Text.Replace("`r`n", "`n")))).ToLowerInvariant()
                 }
-                foreach ($node in $oldAst.FindAll({ param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] }, $false)) {
-                    Check ($currentFunctions[$node.Name] -ceq $node.Extent.Text.Replace("`r`n", "`n")) "accepted policy function unchanged: $($node.Name)"
+                foreach ($name in $acceptedFunctions.Keys) {
+                    Check ($currentFunctions.ContainsKey($name) -and $currentFunctions[$name] -ceq $acceptedFunctions[$name]) "accepted policy function unchanged: $name"
                 }
             }
         }
-        foreach ($file in @('p4-device-private-session.ps1', 'p4-device-private-restore.ps1', 'p4-device-private-native.ps1',
-                'p4-device-private-observation.ps1', 'p4-device-private-transport.ps1', 'p4-operation-budget.ps1')) {
-            $diff = & git -C (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path diff 7780204 -- "docs/quality/measurements/$file"
-            Check ($LASTEXITCODE -eq 0 -and @($diff).Count -eq 0) "$file keeps its accepted source input"
+        # Accepted source inputs pinned by git blob hash (git hash-object), equal to the accepted version (7780204); not pinned
+        # to a branch commit, which a squash merge removes. Changing the baseline requires a commit that changes this table.
+        $acceptedBlobs = [ordered]@{
+            'p4-device-private-session.ps1' = '7e995f9be155395b43b12c66f52e804347d188b4'
+            'p4-device-private-restore.ps1' = '36d761de7d8082c8e3d25508fb20a98abf061506'
+            'p4-device-private-native.ps1' = 'c449d927cbfbefce5c71081b6a298926ae906331'
+            'p4-device-private-observation.ps1' = '0798480071e6b6ba715e58cdd13848dd5799d2b4'
+            'p4-device-private-transport.ps1' = 'ed4572eb8945fba06e20e312016df547a8bd05ac'
+            'p4-operation-budget.ps1' = 'f12e018cd9256b837f929f16cce25afc9d3ef992'
+        }
+        $repository = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
+        foreach ($file in $acceptedBlobs.Keys) {
+            $blob = & git -C $repository hash-object -- "docs/quality/measurements/$file"
+            Check ($LASTEXITCODE -eq 0 -and $blob -ceq $acceptedBlobs[$file]) "$file keeps its accepted source input"
         }
     }
     $status = 'pass'
