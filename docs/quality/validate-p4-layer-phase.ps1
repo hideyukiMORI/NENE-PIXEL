@@ -235,9 +235,25 @@ try {
         $bounds = Get-P4LayerPhaseBounds -Manifest $manifest -ManifestSha256 ('a' * 64) -Catalog $catalog
         $result.bounds = $bounds
         Check (@($bounds.slots).Count -eq 18) 'slot count'
+        # Per-slot values from the protocol clock paragraph and the planner output; the totals alone
+        # cannot catch values swapped between slots, so each slot is checked.
+        $expected = @{
+            'frame-1-single-baseline-decision' = @(2700, 540, 3450)
+            'frame-2-single-candidate-decision' = @(2730, 600, 3540)
+            'frame-3-layers16-baseline-decision' = @(3450, 660, 4320)
+            'frame-4-layers16-candidate-decision' = @(3450, 660, 4320)
+            'frame-5-underlay-baseline-decision' = @(2625, 660, 3495)
+            'frame-6-underlay-candidate-decision' = @(2625, 660, 3495)
+            'publication-layers16-candidate' = @(930, 780, 1920)
+            'saf-save-layers16-candidate' = @(1290, 720, 2220)
+        }
+        foreach ($arm in 'baseline', 'candidate') { foreach ($n in 1..5) { $expected["memory-layers16-$arm-$n"] = @(1050, 600, 1860) } }
+        Check ($expected.Count -eq 18 -and @($bounds.slots).Count -eq $expected.Count) "slot table $($expected.Count)/$(@($bounds.slots).Count)"
         $cleanupSum = 0
         foreach ($slot in $bounds.slots) {
             Check ($slot.slot_seconds -eq $slot.collector_seconds + $slot.cleanup_seconds + 90 + 120) "slot sum $($slot.slot_id)"
+            $want = if ($expected.ContainsKey($slot.slot_id)) { $expected[$slot.slot_id] } else { $null }
+            Check ($null -ne $want -and $slot.collector_seconds -eq $want[0] -and $slot.cleanup_seconds -eq $want[1] -and $slot.slot_seconds -eq $want[2]) "slot bound $($slot.slot_id) $($slot.collector_seconds)/$($slot.cleanup_seconds)/$($slot.slot_seconds)"
             $cleanupSum += $slot.cleanup_seconds
         }
         Check ($cleanupSum -eq 11280) "cleanup total $cleanupSum"
