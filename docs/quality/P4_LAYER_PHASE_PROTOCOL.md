@@ -457,8 +457,8 @@ phase integration below. No measurement has run from this preparation slice.
 These descriptive storage lanes use the shared candidate production tree and real physical storage,
 separately from frame timing and retained-memory GC. They follow the ten memory runs, in this order:
 
-The exact slot IDs are `publication-layers16-candidate` (phase sequence 23, native bound 300 seconds)
-and `saf-save-layers16-candidate` (sequence 24, native bound 420 seconds). Both use artifact role
+The exact slot IDs are `publication-layers16-candidate` (phase sequence 17, native bound 300 seconds)
+and `saf-save-layers16-candidate` (sequence 18, native bound 420 seconds). Both use artifact role
 `candidate`, attempt 1 only, and require the complete preceding successful memory chain.
 
 1. One fresh persistence-instrumentation invocation of the existing AtomicFile publication runner:
@@ -688,7 +688,8 @@ successful native execution plus a verified saved/emitted fixture identity may p
 collection. These stopped calls add 210 seconds (three stops, three absence probes, one report),
 and release-like installation's retained intent adds four identity probes, 120 seconds, in addition
 to the existing frame collector's installed-APK verification. The resulting maximum collector bound
-is 3540 seconds, within the 3600-second native cap. This is
+is 3,450 seconds (the two layers16 frame slots; the planner derives 2,700 / 2,730 / 3,450 / 3,450 /
+2,625 / 2,625 for frame-1 to frame-6), within the 3,600-second native cap. This is
 still not the whole-session archive/restoration bound. Partial setup and install evidence remain
 available for outer cleanup; no historical private-file quarantine runs for phase slots.
 
@@ -784,8 +785,9 @@ for the six frame slots, 1,860 (x10) for memory, 1,920 for publication and 2,220
 slots sum to 45,360 seconds. The snapshot bound is at least 60 seconds (the transfer time scales with
 the archive size; the 2026-10-03 measurement of a 10,335,232-byte tar in 3,204 ms and a 12,402,152-byte
 APK in 4,738 ms is the reference), isolation 180 seconds and restoration 360 seconds. The phase total
-is 45,960 seconds, a hang bound. Once the deadline is passed no new slot starts and a running slot is
-not stopped; cleanup and restoration always run. The rule refusing a derived bound above 3,600 seconds
+is 45,960 seconds, a hang bound. A slot starts only if now plus its slot deadline fits before the phase
+deadline minus the restoration bound (the wrapper records this as `slot_start_rule`); a slot that does
+not fit is recorded `not-started`. A running slot is not stopped; cleanup and restoration always run. The rule refusing a derived bound above 3,600 seconds
 applies only to a collector bound (one native invocation), never to a slot deadline. The earlier 13,770
 seconds is the sum of slot timeouts, not the 30,300 seconds of collector budgets. The expected duration,
 extrapolated from the #142 measurements, is about three to four hours and is not a deadline.
