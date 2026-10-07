@@ -340,10 +340,11 @@ try {
         $r = $run.Record; $e = $run.Events
         foreach ($id in $ids[2..5]) {
             $s = Slot $r $id
-            Check ($s.status -ceq 'skipped' -and $s.reason -match 'gross-regression stop by frame-2-single-candidate-decision') "skip $id"
+            Check ($s.status -ceq 'skipped' -and $s.reason -ceq 'gross-regression-stop' -and $s.stopped_by -ceq 'frame-2-single-candidate-decision') "skip $id"
             Check ((Count $e "collector:$id") -eq 0 -and (Count $e "cleanup:${id}:") -eq 0) "not run $id"
         }
         foreach ($id in $ids[6..17]) { Check ((Slot $r $id).status -ceq 'completed') "continue $id" }
+        Check ((Slot $r $ids[1]).status -ceq 'completed' -and $null -eq (Slot $r $ids[1]).stopped_by) "no stopped_by $($ids[1])"
         Check ((Count $e 'cleanup:') -eq 14) "cleanup count $(Count $e 'cleanup:')"
         Assert-CleanupBeforeSeal $e
         Check ($r.chain.stop.slot_id -ceq 'frame-2-single-candidate-decision' -and $r.status -ceq 'complete') 'chain stop'

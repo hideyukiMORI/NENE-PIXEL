@@ -305,14 +305,15 @@ function Invoke-P4LayerPhase {
             $bound = @($bounds.slots | Where-Object { $_.slot_id -ceq $id })[0]
             $entry = [ordered]@{ slot_id = $id; lane = [string]$slot.lane
                 artifact_role = [string](Get-P4SlotArtifactRole $manifest $slot); status = $null; reason = $null
-                verdict = $null; bound_seconds = $bound.slot_seconds; elapsed_seconds = $null; cleanup_seconds = $null }
+                stopped_by = $null; verdict = $null; bound_seconds = $bound.slot_seconds; elapsed_seconds = $null; cleanup_seconds = $null }
             $slotRecords.Add($entry)
             if ($slot.lane -ceq 'frame') {
                 $chain = Get-P4PhaseFrameChainRecord -Catalog $catalog -Analyses $analyses
                 $position = @($chain.slots | Where-Object { $_.slot_id -ceq $id })[0]
                 if ($position.chain -ceq 'stopped') {
                     $entry.status = 'skipped'
-                    $entry.reason = "gross-regression stop by $($position.stopped_by.slot_id)"
+                    $entry.reason = 'gross-regression-stop'
+                    $entry.stopped_by = [string]$position.stopped_by.slot_id
                     continue
                 }
             }
