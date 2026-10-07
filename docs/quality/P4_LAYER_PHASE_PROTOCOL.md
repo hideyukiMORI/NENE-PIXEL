@@ -867,10 +867,37 @@ candidate's profile. It re-reads the preservation-v2 record and checks its hash,
 experiment; the record must be older than the manifest. The order is preservation, then manifest.
 The reservation's agreement Issue is 145, and live admission inspects dexopt on the four roles.
 
+### Host validator inputs
+
+Run a host validator with `pwsh -NoProfile -File docs/quality/validate-p4-<name>.ps1
+[-CaseGroup <group>]`. PASS is exit code 0; do not judge by words, because some validators print
+`FAIL` as a case name. Validators read `git cat-file` bytes as UTF-8, so the shell does not matter.
+Where `-OutputDirectory` is mandatory, point it at a directory that does not exist yet; the run
+creates it and refuses an existing path. Validators that need inputs:
+
+- `validate-p4-layer-memory-evidence.ps1`: run `-CaseGroup All` first, then pass its output
+  directory to `-CaseGroup Integrity -PriorCaptureDirectory <All output>`. Integrity needs the
+  existing synthetic chain; without All it stops with `Existing synthetic chain required.`
+- `validate-p4-layer-memory-compatibility.ps1`: pass `capture-0001.txt` from the memory-evidence
+  All output, not the `instrumentation.log` of #106 v6 (that gives `Source contract differs`).
+- `validate-p4-layer-frame-ui.ps1 -CaseGroup Fixtures`: pass `-StagingDirectory` the output of
+  `validate-p4-layer-frame-staging.ps1`. Staging needs the host contract built first:
+  `./gradlew -I docs/quality/measurements/p4-layer-phase-fixture.init.gradle
+  :app:android:layerPhaseFrameFixtureHostContract --offline`.
+- `validate-p4-layer-saf-evidence.ps1`: pass the retained
+  `145-layer-publication/*/analyzer-initial` directory.
+- `validate-p4-indexed-evidence.ps1`: the v7 reservation test reads the agreement Issue through a
+  simulated `gh`, not live GitHub.
+- `validate-p4-layer-frame-analysis.ps1`: needs a switch (`-GrossBoundariesOnly`,
+  `-BaselineBindingOnly`, `-StateNativeIntegersOnly`, `-BaselineGrossReferenceOnly`); running all
+  takes four runs.
+
+The Compatibility, SourceBinding and Legacy groups pin file blob hashes, function-body hashes and
+output JSON hashes, not branch commits. Changing the reference needs a commit that updates that
+table.
+
 ## Pending admission decisions
 
-- Remove the `throw` in `measure-m2-frame.ps1`.
-- Re-attach the Compatibility reference commit.
 - Build the APKs of the four roles.
 - The Baseline Profile chore.
 - The candidate pin (after the chore has merged).
