@@ -531,8 +531,9 @@ function Get-P4FrameAnalyzerVerdicts {
 
 function Test-P4PhaseFrameSlot {
     param($Slot)
-    return $Slot.lane -ceq 'frame' -and $Slot -is [Collections.IDictionary] -and $Slot.Contains('protocol_id') -and
-        $Slot.protocol_id -ceq 'nene-pixel-p4-layer-phase-verification-v1'
+    # The type and key checks come first: strict mode rejects a member read on a slot that has no lane.
+    return $Slot -is [Collections.IDictionary] -and $Slot.Contains('lane') -and $Slot.lane -ceq 'frame' -and
+        $Slot.Contains('protocol_id') -and $Slot.protocol_id -ceq 'nene-pixel-p4-layer-phase-verification-v1'
 }
 
 function Get-P4PhaseFrameGrossStop {
