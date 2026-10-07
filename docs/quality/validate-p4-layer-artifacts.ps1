@@ -251,26 +251,23 @@ E: manifest (line=1)
             try { Assert-P4RoleSource $role 'candidate' 'not-called' $old; throw 'Unexpected success' }
             catch { Require ($_.Exception.Message -ceq 'Missing preflight field: candidate.compiled_files') 'Wrong historical boundary' }
         }
-        Case 'unchanged production hash profile and APK identity routines match storage checkpoint' {
-            $oldText = (& git.exe -C $repository show '8e11f931c8f16c15cdaa94fab520319ca3bfb8a8:docs/quality/measurements/p4-indexed-preflight.ps1') -join "`n"
-            Require ($LASTEXITCODE -eq 0) 'Historical source unavailable'
+        Case 'unchanged production hash profile and APK identity routines match the accepted bodies' {
             $tokens = $null; $errors = $null
-            $oldAst = [Management.Automation.Language.Parser]::ParseInput($oldText, [ref]$tokens, [ref]$errors)
             $newAst = [Management.Automation.Language.Parser]::ParseFile($source, [ref]$tokens, [ref]$errors)
-            # The v7 manifest admission bodies moved behind the schema dispatcher under Indexed names;
-            # their bodies stay byte-identical to the checkpoint.
-            $renamed = [ordered]@{ 'Get-P4ProductionTreeHash' = 'Get-P4ProductionTreeHash'
-                'Assert-P4ApkIdentity' = 'Assert-P4ApkIdentity'; 'Assert-P4ProfileSourceBinding' = 'Assert-P4ProfileSourceBinding'
-                'Assert-P4TrackedBlob' = 'Assert-P4TrackedBlob'; 'Assert-P4NoReparsePath' = 'Assert-P4NoReparsePath'
-                'Assert-P4ManifestContract' = 'Assert-P4IndexedManifestContract'
-                'Assert-P4ManifestArtifacts' = 'Assert-P4IndexedManifestArtifacts' }
-            foreach ($name in $renamed.Keys) {
-                $newName = $renamed[$name]
+            # LF-normalized SHA-256 of each body, equal to the storage checkpoint 8e11f93 bodies; not pinned to a
+            # branch commit (squash removes it). Changing the accepted bodies needs a commit that changes this table.
+            $accepted = [ordered]@{ 'Get-P4ProductionTreeHash' = '0cdae641642820d453aaf7af6e6d2a245a5b63b760b7a5d8309259d228386710'
+                'Assert-P4ApkIdentity' = '084622b702da2584aeecdcd43e4a6fc73b8879b5b473d845b5ee8904335b268c'
+                'Assert-P4ProfileSourceBinding' = 'e3490524f0c5e77f8adf722b5a716ccf849c9cff10851dcafd089c3003aa3049'
+                'Assert-P4TrackedBlob' = '83fe705edfad6469691595b7f6b8f3300c07c046f79332e0fe9a744a80277cba'
+                'Assert-P4NoReparsePath' = '124d3cd9fd31eb4510524f713f8cb162dcc97e07549b38ef947947b3429cd5a3'
+                'Assert-P4IndexedManifestContract' = '5b831bd9b9392aa2bf77f1906f7532311a4983088056265ad04c273a10ddb929'
+                'Assert-P4IndexedManifestArtifacts' = '8eaeccd9e59c3580d27742910713e18c923e9f13d2c2f70a62e3ef67490c70c5' }
+            foreach ($name in $accepted.Keys) {
                 $find = { param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq $name }
-                $findNew = { param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq $newName }
-                $before = $oldAst.Find($find, $true).Body.Extent.Text.Replace("`r`n", "`n")
-                $after = $newAst.Find($findNew, $true).Body.Extent.Text.Replace("`r`n", "`n")
-                Require ($before -ceq $after) "Changed reused function: $name -> $newName"
+                $body = $newAst.Find($find, $true).Body.Extent.Text.Replace("`r`n", "`n")
+                $actual = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($body))).ToLowerInvariant()
+                Require ($actual -ceq $accepted[$name]) "Changed reused function: $name"
             }
         }
         Case 'incomplete layer manifest is refused by the phase contract' {
