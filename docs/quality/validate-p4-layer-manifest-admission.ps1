@@ -21,8 +21,6 @@ if (-not $OutputDirectory.StartsWith($lab + [IO.Path]::DirectorySeparatorChar, [
 $source = Join-Path $PSScriptRoot 'measurements/p4-indexed-preflight.ps1'
 $phase = 'nene-pixel-p4-layer-phase-verification-v1'
 $old = 'nene-pixel-p4-indexed-cutover-verification-v7'
-# The last commit before the phase admission opened; the v7 bodies must equal it.
-$checkpoint = 'b450f9f'
 $script:cases = [Collections.Generic.List[object]]::new()
 $watch = [Diagnostics.Stopwatch]::StartNew()
 $summary = [ordered]@{ status = 'failure'; group = $CaseGroup; cases = @(); elapsed_seconds = 0; source_sha256 = [ordered]@{} }
@@ -513,18 +511,18 @@ try {
             $bad = Clone $v7; $bad.roles = Clone $manifest.roles; Assert-P4ManifestContract $bad
         } -Refuse -Expect 'roles.baseline'
         Case 'v7 slot population unchanged (29)' { Require (@($v7.slots).Count -eq 29) 'v7 population' }
-        Case "v7 admission bodies are byte-identical to $checkpoint" {
-            $oldText = (& git.exe -C $repository show "${checkpoint}:docs/quality/measurements/p4-indexed-preflight.ps1") -join "`n"
-            Require ($LASTEXITCODE -eq 0) 'Checkpoint source unavailable'
+        Case 'v7 admission bodies match the accepted v7 bodies' {
+            # LF-normalised UTF-8 SHA-256 of the bodies at b450f9f (last commit before phase admission opened).
+            # Not pinned to a branch commit (squash-merge drops it); changing the baseline needs a commit that edits this table.
+            $accepted = [ordered]@{ 'Assert-P4IndexedManifestContract' = '5b831bd9b9392aa2bf77f1906f7532311a4983088056265ad04c273a10ddb929'; 'Assert-P4IndexedManifestArtifacts' = '8eaeccd9e59c3580d27742910713e18c923e9f13d2c2f70a62e3ef67490c70c5' }
             $tokens = $null; $errors = $null
-            $oldAst = [Management.Automation.Language.Parser]::ParseInput($oldText, [ref]$tokens, [ref]$errors)
             $newAst = [Management.Automation.Language.Parser]::ParseFile($source, [ref]$tokens, [ref]$errors)
-            foreach ($pair in @(@('Assert-P4ManifestContract', 'Assert-P4IndexedManifestContract'),
-                    @('Assert-P4ManifestArtifacts', 'Assert-P4IndexedManifestArtifacts'))) {
-                $oldName = $pair[0]; $newName = $pair[1]
-                $before = $oldAst.Find({ param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -ceq $oldName }, $true)
-                $after = $newAst.Find({ param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -ceq $newName }, $true)
-                Require ($before.Body.Extent.Text.Replace("`r`n", "`n") -ceq $after.Body.Extent.Text.Replace("`r`n", "`n")) "Changed v7 body: $oldName"
+            foreach ($name in $accepted.Keys) {
+                $after = $newAst.Find({ param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -ceq $name }, $true)
+                Require ($null -ne $after) "Missing v7 body: $name"
+                $bytes = [Text.Encoding]::UTF8.GetBytes($after.Body.Extent.Text.Replace("`r`n", "`n"))
+                $hash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($bytes)).ToLowerInvariant()
+                Require ($hash -ceq $accepted[$name]) "Changed v7 body: $name"
             }
         }
     }
