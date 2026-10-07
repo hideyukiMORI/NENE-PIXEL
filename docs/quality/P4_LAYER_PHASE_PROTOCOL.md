@@ -885,7 +885,8 @@ creates it and refuses an existing path. Validators that need inputs:
 - `validate-p4-layer-frame-ui.ps1 -CaseGroup Fixtures`: pass `-StagingDirectory` the output of
   `validate-p4-layer-frame-staging.ps1`. Staging needs the host contract built first:
   `./gradlew -I docs/quality/measurements/p4-layer-phase-fixture.init.gradle
-  :app:android:layerPhaseFrameFixtureHostContract --offline`.
+  :app:android:layerPhaseFrameFixtureHostContract -Pp4FrameFixtureContractOutput=<absolute dir that
+  does not exist yet> --offline`; without the property the task stops with a failed requirement.
 - `validate-p4-layer-saf-evidence.ps1`: pass the retained
   `145-layer-publication/*/analyzer-initial` directory.
 - `validate-p4-indexed-evidence.ps1`: the v7 reservation test reads the agreement Issue through a
