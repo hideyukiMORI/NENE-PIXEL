@@ -24,6 +24,22 @@ internal class AppLanguageControllerTest {
         }
 
     @Test
+    fun initialReadStartsReadyAndRefreshKeepsReadyWhileReading() {
+        runBlocking {
+            val storage = LanguageStorageFixture(AppLanguage.Japanese)
+            val controller = AppLanguageController(storage, this, AppLanguageRead.Loaded(AppLanguage.Japanese))
+            assertEquals(AppLanguageStatus.Ready, controller.settings.value.status)
+            assertEquals(AppLanguage.Japanese, controller.settings.value.selection)
+            controller.refresh()
+            assertEquals(AppLanguageStatus.Ready, controller.settings.value.status)
+            yield()
+            assertEquals(1, storage.reads)
+            assertEquals(AppLanguageStatus.Ready, controller.settings.value.status)
+            assertEquals(AppLanguage.Japanese, controller.settings.value.selection)
+        }
+    }
+
+    @Test
     fun selectionPublishesOnlyAfterWriteAndRejectsOverlappingSelection() =
         runBlocking {
             val storage = LanguageStorageFixture(AppLanguage.English)
@@ -110,6 +126,8 @@ private class LanguageStorageFixture(
     var nextWrite = CompletableDeferred(AppLanguageWrite.Saved)
     val writes = mutableListOf<AppLanguage>()
     var reads = 0
+
+    override fun readInitial(): AppLanguageRead? = null
 
     override suspend fun read(): AppLanguageRead {
         reads += 1

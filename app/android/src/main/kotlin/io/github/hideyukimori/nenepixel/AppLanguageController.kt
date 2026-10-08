@@ -13,8 +13,9 @@ import kotlinx.coroutines.launch
 internal class AppLanguageController(
     private val storage: AppLanguageStorage,
     private val scope: CoroutineScope,
+    initial: AppLanguageRead? = null,
 ) {
-    private val mutableSettings = MutableStateFlow(AppLanguageSettings(AppLanguage.System, AppLanguageStatus.Loading))
+    private val mutableSettings = MutableStateFlow(initialSettings(initial))
     val settings = mutableSettings.asStateFlow()
     val controls = AppLanguageControls(settings, ::select, ::retry)
     private var failedSelection: AppLanguage? = null
@@ -78,6 +79,13 @@ internal class AppLanguageController(
         }
     }
 }
+
+private fun initialSettings(initial: AppLanguageRead?): AppLanguageSettings =
+    when (initial) {
+        is AppLanguageRead.Loaded -> AppLanguageSettings(initial.language, AppLanguageStatus.Ready)
+        AppLanguageRead.Failed -> AppLanguageSettings(AppLanguage.System, AppLanguageStatus.ReadFailed)
+        null -> AppLanguageSettings(AppLanguage.System, AppLanguageStatus.Loading)
+    }
 
 private sealed interface LanguageOperation {
     data object Idle : LanguageOperation
