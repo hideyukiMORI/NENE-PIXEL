@@ -50,7 +50,7 @@ internal class PencilUndoBaselineProfile {
             check(device.click(x, y)) { "Pencil input was not accepted at ($x, $y)." }
 
             device.awaitObject(By.res(DIRTY_LABEL))
-            device.awaitObject(undoButton(enabled = true)).click(CANONICAL_UNDO_TAP_DURATION_MILLIS)
+            device.awaitObject(undoButton(enabled = true)).click(CANONICAL_TAP_DURATION_MILLIS)
             device.awaitObject(By.res(CLEAN_LABEL))
             device.awaitObject(undoButton(enabled = false))
         }
@@ -67,10 +67,12 @@ internal class PencilUndoBaselineProfile {
     /**
      * The previous iteration is stopped inside the autosave window, so the next launch may offer
      * its recovery record. The offer replaces the clean label until it is declined.
+     * Both control taps use the same fixed pointer-down interval; a shorter press lets the ripple's delayed reset
+     * path into the profile.
      */
     private fun UiDevice.declineRecoveryOffer() {
         val first = awaitObject(By.res(CLEAN_OR_DISCARD))
-        if (first.resourceName == DISCARD_RECOVERY) first.click()
+        if (first.resourceName == DISCARD_RECOVERY) first.click(CANONICAL_TAP_DURATION_MILLIS)
     }
 
     private fun UiDevice.awaitObject(selector: BySelector): UiObject2 =
@@ -93,7 +95,7 @@ internal class PencilUndoBaselineProfile {
         const val CANVAS_HEIGHT = 16
         const val CENTERING_DIVISOR = 2.0
         const val UI_TIMEOUT_MILLIS = 5_000L
-        const val CANONICAL_UNDO_TAP_DURATION_MILLIS = 100L
+        const val CANONICAL_TAP_DURATION_MILLIS = 100L
         const val MAX_ITERATIONS = 15
         const val STABLE_ITERATIONS = 3
     }

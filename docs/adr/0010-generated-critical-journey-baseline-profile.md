@@ -83,9 +83,11 @@ Those actions exercise the one production UI-to-command path. Fixed screen coord
 state access are prohibited.
 
 The Baseline Profile producer's canonical journey uses UiAutomator's duration overload for Undo
-with a fixed 100 ms pointer-down interval. This is the selected fixed input condition for this
+and for the recovery discard control with the same fixed 100 ms pointer-down interval (amended
+2026-10-08, Issue #190: a shorter discard press let the ripple's delayed reset path into one of two
+otherwise identical generations). This is the selected fixed input condition for this
 collection workload and tests a bounded variability-reduction hypothesis. It does not guarantee a
-rendered frame or establish the cause of earlier rule drift. The Undo action and its dirty-to-clean
+rendered frame or establish the cause of earlier rule drift. The Undo and discard actions and their
 accessibility postconditions remain unchanged. This duration does not change product-wide Undo
 input or the Issue #54 measurement harness.
 

@@ -89,7 +89,7 @@ or failure to confirm zero active processes retains the snapshot/evidence and re
 blocked instead of restoring while output may still change.
 
 The Baseline Profile producer's canonical journey uses a fixed 100 ms pointer-down interval for
-Undo. This is the selected fixed input condition for this collection workload and tests a bounded
+Undo and for the recovery discard control. This is the selected fixed input condition for this collection workload and tests a bounded
 variability-reduction hypothesis; it does not guarantee a rendered frame or establish the cause of
 earlier rule drift. The existing dirty-to-clean accessibility postconditions still verify the Undo
 result in every producer iteration. This duration does not change product-wide Undo input or the
