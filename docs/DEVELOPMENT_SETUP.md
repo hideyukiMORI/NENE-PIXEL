@@ -217,10 +217,12 @@ Everything development needs outside the repository lives in one folder, the dev
 
 The lab root must be short. Device collections pull files with `adb`, which cannot write a
 destination path longer than 259 characters, and the Baseline Profile producer output alone needs
-225 characters below the clone root. A clone root, `<lab>/clones/<name>/`, therefore stays within
-34 characters: keep the lab in a short folder directly under a drive root and name measurement and
-generation clones `n<Issue>` or `n<Issue>-baseline` / `n<Issue>-candidate`. Gradle itself builds
-in longer paths, so a successful build does not show that a location is short enough (Issue #151).
+227 characters below the clone root (from `quality/baseline-profile/build/` to the pulled profile
+file name). A clone root, `<lab>/clones/<name>/`, therefore stays within 32 characters: keep the lab
+in a short folder directly under a drive root and name measurement and generation clones `n<Issue>`
+or `n<Issue>-baseline` / `n<Issue>-candidate`. `D:/NENE-PIXEL/clones/n190-profile` (33 characters)
+failed the pull on 2026-10-08 (Issue #190). Gradle itself builds in longer paths, so a successful
+build does not show that a location is short enough (Issue #151).
 
 | Folder | Holds | May it be deleted |
 | --- | --- | --- |
