@@ -24,6 +24,10 @@ for the current setting and no locale in the project schema, document commands o
 The retained app language controller publishes immutable language/status projections. Storage and
 startup inspection use its lifecycle scope and injected dispatcher; no main-thread file operation,
 global `Locale.setDefault`, unmanaged coroutine or Compose service lookup is introduced.
+Amended 2026-10-08 (Issue #191): on API 33+ the controller reads `LocaleManager.applicationLocales`
+once, synchronously, at creation (a binder getter, no file I/O), so the editor's first composition
+sees `Ready`; the asynchronous reread on activity start is unchanged. On API 26–32 the initial read
+stays asynchronous.
 Amended 2026-10-03 (Issue #172): what the device remembers about a work is the separate `WorkMemory`
 category of [ADR 0034](0034-underlay-memory.md); `AppPreferences` is not widened to per-work facts.
 
@@ -51,7 +55,10 @@ default; resource configurations restrict transitive library translations to thi
 The native settings UI and picker share this declaration. No automatic/manual dual declaration.
 App Bundle language splitting is disabled so all three translations remain available offline.
 
-The editor is shown after asynchronous startup language inspection settles. The platform emits
+On API 26–32 the editor is shown after asynchronous startup language inspection settles; on API 33+
+the inspection completes before the first composition (amended 2026-10-08, Issue #191, so that the
+first frame is deterministic for the ADR 0010 Baseline Profile generation and no loading screen
+flashes on cold start). The platform emits
 immutable `AppLanguageSettings` and typed selection/retry callbacks to presentation; these are the
 new public presentation API, not Android types in core. A language change cancels active preview
 through the existing editor cancellation callback, changes no document/history/checkpoint/capture,

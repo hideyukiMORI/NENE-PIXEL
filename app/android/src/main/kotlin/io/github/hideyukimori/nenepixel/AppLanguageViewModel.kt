@@ -11,7 +11,7 @@ import kotlinx.coroutines.Dispatchers
 internal class AppLanguageViewModel(
     storage: AppLanguageStorage,
 ) : ViewModel() {
-    val controller = AppLanguageController(storage, viewModelScope)
+    val controller = AppLanguageController(storage, viewModelScope, storage.readInitial())
 
     companion object {
         fun factory(application: Application): ViewModelProvider.Factory =

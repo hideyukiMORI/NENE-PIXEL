@@ -43,6 +43,7 @@ public class MainActivity : ComponentActivity() {
         val model = editorModel
         val version = AppVersionSource.create(this).read()
         applySystemBarTheme(model.controller.renderState.appearance.theme)
+        val language = languageModel.controller.controls
         setContent {
             LaunchedEffect(model) {
                 model.controller.renderStates.map { it.appearance.theme }.distinctUntilChanged().collect(
@@ -53,14 +54,14 @@ public class MainActivity : ComponentActivity() {
             LaunchedEffect(pickerRequest.value) {
                 pickerRequest.value?.let { request -> launchPicker(request, model.pickerBroker) }
             }
-            LocalizedAppLanguage(languageModel.controller.controls) {
+            LocalizedAppLanguage(language) {
                 NenePixelEditor(
                     renderStates = model.controller.renderStates,
                     persistenceOperations = model.persistenceOperations,
                     autosaveStates = model.autosaveStates,
                     callbacks = model.controller.callbacks,
                     persistenceCallbacks = model.persistenceCallbacks,
-                    language = languageModel.controller.controls,
+                    language = language,
                     version = version,
                 )
             }

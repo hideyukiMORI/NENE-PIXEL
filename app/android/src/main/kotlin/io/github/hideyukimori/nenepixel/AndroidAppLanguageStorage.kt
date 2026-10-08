@@ -9,23 +9,18 @@ import io.github.hideyukimori.nenepixel.presentation.compose.editor.AppLanguage
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 
-/** One backing per OS version. All preference access stays on the injected I/O dispatcher. */
+/**
+ * One backing per OS version. Preference access stays on the injected I/O dispatcher, except the
+ * API 33+ initial read, which calls the binder getter on the calling thread.
+ */
 internal class AndroidAppLanguageStorage(
     private val context: Context,
     private val dispatcher: CoroutineDispatcher,
 ) : AppLanguageStorage {
-    override suspend fun read(): AppLanguageRead =
-        withContext(dispatcher) {
-            try {
-                readFromPlatform()
-            } catch (_: SecurityException) {
-                AppLanguageRead.Failed
-            } catch (_: ClassCastException) {
-                AppLanguageRead.Failed
-            } catch (_: IllegalStateException) {
-                AppLanguageRead.Failed
-            }
-        }
+    override fun readInitial(): AppLanguageRead? =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) readGuarded() else null
+
+    override suspend fun read(): AppLanguageRead = withContext(dispatcher) { readGuarded() }
 
     override suspend fun write(language: AppLanguage): AppLanguageWrite =
         withContext(dispatcher) {
@@ -38,6 +33,17 @@ internal class AndroidAppLanguageStorage(
             } catch (_: IllegalStateException) {
                 AppLanguageWrite.Failed
             }
+        }
+
+    private fun readGuarded(): AppLanguageRead =
+        try {
+            readFromPlatform()
+        } catch (_: SecurityException) {
+            AppLanguageRead.Failed
+        } catch (_: ClassCastException) {
+            AppLanguageRead.Failed
+        } catch (_: IllegalStateException) {
+            AppLanguageRead.Failed
         }
 
     private fun readFromPlatform(): AppLanguageRead =
