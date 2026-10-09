@@ -41,6 +41,13 @@ internal object P4LayerEditorStateChecks {
         )
         check(state.dirtyState == if (committed) DocumentDirtyState.Dirty else DocumentDirtyState.Clean)
         checkPalette(document)
+        checkMaximumLayers(document, committed)
+    }
+
+    private fun checkMaximumLayers(
+        document: DocumentState,
+        committed: Boolean,
+    ) {
         document.layers.forEachIndexed { index, layer ->
             val id = index + 1
             check(layer.id.value == id && layer.visibility == LayerVisibility.Visible)

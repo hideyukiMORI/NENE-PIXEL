@@ -11,7 +11,6 @@ import android.os.ParcelFileDescriptor
 import androidx.test.core.app.ApplicationProvider
 import io.github.hideyukimori.nenepixel.adapters.persistence.AndroidPngExportAdapter
 import io.github.hideyukimori.nenepixel.adapters.persistence.ProjectPickerResult
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.yield
@@ -21,6 +20,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 internal class PngPickerCancellationTest {
+    private val dispatchers = TestCoroutineDispatchers()
+
     @Test
     fun cancelledClaimedPickerDeletesSelectedUriBeforeCompletion() =
         runBlocking {
@@ -32,7 +33,7 @@ internal class PngPickerCancellationTest {
                 AndroidPngExportAdapter.create(
                     ContentResolver.wrap(provider),
                     broker,
-                    Dispatchers.Unconfined,
+                    dispatchers.inline,
                 )
             val document = createEditorRuntime().state.documentState
             val job = async { exporter.export(document) }

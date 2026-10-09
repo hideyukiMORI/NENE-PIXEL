@@ -38,7 +38,6 @@ import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -51,6 +50,8 @@ import java.util.zip.CRC32
 
 @RunWith(AndroidJUnit4::class)
 public class AndroidPersistenceFunctionalTest {
+    private val dispatchers = TestCoroutineDispatchers()
+
     @Test
     public fun actualContentResolverWritesClosesReadsAndDecodes() =
         runBlocking {
@@ -62,7 +63,7 @@ public class AndroidPersistenceFunctionalTest {
             val resolver = ContentResolver.wrap(provider)
             val uri = Uri.parse("content://$AUTHORITY/document")
             val picker = FixedAndroidPicker(uri)
-            val adapter = AndroidProjectStorageAdapter.create(resolver, picker, Dispatchers.IO)
+            val adapter = AndroidProjectStorageAdapter.create(resolver, picker, dispatchers.io)
             val document = minimalDocument()
             try {
                 assertEquals(ProjectSaveOutcome.Saved, adapter.save(document))
@@ -94,22 +95,12 @@ public class AndroidPersistenceFunctionalTest {
                 AndroidProjectStorageAdapter.create(
                     resolver,
                     FixedAndroidPicker(sourceUri, destinationUri),
-                    Dispatchers.IO,
+                    dispatchers.io,
                 )
             val loaded =
                 try {
                     val result = adapter.load()
-                    val loadedSource =
-                        when (val imported = (result as ProjectLoadOutcome.Loaded).source) {
-                            is DocumentImportSource.Legacy -> imported.source
-                            is DocumentImportSource.Current -> error("v1 fixture unexpectedly decoded as v2")
-                        }
-                    assertEquals(source.id, loadedSource.id)
-                    assertEquals(source.revision, loadedSource.revision)
-                    assertEquals(source.size, loadedSource.size)
-                    assertArrayEquals(source.copyPackedRgba8888(), loadedSource.copyPackedRgba8888())
-                    assertEquals(272, loadedSource.copyPackedRgba8888().toSet().size)
-                    assertEquals(0x01020300, loadedSource.copyPackedRgba8888().first())
+                    val loadedSource = assertLegacyLoaded(source, result)
                     val beforeCopy = loadedSource.copyPackedRgba8888()
 
                     assertEquals(LegacySourceCopyOutcome.Copied, adapter.copyLegacySource(loadedSource))
@@ -138,7 +129,7 @@ public class AndroidPersistenceFunctionalTest {
                 AndroidPngExportAdapter.create(
                     resolver,
                     FixedAndroidPicker(Uri.parse("content://$AUTHORITY/png")),
-                    Dispatchers.IO,
+                    dispatchers.io,
                 )
             val source = minimalDocument()
             val color = PixelColor.fromPackedRgba8888(0x11223301)
@@ -173,7 +164,7 @@ public class AndroidPersistenceFunctionalTest {
             val context = ApplicationProvider.getApplicationContext<Context>()
             val directory = Files.createTempDirectory(context.noBackupFilesDir.toPath(), "recovery-").toFile()
             val atomicFile = AtomicFile(File(directory, "nene-pixel-recovery-v1"))
-            val adapter = AndroidRecoveryRecordAdapter.create(atomicFile, Dispatchers.IO)
+            val adapter = AndroidRecoveryRecordAdapter.create(atomicFile, dispatchers.io)
             try {
                 val retired = adapter.retire(ExpectedRecoveryLineage.Missing)
                 assertTrue(retired is RecoveryRetirementOutcome.Retired)
@@ -191,7 +182,7 @@ public class AndroidPersistenceFunctionalTest {
             val context = ApplicationProvider.getApplicationContext<Context>()
             val directory = Files.createTempDirectory(context.noBackupFilesDir.toPath(), "recovery-candidate-").toFile()
             val atomicFile = AtomicFile(File(directory, "nene-pixel-recovery-v1"))
-            val adapter = AndroidRecoveryRecordAdapter.create(atomicFile, Dispatchers.IO)
+            val adapter = AndroidRecoveryRecordAdapter.create(atomicFile, dispatchers.io)
             val document = minimalDocument()
             try {
                 val published = adapter.publishCandidate(ExpectedRecoveryLineage.Missing, document)
@@ -215,7 +206,7 @@ public class AndroidPersistenceFunctionalTest {
             val recordFile = File(directory, "nene-pixel-recovery-v1")
             val source = legacySource()
             recordFile.writeBytes(legacyRecoveryV1CandidateBytes(generation = 7L, source = source))
-            val adapter = AndroidRecoveryRecordAdapter.create(AtomicFile(recordFile), Dispatchers.IO)
+            val adapter = AndroidRecoveryRecordAdapter.create(AtomicFile(recordFile), dispatchers.io)
             try {
                 val inspection = adapter.inspect()
                 val candidate = inspection as RecoveryInspection.Candidate
@@ -229,6 +220,24 @@ public class AndroidPersistenceFunctionalTest {
                 directory.delete()
             }
         }
+
+    private fun assertLegacyLoaded(
+        source: LegacyRgbaSource,
+        result: ProjectLoadOutcome,
+    ): LegacyRgbaSource {
+        val loadedSource =
+            when (val imported = (result as ProjectLoadOutcome.Loaded).source) {
+                is DocumentImportSource.Legacy -> imported.source
+                is DocumentImportSource.Current -> error("v1 fixture unexpectedly decoded as v2")
+            }
+        assertEquals(source.id, loadedSource.id)
+        assertEquals(source.revision, loadedSource.revision)
+        assertEquals(source.size, loadedSource.size)
+        assertArrayEquals(source.copyPackedRgba8888(), loadedSource.copyPackedRgba8888())
+        assertEquals(272, loadedSource.copyPackedRgba8888().toSet().size)
+        assertEquals(0x01020300, loadedSource.copyPackedRgba8888().first())
+        return loadedSource
+    }
 
     private fun legacySource(): LegacyRgbaSource {
         val id = created(DocumentId.create("0123456789abcdef0123456789abcdef"))
@@ -468,6 +477,6 @@ private class SingleProjectContentProvider(
 
     private fun sizeCursor(file: File): Cursor =
         MatrixCursor(arrayOf(OpenableColumns.SIZE)).apply {
-            addRow(arrayOf(file.length()))
+            addRow(listOf(file.length()))
         }
 }
