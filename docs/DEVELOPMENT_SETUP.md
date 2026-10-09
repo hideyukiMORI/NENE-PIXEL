@@ -89,9 +89,10 @@ or failure to confirm zero active processes retains the snapshot/evidence and re
 blocked instead of restoring while output may still change.
 
 The Baseline Profile producer's canonical journey uses a fixed 100 ms pointer-down interval for
-Undo. This is the selected fixed input condition for this collection workload and tests a bounded
-variability-reduction hypothesis; it does not guarantee a rendered frame or establish the cause of
-earlier rule drift. The existing dirty-to-clean accessibility postconditions still verify the Undo
+Undo and for the recovery discard control. This is the selected fixed input condition for this
+collection workload and tests a bounded variability-reduction hypothesis; it does not guarantee a
+rendered frame or establish the cause of earlier rule drift. The existing dirty-to-clean
+accessibility postconditions still verify the Undo
 result in every producer iteration. This duration does not change product-wide Undo input or the
 Issue #54 measurement harness.
 
@@ -217,10 +218,12 @@ Everything development needs outside the repository lives in one folder, the dev
 
 The lab root must be short. Device collections pull files with `adb`, which cannot write a
 destination path longer than 259 characters, and the Baseline Profile producer output alone needs
-225 characters below the clone root. A clone root, `<lab>/clones/<name>/`, therefore stays within
-34 characters: keep the lab in a short folder directly under a drive root and name measurement and
-generation clones `n<Issue>` or `n<Issue>-baseline` / `n<Issue>-candidate`. Gradle itself builds
-in longer paths, so a successful build does not show that a location is short enough (Issue #151).
+227 characters below the clone root (from `quality/baseline-profile/build/` to the pulled profile
+file name). A clone root, `<lab>/clones/<name>/`, therefore stays within 32 characters: keep the lab
+in a short folder directly under a drive root and name measurement and generation clones `n<Issue>`
+or `n<Issue>-baseline` / `n<Issue>-candidate`. The 33-character root used by the `n190-profile`
+clone failed the pull on 2026-10-08 (Issue #190). Gradle itself builds in longer paths, so a successful
+build does not show that a location is short enough (Issue #151).
 
 | Folder | Holds | May it be deleted |
 | --- | --- | --- |

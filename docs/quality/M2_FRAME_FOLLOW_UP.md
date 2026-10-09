@@ -2679,3 +2679,60 @@ the quick-select control existed; the regenerated profile covers the editor as `
 the generation source. It does not cover the layered composite of Issue #142, which is not on
 `main` yet. No performance collection was part of this Issue, and the device measurements recorded
 above this section were taken with the previous profile and are not re-judged.
+
+## Baseline Profile regeneration — not accepted 2026-10-09 (Issue #190)
+
+Issue #190 refreshes the fixed Pencil/Undo journey after the layered editor changes, before the
+Issue #145 candidate is pinned. The three attempts below remain unreconciled: no regenerated
+profile is accepted, and they establish no performance claim. Their results remain preserved
+under [ADR 0010](../adr/0010-generated-critical-journey-baseline-profile.md) and QLT-011 through
+QLT-016.
+
+| Evidence identity | Source | Result |
+| --- | --- | --- |
+| `issue-190-20261008-2244` | `d5883a4` | Invalid: the fresh-output pull destination was 260 characters long |
+| `issue-190-20261008-2249` | `b64a09f` | Mismatch: both invocations were valid, with 17,791 and 17,852 canonical rules |
+| `issue-190-20261009-1954` | `2afa00b` | Mismatch: both invocations were valid, with 17,801 and 17,810 canonical rules |
+
+The latest attempt includes merged Issue #191's synchronous initial language read on API 33+ and
+the fixed 100 ms recovery discard press. `LanguageLoadingScreenKt` and delayed
+`RippleHostView.setRippleState$lambda$1` rules were absent in both latest invocations; in the
+previous mismatched pair, each appeared on only one side. This observation supports those fixes
+only, not overall profile determinism.
+
+| Item | Latest attempt value |
+| --- | --- |
+| Evidence identity | `issue-190-20261009-1954` |
+| Evidence location | `evidence/190-baseline-profile/mismatch/issue-190-20261009-1954/` of the development lab; all 51 files SHA-256 verified after the move |
+| Generation source | `2afa00b5df29eb4213fb8fa255e411a9729c3e33` |
+| Invocation 1 | 2026-10-09 10:54:16.2423090Z to 10:58:17.5040298Z, `valid` |
+| Invocation 2 | 2026-10-09 10:58:21.4924621Z to 11:01:06.7750186Z, `valid` |
+| Generation app APK SHA-256 | `55ebbeb029e9355c8fe0ab554325f27f4e69f3a3dd017e93f612c53ea5aa24b1`, identical in both invocations |
+| Generation test APK SHA-256 | `6def79c456e576e7c0899b2cc4c9f80be886a7feb7354a9a3882024e1aaa5d33`, identical in both invocations |
+| Invocation 1 canonical profile | 17,801 rules, SHA-256 `088ebdc684d0fa48a5a77023e402ba513f50c4d575f5479af5054c72021232fc` |
+| Invocation 2 canonical profile | 17,810 rules, SHA-256 `fb173ca5a420d82f429670009a29e5c8b4e06816339f5373ee8ef81d95073ea6` |
+| Pair manifest | `mismatch`, SHA-256 `6febe284a4af53afe1b16d6075933265ae186731895f97d0e8c4b7bfbcb7ee17` |
+| Acceptance manifest | Absent |
+| Final validation | `validateBaselineProfile` was not run because the pair failed |
+| Restored canonical profile | Issue #151 SHA-256 `3f195727a018eb2a64a2609c473e6423dae3635a738e8b976b2d8065024805ce`; the wrapper restored a clean tracked tree |
+
+Invocation 2 contains nine additional signatures. Two shared signatures have flag-only changes:
+`UInt.constructor-impl` and `SnapshotThreadLocal.get`. The one app-specific additional method is
+`AutosaveScheduleKt.publishedConsumed`. Its invocation does not prove a successful publication:
+it can occur when the pending token changes with `publishedChanged` false, and observation of
+intermediate `StateFlow` values can alter the short-circuit branch. The retained logs contain no
+autosave observations or input timestamps, so the exact cause is unproven. No cause is assigned
+to the framework differences.
+
+The current third-run and corrective budget is consumed. There is no unchanged retry, flag or
+package filtering, or production autosave change merely to obtain profile equality. A subsequent
+run requires an explicit new bounded candidate plan and agreement between the Issue, ADR 0010,
+and executable harness, preserving every previous failure.
+
+The device was successfully restored to the debug build. Restoration of the original application
+data stopped at admission on `files/profileInstalled` and
+`files/profileinstaller_profileWrittenFor_lastUpdateTime.dat`. The guard verified the original
+bytes, which remain preserved on the device and PC; no private-data writes were made. Operator
+records are retained at `evidence/190-baseline-profile/operator-issue-190/` in the development lab.
+The profile mismatch and incomplete original-data restoration remain open risks. This record
+changes no schema and uses no waiver.

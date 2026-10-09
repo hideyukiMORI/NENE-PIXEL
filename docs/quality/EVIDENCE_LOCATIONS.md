@@ -72,6 +72,9 @@ move and the two inventories are identical. Clones and worktrees were compared b
 | --- | --- |
 | Accepted Baseline Profile generation of Issue #151 (`issue-151-20260929-1953`) | `evidence/151-baseline-profile/issue-151-20260929-1953` |
 | Invalid generation attempts of Issue #151 (`-1825`, `-1830`, `-1833`) | `evidence/151-baseline-profile/invalid` |
+| Invalid Baseline Profile generation of Issue #190 (`issue-190-20261008-2244`) | `evidence/190-baseline-profile/invalid/issue-190-20261008-2244` |
+| Mismatched Baseline Profile generation pairs of Issue #190 (`issue-190-20261008-2249`, `issue-190-20261009-1954`) | `evidence/190-baseline-profile/mismatch` |
+| Operator preservation and restoration records of Issue #190 | `evidence/190-baseline-profile/operator-issue-190` |
 | Single-layer drawing latency of Issue #142 (`p4-indexed-v7-20260929-layered1`), recorded in [M4 layered cutover evidence](M4_LAYERED_CUTOVER_EVIDENCE.md) | `evidence/142-latency/issue-142/p4-experiment-v7-layered1` |
 | Device functional checks of Issue #142 | `evidence/142-device-check`, `evidence/142-latency/issue-142/m3-acceptance-i142-a` |
 
