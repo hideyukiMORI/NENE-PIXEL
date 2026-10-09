@@ -15,6 +15,7 @@ internal fun Project.configureAndroidQuality(libraries: VersionCatalog) {
     configureStrictDependencyLocking()
     configureKtlint(libraries.requiredVersion("ktlint-engine"), android = true)
     configureDetekt(libraries.requiredVersion("detekt"))
+    configureAndroidDetekt()
     dependencies.add("testImplementation", "org.junit.jupiter:junit-jupiter:${libraries.requiredVersion("junit")}")
     dependencies.add(
         "testRuntimeOnly",
