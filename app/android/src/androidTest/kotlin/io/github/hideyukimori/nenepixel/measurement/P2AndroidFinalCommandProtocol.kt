@@ -80,10 +80,9 @@ internal object P2AndroidFinalCommandProtocol {
                 ),
             workload =
                 P2AndroidFinalCommandPlan.Workload(
-                    canvasWidth = 256,
-                    canvasHeight = 256,
-                    warmupIterations = WARMUP_ITERATIONS,
-                    samplesPerWorkload = SAMPLES_PER_WORKLOAD,
+                    canvas = P2AndroidFinalCommandPlan.Workload.Canvas(256, 256),
+                    iterations =
+                        P2AndroidFinalCommandPlan.Workload.Iterations(WARMUP_ITERATIONS, SAMPLES_PER_WORKLOAD),
                     schema = P4_LATENCY_SCHEMA,
                     kinds = P2CommandWorkloadCatalog.commonKinds,
                 ),
@@ -100,10 +99,9 @@ internal object P2AndroidFinalCommandProtocol {
             identity = P2AndroidFinalCommandPlan.Identity(CANDIDATE_ID, RUN_INDEX),
             workload =
                 P2AndroidFinalCommandPlan.Workload(
-                    canvasWidth = 256,
-                    canvasHeight = 256,
-                    warmupIterations = WARMUP_ITERATIONS,
-                    samplesPerWorkload = SAMPLES_PER_WORKLOAD,
+                    canvas = P2AndroidFinalCommandPlan.Workload.Canvas(256, 256),
+                    iterations =
+                        P2AndroidFinalCommandPlan.Workload.Iterations(WARMUP_ITERATIONS, SAMPLES_PER_WORKLOAD),
                     schema = P4_LATENCY_SCHEMA,
                     kinds = P2CommandWorkloadCatalog.candidateKinds,
                 ),

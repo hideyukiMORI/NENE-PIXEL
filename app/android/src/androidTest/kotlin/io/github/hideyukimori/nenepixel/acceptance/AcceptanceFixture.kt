@@ -1,5 +1,6 @@
 package io.github.hideyukimori.nenepixel.acceptance
 
+import android.content.Context
 import android.os.Process
 import android.provider.DocumentsContract
 import androidx.test.platform.app.InstrumentationRegistry
@@ -9,10 +10,11 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Assume.assumeTrue
 import java.io.File
 import java.nio.ByteBuffer
+import java.util.Locale
 import java.util.zip.CRC32
 
 internal class AcceptanceFixture {
-    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    val context: Context = InstrumentationRegistry.getInstrumentation().targetContext
     private val arguments = InstrumentationRegistry.getArguments()
     val id: String = arguments.getString("m3EvidenceId").orEmpty()
 
@@ -53,7 +55,7 @@ internal class AcceptanceFixture {
 
     fun savedId(): String =
         local("expected.nenepixel").readBytes().copyOfRange(14, 30).joinToString("") {
-            "%02x".format(it)
+            "%02x".format(Locale.ROOT, it)
         }
 
     /** Checks [bytes] against the hand-written project v3 layout in [AcceptanceProjectV3]. */
@@ -69,7 +71,7 @@ internal class AcceptanceFixture {
         assertEquals(AcceptanceProjectV3.VERSION, buffer.getShort(8).toInt())
         assertEquals(8, buffer.getShort(10).toInt())
         assertEquals(6, buffer.getShort(12).toInt())
-        assertEquals(documentId, bytes.copyOfRange(14, 30).joinToString("") { "%02x".format(it) })
+        assertEquals(documentId, bytes.copyOfRange(14, 30).joinToString("") { "%02x".format(Locale.ROOT, it) })
         assertEquals(revision, buffer.getLong(30))
         assertEquals(9, buffer.getShort(38).toInt())
         assertEquals(8, bytes[40].toInt() and UBYTE_MASK)

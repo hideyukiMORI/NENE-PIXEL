@@ -13,27 +13,69 @@ internal fun sortedArtRuntimeStats(): List<Pair<String, String>> {
 }
 
 internal data class ArtRuntimeDelta(
-    val allocatedBytesBefore: Long,
-    val allocatedBytesAfter: Long,
-    val allocatedBytesDelta: Long,
-    val gcCountDelta: Long,
-    val gcTimeMillisDelta: Long,
-    val blockingGcCountDelta: Long,
-    val blockingGcTimeMillisDelta: Long,
-)
+    val allocation: Allocation,
+    val gc: Gc,
+    val blockingGc: BlockingGc,
+) {
+    data class Allocation(
+        val allocatedBytesBefore: Long,
+        val allocatedBytesAfter: Long,
+        val allocatedBytesDelta: Long,
+    )
+
+    data class Gc(
+        val gcCountDelta: Long,
+        val gcTimeMillisDelta: Long,
+    )
+
+    data class BlockingGc(
+        val blockingGcCountDelta: Long,
+        val blockingGcTimeMillisDelta: Long,
+    )
+
+    val allocatedBytesBefore: Long
+        get() = allocation.allocatedBytesBefore
+
+    val allocatedBytesAfter: Long
+        get() = allocation.allocatedBytesAfter
+
+    val allocatedBytesDelta: Long
+        get() = allocation.allocatedBytesDelta
+
+    val gcCountDelta: Long
+        get() = gc.gcCountDelta
+
+    val gcTimeMillisDelta: Long
+        get() = gc.gcTimeMillisDelta
+
+    val blockingGcCountDelta: Long
+        get() = blockingGc.blockingGcCountDelta
+
+    val blockingGcTimeMillisDelta: Long
+        get() = blockingGc.blockingGcTimeMillisDelta
+}
 
 internal class ArtRuntimeSnapshot private constructor(
     private val values: Map<String, Long>,
 ) {
     fun deltaFrom(before: ArtRuntimeSnapshot): ArtRuntimeDelta =
         ArtRuntimeDelta(
-            allocatedBytesBefore = before.value(ALLOCATED_BYTES),
-            allocatedBytesAfter = value(ALLOCATED_BYTES),
-            allocatedBytesDelta = delta(before, ALLOCATED_BYTES),
-            gcCountDelta = delta(before, GC_COUNT),
-            gcTimeMillisDelta = delta(before, GC_TIME),
-            blockingGcCountDelta = delta(before, BLOCKING_GC_COUNT),
-            blockingGcTimeMillisDelta = delta(before, BLOCKING_GC_TIME),
+            allocation =
+                ArtRuntimeDelta.Allocation(
+                    allocatedBytesBefore = before.value(ALLOCATED_BYTES),
+                    allocatedBytesAfter = value(ALLOCATED_BYTES),
+                    allocatedBytesDelta = delta(before, ALLOCATED_BYTES),
+                ),
+            gc =
+                ArtRuntimeDelta.Gc(
+                    gcCountDelta = delta(before, GC_COUNT),
+                    gcTimeMillisDelta = delta(before, GC_TIME),
+                ),
+            blockingGc =
+                ArtRuntimeDelta.BlockingGc(
+                    blockingGcCountDelta = delta(before, BLOCKING_GC_COUNT),
+                    blockingGcTimeMillisDelta = delta(before, BLOCKING_GC_TIME),
+                ),
         )
 
     private fun delta(
@@ -75,15 +117,51 @@ internal class ArtRuntimeSnapshot private constructor(
 }
 
 internal data class PostGcMemorySnapshot(
-    val javaHeapUsedBytes: Long,
-    val javaHeapCommittedBytes: Long,
-    val totalPssKilobytes: Int,
-    val dalvikPssKilobytes: Int,
-    val nativePssKilobytes: Int,
-    val otherPssKilobytes: Int,
-    val totalPrivateDirtyKilobytes: Int,
-    val totalSharedDirtyKilobytes: Int,
+    val heap: Heap,
+    val pss: Pss,
+    val dirty: Dirty,
 ) {
+    data class Heap(
+        val javaHeapUsedBytes: Long,
+        val javaHeapCommittedBytes: Long,
+    )
+
+    data class Pss(
+        val totalPssKilobytes: Int,
+        val dalvikPssKilobytes: Int,
+        val nativePssKilobytes: Int,
+        val otherPssKilobytes: Int,
+    )
+
+    data class Dirty(
+        val totalPrivateDirtyKilobytes: Int,
+        val totalSharedDirtyKilobytes: Int,
+    )
+
+    val javaHeapUsedBytes: Long
+        get() = heap.javaHeapUsedBytes
+
+    val javaHeapCommittedBytes: Long
+        get() = heap.javaHeapCommittedBytes
+
+    val totalPssKilobytes: Int
+        get() = pss.totalPssKilobytes
+
+    val dalvikPssKilobytes: Int
+        get() = pss.dalvikPssKilobytes
+
+    val nativePssKilobytes: Int
+        get() = pss.nativePssKilobytes
+
+    val otherPssKilobytes: Int
+        get() = pss.otherPssKilobytes
+
+    val totalPrivateDirtyKilobytes: Int
+        get() = dirty.totalPrivateDirtyKilobytes
+
+    val totalSharedDirtyKilobytes: Int
+        get() = dirty.totalSharedDirtyKilobytes
+
     companion object {
         fun captureBaseline(retained: Any): PostGcMemorySnapshot = capture(retained)
 
@@ -94,16 +172,27 @@ internal data class PostGcMemorySnapshot(
             val runtime = Runtime.getRuntime()
             val memoryInfo = Debug.MemoryInfo()
             Debug.getMemoryInfo(memoryInfo)
+            val javaHeapUsedBytes = runtime.totalMemory() - runtime.freeMemory()
+            val javaHeapCommittedBytes = runtime.totalMemory()
             val snapshot =
                 PostGcMemorySnapshot(
-                    javaHeapUsedBytes = runtime.totalMemory() - runtime.freeMemory(),
-                    javaHeapCommittedBytes = runtime.totalMemory(),
-                    totalPssKilobytes = memoryInfo.totalPss,
-                    dalvikPssKilobytes = memoryInfo.dalvikPss,
-                    nativePssKilobytes = memoryInfo.nativePss,
-                    otherPssKilobytes = memoryInfo.otherPss,
-                    totalPrivateDirtyKilobytes = memoryInfo.totalPrivateDirty,
-                    totalSharedDirtyKilobytes = memoryInfo.totalSharedDirty,
+                    heap =
+                        PostGcMemorySnapshot.Heap(
+                            javaHeapUsedBytes = javaHeapUsedBytes,
+                            javaHeapCommittedBytes = javaHeapCommittedBytes,
+                        ),
+                    pss =
+                        PostGcMemorySnapshot.Pss(
+                            totalPssKilobytes = memoryInfo.totalPss,
+                            dalvikPssKilobytes = memoryInfo.dalvikPss,
+                            nativePssKilobytes = memoryInfo.nativePss,
+                            otherPssKilobytes = memoryInfo.otherPss,
+                        ),
+                    dirty =
+                        PostGcMemorySnapshot.Dirty(
+                            totalPrivateDirtyKilobytes = memoryInfo.totalPrivateDirty,
+                            totalSharedDirtyKilobytes = memoryInfo.totalSharedDirty,
+                        ),
                 )
             RetainedReferenceSink.consume(retained)
             return snapshot

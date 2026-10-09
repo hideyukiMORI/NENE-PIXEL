@@ -16,7 +16,6 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.underlay.Unde
 import io.github.hideyukimori.nenepixel.core.application.workspace.underlay.UnderlayVisibility
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentId
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -33,6 +32,8 @@ import java.nio.file.Files
  */
 @RunWith(AndroidJUnit4::class)
 public class AndroidUnderlayMemoryAdapterDeviceTest {
+    private val dispatchers = TestCoroutineDispatchers()
+
     @Test
     public fun theLargestUnderlayRoundTripsThroughTheRealFiles() {
         val context = ApplicationProvider.getApplicationContext<Context>()
@@ -45,7 +46,7 @@ public class AndroidUnderlayMemoryAdapterDeviceTest {
     }
 
     private fun roundTrip(noBackupDirectory: File) {
-        val adapter = AndroidUnderlayMemoryAdapter.create(noBackupDirectory, Dispatchers.IO)
+        val adapter = AndroidUnderlayMemoryAdapter.create(noBackupDirectory, dispatchers.io)
         val original = underlay()
         val rememberStart = System.nanoTime()
         val outcome = runBlocking { adapter.remember(document(), original) }

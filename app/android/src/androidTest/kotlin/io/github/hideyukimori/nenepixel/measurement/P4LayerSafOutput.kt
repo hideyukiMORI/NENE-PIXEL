@@ -4,7 +4,7 @@ import java.io.File
 
 /** Only the fresh reserved directory is written; every incomplete artifact remains available. */
 internal class P4LayerSafOutput private constructor(
-    private val directory: File,
+    directory: File,
 ) {
     private val csv = File(directory, "save.csv")
     private val status = File(directory, "save.status")

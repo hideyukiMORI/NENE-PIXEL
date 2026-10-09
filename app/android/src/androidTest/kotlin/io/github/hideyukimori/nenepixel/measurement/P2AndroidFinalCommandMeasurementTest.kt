@@ -13,40 +13,25 @@ internal class P2AndroidFinalCommandMeasurementTest {
         val environment = P2AndroidMeasurementEnvironment.fromRunnerArguments()
         val identity = P2AndroidRunIdentity.fromRunnerArguments()
         val plan = P2AndroidFinalCommandProtocol.resolve(environment, identity)
+        val configuration = P2FinalCommandConfiguration(environment, identity, plan)
         val output = environment.finalCommandOutputFile(plan)
         val outputDirectory = requireNotNull(output.parentFile)
         check(outputDirectory.isDirectory || outputDirectory.mkdirs())
         val reservation = P2AndroidFinalCommandOutputPublication.reserve(output, plan.publicationPolicy)
         reservation.bindIdentity(plan, identity)
-        var phase = "correctness"
-        var completedCorrectness = 0
-        var completedWarmups = 0
-        var completedSamples = 0
-        val samples = mutableListOf<P2AndroidFinalCommandSample>()
+        val publication = P2FinalCommandPublication(reservation)
+        runWithFailureCapture(configuration, publication)
+    }
+
+    private fun runWithFailureCapture(
+        configuration: P2FinalCommandConfiguration,
+        publication: P2FinalCommandPublication,
+    ) {
         try {
-            runMeasurement(
-                environment = environment,
-                identity = identity,
-                plan = plan,
-                reservation = reservation,
-                samples = samples,
-                progress = { nextPhase, correctnessCount, warmupCount, sampleCount ->
-                    phase = nextPhase
-                    completedCorrectness = correctnessCount
-                    completedWarmups = warmupCount
-                    completedSamples = sampleCount
-                },
-            )
+            runMeasurement(configuration, publication)
         } catch (failure: Throwable) {
             try {
-                reservation.recordFailure(
-                    phase,
-                    completedCorrectness,
-                    completedWarmups,
-                    completedSamples,
-                    samples,
-                    failure,
-                )
+                publication.reservation.recordFailure(publication.progress, publication.samples, failure)
             } catch (publicationFailure: Throwable) {
                 failure.addSuppressed(publicationFailure)
             }
@@ -55,115 +40,140 @@ internal class P2AndroidFinalCommandMeasurementTest {
     }
 
     private fun runMeasurement(
-        environment: P2AndroidMeasurementEnvironment,
-        identity: P2AndroidRunIdentity,
-        plan: P2AndroidFinalCommandPlan,
-        reservation: P2AndroidFinalCommandOutputPublication.Reservation,
-        samples: MutableList<P2AndroidFinalCommandSample>,
-        progress: (String, Int, Int, Int) -> Unit,
+        configuration: P2FinalCommandConfiguration,
+        publication: P2FinalCommandPublication,
     ) {
-        val specs = plan.specs
-        val correctness =
-            specs.mapIndexed { index, spec ->
-                P2AndroidCommandMeasurementRunner.verifyCorrectness(spec).also {
-                    progress("correctness", index + 1, 0, 0)
-                }
-            }
-        val expectedOutcomes =
-            specs
-                .mapIndexed { index, spec ->
-                    val outcome =
-                        P2AndroidCommandMeasurementRunner
-                            .warmUp(spec, plan.warmupIterations)
-                            .also {
-                                assertEquals(correctness[index].outcome, it)
-                                progress(
-                                    "warmup",
-                                    correctness.size,
-                                    (index + 1) * plan.warmupIterations,
-                                    0,
-                                )
-                            }
-                    spec to outcome
-                }.toMap()
-        val baselineMemory = PostGcMemorySnapshot.captureBaseline(environment)
-        val display = P2AndroidPhysicalCheckpointCapture.defaultDisplay(environment.targetContext)
-        val baselineCheckpoint =
-            P2AndroidPhysicalCheckpointCapture
-                .capture(environment.targetContext, display, "before_samples", sampleIndex = 0)
-                .also(P2AndroidFinalCommandProfile::validateBaselineCheckpoint)
-        val checkpoints = mutableListOf(baselineCheckpoint)
-        var globalSampleIndex = 0
-        specs.forEach { spec ->
-            repeat(plan.samplesPerWorkload) { zeroBasedIndex ->
-                val localSampleIndex = zeroBasedIndex + 1
-                progress(
-                    "samples",
-                    correctness.size,
-                    plan.workloadCount * plan.warmupIterations,
-                    globalSampleIndex,
-                )
-                globalSampleIndex += 1
-                val execution = P2AndroidCommandMeasurementRunner.executeMeasured(spec)
-                assertEquals(expectedOutcomes.getValue(spec), execution.outcome)
-                samples +=
-                    P2AndroidFinalCommandSample(
-                        spec = spec,
-                        indices =
-                            P2AndroidFinalCommandSample.Indices(
-                                local = localSampleIndex,
-                                global = globalSampleIndex,
-                            ),
-                        observation =
-                            P2AndroidFinalCommandSample.Observation(
-                                latencyNanos = execution.latencyNanos,
-                                runtimeDelta = execution.runtimeDelta,
-                            ),
-                        outcome = execution.outcome,
-                    )
-                progress(
-                    "samples",
-                    correctness.size,
-                    plan.workloadCount * plan.warmupIterations,
-                    globalSampleIndex,
-                )
-                if (globalSampleIndex % P2AndroidPhysicalCheckpointPolicy.CHECKPOINT_INTERVAL == 0) {
-                    captureCompatibleCheckpoint(
-                        environment,
-                        display,
-                        baselineCheckpoint,
-                        P2FinalCheckpointIdentity("after_$globalSampleIndex", globalSampleIndex),
-                    ).also(checkpoints::add)
-                }
+        val specs = configuration.plan.specs
+        val correctness = verifyCorrectness(specs, publication.progress)
+        val expectedOutcomes = warmUp(specs, configuration.plan, correctness, publication.progress)
+        val preparation = P2FinalCommandPreparation(specs, correctness, expectedOutcomes)
+        val baselineMemory = PostGcMemorySnapshot.captureBaseline(configuration.environment)
+        val checkpoints = baselineCheckpoints(configuration.environment)
+        val globalSampleIndex = recordSamples(configuration, publication, preparation, checkpoints)
+        captureCompatibleCheckpoint(
+            configuration.environment,
+            checkpoints.display,
+            checkpoints.baseline,
+            P2FinalCheckpointIdentity("after_samples", globalSampleIndex),
+        ).also(checkpoints.values::add)
+        publication.progress.update(
+            "publication",
+            correctness.size,
+            configuration.plan.workloadCount * configuration.plan.warmupIterations,
+            globalSampleIndex,
+        )
+        publish(
+            configuration,
+            publication,
+            preparation,
+            P2FinalCommandObservations(baselineMemory, checkpoints.values),
+        )
+    }
+
+    private fun verifyCorrectness(
+        specs: List<P2CommandWorkloadSpec>,
+        progress: P2FinalCommandProgress,
+    ): List<CommandCorrectnessDescriptor> =
+        specs.mapIndexed { index, spec ->
+            P2AndroidCommandMeasurementRunner.verifyCorrectness(spec).also {
+                progress.update("correctness", index + 1, 0, 0)
             }
         }
 
-        captureCompatibleCheckpoint(
-            environment,
-            display,
-            baselineCheckpoint,
-            P2FinalCheckpointIdentity("after_samples", globalSampleIndex),
-        ).also(checkpoints::add)
-        progress(
-            "publication",
-            correctness.size,
-            plan.workloadCount * plan.warmupIterations,
-            globalSampleIndex,
+    private fun warmUp(
+        specs: List<P2CommandWorkloadSpec>,
+        plan: P2AndroidFinalCommandPlan,
+        correctness: List<CommandCorrectnessDescriptor>,
+        progress: P2FinalCommandProgress,
+    ): Map<P2CommandWorkloadSpec, CommandOutcomeDescriptor> =
+        specs
+            .mapIndexed { index, spec ->
+                val outcome =
+                    P2AndroidCommandMeasurementRunner
+                        .warmUp(spec, plan.warmupIterations)
+                        .also {
+                            assertEquals(correctness[index].outcome, it)
+                            progress.update("warmup", correctness.size, (index + 1) * plan.warmupIterations, 0)
+                        }
+                spec to outcome
+            }.toMap()
+
+    private fun baselineCheckpoints(environment: P2AndroidMeasurementEnvironment): P2FinalCommandCheckpoints {
+        val display = P2AndroidPhysicalCheckpointCapture.defaultDisplay(environment.targetContext)
+        val baseline =
+            P2AndroidPhysicalCheckpointCapture
+                .capture(environment.targetContext, display, "before_samples", sampleIndex = 0)
+                .also(P2AndroidFinalCommandProfile::validateBaselineCheckpoint)
+        return P2FinalCommandCheckpoints(display, baseline, mutableListOf(baseline))
+    }
+
+    private fun recordSamples(
+        configuration: P2FinalCommandConfiguration,
+        publication: P2FinalCommandPublication,
+        preparation: P2FinalCommandPreparation,
+        checkpoints: P2FinalCommandCheckpoints,
+    ): Int {
+        val plan = configuration.plan
+        var globalSampleIndex = 0
+        preparation.specs.forEach { spec ->
+            repeat(plan.samplesPerWorkload) { zeroBasedIndex ->
+                val localSampleIndex = zeroBasedIndex + 1
+                publication.reportSampleProgress(plan, preparation.correctness.size, globalSampleIndex)
+                globalSampleIndex += 1
+                val execution = P2AndroidCommandMeasurementRunner.executeMeasured(spec)
+                assertEquals(preparation.expectedOutcomes.getValue(spec), execution.outcome)
+                publication.samples += sample(spec, localSampleIndex, globalSampleIndex, execution)
+                publication.reportSampleProgress(plan, preparation.correctness.size, globalSampleIndex)
+                if (globalSampleIndex % P2AndroidPhysicalCheckpointPolicy.CHECKPOINT_INTERVAL == 0) {
+                    captureCompatibleCheckpoint(
+                        configuration.environment,
+                        checkpoints.display,
+                        checkpoints.baseline,
+                        P2FinalCheckpointIdentity("after_$globalSampleIndex", globalSampleIndex),
+                    ).also(checkpoints.values::add)
+                }
+            }
+        }
+        return globalSampleIndex
+    }
+
+    private fun sample(
+        spec: P2CommandWorkloadSpec,
+        localSampleIndex: Int,
+        globalSampleIndex: Int,
+        execution: P2MeasuredCommandExecution,
+    ): P2AndroidFinalCommandSample =
+        P2AndroidFinalCommandSample(
+            spec = spec,
+            indices = P2AndroidFinalCommandSample.Indices(local = localSampleIndex, global = globalSampleIndex),
+            observation =
+                P2AndroidFinalCommandSample.Observation(
+                    latencyNanos = execution.latencyNanos,
+                    runtimeDelta = execution.runtimeDelta,
+                ),
+            outcome = execution.outcome,
         )
+
+    private fun publish(
+        configuration: P2FinalCommandConfiguration,
+        publication: P2FinalCommandPublication,
+        preparation: P2FinalCommandPreparation,
+        observations: P2FinalCommandObservations,
+    ) {
         val output =
             P2AndroidFinalCommandMeasurementReport.write(
                 P2AndroidFinalCommandReportInput(
-                    plan = plan,
-                    run = P2AndroidFinalCommandReportInput.Run(environment, identity),
+                    plan = configuration.plan,
+                    run = P2AndroidFinalCommandReportInput.Run(configuration.environment, configuration.identity),
                     observations =
                         P2AndroidFinalCommandReportInput.Observations(
-                            correctness = correctness,
-                            baseline = baselineMemory,
-                            checkpoints = checkpoints,
-                            samples = samples,
+                            correctness = preparation.correctness,
+                            baseline = observations.baselineMemory,
+                            checkpoints = observations.checkpoints,
+                            samples = publication.samples,
                         ),
                 ),
-                reservation,
+                publication.reservation,
             )
         assertTrue(output.isFile)
         assertTrue(output.length() > 0L)
@@ -180,6 +190,44 @@ internal class P2AndroidFinalCommandMeasurementTest {
             .capture(environment.targetContext, display, identity.name, identity.sampleIndex)
             .also { checkpoint -> checkpoint.assertCompatibleWith(baseline) }
 }
+
+private data class P2FinalCommandConfiguration(
+    val environment: P2AndroidMeasurementEnvironment,
+    val identity: P2AndroidRunIdentity,
+    val plan: P2AndroidFinalCommandPlan,
+)
+
+private class P2FinalCommandPublication(
+    val reservation: P2AndroidFinalCommandOutputPublication.Reservation,
+) {
+    val samples = mutableListOf<P2AndroidFinalCommandSample>()
+    val progress = P2FinalCommandProgress("correctness", 0, 0, 0)
+
+    fun reportSampleProgress(
+        plan: P2AndroidFinalCommandPlan,
+        correctnessCount: Int,
+        globalSampleIndex: Int,
+    ) {
+        progress.update("samples", correctnessCount, plan.workloadCount * plan.warmupIterations, globalSampleIndex)
+    }
+}
+
+private data class P2FinalCommandPreparation(
+    val specs: List<P2CommandWorkloadSpec>,
+    val correctness: List<CommandCorrectnessDescriptor>,
+    val expectedOutcomes: Map<P2CommandWorkloadSpec, CommandOutcomeDescriptor>,
+)
+
+private data class P2FinalCommandCheckpoints(
+    val display: android.view.Display,
+    val baseline: P2AndroidPhysicalCheckpoint,
+    val values: MutableList<P2AndroidPhysicalCheckpoint>,
+)
+
+private data class P2FinalCommandObservations(
+    val baselineMemory: PostGcMemorySnapshot,
+    val checkpoints: List<P2AndroidPhysicalCheckpoint>,
+)
 
 private data class P2FinalCheckpointIdentity(
     val name: String,
