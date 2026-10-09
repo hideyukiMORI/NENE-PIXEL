@@ -7,9 +7,10 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'measurements/p4-indexed-frame-analysis.ps1')
 . (Join-Path $PSScriptRoot 'measurements/p4-indexed-device-lanes.ps1')
 . (Join-Path $PSScriptRoot 'measurements/p4-indexed-preflight.ps1')
+. (Join-Path $PSScriptRoot 'measurements/nene-pixel-lab.ps1')
 
-$temporaryRoot = Join-Path ([IO.Path]::GetTempPath()) ("nene-p4-frame-analysis-" + [guid]::NewGuid().ToString('N'))
-New-Item -ItemType Directory -Path $temporaryRoot | Out-Null
+$temporaryDirectory = New-NenePixelLabTemporaryDirectory -Prefix 'nene-p4-frame-analysis' -StartDirectory $PSScriptRoot
+$temporaryRoot = $temporaryDirectory.Path
 
 $baselineCommit = '1' * 40
 $candidateCommit = '2' * 40
@@ -1104,9 +1105,5 @@ try {
     Write-Output 'P4 frame analyzer and device-lane assembly validation: PASS'
 }
 finally {
-    $resolvedTemporaryRoot = [IO.Path]::GetFullPath($temporaryRoot)
-    $resolvedSystemTemp = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
-    if ($resolvedTemporaryRoot.StartsWith($resolvedSystemTemp, [StringComparison]::OrdinalIgnoreCase)) {
-        Remove-Item -LiteralPath $resolvedTemporaryRoot -Recurse -Force -ErrorAction SilentlyContinue
-    }
+    Remove-NenePixelLabTemporaryDirectory -Directory $temporaryDirectory
 }

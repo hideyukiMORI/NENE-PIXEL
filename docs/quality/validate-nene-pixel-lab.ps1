@@ -4,7 +4,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'measurements/nene-pixel-lab.ps1')
 
-# Synthetic trees under a temporary directory only; the real lab folder is never read or changed.
+# Synthetic resolver trees live in one fresh lab output; unrelated lab contents remain untouched.
 
 function Assert-NenePixelLabRejects {
     param([scriptblock]$Action, [string]$Case)
@@ -25,7 +25,19 @@ function New-NenePixelLabDirectory {
 }
 
 $savedLab = [Environment]::GetEnvironmentVariable('NENE_PIXEL_LAB')
-$testRoot = Join-Path ([IO.Path]::GetTempPath()) ('nene-pixel-lab-test-' + [guid]::NewGuid().ToString('N'))
+$testDirectory = New-NenePixelLabTemporaryDirectory -Prefix 'nene-pixel-lab-test' -StartDirectory $PSScriptRoot
+$testRoot = $testDirectory.Path
+$script:isolateFixtureAncestors = $true
+function Test-Path {
+    param([string]$LiteralPath, [string]$PathType = 'Any')
+    # The fixture now lives beneath the real marked lab. Hide only marker observations above
+    # the synthetic root, so sibling/no-marker cases still exercise their intended ancestry.
+    $fullPath = [IO.Path]::GetFullPath($LiteralPath)
+    $insideFixture = $fullPath.StartsWith($testRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::Ordinal)
+    if ($script:isolateFixtureAncestors -and [IO.Path]::GetFileName($fullPath) -ceq '.nene-pixel-lab' -and
+        -not $insideFixture) { return $false }
+    return Microsoft.PowerShell.Management\Test-Path -LiteralPath $LiteralPath -PathType $PathType
+}
 try {
     [Environment]::SetEnvironmentVariable('NENE_PIXEL_LAB', $null)
 
@@ -71,10 +83,66 @@ try {
     Assert-NenePixelLabRejects { Get-NenePixelLabPath -RelativePath 'C:/outside' -StartDirectory $deepStart } 'drive path'
     Assert-NenePixelLabRejects { Get-NenePixelLabPath -RelativePath '../outside' -StartDirectory $deepStart } 'parent path'
     Assert-NenePixelLabRejects { Get-NenePixelLabPath -RelativePath 'clones/../../outside' -StartDirectory $deepStart } 'nested parent path'
+
+    # 7. Fixture allocation uses the same lab authority and requires a usable marked lab.
+    [Environment]::SetEnvironmentVariable('NENE_PIXEL_LAB', $unmarked)
+    Assert-NenePixelLabRejects { New-NenePixelLabTemporaryDirectory -Prefix 'fixture' } 'temporary without marker'
+    if (Test-Path -LiteralPath (Join-Path $unmarked 'outputs')) { throw 'Rejected lab was modified.' }
+    [Environment]::SetEnvironmentVariable('NENE_PIXEL_LAB', $environmentLab)
+    Assert-NenePixelLabRejects { New-NenePixelLabTemporaryDirectory -Prefix '../escape' } 'temporary prefix escape'
+    $first = New-NenePixelLabTemporaryDirectory -Prefix 'fixture'
+    $second = New-NenePixelLabTemporaryDirectory -Prefix 'fixture'
+    $expectedParent = [IO.Path]::GetFullPath((Join-Path $environmentLab 'outputs/temporary'))
+    Assert-NenePixelLabEquals ([IO.Path]::GetDirectoryName($first.Path)) $expectedParent 'temporary in lab'
+    if ($first.Path -ceq $second.Path) { throw 'Temporary allocations share a directory.' }
+    $payload = Join-Path $first.Path 'payload.txt'
+    [IO.File]::WriteAllText($payload, 'owned')
+    $sentinel = Join-Path $environmentLab 'unrelated.txt'
+    [IO.File]::WriteAllText($sentinel, 'keep')
+
+    # 8. A changed target must never delete a lab root, sibling allocation or unrelated output.
+    foreach ($target in @($environmentLab, $expectedParent, (Join-Path $environmentLab 'evidence'), $second.Path)) {
+        $changed = [pscustomobject]@{ LabRoot = $first.LabRoot; Name = $first.Name; Path = $target }
+        Assert-NenePixelLabRejects { Remove-NenePixelLabTemporaryDirectory $changed } 'cleanup target drift'
+    }
+    if ([IO.File]::ReadAllText($payload) -cne 'owned' -or [IO.File]::ReadAllText($sentinel) -cne 'keep') {
+        throw 'Rejected cleanup changed owned or unrelated data.'
+    }
+
+    # 9. Both an ancestor link and a link inside an allocated tree are refused before mutation.
+    $linkedLab = Join-Path $testRoot 'linked-lab'
+    $linkedChild = Join-Path $first.Path 'linked-child'
+    $linkType = if ($IsWindows) { 'Junction' } else { 'SymbolicLink' }
+    New-Item -ItemType $linkType -Path $linkedLab -Target $environmentLab | Out-Null
+    try {
+        [Environment]::SetEnvironmentVariable('NENE_PIXEL_LAB', $linkedLab)
+        Assert-NenePixelLabRejects { New-NenePixelLabTemporaryDirectory -Prefix 'fixture' } 'linked lab'
+    } finally {
+        [IO.Directory]::Delete($linkedLab)
+        [Environment]::SetEnvironmentVariable('NENE_PIXEL_LAB', $environmentLab)
+    }
+    New-Item -ItemType $linkType -Path $linkedChild -Target $second.Path | Out-Null
+    try {
+        Assert-NenePixelLabRejects { Remove-NenePixelLabTemporaryDirectory $first } 'linked child'
+        if (-not (Test-Path -LiteralPath $second.Path) -or [IO.File]::ReadAllText($payload) -cne 'owned') {
+            throw 'Linked cleanup modified a target before refusal.'
+        }
+    } finally {
+        [IO.Directory]::Delete($linkedChild)
+    }
+
+    # 10. Cleanup retains its original lab even when a resolver fixture changes the environment.
+    [Environment]::SetEnvironmentVariable('NENE_PIXEL_LAB', $markedLab)
+    Remove-NenePixelLabTemporaryDirectory $first
+    Remove-NenePixelLabTemporaryDirectory $second
+    Remove-NenePixelLabTemporaryDirectory $first
+    if ((Test-Path -LiteralPath $first.Path) -or (Test-Path -LiteralPath $second.Path) -or
+        [IO.File]::ReadAllText($sentinel) -cne 'keep') { throw 'Owned cleanup did not preserve its boundary.' }
 }
 finally {
+    $script:isolateFixtureAncestors = $false
     [Environment]::SetEnvironmentVariable('NENE_PIXEL_LAB', $savedLab)
-    if (Test-Path -LiteralPath $testRoot) { Remove-Item -LiteralPath $testRoot -Recurse -Force }
+    Remove-NenePixelLabTemporaryDirectory -Directory $testDirectory
 }
 
 Write-Output 'NENE_PIXEL_LAB_RESOLVER=PASS'

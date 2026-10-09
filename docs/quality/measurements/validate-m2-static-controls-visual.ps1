@@ -10,6 +10,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot 'nene-pixel-lab.ps1')
 
 $schema = "nene-pixel-m2-static-controls-color-tolerance-v1"
 $packageName = "io.github.hideyukimori.nenepixel"
@@ -263,8 +264,8 @@ function Test-VisualPair {
 }
 
 function Invoke-SelfTest {
-    $temporary = Join-Path ([System.IO.Path]::GetTempPath()) ("nene-ui-oracle-" + [guid]::NewGuid())
-    New-Item -ItemType Directory -Path $temporary | Out-Null
+    $temporaryDirectory = New-NenePixelLabTemporaryDirectory -Prefix 'nene-ui-oracle' -StartDirectory $PSScriptRoot
+    $temporary = $temporaryDirectory.Path
     try {
         $xml = @'
 <?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
@@ -396,7 +397,7 @@ function Invoke-SelfTest {
         "visual-oracle-self-test=PASS cases=8"
     }
     finally {
-        Remove-Item -LiteralPath $temporary -Recurse -Force
+        Remove-NenePixelLabTemporaryDirectory -Directory $temporaryDirectory
     }
 }
 
