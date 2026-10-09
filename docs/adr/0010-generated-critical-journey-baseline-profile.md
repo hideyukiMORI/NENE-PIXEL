@@ -76,11 +76,20 @@ the initial-fit, centered projection that the editor applies to a new document (
 `initial-fit-centered-v1` geometry as the frame collector): the canvas node describes the whole
 work surface, and the document occupies the largest centered rectangle of its aspect ratio inside
 it (Issue #151; dividing the surface itself by the document size taps the margin). Each iteration
-is stopped inside the autosave window, so the next launch can offer the recovery record of the
-previous iteration; the producer declines that offer through the visible discard control before it
-waits for the clean state, and never clears application data. It then performs the Pencil mutation, verifies the dirty state, performs Undo, and verifies the clean state.
+may leave a recovery record for the next launch; the producer declines an observed offer through
+the visible discard control before it waits for the clean state, and never clears application data.
+It then performs the Pencil mutation, verifies the dirty state, performs Undo, and verifies the
+clean state. The clean label describes the document checkpoint, not autosave completion.
 Those actions exercise the one production UI-to-command path. Fixed screen coordinates and direct
 state access are prohibited.
+
+The pinned Benchmark 1.5.0 collector does not guarantee that the application stops inside the
+autosave window. After the UI block returns, its partial-compilation path flushes ART profiles before
+killing the application; `MacrobenchmarkScope.killProcessAndFlushArtProfiles` first waits 5,000 ms
+in the foreground. Autosave can run during this interval. Issue #190 verified this in the published
+source, the pinned binary and the retained logcat timestamps. This corrects the earlier lifecycle
+description; it does not change the journey, add a wait, assert a publication result or establish the
+cause of a profile mismatch.
 
 The Baseline Profile producer's canonical journey uses UiAutomator's duration overload for Undo
 and for the recovery discard control with the same fixed 100 ms pointer-down interval (amended
@@ -155,6 +164,14 @@ the acceptance manifest; a matched pair manifest alone is not an acceptance resu
 The producer enables strict internal stability. This makes failure to converge within the
 producer's bounded iterations fatal, but does not replace the two-invocation comparison and does not
 claim that internal convergence prevents process-to-process rule variation.
+In the pinned 1.5.0 implementation, stability compares complete raw rule-line sets, including
+flags, over consecutive iterations; it is not a method-name-only comparison. Compiled state is reset
+for the first iteration, while later iterations retain accumulated profiles. Final output is sorted
+after the library's supported-format filtering. The public result exposes final profile files, not
+per-iteration profiles. Neither internal stability nor the UI clean label supplies an autosave
+publication barrier or evidence that two independent generations followed identical intermediate
+paths. Any additional diagnostic observer requires its own prospective identity and bounded plan;
+its result cannot substitute for the unchanged acceptance comparison.
 
 The canonical local `check` verifies that the manual file is absent, exactly one generated text
 profile exists, it is non-empty canonical UTF-8, and its recorded canonical SHA-256 matches.

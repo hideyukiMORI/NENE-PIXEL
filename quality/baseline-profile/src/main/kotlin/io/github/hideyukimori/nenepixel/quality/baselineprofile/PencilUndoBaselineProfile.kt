@@ -65,8 +65,8 @@ internal class PencilUndoBaselineProfile {
     }
 
     /**
-     * The previous iteration is stopped inside the autosave window, so the next launch may offer
-     * its recovery record. The offer replaces the clean label until it is declined.
+     * The collector flushes ART profiles before stopping the previous iteration, so autosave may
+     * leave a recovery record. The offer replaces the clean label until it is declined.
      * Both control taps use the same fixed pointer-down interval; a shorter press lets the ripple's delayed reset
      * path into the profile.
      */
