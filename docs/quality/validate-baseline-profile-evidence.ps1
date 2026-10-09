@@ -14,10 +14,10 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 . (Join-Path $PSScriptRoot 'generate-baseline-profile.ps1')
+. (Join-Path $PSScriptRoot 'measurements/nene-pixel-lab.ps1')
 
-$temporaryRoot = Join-Path ([System.IO.Path]::GetTempPath()) (
-    'nene-baseline-profile-evidence-' + [guid]::NewGuid().ToString('N')
-)
+$temporaryDirectory = New-NenePixelLabTemporaryDirectory -Prefix 'nene-baseline-profile-evidence' -StartDirectory $PSScriptRoot
+$temporaryRoot = $temporaryDirectory.Path
 
 function Assert-Equal {
     param(
@@ -421,7 +421,6 @@ function Assert-InvalidInvocationManifest {
 }
 
 try {
-    New-Item -ItemType Directory -Path $temporaryRoot | Out-Null
     Assert-NativeTimeoutQuiescence
     $lf = "HSPLexample/Canvas;->draw()V`nSPLexample/Undo;->run()V"
     $crlf = $lf.Replace("`n", "`r`n")
@@ -901,9 +900,5 @@ try {
     )
 }
 finally {
-    $resolvedTemporaryRoot = [System.IO.Path]::GetFullPath($temporaryRoot)
-    $resolvedSystemTemp = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath())
-    if ($resolvedTemporaryRoot.StartsWith($resolvedSystemTemp, [System.StringComparison]::OrdinalIgnoreCase)) {
-        Remove-Item -LiteralPath $resolvedTemporaryRoot -Recurse -Force -ErrorAction SilentlyContinue
-    }
+    Remove-NenePixelLabTemporaryDirectory -Directory $temporaryDirectory
 }

@@ -85,8 +85,8 @@ Assert-P4TestRejects { Assert-P4ManifestContract @{ schema = $script:P4ManifestS
 Assert-P4TestRejects { Assert-P4RequiredValue @{} empty } 'empty inventory'
 Assert-P4TestRejects { Read-P4PositiveInt64 '9223372036854775808' } 'overflow'
 
-$testRoot = Join-Path ([IO.Path]::GetTempPath()) ('nene-p4-contract-' + [guid]::NewGuid().ToString('N'))
-New-Item -ItemType Directory -Path $testRoot | Out-Null
+$testDirectory = New-NenePixelLabTemporaryDirectory -Prefix 'nene-p4-contract' -StartDirectory $PSScriptRoot
+$testRoot = $testDirectory.Path
 $source = Join-Path $testRoot 'immutable.txt'
 Write-NewInvocationFile $source 'source'
 $record = [ordered]@{ relative_path = 'fixture/immutable.txt'; path = $source; byte_count = 6; sha256 = Get-FileSha256 $source }

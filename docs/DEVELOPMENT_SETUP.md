@@ -243,6 +243,13 @@ Rules:
   repository. Clones and worktrees inside the lab find it through the marker; set `NENE_PIXEL_LAB`
   for a script that runs from a repository outside the lab. No tracked file names the lab by an
   absolute path.
+- Synthetic validator fixtures use `New-NenePixelLabTemporaryDirectory` from the same helper.
+  It allocates a fresh directory under `outputs/temporary/` in the marked lab and never falls back
+  to the system temporary directory. Validators that already retain diagnostic fixtures continue
+  to report their paths. Validators that clean up pass the original returned directory record to
+  `Remove-NenePixelLabTemporaryDirectory`; cleanup checks the exact allocated path and refuses
+  links, the lab root, evidence and unrelated output. A missing lab must be configured before the
+  validator runs; changing `TEMP` or `TMP` is unnecessary.
 - Older evidence documents and recorded manifests keep the paths they were written with.
   [Evidence Locations](quality/EVIDENCE_LOCATIONS.md) maps those paths to the lab and lists the
   evidence that was lost before the move.
