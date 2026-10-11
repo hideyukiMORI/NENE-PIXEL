@@ -27,6 +27,61 @@ function Assert-P4NativeContext([System.Collections.IDictionary] $Context, [stri
     if (-not [IO.File]::Exists($Context.adb_path)) { throw 'Invalid adb path' }
 }
 
+function Get-P4AdbServerListener([string] $AdbPath) {
+    try {
+        $connections = @(Get-NetTCPConnection -LocalPort 5037 -State Listen -ErrorAction Stop)
+    } catch {
+        if ($_.CategoryInfo.Category -ne 'ObjectNotFound') { throw }
+        $connections = @()
+    }
+    $rows = [Collections.Generic.List[object]]::new()
+    foreach ($connection in $connections) {
+        $owner = [int] $connection.OwningProcess
+        $process = Get-CimInstance Win32_Process -Filter "ProcessId = $owner" -ErrorAction Stop
+        $rows.Add([ordered]@{
+                local_address = [string] $connection.LocalAddress
+                local_port = [int] $connection.LocalPort
+                owning_process = $owner
+                process_name = if ($null -ne $process) { [string] $process.Name } else { $null }
+                executable_path = if ($null -ne $process) { $process.ExecutablePath } else { $null }
+            })
+    }
+    return ,([object[]] $rows.ToArray())
+}
+
+function Assert-P4AdbServerReady([System.Collections.IDictionary] $Context, [string] $Stage) {
+    $recordPath = Join-Path $Context.output_directory "$Stage-adb-server.json"
+    if ([IO.File]::Exists($recordPath) -or [IO.Directory]::Exists($recordPath)) {
+        throw "Native capture output path already exists: $recordPath"
+    }
+    [object[]] $rows = Get-P4AdbServerListener $Context.adb_path
+    $adbPath = [IO.Path]::GetFullPath($Context.adb_path)
+    $reason = $null
+    if ($rows.Count -eq 0) {
+        $reason = 'ADB server not listening on 5037; start it separately and use a new evidence identity'
+    } elseif (@($rows | ForEach-Object { $_.owning_process } | Sort-Object -Unique).Count -ne 1) {
+        $reason = 'ADB listener owned by more than one process'
+    } elseif ($rows[0].process_name -ine 'adb.exe' -or $null -eq $rows[0].executable_path) {
+        $reason = 'ADB listener owner is not adb.exe'
+    } elseif (-not [string]::Equals([IO.Path]::GetFullPath($rows[0].executable_path), $adbPath,
+            [StringComparison]::OrdinalIgnoreCase)) {
+        $reason = 'ADB listener owner is not the configured adb'
+    }
+    $record = [ordered]@{
+        schema = 'nene-pixel-adb-server-admission-v1'
+        stage = $Stage
+        adb_path = $adbPath
+        port = 5037
+        observed_at = [DateTimeOffset]::Now.ToString('o')
+        listeners = @($rows)
+        verdict = if ($null -eq $reason) { 'ready' } else { 'refused' }
+        reason = $reason
+    }
+    Write-NewInvocationFile $recordPath ($record | ConvertTo-Json -Depth 5)
+    if ($null -ne $reason) { throw "ADB server admission refused: $reason" }
+    Assert-P4OperationActive $Context
+}
+
 function Read-P4NativeBytes([string] $Path) {
     return ,([IO.File]::ReadAllBytes($Path))
 }
@@ -134,6 +189,7 @@ function Get-P4NativePrivateInventory {
     param([Parameter(Mandatory)][System.Collections.IDictionary] $Context,
         [Parameter(Mandatory)][string] $Stage)
     Assert-P4NativeContext $Context $Stage
+    Assert-P4AdbServerReady $Context $Stage
     $features = Invoke-P4NativeCapture -Context $Context -Stage $Stage -Step 'features' `
         -AdbArguments @('features') -MaximumBytes 16384
     $featureLines = ConvertFrom-P4NativeLines $features -AllowCrLf
