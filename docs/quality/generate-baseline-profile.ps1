@@ -468,7 +468,10 @@ function Invoke-BaselineProfileEvidenceGeneration {
     $diagnosticPaths = @(
         '.nene-pixel-profile-diagnostic.json',
         'core/application/src/main/kotlin/io/github/hideyukimori/nenepixel/core/application/persistence/AutosaveDiagnosticObserver.kt',
-        'app/android/src/main/kotlin/io/github/hideyukimori/nenepixel/ProfileDiagnosticRecorder.kt'
+        'app/android/src/main/kotlin/io/github/hideyukimori/nenepixel/ProfileDiagnosticRecorder.kt',
+        'app/android/src/main/kotlin/io/github/hideyukimori/nenepixel/AutosaveSchedulerDiagnostics.kt',
+        'app/android/src/main/kotlin/io/github/hideyukimori/nenepixel/ProfileDiagnosticAndroid.kt',
+        'quality/baseline-profile/src/main/kotlin/io/github/hideyukimori/nenepixel/quality/baselineprofile/ProducerProfileDiagnosticRecorder.kt'
     )
     foreach ($relativePath in $diagnosticPaths) {
         if (Test-Path -LiteralPath (Join-Path $RepositoryRoot $relativePath)) {
