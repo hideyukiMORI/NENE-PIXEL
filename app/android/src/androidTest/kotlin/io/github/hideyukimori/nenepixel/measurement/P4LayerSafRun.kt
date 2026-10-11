@@ -5,10 +5,10 @@ import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
 import io.github.hideyukimori.nenepixel.MainActivity
+import io.github.hideyukimori.nenepixel.TestCoroutineDispatchers
 import io.github.hideyukimori.nenepixel.adapters.persistence.AndroidProjectStorageAdapter
 import io.github.hideyukimori.nenepixel.adapters.persistence.DocumentOutputFormat
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.rules.Timeout
 import org.junit.runner.Description
@@ -19,6 +19,7 @@ internal class P4LayerSafRun(
     private val compose: ComposeTestRule,
     private val admission: P4LayerRunAdmission,
 ) {
+    private val dispatchers = TestCoroutineDispatchers()
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val environment = P2AndroidMeasurementEnvironment.fromRunnerArguments()
     private val prefix = "p4-layer-saf-${admission.preflightSha256.take(12)}"
@@ -94,7 +95,7 @@ internal class P4LayerSafRun(
             AndroidProjectStorageAdapter.create(
                 instrumentation.targetContext.contentResolver,
                 picker,
-                Dispatchers.IO,
+                dispatchers.io,
             )
         runBlocking {
             destinations.forEachIndexed { ordinal, destination ->

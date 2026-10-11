@@ -23,7 +23,6 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.Persistence
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.presentation.compose.editor.AppLanguage
 import io.github.hideyukimori.nenepixel.presentation.compose.editor.AppLanguageStatus
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -34,6 +33,8 @@ import org.junit.Rule
 import org.junit.Test
 
 internal class AppLanguageUiTest {
+    private val dispatchers = TestCoroutineDispatchers()
+
     @get:Rule
     val composeRule = createAndroidComposeRule<MainActivity>()
     private var original: AppLanguage = AppLanguage.System
@@ -218,7 +219,7 @@ internal class AppLanguageUiTest {
     private fun storage(): AndroidAppLanguageStorage =
         AndroidAppLanguageStorage(
             InstrumentationRegistry.getInstrumentation().targetContext.applicationContext,
-            Dispatchers.IO,
+            dispatchers.io,
         )
 
     private fun MainActivity.languages(): AppLanguageViewModel =

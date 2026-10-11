@@ -78,7 +78,18 @@ internal object P2AndroidFinalCommandContractValidator {
     ) {
         val noOp = spec.kind == P2CommandWorkloadKind.DenseNoOp
         val undo = spec.kind in setOf(P2CommandWorkloadKind.DenseUndo, P2CommandWorkloadKind.PaletteManyToOneUndo)
-        val palette = spec.kind.ordinal >= P2CommandWorkloadKind.PaletteRecolorFull.ordinal
+        validateResult(outcome, noOp, undo)
+        validatePalette(spec.kind, outcome)
+        check(outcome.expectedDefinitionIdentity)
+        check(outcome.unchangedStateIdentity == noOp)
+        validateChangeSet(plan, spec, outcome, undo)
+    }
+
+    private fun validateResult(
+        outcome: CommandOutcomeDescriptor,
+        noOp: Boolean,
+        undo: Boolean,
+    ) {
         check(outcome.resultKind == if (noOp) "rejected_no_effective_change" else "applied")
         check(outcome.sourceRevision == if (undo) 1L else 0L)
         check(outcome.revision == if (undo || noOp) 0L else 1L)
@@ -90,45 +101,60 @@ internal object P2AndroidFinalCommandContractValidator {
                     else -> "undo_available"
                 },
         )
-        check(outcome.definitionTransition == if (palette) "changed" else "unchanged")
-        val expectedDefaultBefore =
-            when (spec.kind) {
-                P2CommandWorkloadKind.SparseApply,
-                P2CommandWorkloadKind.DenseApply,
-                P2CommandWorkloadKind.DenseEraser,
-                P2CommandWorkloadKind.DenseNoOp,
-                P2CommandWorkloadKind.DenseUndo,
-                P2CommandWorkloadKind.DenseRedo,
-                -> 2
+    }
 
-                P2CommandWorkloadKind.PaletteDefaultOnly,
-                P2CommandWorkloadKind.PaletteRecolorFull,
-                P2CommandWorkloadKind.PaletteManyToOneDense,
-                P2CommandWorkloadKind.PaletteManyToOneUndo,
-                P2CommandWorkloadKind.PaletteManyToOneRedo,
-                -> 0
-            }
+    private fun validatePalette(
+        kind: P2CommandWorkloadKind,
+        outcome: CommandOutcomeDescriptor,
+    ) {
+        val palette = kind.ordinal >= P2CommandWorkloadKind.PaletteRecolorFull.ordinal
+        check(outcome.definitionTransition == if (palette) "changed" else "unchanged")
+        val expectedDefaultBefore = expectedDefaultBefore(kind)
         val expectedDefaultAfter =
-            if (spec.kind == P2CommandWorkloadKind.PaletteDefaultOnly) 255 else expectedDefaultBefore
+            if (kind == P2CommandWorkloadKind.PaletteDefaultOnly) 255 else expectedDefaultBefore
         check(outcome.defaultIndexBefore == expectedDefaultBefore)
         check(outcome.defaultIndexAfter == expectedDefaultAfter)
-        check(outcome.expectedDefinitionIdentity)
-        check(outcome.unchangedStateIdentity == noOp)
-        if (noOp) {
+    }
+
+    private fun expectedDefaultBefore(kind: P2CommandWorkloadKind): Int =
+        when (kind) {
+            P2CommandWorkloadKind.SparseApply,
+            P2CommandWorkloadKind.DenseApply,
+            P2CommandWorkloadKind.DenseEraser,
+            P2CommandWorkloadKind.DenseNoOp,
+            P2CommandWorkloadKind.DenseUndo,
+            P2CommandWorkloadKind.DenseRedo,
+            -> 2
+
+            P2CommandWorkloadKind.PaletteDefaultOnly,
+            P2CommandWorkloadKind.PaletteRecolorFull,
+            P2CommandWorkloadKind.PaletteManyToOneDense,
+            P2CommandWorkloadKind.PaletteManyToOneUndo,
+            P2CommandWorkloadKind.PaletteManyToOneRedo,
+            -> 0
+        }
+
+    private fun validateChangeSet(
+        plan: P2AndroidFinalCommandPlan,
+        spec: P2CommandWorkloadSpec,
+        outcome: CommandOutcomeDescriptor,
+        undo: Boolean,
+    ) {
+        if (spec.kind == P2CommandWorkloadKind.DenseNoOp) {
             check(outcome.changeSetBeforeRevision == null)
             check(outcome.changeSetAfterRevision == null)
             check(outcome.renderInvalidation == null)
-        } else {
-            check(outcome.changeSetBeforeRevision == if (undo) 1L else 0L)
-            check(outcome.changeSetAfterRevision == if (undo) 0L else 1L)
-            val expectedRegion =
-                if (spec.kind == P2CommandWorkloadKind.SparseApply) {
-                    plan.sparseRegion
-                } else {
-                    plan.fullCanvasRegion
-                }
-            check(outcome.renderInvalidation == expectedRegion)
+            return
         }
+        check(outcome.changeSetBeforeRevision == if (undo) 1L else 0L)
+        check(outcome.changeSetAfterRevision == if (undo) 0L else 1L)
+        val expectedRegion =
+            if (spec.kind == P2CommandWorkloadKind.SparseApply) {
+                plan.sparseRegion
+            } else {
+                plan.fullCanvasRegion
+            }
+        check(outcome.renderInvalidation == expectedRegion)
     }
 
     private fun validateDiagnostics(sample: P2AndroidFinalCommandSample) {

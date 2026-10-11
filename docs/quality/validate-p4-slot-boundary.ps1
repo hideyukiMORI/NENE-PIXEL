@@ -3,6 +3,7 @@ param()
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'measurements/invoke-p4-indexed-slot.ps1') -ManifestPath fixture -SlotId fixture
+. (Join-Path $PSScriptRoot 'measurements/nene-pixel-lab.ps1')
 
 # All subprocess and device boundaries below are synthetic, local test replacements.
 # Actual artifact admission is covered separately; no ADB, JVM collector or Git mutation runs.
@@ -32,8 +33,8 @@ foreach ($entry in @($realQuiescence.offending)) {
     }
 }
 
-$script:probeRoot = Join-Path ([IO.Path]::GetTempPath()) ('nene-p4-slot-probe-' + [guid]::NewGuid().ToString('N'))
-New-Item -ItemType Directory -Path $script:probeRoot | Out-Null
+$script:probeDirectory = New-NenePixelLabTemporaryDirectory -Prefix 'nene-p4-slot-probe' -StartDirectory $PSScriptRoot
+$script:probeRoot = $script:probeDirectory.Path
 $realWorktree = Get-P4WorktreeState -Worktree $script:repositoryRoot -Stage 'probe' -Directory $script:probeRoot
 if ([string]$realWorktree.head -cnotmatch '^[0-9a-f]{40}$' -or
     -not (Test-Path -LiteralPath (Join-Path $script:probeRoot 'worktree-probe.json'))) {
@@ -352,8 +353,8 @@ function Invoke-BoundedNativeCommand {
 
 # --- Fixtures. ------------------------------------------------------------------------------------
 
-$script:testRoot = Join-Path ([IO.Path]::GetTempPath()) ('nene-p4-slot-fixture-' + [guid]::NewGuid().ToString('N'))
-New-Item -ItemType Directory -Path $script:testRoot | Out-Null
+$script:testDirectory = New-NenePixelLabTemporaryDirectory -Prefix 'nene-p4-slot-fixture' -StartDirectory $PSScriptRoot
+$script:testRoot = $script:testDirectory.Path
 
 function New-P4SlotFixture {
     param([string]$Name, [hashtable]$DeviceFiles = @{}, [string]$RunAsFailure = '')

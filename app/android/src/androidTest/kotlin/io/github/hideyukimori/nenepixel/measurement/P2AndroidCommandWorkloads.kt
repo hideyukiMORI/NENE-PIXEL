@@ -90,19 +90,64 @@ internal object P2CommandWorkloadCatalog {
 }
 
 internal data class CommandOutcomeDescriptor(
-    val resultKind: String,
-    val sourceRevision: Long,
-    val revision: Long,
-    val history: String,
-    val changeSetBeforeRevision: Long?,
-    val changeSetAfterRevision: Long?,
-    val renderInvalidation: P2CommandRegionDescriptor?,
-    val definitionTransition: String,
-    val defaultIndexBefore: Int,
-    val defaultIndexAfter: Int,
-    val expectedDefinitionIdentity: Boolean,
-    val unchangedStateIdentity: Boolean,
-)
+    val result: P2CommandResultDescriptor,
+    val revisions: Revisions,
+    val palette: PaletteTransition,
+    val state: State,
+) {
+    data class Revisions(
+        val sourceRevision: Long,
+        val revision: Long,
+    )
+
+    data class PaletteTransition(
+        val definitionTransition: String,
+        val defaultIndexBefore: Int,
+        val defaultIndexAfter: Int,
+        val expectedDefinitionIdentity: Boolean,
+    )
+
+    data class State(
+        val history: String,
+        val unchangedStateIdentity: Boolean,
+    )
+
+    val resultKind: String
+        get() = result.resultKind
+
+    val changeSetBeforeRevision: Long?
+        get() = result.changeSetBeforeRevision
+
+    val changeSetAfterRevision: Long?
+        get() = result.changeSetAfterRevision
+
+    val renderInvalidation: P2CommandRegionDescriptor?
+        get() = result.renderInvalidation
+
+    val sourceRevision: Long
+        get() = revisions.sourceRevision
+
+    val revision: Long
+        get() = revisions.revision
+
+    val definitionTransition: String
+        get() = palette.definitionTransition
+
+    val defaultIndexBefore: Int
+        get() = palette.defaultIndexBefore
+
+    val defaultIndexAfter: Int
+        get() = palette.defaultIndexAfter
+
+    val expectedDefinitionIdentity: Boolean
+        get() = palette.expectedDefinitionIdentity
+
+    val history: String
+        get() = state.history
+
+    val unchangedStateIdentity: Boolean
+        get() = state.unchangedStateIdentity
+}
 
 internal data class CommandCorrectnessDescriptor(
     val spec: P2CommandWorkloadSpec,
@@ -139,21 +184,44 @@ internal object P2CommandOraclePreparationTracker {
     fun eraserExpectedDocumentCount(): Int = eraserExpectedDocumentCount.get()
 }
 
+internal data class P2PreparedCommandExecution(
+    val gateway: CommandGateway,
+    val command: DocumentCommand,
+    val sourceDocument: DocumentState,
+)
+
+internal data class P2PreparedCommandOracle(
+    val expectedState: DocumentState?,
+    val unchangedStateReference: DocumentState?,
+    val expectedDefinition: PaletteDefinition,
+)
+
+internal data class P2PreparedCommandExpectation(
+    val expectedResult: ExpectedCommandResult,
+    val transition: P2ExpectedCommandTransition,
+    val history: HistoryAvailability,
+    val expectSameStateInstance: Boolean = false,
+)
+
 internal class PreparedCommandWorkload internal constructor(
     val spec: P2CommandWorkloadSpec,
-    private val gateway: CommandGateway,
-    private var command: DocumentCommand?,
-    private val expectedState: DocumentState?,
-    private val unchangedStateReference: DocumentState?,
-    private val expectedResult: ExpectedCommandResult,
-    private val sourceDocument: DocumentState,
-    private val expectedDefinition: PaletteDefinition,
-    private val expectedBeforeRevision: Long,
-    private val expectedAfterRevision: Long,
-    private val expectedHistory: HistoryAvailability,
-    private val expectedRenderInvalidation: PixelRegion?,
-    private val expectSameStateInstance: Boolean,
+    execution: P2PreparedCommandExecution,
+    oracle: P2PreparedCommandOracle,
+    expectation: P2PreparedCommandExpectation,
 ) {
+    private val gateway = execution.gateway
+    private var command: DocumentCommand? = execution.command
+    private val sourceDocument = execution.sourceDocument
+    private val expectedState = oracle.expectedState
+    private val unchangedStateReference = oracle.unchangedStateReference
+    private val expectedDefinition = oracle.expectedDefinition
+    private val expectedResult = expectation.expectedResult
+    private val expectedBeforeRevision = expectation.transition.beforeRevision
+    private val expectedAfterRevision = expectation.transition.afterRevision
+    private val expectedHistory = expectation.history
+    private val expectedRenderInvalidation = expectation.transition.renderInvalidation
+    private val expectSameStateInstance = expectation.expectSameStateInstance
+
     internal val correctnessOraclePrepared: Boolean = expectedState != null
 
     internal var fullStateVerificationPerformed: Boolean = false
@@ -181,21 +249,31 @@ internal class PreparedCommandWorkload internal constructor(
                     renderInvalidation = expectedRenderInvalidation,
                 ),
             )
-        return CommandOutcomeDescriptor(
-            resultKind = resultDescriptor.resultKind,
-            sourceRevision = sourceDocument.revision.value,
-            revision = runtimeState.documentState.revision.value,
-            history = runtimeState.historyAvailability.csvName(),
-            changeSetBeforeRevision = resultDescriptor.changeSetBeforeRevision,
-            changeSetAfterRevision = resultDescriptor.changeSetAfterRevision,
-            renderInvalidation = resultDescriptor.renderInvalidation,
-            definitionTransition = if (sourceDocument.definition === expectedDefinition) "unchanged" else "changed",
-            defaultIndexBefore = sourceDocument.definition.defaultIndex.value,
-            defaultIndexAfter = runtimeState.documentState.definition.defaultIndex.value,
-            expectedDefinitionIdentity = runtimeState.documentState.definition === expectedDefinition,
-            unchangedStateIdentity = runtimeState.documentState === unchangedStateReference,
-        )
+        return describeOutcome(resultDescriptor, runtimeState.documentState, runtimeState.historyAvailability)
     }
+
+    private fun describeOutcome(
+        result: P2CommandResultDescriptor,
+        document: DocumentState,
+        history: HistoryAvailability,
+    ): CommandOutcomeDescriptor =
+        CommandOutcomeDescriptor(
+            result = result,
+            revisions = CommandOutcomeDescriptor.Revisions(sourceDocument.revision.value, document.revision.value),
+            palette =
+                CommandOutcomeDescriptor.PaletteTransition(
+                    definitionTransition =
+                        if (sourceDocument.definition === expectedDefinition) "unchanged" else "changed",
+                    defaultIndexBefore = sourceDocument.definition.defaultIndex.value,
+                    defaultIndexAfter = document.definition.defaultIndex.value,
+                    expectedDefinitionIdentity = document.definition === expectedDefinition,
+                ),
+            state =
+                CommandOutcomeDescriptor.State(
+                    history = history.csvName(),
+                    unchangedStateIdentity = document === unchangedStateReference,
+                ),
+        )
 
     fun verifyCorrectness(result: CommandResult): CommandCorrectnessDescriptor {
         val runtimeState = gateway.runtimeState
@@ -269,25 +347,32 @@ private object WorkloadFactory {
         val initial = values.document(Revision.initial(), values.whitePixels())
         val path = if (sparse) values.diagonalPath() else values.densePath()
         val gateway = CommandGateway.create(initial)
-        return prepared(
+        return PreparedCommandWorkload(
             spec = spec,
-            gateway = gateway,
-            command = values.applyCommand(gateway, path),
-            sourceDocument = initial,
-            expectedDefinition = initial.definition,
-            expectedState =
-                if (correctness) {
-                    val expectedPixels = if (sparse) values.diagonalRedPixels() else values.redPixels()
-                    values.document(values.revision(1L), expectedPixels)
-                } else {
-                    null
-                },
-            unchangedStateReference = null,
-            expectedResult = ExpectedCommandResult.Applied,
-            beforeRevision = 0L,
-            afterRevision = 1L,
-            history = HistoryAvailability.UndoAvailable,
-            renderInvalidation = if (sparse) values.diagonalRegion() else values.fullRegion(),
+            execution = P2PreparedCommandExecution(gateway, values.applyCommand(gateway, path), initial),
+            oracle =
+                P2PreparedCommandOracle(
+                    expectedDefinition = initial.definition,
+                    expectedState =
+                        if (correctness) {
+                            val expectedPixels = if (sparse) values.diagonalRedPixels() else values.redPixels()
+                            values.document(values.revision(1L), expectedPixels)
+                        } else {
+                            null
+                        },
+                    unchangedStateReference = null,
+                ),
+            expectation =
+                P2PreparedCommandExpectation(
+                    expectedResult = ExpectedCommandResult.Applied,
+                    transition =
+                        P2ExpectedCommandTransition(
+                            0L,
+                            1L,
+                            if (sparse) values.diagonalRegion() else values.fullRegion(),
+                        ),
+                    history = HistoryAvailability.UndoAvailable,
+                ),
         )
     }
 
@@ -298,25 +383,27 @@ private object WorkloadFactory {
         val values = CoreMeasurementValues(spec.canvasWidth, spec.canvasHeight)
         val initial = values.document(Revision.initial(), values.redPixels())
         val gateway = CommandGateway.create(initial)
-        return prepared(
+        return PreparedCommandWorkload(
             spec = spec,
-            gateway = gateway,
-            command = values.eraseCommand(gateway, values.densePath()),
-            sourceDocument = initial,
-            expectedDefinition = initial.definition,
-            expectedState =
-                if (correctness) {
-                    P2CommandOraclePreparationTracker.recordEraserExpectedDocument()
-                    values.emptyDocument(values.revision(1L))
-                } else {
-                    null
-                },
-            unchangedStateReference = null,
-            expectedResult = ExpectedCommandResult.Applied,
-            beforeRevision = 0L,
-            afterRevision = 1L,
-            history = HistoryAvailability.UndoAvailable,
-            renderInvalidation = values.fullRegion(),
+            execution = P2PreparedCommandExecution(gateway, values.eraseCommand(gateway, values.densePath()), initial),
+            oracle =
+                P2PreparedCommandOracle(
+                    expectedDefinition = initial.definition,
+                    expectedState =
+                        if (correctness) {
+                            P2CommandOraclePreparationTracker.recordEraserExpectedDocument()
+                            values.emptyDocument(values.revision(1L))
+                        } else {
+                            null
+                        },
+                    unchangedStateReference = null,
+                ),
+            expectation =
+                P2PreparedCommandExpectation(
+                    expectedResult = ExpectedCommandResult.Applied,
+                    transition = P2ExpectedCommandTransition(0L, 1L, values.fullRegion()),
+                    history = HistoryAvailability.UndoAvailable,
+                ),
         )
     }
 
@@ -327,20 +414,22 @@ private object WorkloadFactory {
         val values = CoreMeasurementValues(spec.canvasWidth, spec.canvasHeight)
         val initial = values.document(Revision.initial(), values.redPixels())
         val gateway = CommandGateway.create(initial)
-        return prepared(
+        return PreparedCommandWorkload(
             spec = spec,
-            gateway = gateway,
-            command = values.applyCommand(gateway, values.densePath()),
-            sourceDocument = initial,
-            expectedDefinition = initial.definition,
-            expectedState = initial.takeIf { correctness },
-            unchangedStateReference = initial,
-            expectedResult = ExpectedCommandResult.NoEffectiveChange,
-            beforeRevision = 0L,
-            afterRevision = 0L,
-            history = HistoryAvailability.None,
-            renderInvalidation = null,
-            expectSameStateInstance = true,
+            execution = P2PreparedCommandExecution(gateway, values.applyCommand(gateway, values.densePath()), initial),
+            oracle =
+                P2PreparedCommandOracle(
+                    expectedDefinition = initial.definition,
+                    expectedState = initial.takeIf { correctness },
+                    unchangedStateReference = initial,
+                ),
+            expectation =
+                P2PreparedCommandExpectation(
+                    expectedResult = ExpectedCommandResult.NoEffectiveChange,
+                    transition = P2ExpectedCommandTransition(0L, 0L, null),
+                    history = HistoryAvailability.None,
+                    expectSameStateInstance = true,
+                ),
         )
     }
 
@@ -355,19 +444,21 @@ private object WorkloadFactory {
             .execute(values.applyCommand(gateway, values.densePath()))
             .requireApplied(P2ExpectedCommandTransition(0L, 1L, values.fullRegion()))
         val applied = gateway.runtimeState.documentState
-        return prepared(
+        return PreparedCommandWorkload(
             spec = spec,
-            gateway = gateway,
-            command = UndoCommand.create(applied.id, applied.revision),
-            sourceDocument = applied,
-            expectedDefinition = initial.definition,
-            expectedState = initial.takeIf { correctness },
-            unchangedStateReference = null,
-            expectedResult = ExpectedCommandResult.Applied,
-            beforeRevision = 1L,
-            afterRevision = 0L,
-            history = HistoryAvailability.RedoAvailable,
-            renderInvalidation = values.fullRegion(),
+            execution = P2PreparedCommandExecution(gateway, UndoCommand.create(applied.id, applied.revision), applied),
+            oracle =
+                P2PreparedCommandOracle(
+                    expectedDefinition = initial.definition,
+                    expectedState = initial.takeIf { correctness },
+                    unchangedStateReference = null,
+                ),
+            expectation =
+                P2PreparedCommandExpectation(
+                    expectedResult = ExpectedCommandResult.Applied,
+                    transition = P2ExpectedCommandTransition(1L, 0L, values.fullRegion()),
+                    history = HistoryAvailability.RedoAvailable,
+                ),
         )
     }
 
@@ -386,19 +477,21 @@ private object WorkloadFactory {
             .execute(UndoCommand.create(applied.id, applied.revision))
             .requireApplied(P2ExpectedCommandTransition(1L, 0L, values.fullRegion()))
         val undone = gateway.runtimeState.documentState
-        return prepared(
+        return PreparedCommandWorkload(
             spec = spec,
-            gateway = gateway,
-            command = RedoCommand.create(undone.id, undone.revision),
-            sourceDocument = undone,
-            expectedDefinition = applied.definition,
-            expectedState = applied.takeIf { correctness },
-            unchangedStateReference = null,
-            expectedResult = ExpectedCommandResult.Applied,
-            beforeRevision = 0L,
-            afterRevision = 1L,
-            history = HistoryAvailability.UndoAvailable,
-            renderInvalidation = values.fullRegion(),
+            execution = P2PreparedCommandExecution(gateway, RedoCommand.create(undone.id, undone.revision), undone),
+            oracle =
+                P2PreparedCommandOracle(
+                    expectedDefinition = applied.definition,
+                    expectedState = applied.takeIf { correctness },
+                    unchangedStateReference = null,
+                ),
+            expectation =
+                P2PreparedCommandExpectation(
+                    expectedResult = ExpectedCommandResult.Applied,
+                    transition = P2ExpectedCommandTransition(0L, 1L, values.fullRegion()),
+                    history = HistoryAvailability.UndoAvailable,
+                ),
         )
     }
 
@@ -437,19 +530,21 @@ private object WorkloadFactory {
             P2ExpectedCommandTransition(0L, 1L, values.fullRegion()),
         )
         val applied = gateway.runtimeState.documentState
-        return prepared(
+        return PreparedCommandWorkload(
             spec = spec,
-            gateway = gateway,
-            command = UndoCommand.create(applied.id, applied.revision),
-            sourceDocument = applied,
-            expectedDefinition = transition.initial.definition,
-            expectedState = transition.initial.takeIf { correctness },
-            unchangedStateReference = null,
-            expectedResult = ExpectedCommandResult.Applied,
-            beforeRevision = 1L,
-            afterRevision = 0L,
-            history = HistoryAvailability.RedoAvailable,
-            renderInvalidation = values.fullRegion(),
+            execution = P2PreparedCommandExecution(gateway, UndoCommand.create(applied.id, applied.revision), applied),
+            oracle =
+                P2PreparedCommandOracle(
+                    expectedDefinition = transition.initial.definition,
+                    expectedState = transition.initial.takeIf { correctness },
+                    unchangedStateReference = null,
+                ),
+            expectation =
+                P2PreparedCommandExpectation(
+                    expectedResult = ExpectedCommandResult.Applied,
+                    transition = P2ExpectedCommandTransition(1L, 0L, values.fullRegion()),
+                    history = HistoryAvailability.RedoAvailable,
+                ),
         )
     }
 
@@ -468,19 +563,21 @@ private object WorkloadFactory {
             P2ExpectedCommandTransition(1L, 0L, values.fullRegion()),
         )
         val undone = gateway.runtimeState.documentState
-        return prepared(
+        return PreparedCommandWorkload(
             spec = spec,
-            gateway = gateway,
-            command = RedoCommand.create(undone.id, undone.revision),
-            sourceDocument = undone,
-            expectedDefinition = transition.expected.definition,
-            expectedState = transition.expected.takeIf { correctness },
-            unchangedStateReference = null,
-            expectedResult = ExpectedCommandResult.Applied,
-            beforeRevision = 0L,
-            afterRevision = 1L,
-            history = HistoryAvailability.UndoAvailable,
-            renderInvalidation = values.fullRegion(),
+            execution = P2PreparedCommandExecution(gateway, RedoCommand.create(undone.id, undone.revision), undone),
+            oracle =
+                P2PreparedCommandOracle(
+                    expectedDefinition = transition.expected.definition,
+                    expectedState = transition.expected.takeIf { correctness },
+                    unchangedStateReference = null,
+                ),
+            expectation =
+                P2PreparedCommandExpectation(
+                    expectedResult = ExpectedCommandResult.Applied,
+                    transition = P2ExpectedCommandTransition(0L, 1L, values.fullRegion()),
+                    history = HistoryAvailability.UndoAvailable,
+                ),
         )
     }
 
@@ -490,58 +587,39 @@ private object WorkloadFactory {
         transition: IndexedPaletteTransitionFixture,
     ): PreparedCommandWorkload {
         val gateway = CommandGateway.create(transition.initial)
-        return prepared(
+        return PreparedCommandWorkload(
             spec = spec,
-            gateway = gateway,
-            command = ReplacePaletteCommand.create(gateway.captureSource(), transition.remap),
-            sourceDocument = transition.initial,
-            expectedDefinition = transition.expected.definition,
-            expectedState = transition.expected.takeIf { correctness },
-            unchangedStateReference = null,
-            expectedResult = ExpectedCommandResult.Applied,
-            beforeRevision = 0L,
-            afterRevision = 1L,
-            history = HistoryAvailability.UndoAvailable,
-            renderInvalidation = transition.expected.size.fullRegion(),
+            execution =
+                P2PreparedCommandExecution(
+                    gateway,
+                    ReplacePaletteCommand.create(gateway.captureSource(), transition.remap),
+                    transition.initial,
+                ),
+            oracle =
+                P2PreparedCommandOracle(
+                    expectedDefinition = transition.expected.definition,
+                    expectedState = transition.expected.takeIf { correctness },
+                    unchangedStateReference = null,
+                ),
+            expectation =
+                P2PreparedCommandExpectation(
+                    expectedResult = ExpectedCommandResult.Applied,
+                    transition = P2ExpectedCommandTransition(0L, 1L, transition.expected.size.fullRegion()),
+                    history = HistoryAvailability.UndoAvailable,
+                ),
         )
     }
-
-    private fun prepared(
-        spec: P2CommandWorkloadSpec,
-        gateway: CommandGateway,
-        command: DocumentCommand,
-        sourceDocument: DocumentState,
-        expectedDefinition: PaletteDefinition,
-        expectedState: DocumentState?,
-        unchangedStateReference: DocumentState?,
-        expectedResult: ExpectedCommandResult,
-        beforeRevision: Long,
-        afterRevision: Long,
-        history: HistoryAvailability,
-        renderInvalidation: PixelRegion?,
-        expectSameStateInstance: Boolean = false,
-    ): PreparedCommandWorkload =
-        PreparedCommandWorkload(
-            spec,
-            gateway,
-            command,
-            expectedState,
-            unchangedStateReference,
-            expectedResult,
-            sourceDocument,
-            expectedDefinition,
-            beforeRevision,
-            afterRevision,
-            history,
-            renderInvalidation,
-            expectSameStateInstance,
-        )
 }
 
 private data class IndexedPaletteTransitionFixture(
     val initial: DocumentState,
     val expected: DocumentState,
     val remap: PaletteRemap,
+)
+
+private data class IndexedPalettePixels(
+    val before: List<PaletteIndex>,
+    val after: List<PaletteIndex>,
 )
 
 private class IndexedPaletteMeasurementValues(
@@ -565,7 +643,7 @@ private class IndexedPaletteMeasurementValues(
         val target =
             PaletteDefinition.create(Palette.create(targetColors).requiredValue(), PaletteIndex.first).requiredValue()
         val pixels = List(canvas.pixelCount.toInt()) { PaletteIndex.first }
-        return fixture(sourceDefinition, target, pixels, pixels, identityDestinations)
+        return fixture(sourceDefinition, target, IndexedPalettePixels(pixels, pixels), identityDestinations)
     }
 
     fun defaultTransition(): IndexedPaletteTransitionFixture {
@@ -574,7 +652,7 @@ private class IndexedPaletteMeasurementValues(
                 .create(sourcePalette, PaletteIndex.create(PALETTE_SIZE - 1).requiredValue())
                 .requiredValue()
         val pixels = List(canvas.pixelCount.toInt()) { PaletteIndex.first }
-        return fixture(sourceDefinition, target, pixels, pixels, identityDestinations)
+        return fixture(sourceDefinition, target, IndexedPalettePixels(pixels, pixels), identityDestinations)
     }
 
     fun manyToOneTransition(): IndexedPaletteTransitionFixture {
@@ -590,7 +668,7 @@ private class IndexedPaletteMeasurementValues(
                 PaletteIndex.create(if (slot == 1) 0 else 1).requiredValue()
             }
         val after = before.map { source -> destinations[source.value] }
-        return fixture(sourceDefinition, target, before, after, destinations)
+        return fixture(sourceDefinition, target, IndexedPalettePixels(before, after), destinations)
     }
 
     fun fullRegion(): PixelRegion = canvas.fullRegion()
@@ -598,13 +676,12 @@ private class IndexedPaletteMeasurementValues(
     private fun fixture(
         source: PaletteDefinition,
         target: PaletteDefinition,
-        before: List<PaletteIndex>,
-        after: List<PaletteIndex>,
+        pixels: IndexedPalettePixels,
         destinations: List<PaletteIndex>,
     ): IndexedPaletteTransitionFixture =
         IndexedPaletteTransitionFixture(
-            initial = document(source, Revision.initial(), before),
-            expected = document(target, Revision.create(1L).requiredValue(), after),
+            initial = document(source, Revision.initial(), pixels.before),
+            expected = document(target, Revision.create(1L).requiredValue(), pixels.after),
             remap = PaletteRemap.create(source, target, destinations).requiredValue(),
         )
 

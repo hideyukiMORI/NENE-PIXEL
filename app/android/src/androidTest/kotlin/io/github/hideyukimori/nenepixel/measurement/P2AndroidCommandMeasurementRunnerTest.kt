@@ -87,7 +87,11 @@ internal class P2AndroidCommandMeasurementRunnerTest {
             )
         reservation.bindIdentity(plan, identity)
 
-        reservation.recordFailure("warmup", 11, 27, 0, emptyList(), IllegalStateException("fixture failed"))
+        reservation.recordFailure(
+            P2FinalCommandProgress("warmup", 11, 27, 0),
+            emptyList(),
+            IllegalStateException("fixture failed"),
+        )
 
         val preserved = output.readText()
         assertTrue(preserved.contains("metadata,run_status,reserved"))

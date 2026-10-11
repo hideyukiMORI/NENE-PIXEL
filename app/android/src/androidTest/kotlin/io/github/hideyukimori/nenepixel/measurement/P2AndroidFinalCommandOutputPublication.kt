@@ -71,10 +71,7 @@ internal object P2AndroidFinalCommandOutputPublication {
         }
 
         fun recordFailure(
-            phase: String,
-            completedCorrectness: Int,
-            completedWarmups: Int,
-            completedSamples: Int,
+            progress: P2FinalCommandProgress,
             samples: List<P2AndroidFinalCommandSample>,
             failure: Throwable,
         ) {
@@ -83,10 +80,10 @@ internal object P2AndroidFinalCommandOutputPublication {
             output.appendText(
                 buildString {
                     appendLine("metadata,run_status,invalid")
-                    appendLine("metadata,failure_phase,${phase.csvCell()}")
-                    appendLine("metadata,completed_correctness,$completedCorrectness")
-                    appendLine("metadata,completed_warmups,$completedWarmups")
-                    appendLine("metadata,completed_samples,$completedSamples")
+                    appendLine("metadata,failure_phase,${progress.phase.csvCell()}")
+                    appendLine("metadata,completed_correctness,${progress.completedCorrectness}")
+                    appendLine("metadata,completed_warmups,${progress.completedWarmups}")
+                    appendLine("metadata,completed_samples,${progress.completedSamples}")
                     appendLine("metadata,failure_type,${failure.javaClass.name.csvCell()}")
                     appendLine(
                         "metadata,failure_message,${failure.message.orEmpty().take(MAX_FAILURE_MESSAGE).csvCell()}",
@@ -138,4 +135,23 @@ internal object P2AndroidFinalCommandOutputPublication {
     private fun String.csvCell(): String = "\"${replace("\"", "\"\"")}\""
 
     private const val MAX_FAILURE_MESSAGE: Int = 1_024
+}
+
+internal class P2FinalCommandProgress(
+    var phase: String,
+    var completedCorrectness: Int,
+    var completedWarmups: Int,
+    var completedSamples: Int,
+) {
+    fun update(
+        nextPhase: String,
+        correctnessCount: Int,
+        warmupCount: Int,
+        sampleCount: Int,
+    ) {
+        phase = nextPhase
+        completedCorrectness = correctnessCount
+        completedWarmups = warmupCount
+        completedSamples = sampleCount
+    }
 }

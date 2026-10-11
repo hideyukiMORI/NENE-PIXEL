@@ -70,10 +70,22 @@ internal object P2AndroidFinalCommandMeasurementReport {
     ): String = sampleRow(input, sample)
 
     private fun metadataRows(input: P2AndroidFinalCommandReportInput): List<String> {
+        val activityManager = input.environment.targetContext.getSystemService(ActivityManager::class.java)
+        val contractRows = contractMetadataRows(input.plan, input.identity)
+        return identityMetadataRows(input, contractRows) +
+            deviceMetadataRows(activityManager) +
+            emulatorMetadataRows(input.environment) +
+            workloadMetadataRows(contractRows) +
+            observationBoundaryRows() +
+            correctnessBoundaryRows()
+    }
+
+    private fun identityMetadataRows(
+        input: P2AndroidFinalCommandReportInput,
+        contractRows: Map<String, String>,
+    ): List<String> {
         val environment = input.environment
         val identity = input.identity
-        val activityManager = environment.targetContext.getSystemService(ActivityManager::class.java)
-        val contractRows = contractMetadataRows(input.plan, identity)
         return listOf(
             contractRows.getValue("schema"),
             contractRows.getValue("output_identity"),
@@ -85,6 +97,11 @@ internal object P2AndroidFinalCommandMeasurementReport {
             metadataRow("test_variant", "debugAndroidTest"),
             metadataRow("evidence_class", environment.evidenceClass),
             metadataRow("physical_profile_id", environment.profileId),
+        )
+    }
+
+    private fun deviceMetadataRows(activityManager: ActivityManager): List<String> =
+        listOf(
             metadataRow("manufacturer", Build.MANUFACTURER),
             metadataRow("model", Build.MODEL),
             metadataRow("product", Build.PRODUCT),
@@ -95,6 +112,10 @@ internal object P2AndroidFinalCommandMeasurementReport {
             metadataRow("supported_abis", Build.SUPPORTED_ABIS.joinToString("|")),
             metadataRow("runtime_max_memory_bytes", Runtime.getRuntime().maxMemory().toString()),
             metadataRow("memory_class_mib", activityManager.memoryClass.toString()),
+        )
+
+    private fun emulatorMetadataRows(environment: P2AndroidMeasurementEnvironment): List<String> =
+        listOf(
             metadataRow("ro.kernel.qemu", environment.emulatorDetection.kernelQemu),
             metadataRow("ro.boot.qemu", environment.emulatorDetection.bootQemu),
             metadataRow(
@@ -103,6 +124,10 @@ internal object P2AndroidFinalCommandMeasurementReport {
                     .ifEmpty { listOf("none") }
                     .joinToString("|"),
             ),
+        )
+
+    private fun workloadMetadataRows(contractRows: Map<String, String>): List<String> =
+        listOf(
             contractRows.getValue("canvas"),
             contractRows.getValue("workload_order"),
             contractRows.getValue("warmup_iterations_per_workload"),
@@ -111,6 +136,10 @@ internal object P2AndroidFinalCommandMeasurementReport {
             contractRows.getValue("sample_indices"),
             contractRows.getValue("checkpoint_interval_global_samples"),
             contractRows.getValue("checkpoint_row_count"),
+        )
+
+    private fun observationBoundaryRows(): List<String> =
+        listOf(
             metadataRow(
                 "measurement_boundary",
                 "one prepared CommandGateway.execute call only; fixture, ART snapshots, process memory, " +
@@ -127,6 +156,10 @@ internal object P2AndroidFinalCommandMeasurementReport {
                 "one post-GC process baseline before measured samples; sample memory columns are blank and retained " +
                     "Java heap and process PSS belong to the dedicated retained-memory route",
             ),
+        )
+
+    private fun correctnessBoundaryRows(): List<String> =
+        listOf(
             metadataRow(
                 "correctness_boundary",
                 "one separate pre-warmup execution per workload: exact DocumentState and complete pixels " +
@@ -142,10 +175,10 @@ internal object P2AndroidFinalCommandMeasurementReport {
             ),
             metadataRow(
                 "lower_level_boundary",
-                "private patch ordering, inverse records, and unaffected-pixel proofs remain in isolated canonical core tests",
+                "private patch ordering, inverse records, and unaffected-pixel proofs remain in isolated " +
+                    "canonical core tests",
             ),
         )
-    }
 
     private fun correctnessRow(
         input: P2AndroidFinalCommandReportInput,

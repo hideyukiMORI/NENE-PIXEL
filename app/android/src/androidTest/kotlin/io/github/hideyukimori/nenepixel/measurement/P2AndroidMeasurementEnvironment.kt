@@ -9,13 +9,39 @@ import java.util.concurrent.TimeUnit
 
 internal data class P2AndroidMeasurementEnvironment(
     val targetContext: Context,
-    val profileId: String,
-    val evidenceClass: String,
-    val emulatorDetection: EmulatorDetection,
-    val auxiliaryEmulatorArgumentPresent: Boolean,
-    val warmupIterations: Int,
-    val sampleCount: Int,
+    val evidence: Evidence,
+    val iterations: Iterations,
 ) {
+    data class Evidence(
+        val profileId: String,
+        val evidenceClass: String,
+        val emulatorDetection: EmulatorDetection,
+        val auxiliaryEmulatorArgumentPresent: Boolean,
+    )
+
+    data class Iterations(
+        val warmupIterations: Int,
+        val sampleCount: Int,
+    )
+
+    val profileId: String
+        get() = evidence.profileId
+
+    val evidenceClass: String
+        get() = evidence.evidenceClass
+
+    val emulatorDetection: EmulatorDetection
+        get() = evidence.emulatorDetection
+
+    val auxiliaryEmulatorArgumentPresent: Boolean
+        get() = evidence.auxiliaryEmulatorArgumentPresent
+
+    val warmupIterations: Int
+        get() = iterations.warmupIterations
+
+    val sampleCount: Int
+        get() = iterations.sampleCount
+
     fun finalCommandOutputFile(plan: P2AndroidFinalCommandPlan): File =
         File(targetContext.filesDir, plan.outputRelativePath)
 
@@ -32,21 +58,27 @@ internal data class P2AndroidMeasurementEnvironment(
             }
             return P2AndroidMeasurementEnvironment(
                 targetContext = InstrumentationRegistry.getInstrumentation().targetContext,
-                profileId = profileId,
-                evidenceClass = if (detection.isEmulator) AUXILIARY_EVIDENCE else PHYSICAL_EVIDENCE,
-                emulatorDetection = detection,
-                auxiliaryEmulatorArgumentPresent = auxiliaryEmulatorArgumentPresent,
-                warmupIterations =
-                    arguments.positiveInt(
-                        WARMUP_ARGUMENT,
-                        DEFAULT_WARMUP_ITERATIONS,
-                        MAX_WARMUP_ITERATIONS,
+                evidence =
+                    P2AndroidMeasurementEnvironment.Evidence(
+                        profileId = profileId,
+                        evidenceClass = if (detection.isEmulator) AUXILIARY_EVIDENCE else PHYSICAL_EVIDENCE,
+                        emulatorDetection = detection,
+                        auxiliaryEmulatorArgumentPresent = auxiliaryEmulatorArgumentPresent,
                     ),
-                sampleCount =
-                    arguments.positiveInt(
-                        SAMPLE_COUNT_ARGUMENT,
-                        DEFAULT_SAMPLE_COUNT,
-                        MAX_SAMPLE_COUNT,
+                iterations =
+                    P2AndroidMeasurementEnvironment.Iterations(
+                        warmupIterations =
+                            arguments.positiveInt(
+                                WARMUP_ARGUMENT,
+                                DEFAULT_WARMUP_ITERATIONS,
+                                MAX_WARMUP_ITERATIONS,
+                            ),
+                        sampleCount =
+                            arguments.positiveInt(
+                                SAMPLE_COUNT_ARGUMENT,
+                                DEFAULT_SAMPLE_COUNT,
+                                MAX_SAMPLE_COUNT,
+                            ),
                     ),
             )
         }

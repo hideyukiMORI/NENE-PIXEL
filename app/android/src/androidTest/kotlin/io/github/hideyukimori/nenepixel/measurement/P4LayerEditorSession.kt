@@ -102,17 +102,17 @@ internal class P4LayerEditorSession(
     fun undoRedoCycles(published: AutosaveStateToken) {
         repeat(10) {
             click("editor_undo")
-            withState {
+            withState { state ->
                 check(
-                    it.documentState.revision.value == 0L &&
-                        it.historyAvailability == HistoryAvailability.RedoAvailable,
+                    state.documentState.revision.value == 0L &&
+                        state.historyAvailability == HistoryAvailability.RedoAvailable,
                 )
             }
             click("editor_redo")
-            withState {
+            withState { state ->
                 check(
-                    it.documentState.revision.value == 1L &&
-                        it.historyAvailability == HistoryAvailability.UndoAvailable,
+                    state.documentState.revision.value == 1L &&
+                        state.historyAvailability == HistoryAvailability.UndoAvailable,
                 )
             }
         }

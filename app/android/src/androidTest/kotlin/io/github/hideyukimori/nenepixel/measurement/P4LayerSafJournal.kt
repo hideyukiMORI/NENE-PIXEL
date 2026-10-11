@@ -11,10 +11,15 @@ internal class P4LayerSafJournal {
 
     @Synchronized
     fun append(sample: P4LayerSafSample): Boolean {
-        if (!isOpen() || samples.size == 25 || sample.ordinal != samples.size) return false
-        if (samples.any { it.destination.uri == sample.destination.uri }) return false
-        samples.add(sample)
-        return true
+        if (!isOpen() || samples.size == 25 || sample.ordinal != samples.size) {
+            return false
+        }
+        return if (samples.none { it.destination.uri == sample.destination.uri }) {
+            samples.add(sample)
+            true
+        } else {
+            false
+        }
     }
 
     @Synchronized

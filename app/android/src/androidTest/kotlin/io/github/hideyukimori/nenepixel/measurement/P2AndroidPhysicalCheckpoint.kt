@@ -11,18 +11,67 @@ import java.util.Locale
 import kotlin.math.abs
 
 internal data class P2AndroidPhysicalCheckpoint(
-    val name: String,
-    val sampleIndex: Int,
-    val displayModeId: Int,
-    val physicalWidthPixels: Int,
-    val physicalHeightPixels: Int,
-    val refreshRateHertz: Float,
-    val thermalStatus: Int,
-    val powerSaveMode: Boolean,
-    val interactive: Boolean,
-    val usbPowered: Boolean,
-    val batteryLevelPercent: Int,
+    val identity: Identity,
+    val display: DisplayMode,
+    val power: Power,
+    val battery: Battery,
 ) {
+    data class Identity(
+        val name: String,
+        val sampleIndex: Int,
+    )
+
+    data class DisplayMode(
+        val displayModeId: Int,
+        val physicalWidthPixels: Int,
+        val physicalHeightPixels: Int,
+        val refreshRateHertz: Float,
+    )
+
+    data class Power(
+        val thermalStatus: Int,
+        val powerSaveMode: Boolean,
+        val interactive: Boolean,
+    )
+
+    data class Battery(
+        val usbPowered: Boolean,
+        val batteryLevelPercent: Int,
+    )
+
+    val name: String
+        get() = identity.name
+
+    val sampleIndex: Int
+        get() = identity.sampleIndex
+
+    val displayModeId: Int
+        get() = display.displayModeId
+
+    val physicalWidthPixels: Int
+        get() = display.physicalWidthPixels
+
+    val physicalHeightPixels: Int
+        get() = display.physicalHeightPixels
+
+    val refreshRateHertz: Float
+        get() = display.refreshRateHertz
+
+    val thermalStatus: Int
+        get() = power.thermalStatus
+
+    val powerSaveMode: Boolean
+        get() = power.powerSaveMode
+
+    val interactive: Boolean
+        get() = power.interactive
+
+    val usbPowered: Boolean
+        get() = battery.usbPowered
+
+    val batteryLevelPercent: Int
+        get() = battery.batteryLevelPercent
+
     fun assertInitialValidity() {
         check(thermalStatus <= P2AndroidPhysicalCheckpointPolicy.MAXIMUM_VALID_THERMAL_STATUS) {
             "Thermal status $thermalStatus exceeds the physical evidence limit."
@@ -93,17 +142,29 @@ internal object P2AndroidPhysicalCheckpointCapture {
             }
         val plugged = battery.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0)
         return P2AndroidPhysicalCheckpoint(
-            name = name,
-            sampleIndex = sampleIndex,
-            displayModeId = mode.modeId,
-            physicalWidthPixels = mode.physicalWidth,
-            physicalHeightPixels = mode.physicalHeight,
-            refreshRateHertz = mode.refreshRate,
-            thermalStatus = powerManager.currentThermalStatus,
-            powerSaveMode = powerManager.isPowerSaveMode,
-            interactive = powerManager.isInteractive,
-            usbPowered = plugged == BatteryManager.BATTERY_PLUGGED_USB,
-            batteryLevelPercent = battery.getIntExtra(BatteryManager.EXTRA_LEVEL, -1),
+            identity =
+                P2AndroidPhysicalCheckpoint.Identity(
+                    name = name,
+                    sampleIndex = sampleIndex,
+                ),
+            display =
+                P2AndroidPhysicalCheckpoint.DisplayMode(
+                    displayModeId = mode.modeId,
+                    physicalWidthPixels = mode.physicalWidth,
+                    physicalHeightPixels = mode.physicalHeight,
+                    refreshRateHertz = mode.refreshRate,
+                ),
+            power =
+                P2AndroidPhysicalCheckpoint.Power(
+                    thermalStatus = powerManager.currentThermalStatus,
+                    powerSaveMode = powerManager.isPowerSaveMode,
+                    interactive = powerManager.isInteractive,
+                ),
+            battery =
+                P2AndroidPhysicalCheckpoint.Battery(
+                    usbPowered = plugged == BatteryManager.BATTERY_PLUGGED_USB,
+                    batteryLevelPercent = battery.getIntExtra(BatteryManager.EXTRA_LEVEL, -1),
+                ),
         )
     }
 

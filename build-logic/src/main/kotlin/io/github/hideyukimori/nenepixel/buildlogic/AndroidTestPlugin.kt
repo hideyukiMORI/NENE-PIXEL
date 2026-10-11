@@ -26,6 +26,7 @@ public class AndroidTestPlugin : Plugin<Project> {
         target.configureDetekt(libraries.requiredVersion("detekt"))
 
         target.pluginManager.withPlugin("com.android.test") {
+            target.configureAndroidDetekt()
             configureAndroid(target)
             configureKotlin(target)
             target.tasks.named("check") {

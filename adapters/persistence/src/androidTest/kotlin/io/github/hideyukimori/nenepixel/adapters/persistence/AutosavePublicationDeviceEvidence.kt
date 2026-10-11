@@ -205,29 +205,33 @@ private class AutosavePublicationEvidenceRun(
         val random = Random(PSEUDO_RANDOM_SEED)
         val colors = IntArray(256) { random.nextInt() or OPAQUE_ALPHA }
         val indices = ByteArray(MAX_CANVAS_EDGE * MAX_CANVAS_EDGE) { random.nextInt(256).toByte() }
-        return document(MAX_DOCUMENT_ID, MAX_CANVAS_EDGE, colors, 255, indices)
+        return document(MAX_DOCUMENT_ID, MAX_CANVAS_EDGE, FixturePalette(colors, 255), indices)
     }
 
     private fun minimalDocument(): DocumentState =
         document(
             MIN_DOCUMENT_ID,
             MIN_CANVAS_EDGE,
-            intArrayOf(0, MIN_DOCUMENT_PIXEL),
-            0,
+            FixturePalette(intArrayOf(0, MIN_DOCUMENT_PIXEL), 0),
             byteArrayOf(1),
         )
+
+    private class FixturePalette(
+        val colors: IntArray,
+        val defaultIndex: Int,
+    )
 
     private fun document(
         id: String,
         edge: Int,
-        colors: IntArray,
-        defaultIndex: Int,
+        paletteInput: FixturePalette,
         indices: ByteArray,
     ): DocumentState {
         val size = CanvasSize.create(created(CanvasWidth.create(edge)), created(CanvasHeight.create(edge)))
         val revision = created(Revision.create(DOCUMENT_REVISION))
-        val palette = created(Palette.create(colors.map(PixelColor::fromPackedRgba8888)))
-        val definition = created(PaletteDefinition.create(palette, created(PaletteIndex.create(defaultIndex))))
+        val palette = created(Palette.create(paletteInput.colors.map(PixelColor::fromPackedRgba8888)))
+        val definition =
+            created(PaletteDefinition.create(palette, created(PaletteIndex.create(paletteInput.defaultIndex))))
         val snapshot = created(PixelSnapshot.createPackedIndices(size, indices))
         return created(DocumentState.createSingleLayer(created(DocumentId.create(id)), revision, definition, snapshot))
     }

@@ -20,7 +20,6 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryIns
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRecordPort
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentImportSource
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
@@ -37,6 +36,8 @@ import java.io.File
  * new `ViewModel`, which is what makes the startup Candidate observable at all.
  */
 internal class EditorRecoveryOfferTest {
+    private val dispatchers = TestCoroutineDispatchers()
+
     @get:Rule
     val composeRule = createEmptyComposeRule()
 
@@ -144,7 +145,7 @@ internal class EditorRecoveryOfferTest {
         }
 
     private fun probe(): RecoveryRecordPort =
-        AndroidRecoveryRecordAdapter.create(AtomicFile(recoveryPath()), Dispatchers.IO.limitedParallelism(1))
+        AndroidRecoveryRecordAdapter.create(AtomicFile(recoveryPath()), dispatchers.io.limitedParallelism(1))
 
     private fun recoveryFile(): AtomicFile = AtomicFile(recoveryPath())
 

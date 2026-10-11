@@ -28,7 +28,12 @@ internal class P2ProductionHistoryRetentionMeasurementTest {
         workload.exerciseUndoRedoCycles()
         workload.assertOwnerInventory()
         val afterCycles = PostGcMemorySnapshot.captureRetainedMemory(workload.gateway)
-        val reportText = report(runIndex, buildCommit, environment, workload, baseline, retained, afterCycles)
+        val reportText =
+            report(
+                P2RetentionReportRun(runIndex, buildCommit, environment),
+                workload,
+                P2RetentionSnapshots(baseline, retained, afterCycles),
+            )
         println(reportText)
         InstrumentationRegistry.getInstrumentation().sendStatus(
             HISTORY_REPORT_STATUS_CODE,
@@ -110,15 +115,17 @@ internal class P2ProductionHistoryRetentionMeasurementTest {
     }
 
     private fun report(
-        runIndex: Int,
-        buildCommit: String,
-        environment: P2AndroidMeasurementEnvironment,
+        run: P2RetentionReportRun,
         workload: P4HistoryRetentionWorkload,
-        baseline: PostGcMemorySnapshot,
-        retained: PostGcMemorySnapshot,
-        afterCycles: PostGcMemorySnapshot,
-    ): String =
-        listOf(
+        snapshots: P2RetentionSnapshots,
+    ): String {
+        val runIndex = run.runIndex
+        val buildCommit = run.buildCommit
+        val environment = run.environment
+        val baseline = snapshots.baseline
+        val retained = snapshots.retained
+        val afterCycles = snapshots.afterCycles
+        return listOf(
             "P4_HISTORY_RETENTION",
             "schema=${workload.schema}",
             "family=${workload.family}",
@@ -139,6 +146,7 @@ internal class P2ProductionHistoryRetentionMeasurementTest {
             "retained_pss_delta_kib=${retained.totalPssKilobytes - baseline.totalPssKilobytes}",
             "after_cycles_pss_kib=${afterCycles.totalPssKilobytes}",
         ).joinToString(separator = " ")
+    }
 
     private companion object {
         const val PROCESS_IDENTITY_STATUS_CODE: Int = 3
@@ -148,3 +156,15 @@ internal class P2ProductionHistoryRetentionMeasurementTest {
         const val P4_MEMORY_PROFILE: String = "NENE-P2-ALLDOCUBE-IPL80MP-A16-API36"
     }
 }
+
+internal data class P2RetentionReportRun(
+    val runIndex: Int,
+    val buildCommit: String,
+    val environment: P2AndroidMeasurementEnvironment,
+)
+
+internal data class P2RetentionSnapshots(
+    val baseline: PostGcMemorySnapshot,
+    val retained: PostGcMemorySnapshot,
+    val afterCycles: PostGcMemorySnapshot,
+)

@@ -11,13 +11,33 @@ internal data class P2AndroidFinalCommandPlan(
     )
 
     data class Workload(
-        val canvasWidth: Int,
-        val canvasHeight: Int,
-        val warmupIterations: Int,
-        val samplesPerWorkload: Int,
+        val canvas: Canvas,
+        val iterations: Iterations,
         val schema: String,
         val kinds: List<P2CommandWorkloadKind>,
-    )
+    ) {
+        data class Canvas(
+            val width: Int,
+            val height: Int,
+        )
+
+        data class Iterations(
+            val warmups: Int,
+            val samplesPerWorkload: Int,
+        )
+
+        val canvasWidth: Int
+            get() = canvas.width
+
+        val canvasHeight: Int
+            get() = canvas.height
+
+        val warmupIterations: Int
+            get() = iterations.warmups
+
+        val samplesPerWorkload: Int
+            get() = iterations.samplesPerWorkload
+    }
 
     data class Output(
         val outputIdentity: String,

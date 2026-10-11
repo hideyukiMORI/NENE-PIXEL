@@ -44,3 +44,56 @@ function Get-NenePixelLabPath {
     $root = Get-NenePixelLabRoot -StartDirectory $StartDirectory
     return "$root/$($RelativePath.Replace('\', '/'))"
 }
+
+function Assert-NenePixelLabPathHasNoLink {
+    param([Parameter(Mandatory)][string]$Path)
+    for ($directory = [IO.DirectoryInfo]::new([IO.Path]::GetFullPath($Path));
+        $null -ne $directory; $directory = $directory.Parent) {
+        if (Test-Path -LiteralPath $directory.FullName) {
+            $item = Get-Item -LiteralPath $directory.FullName -Force
+            if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+                throw "Temporary lab path contains a link: $($directory.FullName)"
+            }
+        }
+    }
+}
+
+function New-NenePixelLabTemporaryDirectory {
+    param(
+        [Parameter(Mandatory)][ValidatePattern('^[a-z][a-z0-9-]{0,47}$')][string]$Prefix,
+        [string]$StartDirectory = $PSScriptRoot
+    )
+    $labRoot = [IO.Path]::GetFullPath((Get-NenePixelLabRoot -StartDirectory $StartDirectory))
+    $parent = Join-Path $labRoot 'outputs/temporary'
+    $name = "$Prefix-$([guid]::NewGuid().ToString('N'))"
+    $path = [IO.Path]::GetFullPath((Join-Path $parent $name))
+    Assert-NenePixelLabPathHasNoLink $path
+    [IO.Directory]::CreateDirectory($parent) | Out-Null
+    New-Item -ItemType Directory -Path $path -ErrorAction Stop | Out-Null
+    # Keep the original authority for cleanup even if a resolver test changes NENE_PIXEL_LAB.
+    return [pscustomobject]@{ LabRoot = $labRoot; Name = $name; Path = $path }
+}
+
+function Remove-NenePixelLabTemporaryDirectory {
+    param([Parameter(Mandatory)][psobject]$Directory)
+    $labRoot = [IO.Path]::GetFullPath([string]$Directory.LabRoot)
+    $name = [string]$Directory.Name
+    if ($name -cnotmatch '^[a-z][a-z0-9-]{0,47}-[a-f0-9]{32}$') {
+        throw 'Temporary lab directory name is not an allocated identity.'
+    }
+    $path = [IO.Path]::GetFullPath([string]$Directory.Path)
+    $expected = [IO.Path]::GetFullPath((Join-Path (Join-Path $labRoot 'outputs/temporary') $name))
+    if ($path -cne $expected -or
+        -not (Test-Path -LiteralPath (Join-Path $labRoot '.nene-pixel-lab') -PathType Leaf)) {
+        throw 'Temporary lab cleanup target differs from its allocated directory.'
+    }
+    Assert-NenePixelLabPathHasNoLink $path
+    if (-not (Test-Path -LiteralPath $path)) { return }
+    if (-not (Test-Path -LiteralPath $path -PathType Container)) {
+        throw 'Temporary lab cleanup target is not a directory.'
+    }
+    $links = @(Get-ChildItem -LiteralPath $path -Recurse -Force -ErrorAction Stop |
+        Where-Object { $_.Attributes -band [IO.FileAttributes]::ReparsePoint })
+    if ($links.Count -gt 0) { throw 'Temporary lab cleanup tree contains a link.' }
+    Remove-Item -LiteralPath $path -Recurse -Force -ErrorAction Stop
+}

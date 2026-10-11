@@ -16,7 +16,6 @@ import androidx.test.platform.app.InstrumentationRegistry
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceLastOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationPhase
 import io.github.hideyukimori.nenepixel.presentation.compose.editor.AppLanguage
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -25,6 +24,8 @@ import org.junit.Rule
 import org.junit.Test
 
 internal class PngExportUiTest {
+    private val dispatchers = TestCoroutineDispatchers()
+
     @get:Rule
     val composeRule = createAndroidComposeRule<MainActivity>()
 
@@ -38,7 +39,7 @@ internal class PngExportUiTest {
         val storage =
             AndroidAppLanguageStorage(
                 InstrumentationRegistry.getInstrumentation().targetContext.applicationContext,
-                Dispatchers.IO,
+                dispatchers.io,
             )
         val original = (runBlocking { storage.read() } as AppLanguageRead.Loaded).language
         val selected = if (original == AppLanguage.Japanese) AppLanguage.English else AppLanguage.Japanese

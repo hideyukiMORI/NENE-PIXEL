@@ -5,8 +5,10 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 . (Join-Path $PSScriptRoot "measurements/m2-perfetto-session.ps1")
+. (Join-Path $PSScriptRoot 'measurements/nene-pixel-lab.ps1')
 
-$temporaryRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("nene-perfetto-session-" + [guid]::NewGuid().ToString("N"))
+$temporaryDirectory = New-NenePixelLabTemporaryDirectory -Prefix 'nene-perfetto-session' -StartDirectory $PSScriptRoot
+$temporaryRoot = $temporaryDirectory.Path
 
 function Invoke-ExpectedFailure {
     param(
@@ -117,7 +119,6 @@ function Start-FixtureSession {
 }
 
 try {
-    New-Item -ItemType Directory -Path $temporaryRoot | Out-Null
 
     $successState = New-State
     $success = Start-FixtureSession -Name "success" -State $successState
@@ -193,9 +194,5 @@ try {
     Write-Output "M2 Perfetto lifecycle fixture validation: PASS"
 }
 finally {
-    $resolvedTemporaryRoot = [System.IO.Path]::GetFullPath($temporaryRoot)
-    $resolvedSystemTemp = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath())
-    if ($resolvedTemporaryRoot.StartsWith($resolvedSystemTemp, [System.StringComparison]::OrdinalIgnoreCase)) {
-        Remove-Item -LiteralPath $resolvedTemporaryRoot -Recurse -Force -ErrorAction SilentlyContinue
-    }
+    Remove-NenePixelLabTemporaryDirectory -Directory $temporaryDirectory
 }

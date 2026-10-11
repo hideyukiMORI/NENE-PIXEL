@@ -3,6 +3,8 @@ package io.github.hideyukimori.nenepixel.buildlogic
 import org.gradle.testkit.runner.BuildResult
 import org.gradle.testkit.runner.GradleRunner
 import org.gradle.testkit.runner.TaskOutcome
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -34,6 +36,29 @@ internal class AndroidLibraryPluginTest {
         writeFile("src/main/kotlin/probe/Probe.kt", IMPLICIT_API_SOURCE)
         val rejectedBuild = runner("compileDebugKotlin").buildAndFail()
         assertTrue(rejectedBuild.output.contains("Visibility must be specified in explicit API mode"))
+    }
+
+    @Test
+    fun `typed detekt resolves Java test classes and rejects forbidden Java calls`() {
+        writeFixture()
+        // Release analyzed fixture JARs before JUnit removes the temporary directory on Windows.
+        writeFile("gradle.properties", "detekt.use.worker.api=true")
+        writeFile("config/detekt/detekt.yml", DETEKT_CONFIG + JAVA_CALL_RULE)
+        writeFile("build.gradle.kts", BUILD_FILE + DETEKT_DIAGNOSTICS)
+        writeFile("src/androidTest/java/probe/JavaAnswer.java", JAVA_TEST_SOURCE)
+        writeFile(ANDROID_TEST_SOURCE_PATH, MIXED_TEST_SOURCE)
+
+        val resolvedBuild = runner("detektDebugAndroidTest", "--write-locks").build()
+        assertSuccessfulTask(resolvedBuild, ":detektDebugAndroidTest")
+        assertFalse(resolvedBuild.output.contains("compiler errors found during analysis"), resolvedBuild.output)
+        assertSuccessfulTask(resolvedBuild, ":compileDebugAndroidTestJavaWithJavac")
+
+        writeFile(ANDROID_TEST_SOURCE_PATH, MIXED_TEST_SOURCE.replace("allowed()", "forbidden()"))
+        val rejectedBuild = runner("detektDebugAndroidTest").buildAndFail()
+        assertSuccessfulTask(rejectedBuild, ":compileDebugAndroidTestKotlin")
+        assertFalse(rejectedBuild.output.contains("compiler errors found during analysis"), rejectedBuild.output)
+        assertTrue(rejectedBuild.output.contains("ForbiddenMethodCall"), rejectedBuild.output)
+        assertEquals(TaskOutcome.FAILED, rejectedBuild.task(":detektDebugAndroidTest")?.outcome)
     }
 
     private fun runner(vararg arguments: String): GradleRunner =
@@ -77,6 +102,8 @@ internal class AndroidLibraryPluginTest {
     }
 
     private companion object {
+        const val ANDROID_TEST_SOURCE_PATH: String = "src/androidTest/kotlin/probe/JavaCall.kt"
+
         val SUCCESSFUL_OUTCOMES: Set<TaskOutcome> =
             setOf(TaskOutcome.SUCCESS, TaskOutcome.UP_TO_DATE, TaskOutcome.NO_SOURCE)
 
@@ -111,6 +138,34 @@ internal class AndroidLibraryPluginTest {
             config:
               validation: true
               warningsAsErrors: true
+        """
+
+        const val JAVA_CALL_RULE: String = """
+            style:
+              ForbiddenMethodCall:
+                active: true
+                methods: ['probe.JavaAnswer.forbidden']
+        """
+
+        const val DETEKT_DIAGNOSTICS: String = """
+            tasks.withType<dev.detekt.gradle.Detekt>().configureEach {
+                debug.set(true)
+            }
+        """
+
+        const val JAVA_TEST_SOURCE: String = """
+            package probe;
+
+            public final class JavaAnswer {
+                public static int allowed() { return 1; }
+                public static int forbidden() { return 2; }
+            }
+        """
+
+        const val MIXED_TEST_SOURCE: String = """
+            package probe
+
+            internal fun answer(): Int = JavaAnswer.allowed()
         """
 
         const val BUILD_FILE: String = """

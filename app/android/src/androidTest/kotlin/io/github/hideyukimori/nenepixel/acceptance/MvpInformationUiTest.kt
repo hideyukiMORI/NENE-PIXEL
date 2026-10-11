@@ -33,16 +33,8 @@ internal class MvpInformationUiTest {
             lateinit var editor: EditorRuntimeViewModel
             lateinit var languages: AppLanguageViewModel
             scenario.onActivity {
-                editor =
-                    ViewModelProvider(
-                        it,
-                        EditorRuntimeViewModel.factory(it.application),
-                    )[EditorRuntimeViewModel::class.java]
-                languages =
-                    ViewModelProvider(
-                        it,
-                        AppLanguageViewModel.factory(it.application),
-                    )[AppLanguageViewModel::class.java]
+                editor = it.editorModel()
+                languages = it.languageModel()
             }
             composeRule.waitUntil(TIMEOUT) { languages.controller.settings.value.status == AppLanguageStatus.Ready }
             val original = languages.controller.settings.value.selection
@@ -52,50 +44,63 @@ internal class MvpInformationUiTest {
                     AppLanguage.English to "About this version",
                     AppLanguage.Japanese to "このバージョンについて",
                     AppLanguage.SimplifiedChinese to "关于此版本",
-                ).forEach { (language, title) ->
-                    scenario.onActivity { languages.controller.select(language) }
-                    composeRule.waitUntil(TIMEOUT) {
-                        languages.controller.settings.value.let {
-                            it.selection == language &&
-                                it.status == AppLanguageStatus.Ready
-                        }
-                    }
-                    composeRule.onNodeWithTag("editor_file").performClick()
-                    composeRule.onNodeWithTag("editor_mvp_information").performScrollTo().performClick()
-                    composeRule.onNodeWithTag("editor_mvp_information_title").assertTextEquals(title)
-                    scenario.recreate()
-                    composeRule.waitUntil(TIMEOUT) {
-                        composeRule.onAllNodes(hasTestTag("editor_mvp_information_title")).fetchSemanticsNodes().size ==
-                            1
-                    }
-                    composeRule.onNodeWithTag("editor_mvp_information_title").assertTextEquals(title)
-                    capture(fixture, language.name.lowercase() + "-top")
-                    composeRule.onNodeWithTag("editor_mvp_compatibility_title").performScrollTo().assertExists()
-                    capture(fixture, language.name.lowercase() + "-bottom")
-                    composeRule.onNodeWithTag("editor_close_information").performClick()
-                    composeRule.onNodeWithTag("editor_mvp_information_title").assertDoesNotExist()
-                    composeRule.onNodeWithTag("editor_close_panel").performClick()
+                ).forEach { expectation ->
+                    verifyLocalizedInformation(scenario, fixture, languages, expectation)
                     scenario.onActivity {
-                        val current =
-                            ViewModelProvider(
-                                it,
-                                EditorRuntimeViewModel.factory(it.application),
-                            )[EditorRuntimeViewModel::class.java]
+                        val current = it.editorModel()
                         assertSame(editor, current)
                         assertEquals(before, current.runtime.state)
                     }
                 }
             } finally {
                 scenario.onActivity { languages.controller.select(original) }
-                composeRule.waitUntil(TIMEOUT) {
-                    languages.controller.settings.value.let {
-                        it.selection == original &&
-                            it.status == AppLanguageStatus.Ready
-                    }
-                }
+                awaitLanguage(languages, original)
             }
         }
     }
+
+    private fun verifyLocalizedInformation(
+        scenario: ActivityScenario<MainActivity>,
+        fixture: AcceptanceFixture,
+        languages: AppLanguageViewModel,
+        expectation: Pair<AppLanguage, String>,
+    ) {
+        val (language, title) = expectation
+        scenario.onActivity { languages.controller.select(language) }
+        awaitLanguage(languages, language)
+        composeRule.onNodeWithTag("editor_file").performClick()
+        composeRule.onNodeWithTag("editor_mvp_information").performScrollTo().performClick()
+        composeRule.onNodeWithTag("editor_mvp_information_title").assertTextEquals(title)
+        scenario.recreate()
+        composeRule.waitUntil(TIMEOUT) {
+            composeRule.onAllNodes(hasTestTag("editor_mvp_information_title")).fetchSemanticsNodes().size ==
+                1
+        }
+        composeRule.onNodeWithTag("editor_mvp_information_title").assertTextEquals(title)
+        capture(fixture, language.name.lowercase() + "-top")
+        composeRule.onNodeWithTag("editor_mvp_compatibility_title").performScrollTo().assertExists()
+        capture(fixture, language.name.lowercase() + "-bottom")
+        composeRule.onNodeWithTag("editor_close_information").performClick()
+        composeRule.onNodeWithTag("editor_mvp_information_title").assertDoesNotExist()
+        composeRule.onNodeWithTag("editor_close_panel").performClick()
+    }
+
+    private fun awaitLanguage(
+        languages: AppLanguageViewModel,
+        language: AppLanguage,
+    ) {
+        composeRule.waitUntil(TIMEOUT) {
+            languages.controller.settings.value.let {
+                it.selection == language && it.status == AppLanguageStatus.Ready
+            }
+        }
+    }
+
+    private fun MainActivity.editorModel(): EditorRuntimeViewModel =
+        ViewModelProvider(this, EditorRuntimeViewModel.factory(application))[EditorRuntimeViewModel::class.java]
+
+    private fun MainActivity.languageModel(): AppLanguageViewModel =
+        ViewModelProvider(this, AppLanguageViewModel.factory(application))[AppLanguageViewModel::class.java]
 
     private fun capture(
         fixture: AcceptanceFixture,

@@ -3,9 +3,11 @@ param()
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot 'measurements/nene-pixel-lab.ps1')
 
 $collector = Join-Path $PSScriptRoot "measurements/measure-m2-frame.ps1"
-$temporaryRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("nene-frame-protocol-" + [guid]::NewGuid().ToString("N"))
+$temporaryDirectory = New-NenePixelLabTemporaryDirectory -Prefix 'nene-frame-protocol' -StartDirectory $PSScriptRoot
+$temporaryRoot = $temporaryDirectory.Path
 $baselineCommit = "1" * 40
 $candidateCommit = "2" * 40
 $baselineProductionCommit = "8120c06fae1a372b23d2a7af4f50aa2b9cdfeff9"
@@ -30,7 +32,6 @@ $windowWorkload = "canvas256_repeated_diagonal_window_x2"
 $diagnosticWorkloadOrder = @($decisionWorkloadOrder + $windowWorkload)
 $comparisonOrderText = "decision:baseline|decision:candidate|diagnostic:baseline|diagnostic:candidate"
 
-New-Item -ItemType Directory -Path $temporaryRoot | Out-Null
 $experimentRoot = Join-Path $temporaryRoot "experiment"
 
 . (Join-Path $PSScriptRoot "baseline-profile-evidence.ps1")
@@ -2110,9 +2111,5 @@ finally {
         Remove-Item Function:\global:Get-NeneFrameFixtureUi -ErrorAction SilentlyContinue
         Remove-Variable neneFrameFixtureState -Scope Global -ErrorAction SilentlyContinue
     }
-    $resolvedTemporaryRoot = [System.IO.Path]::GetFullPath($temporaryRoot)
-    $resolvedSystemTemp = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath())
-    if ($resolvedTemporaryRoot.StartsWith($resolvedSystemTemp, [System.StringComparison]::OrdinalIgnoreCase)) {
-        Remove-Item -LiteralPath $resolvedTemporaryRoot -Recurse -Force -ErrorAction SilentlyContinue
-    }
+    Remove-NenePixelLabTemporaryDirectory -Directory $temporaryDirectory
 }
