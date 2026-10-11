@@ -42,7 +42,7 @@ schema `nene-pixel-profile-diagnostic-v1` to log tag `NeneProfileDiag`.
 | Field or boundary | Meaning |
 | --- | --- |
 | `session`, `iteration` | One supplied session; producer iteration 0 is process initialization, workload iterations are 1 through 15 |
-| `role`, `pid`, `origin_ns` | Recorder process identity; correlate these together, never PID alone |
+| `role`, `pid`, `origin_ns` | Recorder stream identity; correlate these together, never PID alone. Origin is recorder creation, not OS process start |
 | `seq`, `t_ns` | Contiguous recorder sequence and Android elapsed-realtime nanoseconds at recording |
 | `runtime_*_set` | Old/new projections and equality, with a paired `set_id` and `intent`/`complete` stages around the canonical assignment |
 | `scheduler_sample` | The combined sample actually delivered to the scheduler |
@@ -66,12 +66,40 @@ The producer supplies `nene_profile_diag_session` and `nene_profile_diag_iterati
 The instrumented activity requires this metadata. Direct manual launch is not a normal-app test.
 Host test composition can explicitly use the default no-op observer to preserve existing callers.
 
+## Analyze retained event payloads
+
+The host analyzer accepts one strict UTF-8 JSON object per line, containing only the diagnostic tag's
+payloads for one session. Retain original collector/logcat output separately; do not drop malformed
+diagnostic records, repair order, sort timestamps or deduplicate the input. This command does not
+capture logs or contact a device:
+
+```powershell
+$session = 'diag-190-example'
+$evidence = "D:/NENE-PIXEL/evidence/190-baseline-profile/$session"
+pwsh -NoProfile -File docs/quality/analyze-profile-diagnostic.ps1 `
+    -InputPath (Join-Path $evidence 'diagnostic.jsonl') `
+    -Session $session `
+    -OutputPath (Join-Path $evidence 'analysis.json')
+```
+
+Use an unused output path. The input, patch, manifest and source identities are recorded in the
+report. Optional `-AppApkSha256` and `-TestApkSha256` bind supplied artifact hashes; omitted hashes
+remain unbound, and supplying them does not authenticate the logs. The report never grants Profile
+acceptance. A valid observed prefix can prove the named positive event occurred; its unobserved
+tail and absent publication remain unknown. See the [analysis contract](../PROFILE_DIAGNOSTIC_PREPARATION.md)
+for exact meaning, limits, correlation and the prospective finite diagnostic plan.
+
 ## Host checks and live admission
 
 `pwsh -NoProfile -File docs/quality/validate-profile-diagnostic.ps1` checks preparation and canonical
 generation refusal with synthetic repositories inside the lab. Its native-work callback must stay
 at zero for every rejection. Focused Kotlin commands, source identities and outcomes are recorded in
 the preparation report; reuse them only when affected source/dependency inputs are equivalent.
+
+`pwsh -NoProfile -File docs/quality/validate-profile-diagnostic-analysis.ps1 -FixtureDirectory D:/NENE-PIXEL/outputs/190-diagnostic-analysis`
+exercises the analyzer with synthetic events only. It checks valid prefixes and rejects schema, identity, sequence,
+pairing and bound violations without exposing arbitrary input text. It does not rerun the Kotlin
+or preparation tests, whose unchanged implementations retain their recorded results.
 
 No command for live collection is provided. Before one is added, Issue #190, ADR 0010 and the harness
 must agree on artifact identity, budget, stop rules, collector logs, stream completeness and device

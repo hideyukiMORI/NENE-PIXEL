@@ -198,6 +198,14 @@ data restoration is authorized by it. A later plan must bind the executable coll
 artifacts, observer identity, finite budget, stopping conditions and restoration admission before
 execution. Public collector results still do not expose per-iteration raw profiles.
 
+The host continuation adds one strict JSONL analyzer and a prospective single-invocation diagnostic
+plan to that contract. It explicitly selects conclusions limited to positively observed events:
+even a structurally valid contiguous prefix has unproven logcat tail completeness. Missing
+publication therefore remains unknown. Schema, process identity and observed pairing failures
+invalidate analysis without exposing arbitrary log payloads. This resolves the interpretation
+policy, not the collection hold, executable live admission, original-data restoration admission or
+Profile acceptance. No observer source, journey, accepted artifact or generation allowance changes.
+
 The canonical local `check` verifies that the manual file is absent, exactly one generated text
 profile exists, it is non-empty canonical UTF-8, and its recorded canonical SHA-256 matches.
 Generated drift therefore fails locally and in CI without asking CI to provision a device. Exact
