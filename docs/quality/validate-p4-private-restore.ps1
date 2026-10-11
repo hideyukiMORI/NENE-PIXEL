@@ -212,6 +212,10 @@ function Get-P4SnapshotApkIdentity {
     if ($script:mode -eq 'final-apk-drift' -and $Step -ceq 'final-apk') { $hash = 'f' * 64 }
     return [pscustomobject]@{ Path = '/data/app/changed-install-location/base.apk'; Hash = $hash }
 }
+function Get-P4AdbServerListener([string] $AdbPath) {
+    return ,([object[]] @([ordered]@{ local_address = '127.0.0.1'; local_port = 5037; owning_process = 4242
+        process_name = 'adb.exe'; executable_path = [IO.Path]::GetFullPath($AdbPath) }))
+}
 function Invoke-P4RawAdbCapture {
     param([string] $AdbPath, [string[]] $AdbArguments, [int] $TimeoutSeconds,
         [string] $DestinationPath, [string] $RecordPath, [long] $MaximumBytes)

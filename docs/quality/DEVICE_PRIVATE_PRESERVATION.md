@@ -103,6 +103,21 @@ before each move and reads the result back. Failure leaves all data and logs in 
 uninstall, overwrite or automatic retry is part of preservation. A measurement abort still routes to
 this guarded restoration flow; it does not rewrite sample evidence.
 
+Every private inventory (`Get-P4NativePrivateInventory`) starts with a host-only ADB server
+admission before its first `adb` command; a caller that reads the installed APK identity first
+meets the same admission at its first inventory. The ADB server must already be listening on TCP 5037, owned by exactly one process whose
+executable is the configured `adb`. The observer never starts the server, never retries, and never
+accepts stderr from an exit-zero command: a cold server prints its start-up notice to stderr, and
+that attempt is a refusal, not a warning. The admission writes a write-once
+`nene-pixel-adb-server-admission-v1` record (stage, port, listeners, verdict, reason) before any
+refusal is thrown, so a failed attempt keeps its evidence. Starting the server is a separate operator
+step outside the observer; a later attempt after it is a new evidence identity, and the refused one
+is retained. The operator invokes the observer directly (`pwsh -NoProfile -File`), not through a
+nested `pwsh -Command` that inherits the child's handles. The native budget bounds only the native
+commands; any outer wrapper must apply its own wall-clock deadline of the budget plus 60 seconds and
+record a timeout rather than waiting on inherited handles; the observer does not enforce that outer
+deadline itself.
+
 The session also pins and retains the originally installed application APK and its hash before the
 first measurement install. Restore that verified application version while it remains stopped and
 before returning user records to their live paths; a historical baseline must never be launched
@@ -251,3 +266,8 @@ The profile-cache extension is checked with present/absent originals, wrong entr
 guard destinations, measurement replacement archival, timestamp drift and final restoration.
 The archive validator includes Ustar, GNU long-path and PAX fixtures because the native tar producer
 may emit extension headers. Only the directly changed validator is rerun for these additions.
+
+`validate-p4-private-native.ps1` also mocks the ADB server listener boundary: a cold server, a
+listener split across processes, a foreign owner, and an exit-zero `features` call with daemon
+start-up stderr are refusals before any device command, and each leaves its admission record. The
+other mocked native validators supply one ready listener so that they do not depend on host state.
