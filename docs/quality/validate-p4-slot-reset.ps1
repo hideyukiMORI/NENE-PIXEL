@@ -97,6 +97,10 @@ function MakeReset([string] $Name, [string] $Mode = '', [switch] $Empty) {
 function RunReset($Context, [string] $ProofHash = $script:proofHash) {
     return Invoke-P4PrivateSlotReset $Context $script:proofPath $ProofHash ('c' * 64) $script:slot ('b' * 64)
 }
+function Get-P4AdbServerListener([string] $AdbPath) {
+    return ,([object[]] @([ordered]@{ local_address = '127.0.0.1'; local_port = 5037; owning_process = 4242
+        process_name = 'adb.exe'; executable_path = [IO.Path]::GetFullPath($AdbPath) }))
+}
 function Get-P4NativePrivateInventory {
     param($Context, $Stage)
     $script:requests.Add("inventory:$Stage")
@@ -324,7 +328,7 @@ try {
         $acceptedBlobs = [ordered]@{
             'p4-device-private-session.ps1' = '7e995f9be155395b43b12c66f52e804347d188b4'
             'p4-device-private-restore.ps1' = '36d761de7d8082c8e3d25508fb20a98abf061506'
-            'p4-device-private-native.ps1' = 'c449d927cbfbefce5c71081b6a298926ae906331'
+            'p4-device-private-native.ps1' = '6a45f2c737a435dc7ce349185f3af8afbeb019d4' # #199 ADB server admission
             'p4-device-private-observation.ps1' = '0798480071e6b6ba715e58cdd13848dd5799d2b4'
             'p4-device-private-transport.ps1' = 'ed4572eb8945fba06e20e312016df547a8bd05ac'
             'p4-operation-budget.ps1' = 'f12e018cd9256b837f929f16cce25afc9d3ef992'

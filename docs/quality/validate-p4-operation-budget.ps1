@@ -141,6 +141,10 @@ try {
     } }
     if ($CaseGroup -ceq 'Inventory') { & {
         $script:inventoryCount = 3; $script:inventoryAfterExtra = $false
+        function Get-P4AdbServerListener([string] $AdbPath) {
+            return ,([object[]] @([ordered]@{ local_address = '127.0.0.1'; local_port = 5037; owning_process = 4242
+                process_name = 'adb.exe'; executable_path = [IO.Path]::GetFullPath($AdbPath) }))
+        }
         function Invoke-P4NativeCapture {
             param($Context, $Stage, $Step, $AdbArguments, $MaximumBytes, $ExpectedExit, $ExpectedStdout, $ExpectedStderr)
             [void](Get-P4OperationTimeout $Context 30)

@@ -121,6 +121,12 @@ function Invoke-P4RawAdbCapture {
         'bad-hash' { if ($step -eq 'hash-0') { $data = Bytes ($hash[0] + "`n") } }
         'unsafe-path' { if ($step -eq 'paths-before') { $data = Paths @('files','files/bad name') } }
         'late-running' { if ($step -eq 'stopped-after') { $exit = 0; $data = Bytes "123`n" } }
+        'features-cold-start-stderr' {
+            if ($step -eq 'features') {
+                $data = Bytes "shell_v2`n"
+                $stderr = "* daemon not running; starting now at tcp:5037`r`n* daemon started successfully`r`n"
+            }
+        }
     }
     if ($private) { $data = Encoded $data }
     if ($script:case -eq 'corrupt-encoded-byte-proof' -and $step -eq 'encoded-byte-proof') {
@@ -167,6 +173,24 @@ function Invoke-P4RawAdbCapture {
     if ($status -eq 'failure') { throw $result.error }
     return [pscustomobject]$result
 }
+# A synthetic ADB server listener boundary: it reads no host TCP state and starts no process.
+function Get-P4AdbServerListener([string] $AdbPath) {
+    $row = [ordered]@{ local_address = '127.0.0.1'; local_port = 5037; owning_process = 4242
+        process_name = 'adb.exe'; executable_path = [IO.Path]::GetFullPath($AdbPath) }
+    switch ($script:case) {
+        'adb-server-cold' { return ,([object[]] @()) }
+        'adb-server-split' {
+            $other = [ordered]@{ local_address = '127.0.0.1'; local_port = 5037; owning_process = 4243
+                process_name = 'adb.exe'; executable_path = [IO.Path]::GetFullPath($AdbPath) }
+            return ,([object[]] @($row, $other))
+        }
+        'adb-server-foreign' {
+            $row.process_name = 'other.exe'
+            $row.executable_path = [IO.Path]::GetFullPath($PSCommandPath)
+        }
+    }
+    return ,([object[]] @($row))
+}
 
 $normal = New-Case 'normal'
 $inventory = Get-P4NativePrivateInventory -Context $normal -Stage 'normal'
@@ -197,6 +221,11 @@ Check ([IO.File]::Exists((Join-Path $normal.output_directory 'normal-paths-befor
     [IO.File]::Exists((Join-Path $normal.output_directory 'normal-paths-before.json.encoded.json'))) `
     'encoded and decoded evidence retained'
 Check (@($normalRequests | Where-Object { $_.Timeout -ne 30 -or $_.Bound -le 0 }).Count -eq 0) 'bounded captures'
+$normalAdmissionPath = Join-Path $normal.output_directory 'normal-adb-server.json'
+Check ([IO.File]::Exists($normalAdmissionPath)) 'normal ADB server admission record retained'
+$normalAdmission = Get-Content -LiteralPath $normalAdmissionPath -Raw | ConvertFrom-Json
+Check ($normalAdmission.verdict -ceq 'ready' -and @($normalAdmission.listeners).Count -eq 1) `
+    'normal ADB server admission ready with one listener'
 $hostCrLf = New-Case 'host-crlf-features'
 $hostCrLfInventory = Get-P4NativePrivateInventory -Context $hostCrLf -Stage 'host-crlf-features'
 Check ($hostCrLfInventory.Count -eq $inventory.Count -and
@@ -235,9 +264,24 @@ foreach ($name in @('missing-shell','bad-proof-exit','bad-proof-stdout','bad-pro
         'bad-byte-proof','short-byte-proof','corrupt-encoded-byte-proof',
         'bad-upstream-exit','bad-upstream-stderr',
         'running','undetermined','command-failure','timeout','cap','drift','bad-metadata',
-        'extra-metadata','bad-hash','unsafe-path','late-running')) {
+        'extra-metadata','bad-hash','unsafe-path','late-running',
+        'adb-server-cold','adb-server-split','adb-server-foreign','features-cold-start-stderr')) {
     $context = New-Case $name
     Reject { Get-P4NativePrivateInventory -Context $context -Stage $name } $name
+    if ($name -like 'adb-server-*') {
+        Check (@($script:requests | Where-Object Case -EQ $name).Count -eq 0) "$name refuses before raw capture"
+    }
+    if ($name -eq 'features-cold-start-stderr') {
+        Check (@($script:requests | Where-Object { $_.Case -eq $name -and $_.Step -eq 'shell-proof' }).Count -eq 0) `
+            "$name refuses before shell proof"
+    }
+    if ($name -like 'adb-server-*' -or $name -eq 'features-cold-start-stderr') {
+        $admissionPath = Join-Path $context.output_directory "$name-adb-server.json"
+        $expectedVerdict = if ($name -like 'adb-server-*') { 'refused' } else { 'ready' }
+        Check ([IO.File]::Exists($admissionPath) -and
+            (Get-Content -LiteralPath $admissionPath -Raw | ConvertFrom-Json).verdict -ceq $expectedVerdict) `
+            "$name retains $expectedVerdict ADB server admission record"
+    }
     if ($name -in @('bad-byte-proof','short-byte-proof','corrupt-encoded-byte-proof',
             'bad-upstream-exit','bad-upstream-stderr')) {
         Check (@($script:requests | Where-Object { $_.Case -eq $name -and $_.Step -eq 'paths-before' }).Count -eq 0) `

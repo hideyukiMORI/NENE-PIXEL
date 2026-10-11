@@ -132,6 +132,10 @@ function Invoke-P4EncodedShellCapture {
     return [pscustomobject]@{ status = 'success' }
 }
 
+function Get-P4AdbServerListener([string] $AdbPath) {
+    return ,([object[]] @([ordered]@{ local_address = '127.0.0.1'; local_port = 5037; owning_process = 4242
+        process_name = 'adb.exe'; executable_path = [IO.Path]::GetFullPath($AdbPath) }))
+}
 function Invoke-P4RawAdbCapture {
     $script:calls.Add('raw-capture')
     throw 'Unexpected raw capture in snapshot validator'

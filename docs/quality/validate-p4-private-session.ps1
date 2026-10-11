@@ -95,6 +95,10 @@ function New-Fixture([string] $Name, [string] $Mode = '') {
 }
 
 # Only the native observation, installed-APK identity and encoded mutation boundary are mocked.
+function Get-P4AdbServerListener([string] $AdbPath) {
+    return ,([object[]] @([ordered]@{ local_address = '127.0.0.1'; local_port = 5037; owning_process = 4242
+        process_name = 'adb.exe'; executable_path = [IO.Path]::GetFullPath($AdbPath) }))
+}
 function Get-P4NativePrivateInventory {
     param([System.Collections.IDictionary] $Context, [string] $Stage)
     $script:calls.Add("inventory:$Stage")
