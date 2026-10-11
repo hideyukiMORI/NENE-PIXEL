@@ -18,8 +18,10 @@ ADR 0010/0018/0024. Waivers: none.
 Keep the observer as a source patch plus an exact input/output manifest under `docs/quality`.
 Apply it only to a clean, separate worktree in the existing development lab, at the pinned commit
 and tree. The preparation command must reject source drift, existing diagnostic output, an unsafe
-path/link, or patch mismatch before changing files. It never builds, connects to a device, launches
-an app, generates a Profile, or cleans up another worktree. A partial application remains marked
+path/link, or patch mismatch before changing files. Its fixed source/test allowlist also rejects
+changes to the canonical guard, Profile, build configuration or any unlisted file. It never builds,
+connects to a device, launches an app, generates a Profile, or cleans up another worktree.
+A partial application remains marked
 as diagnostic and is retained for inspection.
 
 The patch instruments existing functions and uses an explicitly composed temporary observer. There
@@ -32,6 +34,10 @@ The canonical `generate-baseline-profile.ps1` refuses the diagnostic marker or d
 before creating evidence or invoking Gradle. A clean Git status after committing the patch cannot
 turn it into an acceptance artifact. The existing two-invocation comparison and accepted artifact
 remain unchanged.
+
+The [kit instructions](profile-diagnostic/README.md) describe the exact host preparation command,
+event schema and limits. The pinned source already contains the refusal for the marker and all five
+new diagnostic production files, so partial application is guarded before instrumentation starts.
 
 ## Observation requirements
 

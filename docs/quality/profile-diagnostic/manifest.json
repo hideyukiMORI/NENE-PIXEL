@@ -1,0 +1,112 @@
+{
+  "schema": "nene-pixel-profile-diagnostic-patch-v1",
+  "source_revision": "314bcbdacc3b0816e56d5c7e2cd7f8d020c5b511",
+  "source_tree": "323df6a7364d2097adcd5360aea6519b11bcac20",
+  "diagnostic_schema": "nene-pixel-profile-diagnostic-v1",
+  "marker": ".nene-pixel-profile-diagnostic.json",
+  "patch_sha256": "94f5dc8d8f4f93087832b0c10f422837ecb90a01592462816a63acf11ee63d4d",
+  "files": [
+    {
+      "path": "app/android/src/main/kotlin/io/github/hideyukimori/nenepixel/AutosaveSchedule.kt",
+      "pre_sha256": "38246da78fa2aa1828b1ff6560753dfd7810e6292d01e374206ea15679e57f2d",
+      "post_sha256": "f60d047162ed08b530ea59372a5030545f956f2d9e2041f5464f0473a918f592",
+      "source_lf_sha256": "f60d047162ed08b530ea59372a5030545f956f2d9e2041f5464f0473a918f592"
+    },
+    {
+      "path": "app/android/src/main/kotlin/io/github/hideyukimori/nenepixel/AutosaveScheduler.kt",
+      "pre_sha256": "1af1f085bef1e7e4f987fef83c63006a8fca927b229ab9e8daeb07cf20479ca4",
+      "post_sha256": "c0d482c1ef5831662aacedee63ecd495110078d0279af23bbfd050eff4023b1b",
+      "source_lf_sha256": "c0d482c1ef5831662aacedee63ecd495110078d0279af23bbfd050eff4023b1b"
+    },
+    {
+      "path": "app/android/src/main/kotlin/io/github/hideyukimori/nenepixel/AutosaveSchedulerDiagnostics.kt",
+      "pre_sha256": null,
+      "post_sha256": "78ba3d2579f5658631d84252a302d26952dde1dc652e860f546c117ae9da07d1",
+      "source_lf_sha256": "78ba3d2579f5658631d84252a302d26952dde1dc652e860f546c117ae9da07d1"
+    },
+    {
+      "path": "app/android/src/main/kotlin/io/github/hideyukimori/nenepixel/EditorComposition.kt",
+      "pre_sha256": "71557e2e886c9435b6b544454c2aeebee435dbf59de06b0f2904c7cc94e95d0e",
+      "post_sha256": "1f796ce00c65423b44483496f13cd76249a1f4a57fe5ac589f472f69dde19f60",
+      "source_lf_sha256": "1f796ce00c65423b44483496f13cd76249a1f4a57fe5ac589f472f69dde19f60"
+    },
+    {
+      "path": "app/android/src/main/kotlin/io/github/hideyukimori/nenepixel/EditorRuntimeViewModel.kt",
+      "pre_sha256": "c63edc85bf3c619f42e33fb603e5301383b966bbe2b8ae918052e1b246f09d33",
+      "post_sha256": "b90093e11ccf16d7d3049d5acdf02fb10eb950ee1eb34a7c479b7306537fac1c",
+      "source_lf_sha256": "b90093e11ccf16d7d3049d5acdf02fb10eb950ee1eb34a7c479b7306537fac1c"
+    },
+    {
+      "path": "app/android/src/main/kotlin/io/github/hideyukimori/nenepixel/MainActivity.kt",
+      "pre_sha256": "56e2a2f7fb9e688dd89515c6a5d2435d263bb52999327a11dbb027c63910874f",
+      "post_sha256": "75ff6a143a84b9e748310c2e82567551dee7caee519a2ff1bace66024a0f58c4",
+      "source_lf_sha256": "75ff6a143a84b9e748310c2e82567551dee7caee519a2ff1bace66024a0f58c4"
+    },
+    {
+      "path": "app/android/src/main/kotlin/io/github/hideyukimori/nenepixel/ProfileDiagnosticAndroid.kt",
+      "pre_sha256": null,
+      "post_sha256": "dd85c3b8e8b83c92976ea4e48a4a8f6785b5549589a900c6973cc4ffa0c7a4d8",
+      "source_lf_sha256": "dd85c3b8e8b83c92976ea4e48a4a8f6785b5549589a900c6973cc4ffa0c7a4d8"
+    },
+    {
+      "path": "app/android/src/main/kotlin/io/github/hideyukimori/nenepixel/ProfileDiagnosticRecorder.kt",
+      "pre_sha256": null,
+      "post_sha256": "dd8078bbb86e9dcbfec4c6a0c4d2dfc9c220c908d35f0b1f375fdf1b7df0004f",
+      "source_lf_sha256": "dd8078bbb86e9dcbfec4c6a0c4d2dfc9c220c908d35f0b1f375fdf1b7df0004f"
+    },
+    {
+      "path": "app/android/src/test/kotlin/io/github/hideyukimori/nenepixel/AutosaveSchedulerTest.kt",
+      "pre_sha256": "8b08a280775b875a0aac6c6d76c15ba581a49af611a74fae2991e885c209458a",
+      "post_sha256": "bc03e79b63344fcb06dbe4171ffbd657f40a8c81c4436c856f277dd054d08894",
+      "source_lf_sha256": "bc03e79b63344fcb06dbe4171ffbd657f40a8c81c4436c856f277dd054d08894"
+    },
+    {
+      "path": "app/android/src/test/kotlin/io/github/hideyukimori/nenepixel/AutosaveScheduleTest.kt",
+      "pre_sha256": "2d8ce1bfcaaac1677f34ba9c22c20a5843dc6c8d3f2d94824e9efefd1ef57067",
+      "post_sha256": "30a0c9ed72eb8cba0ab9fc88a18918c5d83f9aff063c8ec696641343052080ae",
+      "source_lf_sha256": "30a0c9ed72eb8cba0ab9fc88a18918c5d83f9aff063c8ec696641343052080ae"
+    },
+    {
+      "path": "app/android/src/test/kotlin/io/github/hideyukimori/nenepixel/ProfileDiagnosticRecorderTest.kt",
+      "pre_sha256": null,
+      "post_sha256": "bc08b3889be1313689170f4e8be974f93adcfce99d55870d82a48229b5705fa5",
+      "source_lf_sha256": "bc08b3889be1313689170f4e8be974f93adcfce99d55870d82a48229b5705fa5"
+    },
+    {
+      "path": "core/application/src/main/kotlin/io/github/hideyukimori/nenepixel/core/application/editor/EditorRuntime.kt",
+      "pre_sha256": "266022d0ba2bbe9cdfb7ed72587ed32684f63fac163c9b701aee46d17fa87d7d",
+      "post_sha256": "dbd773f818a99cb97414a669bf89f918b0f94a6b052d3409de489c2fc4909a44",
+      "source_lf_sha256": "dbd773f818a99cb97414a669bf89f918b0f94a6b052d3409de489c2fc4909a44"
+    },
+    {
+      "path": "core/application/src/main/kotlin/io/github/hideyukimori/nenepixel/core/application/persistence/AutosaveDiagnosticObserver.kt",
+      "pre_sha256": null,
+      "post_sha256": "d4d5a2febb47f9bc5589d941339d0182d2848adff6721b00a701f1f3a4962b1d",
+      "source_lf_sha256": "d4d5a2febb47f9bc5589d941339d0182d2848adff6721b00a701f1f3a4962b1d"
+    },
+    {
+      "path": "core/application/src/main/kotlin/io/github/hideyukimori/nenepixel/core/application/persistence/EditorPersistenceWorkflow.kt",
+      "pre_sha256": "2e36a7fcb2f537c473910b4c72c68956006c6cf94726294bd5526d77e984c0fb",
+      "post_sha256": "57afb42d389ac8e36999a11b08f7bb38a058dff43454b03e9d2909743148d0e6",
+      "source_lf_sha256": "57afb42d389ac8e36999a11b08f7bb38a058dff43454b03e9d2909743148d0e6"
+    },
+    {
+      "path": "core/application/src/main/kotlin/io/github/hideyukimori/nenepixel/core/application/persistence/PersistenceAutosaveFlow.kt",
+      "pre_sha256": "477bacaa1a54f58508de31dc3d64d235aaed13fb453cedf4bdff61d00f3059e8",
+      "post_sha256": "a61606e669b15fed8b2ac67efb6603951899071e3d401ca1b910531c59fa6162",
+      "source_lf_sha256": "a61606e669b15fed8b2ac67efb6603951899071e3d401ca1b910531c59fa6162"
+    },
+    {
+      "path": "quality/baseline-profile/src/main/kotlin/io/github/hideyukimori/nenepixel/quality/baselineprofile/PencilUndoBaselineProfile.kt",
+      "pre_sha256": "c9890e252ac81df261abf58015f7c68b304b00e900b1a91cb63ce5e74484e2a9",
+      "post_sha256": "7012a569366e960b077268e2b8d9c5aaa9d39a706133c719339246eb71a42bdb",
+      "source_lf_sha256": "7012a569366e960b077268e2b8d9c5aaa9d39a706133c719339246eb71a42bdb"
+    },
+    {
+      "path": "quality/baseline-profile/src/main/kotlin/io/github/hideyukimori/nenepixel/quality/baselineprofile/ProducerProfileDiagnosticRecorder.kt",
+      "pre_sha256": null,
+      "post_sha256": "ef9b431a35bc648d81b9186615c621798c3415bbf93e74d69992809ea5cfefcf",
+      "source_lf_sha256": "ef9b431a35bc648d81b9186615c621798c3415bbf93e74d69992809ea5cfefcf"
+    }
+  ]
+}

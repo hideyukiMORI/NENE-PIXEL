@@ -1,0 +1,1780 @@
+diff --git a/app/android/src/main/kotlin/io/github/hideyukimori/nenepixel/AutosaveSchedule.kt b/app/android/src/main/kotlin/io/github/hideyukimori/nenepixel/AutosaveSchedule.kt
+index 6ca0f6f..da2d224 100644
+--- a/app/android/src/main/kotlin/io/github/hideyukimori/nenepixel/AutosaveSchedule.kt
++++ b/app/android/src/main/kotlin/io/github/hideyukimori/nenepixel/AutosaveSchedule.kt
+@@ -27,9 +27,11 @@ internal data class AutosaveSchedule(
+         sample: AutosaveObservation,
+         nowNanos: Long,
+         policy: AutosavePolicy,
++        onBranch: (AutosaveFoldBranch, Boolean?) -> Unit = { _, _ -> },
+     ): AutosaveSchedule =
+         when {
+             !sample.states.requestable -> {
++                onBranch(AutosaveFoldBranch.NO_REQUESTABLE, null)
+                 AutosaveSchedule(
+                     sample,
+                     null,
+@@ -40,6 +42,7 @@ internal data class AutosaveSchedule(
+             }
+
+             sample.flushes != observation.flushes -> {
++                onBranch(AutosaveFoldBranch.FLUSH, null)
+                 AutosaveSchedule(
+                     sample,
+                     nowNanos,
+@@ -50,7 +53,8 @@ internal data class AutosaveSchedule(
+             }
+
+             else -> {
+-                retimed(sample, nowNanos, policy)
++                onBranch(AutosaveFoldBranch.RETIMED, null)
++                retimed(sample, nowNanos, policy, onBranch)
+             }
+         }
+
+@@ -111,6 +115,7 @@ internal data class AutosaveSchedule(
+         sample: AutosaveObservation,
+         nowNanos: Long,
+         policy: AutosavePolicy,
++        onBranch: (AutosaveFoldBranch, Boolean?) -> Unit,
+     ): AutosaveSchedule {
+         val previousStates = observation.states
+         val currentStates = sample.states
+@@ -128,7 +133,7 @@ internal data class AutosaveSchedule(
+                 ),
+             capDeadlineNanos =
+                 deadlineAfterChange(
+-                    changed = previousDeadlineConsumed(previousStates, currentStates, published),
++                    changed = previousDeadlineConsumed(previousStates, currentStates, published, onBranch),
+                     current = capDeadlineNanos,
+                     nowNanos = nowNanos,
+                     intervalNanos = policy.latencyCapNanos,
+@@ -174,17 +179,51 @@ private fun previousDeadlineConsumed(
+     previous: AutosaveStateObservation,
+     current: AutosaveStateObservation,
+     publishedChanged: Boolean,
++    onBranch: (AutosaveFoldBranch, Boolean?) -> Unit,
+ ): Boolean {
+     val previousPending = previous.pending
+-    if (previousPending == null || previousPending == current.pending) return false
+-    return previousPending == current.publishing || publishedConsumed(previousPending, current, publishedChanged)
++    return when {
++        previousPending == null -> {
++            onBranch(AutosaveFoldBranch.PREVIOUS_PENDING_ABSENT, null)
++            false
++        }
++
++        previousPending == current.pending -> {
++            onBranch(AutosaveFoldBranch.SAME_PENDING, null)
++            false
++        }
++
++        previousPending == current.publishing -> {
++            onBranch(AutosaveFoldBranch.PUBLISHING_SHORT_CIRCUIT, null)
++            true
++        }
++
++        else -> {
++            publishedConsumed(previousPending, current, publishedChanged, onBranch)
++        }
++    }
+ }
+
+ private fun publishedConsumed(
+     previousPending: AutosaveStateToken,
+     current: AutosaveStateObservation,
+     publishedChanged: Boolean,
+-): Boolean = publishedChanged && previousPending == current.published
++    onBranch: (AutosaveFoldBranch, Boolean?) -> Unit,
++): Boolean {
++    val consumed = publishedChanged && previousPending == current.published
++    onBranch(AutosaveFoldBranch.PUBLISHED_HELPER, consumed)
++    return consumed
++}
++
++internal enum class AutosaveFoldBranch {
++    NO_REQUESTABLE,
++    FLUSH,
++    RETIMED,
++    PREVIOUS_PENDING_ABSENT,
++    SAME_PENDING,
++    PUBLISHING_SHORT_CIRCUIT,
++    PUBLISHED_HELPER,
++}
+
+ private fun deadlineAfterChange(
+     changed: Boolean,
+diff --git a/app/android/src/main/kotlin/io/github/hideyukimori/nenepixel/AutosaveScheduler.kt b/app/android/src/main/kotlin/io/github/hideyukimori/nenepixel/AutosaveScheduler.kt
+index 7a67102..cba4245 100644
+--- a/app/android/src/main/kotlin/io/github/hideyukimori/nenepixel/AutosaveScheduler.kt
++++ b/app/android/src/main/kotlin/io/github/hideyukimori/nenepixel/AutosaveScheduler.kt
+@@ -25,6 +25,7 @@ internal class AutosaveScheduler(
+     private val workflow: EditorPersistenceWorkflow,
+     private val policy: AutosavePolicy = AutosavePolicy.DEFAULT,
+     private val clockNanos: () -> Long = System::nanoTime,
++    private val diagnostics: AutosaveSchedulerDiagnostics = AutosaveSchedulerDiagnostics.None,
+ ) {
+     private val flushes: MutableStateFlow<Long> = MutableStateFlow(0L)
+     private val scheduleState: MutableStateFlow<AutosaveSchedule> = MutableStateFlow(AutosaveSchedule.idle())
+@@ -47,40 +48,93 @@ internal class AutosaveScheduler(
+
+     /** Requests an immediate publication of any pending capture; the ADR 0018 `ON_STOP` flush. */
+     fun flush() {
+-        flushes.update { count -> count + 1L }
++        var committedCount = 0L
++        flushes.update { count -> (count + 1L).also { committedCount = it } }
++        diagnostics.observe(AutosaveSchedulerEvent.Flush(committedCount))
+     }
+
+     private suspend fun schedule(): Unit =
+         coroutineScope {
+-            launch(start = CoroutineStart.UNDISPATCHED) {
+-                observations.collect { sample ->
+-                    scheduleState.update { state -> state.observed(sample, clockNanos(), policy) }
+-                }
++            launch(start = CoroutineStart.UNDISPATCHED) { collectSamples() }
++            runRequests()
++        }
++
++    private suspend fun collectSamples() {
++        var sampleId = 0L
++        observations.collect { sample ->
++            val currentSampleId = ++sampleId
++            diagnostics.observe(AutosaveSchedulerEvent.Sample(currentSampleId, sample))
++            var attemptId = 0
++            var committedState: AutosaveSchedule? = null
++            scheduleState.update { state ->
++                val currentAttemptId = ++attemptId
++                val foldNow = clockNanos()
++                state
++                    .observed(sample, foldNow, policy) { branch, helperResult ->
++                        diagnostics.observe(
++                            AutosaveSchedulerEvent.FoldAttempt(
++                                currentSampleId,
++                                currentAttemptId,
++                                branch,
++                                AutosaveSchedulerEvent.FoldReading(foldNow, helperResult),
++                            ),
++                        )
++                    }.also { committedState = it }
+             }
++            diagnostics.observe(
++                AutosaveSchedulerEvent.FoldCommitted(currentSampleId, attemptId, requireNotNull(committedState)),
++            )
++        }
++    }
+
+-            while (true) {
+-                val state = scheduleState.value
+-                val due = state.dueNanos(clockNanos())
+-                when {
+-                    due == null -> {
+-                        awaitChange(state)
+-                    }
++    private suspend fun runRequests() {
++        while (true) {
++            val state = scheduleState.value
++            val decisionNow = clockNanos()
++            val due = state.dueNanos(decisionNow)
++            val reading = AutosaveSchedulerEvent.DecisionReading(decisionNow, state)
++            when {
++                due == null -> {
++                    diagnostics.observe(
++                        AutosaveSchedulerEvent.Decision(AutosaveSchedulerDecision.NO_DUE, null, reading),
++                    )
++                    awaitChange(state)
++                }
+
+-                    due > 0L -> {
+-                        awaitChange(state, due)
+-                    }
++                due > 0L -> {
++                    diagnostics.observe(AutosaveSchedulerEvent.Decision(AutosaveSchedulerDecision.WAIT, due, reading))
++                    awaitChange(state, due)
++                }
+
+-                    else -> {
+-                        val requestedStateToken = requireNotNull(state.observation.states.pending)
+-                        if (!scheduleState.compareAndSet(state, state.startedRequest())) continue
+-                        val result = workflow.publishLatestCapture()
+-                        scheduleState.update { current ->
+-                            current.applied(result, requestedStateToken, clockNanos(), policy)
+-                        }
+-                    }
++                else -> {
++                    requestDue(state, due, reading)
+                 }
+             }
+         }
++    }
++
++    private suspend fun requestDue(
++        state: AutosaveSchedule,
++        due: Long,
++        reading: AutosaveSchedulerEvent.DecisionReading,
++    ) {
++        val requestedStateToken = requireNotNull(state.observation.states.pending)
++        if (!scheduleState.compareAndSet(state, state.startedRequest())) {
++            diagnostics.observe(AutosaveSchedulerEvent.Decision(AutosaveSchedulerDecision.CAS_RETRY, due, reading))
++            return
++        }
++        diagnostics.observe(AutosaveSchedulerEvent.Decision(AutosaveSchedulerDecision.DUE, due, reading))
++        diagnostics.observe(AutosaveSchedulerEvent.RequestBegin(requestedStateToken))
++        var returned = false
++        val result =
++            try {
++                workflow.publishLatestCapture().also { returned = true }
++            } finally {
++                if (!returned) diagnostics.observe(AutosaveSchedulerEvent.RequestIncomplete(requestedStateToken))
++            }
++        diagnostics.observe(AutosaveSchedulerEvent.RequestEnd(requestedStateToken, result))
++        scheduleState.update { current -> current.applied(result, requestedStateToken, clockNanos(), policy) }
++    }
+
+     private suspend fun awaitChange(previous: AutosaveSchedule): AutosaveSchedule =
+         scheduleState.first { state -> state != previous }
+diff --git a/app/android/src/main/kotlin/io/github/hideyukimori/nenepixel/AutosaveSchedulerDiagnostics.kt b/app/android/src/main/kotlin/io/github/hideyukimori/nenepixel/AutosaveSchedulerDiagnostics.kt
+new file mode 100644
+index 0000000..df50afb
+--- /dev/null
++++ b/app/android/src/main/kotlin/io/github/hideyukimori/nenepixel/AutosaveSchedulerDiagnostics.kt
+@@ -0,0 +1,67 @@
++package io.github.hideyukimori.nenepixel
++
++import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveRequestResult
++import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveStateToken
++
++internal fun interface AutosaveSchedulerDiagnostics {
++    fun observe(event: AutosaveSchedulerEvent)
++
++    companion object {
++        val None: AutosaveSchedulerDiagnostics = AutosaveSchedulerDiagnostics { }
++    }
++}
++
++internal sealed interface AutosaveSchedulerEvent {
++    data class Sample(
++        val sampleId: Long,
++        val sample: AutosaveObservation,
++    ) : AutosaveSchedulerEvent
++
++    data class FoldAttempt(
++        val sampleId: Long,
++        val attemptId: Int,
++        val branch: AutosaveFoldBranch,
++        val reading: FoldReading,
++    ) : AutosaveSchedulerEvent
++
++    data class FoldReading(
++        val nowNanos: Long,
++        val helperResult: Boolean?,
++    )
++
++    data class FoldCommitted(
++        val sampleId: Long,
++        val attemptId: Int,
++        val state: AutosaveSchedule,
++    ) : AutosaveSchedulerEvent
++
++    data class Flush(
++        val count: Long,
++    ) : AutosaveSchedulerEvent
++
++    data class Decision(
++        val branch: AutosaveSchedulerDecision,
++        val dueNanos: Long?,
++        val reading: DecisionReading,
++    ) : AutosaveSchedulerEvent
++
++    data class DecisionReading(
++        val nowNanos: Long,
++        val state: AutosaveSchedule,
++    )
++
++    data class RequestBegin(
++        val token: AutosaveStateToken,
++    ) : AutosaveSchedulerEvent
++
++    data class RequestEnd(
++        val token: AutosaveStateToken,
++        val result: AutosaveRequestResult,
++    ) : AutosaveSchedulerEvent
++
++    data class RequestIncomplete(
++        val token: AutosaveStateToken,
++    ) : AutosaveSchedulerEvent
++}
++
++internal enum class AutosaveSchedulerDecision { NO_DUE, WAIT, DUE, CAS_RETRY }
+diff --git a/app/android/src/main/kotlin/io/github/hideyukimori/nenepixel/EditorComposition.kt b/app/android/src/main/kotlin/io/github/hideyukimori/nenepixel/EditorComposition.kt
+index 4953669..9ab98ad 100644
+--- a/app/android/src/main/kotlin/io/github/hideyukimori/nenepixel/EditorComposition.kt
++++ b/app/android/src/main/kotlin/io/github/hideyukimori/nenepixel/EditorComposition.kt
+@@ -1,6 +1,7 @@
+ package io.github.hideyukimori.nenepixel
+
+ import io.github.hideyukimori.nenepixel.core.application.editor.EditorRuntime
++import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveDiagnosticObserver
+ import io.github.hideyukimori.nenepixel.core.domain.color.ColorChannel
+ import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
+ import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasHeight
+@@ -11,7 +12,9 @@ import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
+ import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
+ import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
+
+-internal fun createEditorRuntime(): EditorRuntime =
++internal fun createEditorRuntime(
++    autosaveDiagnostics: AutosaveDiagnosticObserver = AutosaveDiagnosticObserver.None,
++): EditorRuntime =
+     EditorRuntime.create(
+         initialCanvas =
+             CanvasSize.create(
+@@ -25,6 +28,7 @@ internal fun createEditorRuntime(): EditorRuntime =
+                     PaletteIndex.create(INITIAL_DEFAULT_INDEX).requiredValue(),
+                 ).requiredValue(),
+         documentIdSource = UuidDocumentIdSource(),
++        autosaveDiagnostics = autosaveDiagnostics,
+     )
+
+ private fun createMvpPalette(): Palette =
+diff --git a/app/android/src/main/kotlin/io/github/hideyukimori/nenepixel/EditorRuntimeViewModel.kt b/app/android/src/main/kotlin/io/github/hideyukimori/nenepixel/EditorRuntimeViewModel.kt
+index 63cea54..4173687 100644
+--- a/app/android/src/main/kotlin/io/github/hideyukimori/nenepixel/EditorRuntimeViewModel.kt
++++ b/app/android/src/main/kotlin/io/github/hideyukimori/nenepixel/EditorRuntimeViewModel.kt
+@@ -16,6 +16,7 @@ import io.github.hideyukimori.nenepixel.adapters.persistence.AndroidRecoveryReco
+ import io.github.hideyukimori.nenepixel.adapters.persistence.AndroidReferenceImageAdapter
+ import io.github.hideyukimori.nenepixel.adapters.persistence.AndroidUnderlayMemoryAdapter
+ import io.github.hideyukimori.nenepixel.core.application.editor.EditorRuntime
++import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveDiagnosticObserver
+ import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveProjection
+ import io.github.hideyukimori.nenepixel.core.application.persistence.EditorPersistenceWorkflow
+ import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceCancellationResult
+@@ -37,11 +38,12 @@ internal class EditorRuntimeViewModel private constructor(
+     val runtime: EditorRuntime,
+     val controller: EditorController,
+     val pickerBroker: ProjectPickerBroker,
+-    private val persistence: EditorPersistenceWorkflow,
++    private val services: RuntimeServices,
+ ) : ViewModel() {
++    private val persistence = services.persistence
+     private val operationWorker = EditorOperationWorker(viewModelScope)
+
+-    private val autosave = AutosaveScheduler(persistence)
++    private val autosave = AutosaveScheduler(persistence, diagnostics = services.diagnostics.scheduler)
+
+     private val underlayMemory = UnderlayMemoryScheduler(persistence.underlayMemory, controller::synchronizeWithRuntime)
+
+@@ -135,15 +137,24 @@ internal class EditorRuntimeViewModel private constructor(
+     }
+
+     internal companion object {
+-        fun factory(application: Application): ViewModelProvider.Factory =
++        fun factory(
++            application: Application,
++            diagnosticSession: String? = null,
++            diagnosticIteration: Int? = null,
++        ): ViewModelProvider.Factory =
+             viewModelFactory {
+                 initializer {
+-                    create(application)
++                    create(application, diagnosticSession, diagnosticIteration)
+                 }
+             }
+
+-        private fun create(application: Application): EditorRuntimeViewModel {
+-            val runtime = createEditorRuntime()
++        private fun create(
++            application: Application,
++            diagnosticSession: String?,
++            diagnosticIteration: Int?,
++        ): EditorRuntimeViewModel {
++            val diagnostics = createProfileDiagnostics(diagnosticSession, diagnosticIteration)
++            val runtime = createEditorRuntime(diagnostics.autosave)
+             val controller = EditorController.create(runtime)
+             val pickerBroker = ProjectPickerBroker()
+             val ioDispatcher = Dispatchers.IO.limitedParallelism(1)
+@@ -170,10 +181,34 @@ internal class EditorRuntimeViewModel private constructor(
+                         AndroidUnderlayMemoryAdapter.create(application.noBackupFilesDir, underlayMemoryDispatcher),
+                     ),
+                     Dispatchers.Default,
++                    diagnostics.autosave,
+                 )
+-            return EditorRuntimeViewModel(runtime, controller, pickerBroker, persistence)
++            return EditorRuntimeViewModel(runtime, controller, pickerBroker, RuntimeServices(persistence, diagnostics))
+         }
+
+         private const val RECOVERY_FILE_NAME: String = "nene-pixel-recovery-v1"
+     }
+ }
++
++private data class RuntimeDiagnostics(
++    val autosave: AutosaveDiagnosticObserver,
++    val scheduler: AutosaveSchedulerDiagnostics,
++)
++
++private fun createProfileDiagnostics(
++    session: String?,
++    iteration: Int?,
++): RuntimeDiagnostics {
++    require((session == null) == (iteration == null))
++    val recorder =
++        if (session != null && iteration != null) createAndroidProfileDiagnosticRecorder(session, iteration) else null
++    return RuntimeDiagnostics(
++        recorder ?: AutosaveDiagnosticObserver.None,
++        recorder ?: AutosaveSchedulerDiagnostics.None,
++    )
++}
++
++private data class RuntimeServices(
++    val persistence: EditorPersistenceWorkflow,
++    val diagnostics: RuntimeDiagnostics,
++)
+diff --git a/app/android/src/main/kotlin/io/github/hideyukimori/nenepixel/MainActivity.kt b/app/android/src/main/kotlin/io/github/hideyukimori/nenepixel/MainActivity.kt
+index 765b4b5..8806b4f 100644
+--- a/app/android/src/main/kotlin/io/github/hideyukimori/nenepixel/MainActivity.kt
++++ b/app/android/src/main/kotlin/io/github/hideyukimori/nenepixel/MainActivity.kt
+@@ -21,9 +21,14 @@ import kotlinx.coroutines.flow.map
+
+ public class MainActivity : ComponentActivity() {
+     private val editorModel: EditorRuntimeViewModel by lazy(LazyThreadSafetyMode.NONE) {
++        val session =
++            checkNotNull(intent.getStringExtra(PROFILE_DIAGNOSTIC_SESSION_EXTRA)) {
++                "Diagnostic session is required"
++            }
++        val iteration = intent.getIntExtra(PROFILE_DIAGNOSTIC_ITERATION_EXTRA, -1)
+         ViewModelProvider(
+             this,
+-            EditorRuntimeViewModel.factory(application),
++            EditorRuntimeViewModel.factory(application, session, iteration),
+         )[EditorRuntimeViewModel::class.java]
+     }
+     private val languageModel: AppLanguageViewModel by lazy(LazyThreadSafetyMode.NONE) {
+diff --git a/app/android/src/main/kotlin/io/github/hideyukimori/nenepixel/ProfileDiagnosticAndroid.kt b/app/android/src/main/kotlin/io/github/hideyukimori/nenepixel/ProfileDiagnosticAndroid.kt
+new file mode 100644
+index 0000000..36c10f3
+--- /dev/null
++++ b/app/android/src/main/kotlin/io/github/hideyukimori/nenepixel/ProfileDiagnosticAndroid.kt
+@@ -0,0 +1,18 @@
++package io.github.hideyukimori.nenepixel
++
++import android.os.Process
++import android.os.SystemClock
++import android.util.Log
++
++internal const val PROFILE_DIAGNOSTIC_SESSION_EXTRA = "nene_profile_diag_session"
++internal const val PROFILE_DIAGNOSTIC_ITERATION_EXTRA = "nene_profile_diag_iteration"
++
++internal fun createAndroidProfileDiagnosticRecorder(
++    session: String,
++    iteration: Int,
++): ProfileDiagnosticRecorder =
++    ProfileDiagnosticRecorder(
++        context = ProfileDiagnosticContext(session, iteration, Process.myPid()),
++        nanos = SystemClock::elapsedRealtimeNanos,
++        sink = { line -> Log.i("NeneProfileDiag", line) },
++    )
+diff --git a/app/android/src/main/kotlin/io/github/hideyukimori/nenepixel/ProfileDiagnosticRecorder.kt b/app/android/src/main/kotlin/io/github/hideyukimori/nenepixel/ProfileDiagnosticRecorder.kt
+new file mode 100644
+index 0000000..735c68d
+--- /dev/null
++++ b/app/android/src/main/kotlin/io/github/hideyukimori/nenepixel/ProfileDiagnosticRecorder.kt
+@@ -0,0 +1,536 @@
++package io.github.hideyukimori.nenepixel
++
++import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveDiagnosticEvent
++import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveDiagnosticObserver
++import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveLastOutcome
++import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveProjection
++import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveRequestResult
++import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveStateToken
++import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceLastOutcome
++import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationHandle
++import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationPhase
++import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationProjection
++import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryPublicationOutcome
++import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryStatus
++
++/** Bounded, process-local #190 diagnostic stream. Only this prepared patch contains the recorder. */
++internal class ProfileDiagnosticRecorder(
++    context: ProfileDiagnosticContext,
++    nanos: () -> Long,
++    sink: (String) -> Unit,
++    limits: ProfileDiagnosticLimits = ProfileDiagnosticLimits(),
++) : AutosaveDiagnosticObserver,
++    AutosaveSchedulerDiagnostics {
++    private val lock = Any()
++    private val writer = ProfileDiagnosticWriter(context, nanos, sink, limits)
++    private val registry = ProfileDiagnosticRegistry(writer, limits)
++
++    override fun observe(event: AutosaveDiagnosticEvent) {
++        synchronized(lock) {
++            if (writer.invalid) return
++            when (event) {
++                is AutosaveDiagnosticEvent.RuntimeOperationSet -> {
++                    operationSet(event)
++                }
++
++                is AutosaveDiagnosticEvent.RuntimeAutosaveSet -> {
++                    autosaveSet(event)
++                }
++
++                is AutosaveDiagnosticEvent.PublicationPortBegin -> {
++                    publication("publication_port_begin", event.token, event.operation)
++                }
++
++                is AutosaveDiagnosticEvent.PublicationPortEnd -> {
++                    publication(
++                        "publication_port_end",
++                        event.token,
++                        event.operation,
++                        "result" to publicationResult(event.outcome),
++                    )
++                }
++
++                is AutosaveDiagnosticEvent.PublicationRuntimeComplete -> {
++                    publication(
++                        "publication_runtime_complete",
++                        event.token,
++                        event.operation,
++                        "result" to requestResult(event.result),
++                    )
++                }
++
++                is AutosaveDiagnosticEvent.PublicationIncomplete -> {
++                    publication(
++                        "publication_incomplete",
++                        event.token,
++                        event.operation,
++                        "reason" to event.reason.name.lowercase(),
++                    )
++                }
++            }
++        }
++    }
++
++    private fun operationSet(event: AutosaveDiagnosticEvent.RuntimeOperationSet) {
++        val old = registry.gateId(event.transition.old)
++        val new = registry.gateId(event.transition.new)
++        if (!writer.invalid) {
++            writer.emit(
++                "runtime_operation_set",
++                "set_id" to event.setId,
++                "stage" to event.stage.name.lowercase(),
++                "old_gate" to old,
++                "new_gate" to new,
++                *registry.gateFields("old", event.transition.old).toTypedArray(),
++                *registry.gateFields("new", event.transition.new).toTypedArray(),
++                "changed" to event.transition.changed,
++            )
++        }
++    }
++
++    private fun autosaveSet(event: AutosaveDiagnosticEvent.RuntimeAutosaveSet) {
++        val old = registry.autosaveFields("old", event.transition.old)
++        val new = registry.autosaveFields("new", event.transition.new)
++        if (!writer.invalid) {
++            writer.emit(
++                "runtime_autosave_set",
++                "set_id" to event.setId,
++                "stage" to event.stage.name.lowercase(),
++                *(old + new + ("changed" to event.transition.changed)).toTypedArray(),
++            )
++        }
++    }
++
++    override fun observe(event: AutosaveSchedulerEvent) {
++        synchronized(lock) {
++            if (writer.invalid) return
++            when (event) {
++                is AutosaveSchedulerEvent.Sample -> {
++                    schedulerSample(event)
++                }
++
++                is AutosaveSchedulerEvent.FoldAttempt -> {
++                    foldAttempt(event)
++                }
++
++                is AutosaveSchedulerEvent.FoldCommitted -> {
++                    foldCommitted(event)
++                }
++
++                is AutosaveSchedulerEvent.Flush -> {
++                    writer.emit("scheduler_flush", "count" to event.count)
++                }
++
++                is AutosaveSchedulerEvent.Decision -> {
++                    schedulerDecision(event)
++                }
++
++                is AutosaveSchedulerEvent.RequestBegin -> {
++                    tokenEvent("scheduler_request_begin", event.token)
++                }
++
++                is AutosaveSchedulerEvent.RequestEnd -> {
++                    tokenEvent("scheduler_request_end", event.token, "result" to requestResult(event.result))
++                }
++
++                is AutosaveSchedulerEvent.RequestIncomplete -> {
++                    tokenEvent("scheduler_request_incomplete", event.token)
++                }
++            }
++        }
++    }
++
++    private fun schedulerSample(event: AutosaveSchedulerEvent.Sample) {
++        val fields = registry.observationFields(event.sample)
++        if (!writer.invalid) writer.emit("scheduler_sample", "sample_id" to event.sampleId, *fields.toTypedArray())
++    }
++
++    private fun foldAttempt(event: AutosaveSchedulerEvent.FoldAttempt) {
++        writer.emit(
++            "fold_branch",
++            "sample_id" to event.sampleId,
++            "attempt_id" to event.attemptId,
++            "branch" to event.branch.name.lowercase(),
++            "fold_now_ns" to event.reading.nowNanos,
++            "deadline_clock" to "scheduler_nano_time",
++            "helper_result" to event.reading.helperResult,
++        )
++    }
++
++    private fun foldCommitted(event: AutosaveSchedulerEvent.FoldCommitted) {
++        val fields = registry.scheduleFields(event.state)
++        if (!writer.invalid) {
++            writer.emit(
++                "fold_committed",
++                "sample_id" to event.sampleId,
++                "attempt_id" to event.attemptId,
++                *fields.toTypedArray(),
++            )
++        }
++    }
++
++    private fun schedulerDecision(event: AutosaveSchedulerEvent.Decision) {
++        val fields = registry.scheduleFields(event.reading.state)
++        if (!writer.invalid) {
++            writer.emit(
++                "scheduler_decision",
++                "branch" to event.branch.name.lowercase(),
++                "decision_now_ns" to event.reading.nowNanos,
++                "due_ns" to event.dueNanos,
++                *fields.toTypedArray(),
++            )
++        }
++    }
++
++    private fun tokenEvent(
++        event: String,
++        token: AutosaveStateToken,
++        vararg fields: Pair<String, Any?>,
++    ) {
++        val id = registry.tokenId(token)
++        if (!writer.invalid) writer.emit(event, "token" to id, *fields)
++    }
++
++    private fun publication(
++        event: String,
++        token: AutosaveStateToken,
++        operation: PersistenceOperationHandle,
++        vararg fields: Pair<String, Any?>,
++    ) {
++        val tokenId = registry.tokenId(token)
++        val operationId = registry.operationId(operation)
++        if (!writer.invalid) writer.emit(event, "token" to tokenId, "operation" to operationId, *fields)
++    }
++}
++
++private class ProfileDiagnosticRegistry(
++    private val writer: ProfileDiagnosticWriter,
++    private val limits: ProfileDiagnosticLimits,
++) {
++    private val tokens = ArrayList<AutosaveStateToken>()
++    private val operations = ArrayList<PersistenceOperationHandle>()
++    private val gates = ArrayList<PersistenceOperationProjection>()
++
++    fun observationFields(sample: AutosaveObservation): List<Pair<String, Any?>> =
++        listOf(
++            "pending" to tokenId(sample.states.pending),
++            "published" to tokenId(sample.states.published),
++            "publishing" to tokenId(sample.states.publishing),
++            "gate" to gateId(sample.gate),
++            *gateFields("gate", sample.gate).toTypedArray(),
++            "flushes" to sample.flushes,
++            "requestable" to sample.states.requestable,
++        )
++
++    fun scheduleFields(state: AutosaveSchedule): List<Pair<String, Any?>> =
++        observationFields(state.observation) +
++            listOf(
++                "quiet_deadline_ns" to state.quietDeadlineNanos,
++                "cap_deadline_ns" to state.capDeadlineNanos,
++                "deadline_clock" to "scheduler_nano_time",
++                "suspended" to state.suspended,
++            )
++
++    fun autosaveFields(
++        prefix: String,
++        state: AutosaveProjection,
++    ): List<Pair<String, Any?>> =
++        listOf(
++            "${prefix}_pending" to tokenId(state.pendingStateToken),
++            "${prefix}_published" to tokenId(state.publishedStateToken),
++            "${prefix}_publishing" to tokenId(state.publishingStateToken),
++            "${prefix}_outcome" to lastOutcome(state.lastOutcome),
++        )
++
++    fun tokenId(token: AutosaveStateToken?): Int? =
++        when {
++            token == null || writer.invalid -> {
++                null
++            }
++
++            else -> {
++                val known = tokens.indexOfFirst { it == token }
++                when {
++                    known >= 0 -> {
++                        known + 1
++                    }
++
++                    tokens.size == limits.tokenLimit -> {
++                        writer.invalidate("token_limit")
++                        null
++                    }
++
++                    else -> {
++                        tokens.add(token)
++                        tokens.size
++                    }
++                }
++            }
++        }
++
++    fun operationId(operation: PersistenceOperationHandle): Int? =
++        when {
++            writer.invalid -> {
++                null
++            }
++
++            else -> {
++                val known = operations.indexOfFirst { it === operation }
++                when {
++                    known >= 0 -> {
++                        known + 1
++                    }
++
++                    operations.size == limits.operationLimit -> {
++                        writer.invalidate("operation_limit")
++                        null
++                    }
++
++                    else -> {
++                        operations.add(operation)
++                        operations.size
++                    }
++                }
++            }
++        }
++
++    fun gateId(value: Any?): Int? =
++        when {
++            value == null || writer.invalid -> {
++                null
++            }
++
++            value !is PersistenceOperationProjection || !safeGate(value) -> {
++                writer.invalidate("unsupported_gate")
++                null
++            }
++
++            else -> {
++                val known = gates.indexOfFirst { it == value }
++                when {
++                    known >= 0 -> {
++                        known + 1
++                    }
++
++                    gates.size == limits.operationLimit -> {
++                        writer.invalidate("operation_limit")
++                        null
++                    }
++
++                    else -> {
++                        gates.add(value)
++                        gates.size
++                    }
++                }
++            }
++        }
++
++    private fun safeGate(gate: PersistenceOperationProjection): Boolean {
++        val safePhase =
++            when (gate.phase) {
++                PersistenceOperationPhase.Initializing,
++                PersistenceOperationPhase.Idle,
++                is PersistenceOperationPhase.Discarding,
++                -> true
++
++                else -> false
++            }
++        val safeRecovery =
++            when (gate.recoveryStatus) {
++                RecoveryStatus.Initializing,
++                RecoveryStatus.Clear,
++                RecoveryStatus.UnadoptedCandidate,
++                is RecoveryStatus.Unknown,
++                -> true
++
++                else -> false
++            }
++        val safeOutcome =
++            when (gate.lastOutcome) {
++                PersistenceLastOutcome.None,
++                PersistenceLastOutcome.RecoveryDeclined,
++                -> true
++
++                else -> false
++            }
++        return safePhase && safeRecovery && safeOutcome
++    }
++
++    fun gateFields(
++        prefix: String,
++        value: Any?,
++    ): List<Pair<String, Any?>> =
++        if (value is PersistenceOperationProjection && safeGate(value)) {
++            listOf(
++                "${prefix}_phase" to safePhaseName(value.phase),
++                "${prefix}_recovery" to safeRecoveryName(value.recoveryStatus),
++                "${prefix}_last_outcome" to safePersistenceOutcomeName(value.lastOutcome),
++            )
++        } else {
++            emptyList()
++        }
++}
++
++private class ProfileDiagnosticWriter(
++    private val context: ProfileDiagnosticContext,
++    private val nanos: () -> Long,
++    private val sink: (String) -> Unit,
++    private val limits: ProfileDiagnosticLimits,
++) {
++    private val originNanos = nanos()
++    private var sequence = 0
++    var invalid = false
++        private set
++
++    init {
++        require(context.session.matches(SESSION_PATTERN)) { "Invalid diagnostic session" }
++        require(context.iteration in 1..MAX_ITERATIONS) { "Invalid diagnostic iteration" }
++        require(context.pid > 0) { "Invalid diagnostic process" }
++        emit("process_begin")
++    }
++
++    fun invalidate(reason: String) {
++        if (invalid) return
++        invalid = true
++        emit("diagnostic_invalid", "reason" to reason)
++    }
++
++    fun emit(
++        event: String,
++        vararg fields: Pair<String, Any?>,
++    ) {
++        if (sequence == limits.eventLimit - 1 && event != "diagnostic_invalid") {
++            invalidate("event_limit")
++            return
++        }
++        if (sequence >= limits.eventLimit) return
++        sequence += 1
++        val values =
++            listOf(
++                "schema" to SCHEMA,
++                "session" to context.session,
++                "iteration" to context.iteration,
++                "role" to "app",
++                "pid" to context.pid,
++                "origin_ns" to originNanos,
++                "seq" to sequence,
++                "t_ns" to nanos(),
++                "event" to event,
++            ) + fields
++        sink(
++            values.joinToString(
++                separator = ",",
++                prefix = "{",
++                postfix = "}",
++            ) { (key, value) -> "\"$key\":${json(value)}" },
++        )
++    }
++
++    private fun json(value: Any?): String =
++        when (value) {
++            null -> {
++                "null"
++            }
++
++            is Boolean, is Int, is Long -> {
++                value.toString()
++            }
++
++            is String -> {
++                require(value.matches(SAFE_TEXT)) { "Unsafe diagnostic text" }
++                "\"$value\""
++            }
++
++            else -> {
++                error("Unsupported diagnostic field")
++            }
++        }
++
++    private companion object {
++        const val SCHEMA = "nene-pixel-profile-diagnostic-v1"
++        const val MAX_ITERATIONS = 15
++        val SESSION_PATTERN = Regex("[A-Za-z0-9_-]{1,64}")
++        val SAFE_TEXT = Regex("[A-Za-z0-9_-]+")
++    }
++}
++
++internal data class ProfileDiagnosticContext(
++    val session: String,
++    val iteration: Int,
++    val pid: Int,
++)
++
++internal data class ProfileDiagnosticLimits(
++    val tokenLimit: Int = MAX_DIAGNOSTIC_TOKENS,
++    val operationLimit: Int = MAX_DIAGNOSTIC_OPERATIONS,
++    val eventLimit: Int = MAX_DIAGNOSTIC_EVENTS,
++) {
++    init {
++        require(tokenLimit in 1..MAX_DIAGNOSTIC_TOKENS)
++        require(operationLimit in 1..MAX_DIAGNOSTIC_OPERATIONS)
++        require(eventLimit in 2..MAX_DIAGNOSTIC_EVENTS)
++    }
++}
++
++private const val MAX_DIAGNOSTIC_TOKENS = 128
++private const val MAX_DIAGNOSTIC_OPERATIONS = 128
++private const val MAX_DIAGNOSTIC_EVENTS = 4096
++
++private fun safePhaseName(phase: PersistenceOperationPhase): String =
++    when (phase) {
++        PersistenceOperationPhase.Initializing -> "initializing"
++        PersistenceOperationPhase.Idle -> "idle"
++        is PersistenceOperationPhase.Discarding -> "discarding"
++        else -> error("Unsupported diagnostic gate phase")
++    }
++
++private fun safeRecoveryName(status: RecoveryStatus): String =
++    when (status) {
++        RecoveryStatus.Initializing -> "initializing"
++        RecoveryStatus.Clear -> "clear"
++        RecoveryStatus.UnadoptedCandidate -> "unadopted_candidate"
++        is RecoveryStatus.Unknown -> "unknown"
++        else -> error("Unsupported diagnostic recovery status")
++    }
++
++private fun safePersistenceOutcomeName(outcome: PersistenceLastOutcome): String =
++    when (outcome) {
++        PersistenceLastOutcome.None -> "none"
++        PersistenceLastOutcome.RecoveryDeclined -> "recovery_declined"
++        else -> error("Unsupported diagnostic persistence outcome")
++    }
++
++private fun publicationResult(outcome: RecoveryPublicationOutcome): String =
++    when (outcome) {
++        is RecoveryPublicationOutcome.Published -> "published"
++        RecoveryPublicationOutcome.Stale -> "stale"
++        RecoveryPublicationOutcome.GenerationExhausted -> "generation_exhausted"
++        is RecoveryPublicationOutcome.Failed -> "failed"
++        is RecoveryPublicationOutcome.Uncertain -> "uncertain"
++    }
++
++private fun requestResult(result: AutosaveRequestResult): String =
++    when (result) {
++        is AutosaveRequestResult.Published -> "published"
++        AutosaveRequestResult.NoCapture -> "no_capture"
++        AutosaveRequestResult.Deferred -> "deferred"
++        AutosaveRequestResult.OfferPending -> "offer_pending"
++        AutosaveRequestResult.Unavailable -> "unavailable"
++        AutosaveRequestResult.Stale -> "stale"
++        AutosaveRequestResult.GenerationExhausted -> "generation_exhausted"
++        AutosaveRequestResult.IdentityExhausted -> "identity_exhausted"
++        is AutosaveRequestResult.Failed -> "failed"
++        is AutosaveRequestResult.Uncertain -> "uncertain"
++    }
++
++private fun lastOutcome(outcome: AutosaveLastOutcome): String =
++    when (outcome) {
++        AutosaveLastOutcome.None -> "none"
++        is AutosaveLastOutcome.Published -> "published"
++        AutosaveLastOutcome.Deferred -> "deferred"
++        AutosaveLastOutcome.OfferPending -> "offer_pending"
++        AutosaveLastOutcome.Stale -> "stale"
++        AutosaveLastOutcome.GenerationExhausted -> "generation_exhausted"
++        is AutosaveLastOutcome.Failed -> "failed"
++        is AutosaveLastOutcome.Uncertain -> "uncertain"
++    }
+diff --git a/app/android/src/test/kotlin/io/github/hideyukimori/nenepixel/AutosaveScheduleTest.kt b/app/android/src/test/kotlin/io/github/hideyukimori/nenepixel/AutosaveScheduleTest.kt
+index 0047663..4f83671 100644
+--- a/app/android/src/test/kotlin/io/github/hideyukimori/nenepixel/AutosaveScheduleTest.kt
++++ b/app/android/src/test/kotlin/io/github/hideyukimori/nenepixel/AutosaveScheduleTest.kt
+@@ -37,6 +37,30 @@ import org.junit.jupiter.api.Test
+  * stop are all decidable without a runtime, a dispatcher, or a real delay.
+  */
+ internal class AutosaveScheduleTest {
++    @Test
++    fun foldMarkerReportsTheExecutedHelperWithoutChangingTheDecision() {
++        val tokens = AutosaveStateTokens()
++        val published = tokens.next()
++        val pending = tokens.next()
++        val first = idle().observed(capture(published), START, POLICY)
++        val sample = capture(pending, Publication(published = published))
++        val branches = mutableListOf<Pair<AutosaveFoldBranch, Boolean?>>()
++
++        val observed =
++            first.observed(sample, START + HALF_QUIET, POLICY) { branch, result ->
++                branches.add(branch to result)
++            }
++
++        assertEquals(first.observed(sample, START + HALF_QUIET, POLICY), observed)
++        assertEquals(
++            listOf(
++                AutosaveFoldBranch.RETIMED to null,
++                AutosaveFoldBranch.PUBLISHED_HELPER to true,
++            ),
++            branches,
++        )
++    }
++
+     @Test
+     fun quietWindowBecomesDueOneQuietWindowAfterTheLatestCapture() {
+         val captured = idle().observed(capture(AutosaveStateTokens().next()), START, POLICY)
+diff --git a/app/android/src/test/kotlin/io/github/hideyukimori/nenepixel/AutosaveSchedulerTest.kt b/app/android/src/test/kotlin/io/github/hideyukimori/nenepixel/AutosaveSchedulerTest.kt
+index 0a1acd8..71dcdaf 100644
+--- a/app/android/src/test/kotlin/io/github/hideyukimori/nenepixel/AutosaveSchedulerTest.kt
++++ b/app/android/src/test/kotlin/io/github/hideyukimori/nenepixel/AutosaveSchedulerTest.kt
+@@ -2,6 +2,7 @@ package io.github.hideyukimori.nenepixel
+
+ import io.github.hideyukimori.nenepixel.core.application.document.command.ApplyStrokeCommand
+ import io.github.hideyukimori.nenepixel.core.application.document.command.CommandResult
++import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveDiagnosticObserver
+ import io.github.hideyukimori.nenepixel.core.application.persistence.EditorPersistenceWorkflow
+ import io.github.hideyukimori.nenepixel.core.application.persistence.ExpectedRecoveryLineage
+ import io.github.hideyukimori.nenepixel.core.application.persistence.LegacySourceCopyOutcome
+@@ -108,9 +109,10 @@ internal class SchedulerFixture(
+         io.github.hideyukimori.nenepixel.core.application.persistence.PngExportPort {
+             io.github.hideyukimori.nenepixel.core.application.persistence.PngExportOutcome.Cancelled
+         },
++    diagnostics: AutosaveDiagnosticObserver = AutosaveDiagnosticObserver.None,
+ ) {
+     private val dispatchers = TestCoroutineDispatchers()
+-    private val runtime = createEditorRuntime()
++    val runtime = createEditorRuntime(diagnostics)
+     val workflow =
+         EditorPersistenceWorkflow.create(
+             runtime,
+@@ -141,6 +143,7 @@ internal class SchedulerFixture(
+                 EmptyUnderlayMemoryPort,
+             ),
+             dispatchers.inline,
++            diagnostics,
+         )
+     private var nextX: Int = 0
+
+diff --git a/app/android/src/test/kotlin/io/github/hideyukimori/nenepixel/ProfileDiagnosticRecorderTest.kt b/app/android/src/test/kotlin/io/github/hideyukimori/nenepixel/ProfileDiagnosticRecorderTest.kt
+new file mode 100644
+index 0000000..87006ad
+--- /dev/null
++++ b/app/android/src/test/kotlin/io/github/hideyukimori/nenepixel/ProfileDiagnosticRecorderTest.kt
+@@ -0,0 +1,278 @@
++package io.github.hideyukimori.nenepixel
++
++import io.github.hideyukimori.nenepixel.core.application.document.command.CommandResult
++import io.github.hideyukimori.nenepixel.core.application.document.command.RedoCommand
++import io.github.hideyukimori.nenepixel.core.application.document.command.UndoCommand
++import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveRequestResult
++import io.github.hideyukimori.nenepixel.core.application.persistence.ExpectedRecoveryLineage
++import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryInspection
++import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryPublicationOutcome
++import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRecordPort
++import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRetirementOutcome
++import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.async
++import kotlinx.coroutines.runBlocking
++import org.junit.jupiter.api.Assertions.assertEquals
++import org.junit.jupiter.api.Assertions.assertFalse
++import org.junit.jupiter.api.Assertions.assertThrows
++import org.junit.jupiter.api.Assertions.assertTrue
++import org.junit.jupiter.api.Test
++import java.util.Collections
++import java.util.concurrent.atomic.AtomicLong
++
++internal class ProfileDiagnosticRecorderTest {
++    @Test
++    fun runtimeSetterReportsIntentAndCompletionInOrderIncludingEqualOperation() {
++        val lines = mutableListOf<String>()
++        val recorder = recorder(lines)
++        val fixture =
++            SchedulerFixture(
++                FixedOutcomeRecoveryRecordPort(RecoveryPublicationOutcome.GenerationExhausted),
++                diagnostics = recorder,
++            )
++
++        fixture.applyNext()
++
++        val setters = lines.filter { it.contains("\"event\":\"runtime_") }
++        assertEquals(4, setters.size)
++        assertTrue(setters[0].contains("\"event\":\"runtime_operation_set\""))
++        assertTrue(setters[0].contains("\"stage\":\"intent\""))
++        assertTrue(setters[0].contains("\"changed\":false"))
++        assertTrue(setters[1].contains("\"stage\":\"complete\""))
++        assertTrue(setters[2].contains("\"event\":\"runtime_autosave_set\""))
++        assertTrue(setters[2].contains("\"changed\":true"))
++        assertTrue(setters[3].contains("\"stage\":\"complete\""))
++        assertTrue(setters.all { it.contains("\"set_id\":1") })
++    }
++
++    @Test
++    fun structurallyEqualTokensReuseAnOrdinalAndOverflowInvalidatesOnce() {
++        val lines = mutableListOf<String>()
++        val recorder = recorder(lines, tokenLimit = 2)
++        val fixture =
++            SchedulerFixture(
++                FixedOutcomeRecoveryRecordPort(RecoveryPublicationOutcome.GenerationExhausted),
++                diagnostics = recorder,
++            )
++
++        fixture.applyNext()
++        val first = requireNotNull(fixture.workflow.autosave.value.pendingStateToken)
++        val afterStroke = fixture.runtime.state.documentState
++        assertTrue(
++            fixture.runtime.execute(UndoCommand.create(afterStroke.id, afterStroke.revision)) is CommandResult.Applied,
++        )
++        val afterUndo = fixture.runtime.state.documentState
++        assertTrue(
++            fixture.runtime.execute(RedoCommand.create(afterUndo.id, afterUndo.revision)) is CommandResult.Applied,
++        )
++        val redone = requireNotNull(fixture.workflow.autosave.value.pendingStateToken)
++        assertFalse(first === redone)
++        assertEquals(first, redone)
++        recorder.observe(AutosaveSchedulerEvent.RequestBegin(first))
++        recorder.observe(AutosaveSchedulerEvent.RequestBegin(redone))
++        assertEquals(
++            2,
++            lines.count { it.contains("\"event\":\"scheduler_request_begin\"") && it.contains("\"token\":1") },
++        )
++
++        fixture.applyNext()
++        assertEquals(1, lines.count { it.contains("\"event\":\"diagnostic_invalid\"") })
++        assertTrue(lines.last().contains("\"reason\":\"token_limit\""))
++        val count = lines.size
++        fixture.applyNext()
++        assertEquals(count, lines.size)
++    }
++
++    @Test
++    fun portAndRuntimeSuccessShareOneOpaqueTokenAndOperation() =
++        runBlocking {
++            val lines = Collections.synchronizedList(mutableListOf<String>())
++            val recorder = recorder(lines)
++            val port = BlockingRecoveryRecordPort()
++            val fixture = SchedulerFixture(port, diagnostics = recorder)
++            fixture.initialize()
++            fixture.applyNext()
++
++            val publication = async { fixture.workflow.publishLatestCapture() }
++            port.awaitPublication()
++            port.completePublication()
++            assertTrue(publication.await() is AutosaveRequestResult.Published)
++
++            val events = publicationEvents(lines)
++            assertEquals(
++                listOf("publication_port_begin", "publication_port_end", "publication_runtime_complete"),
++                events.map(::eventName),
++            )
++            assertTrue(events.all { it.contains("\"token\":1") && it.contains("\"operation\":1") })
++            assertTrue(events[1].contains("\"result\":\"published\""))
++        }
++
++    @Test
++    fun typedFailureAndCancellationHaveDistinctTerminalEvents() =
++        runBlocking {
++            val failedLines = mutableListOf<String>()
++            val failed =
++                SchedulerFixture(
++                    FixedOutcomeRecoveryRecordPort(RecoveryPublicationOutcome.GenerationExhausted),
++                    diagnostics = recorder(failedLines),
++                )
++            failed.initialize()
++            failed.applyNext()
++            assertEquals(AutosaveRequestResult.GenerationExhausted, failed.workflow.publishLatestCapture())
++            assertEquals(
++                listOf("publication_port_begin", "publication_port_end", "publication_runtime_complete"),
++                publicationEvents(failedLines).map(::eventName),
++            )
++            assertTrue(publicationEvents(failedLines)[1].contains("\"result\":\"generation_exhausted\""))
++
++            val cancelledLines = mutableListOf<String>()
++            val cancelled = SchedulerFixture(CancellingRecoveryRecordPort(), diagnostics = recorder(cancelledLines))
++            cancelled.initialize()
++            cancelled.applyNext()
++            try {
++                cancelled.workflow.publishLatestCapture()
++                error("Expected port cancellation")
++            } catch (_: CancellationException) {
++                // The diagnostic records the incomplete operation without changing cancellation semantics.
++            }
++            assertEquals(
++                listOf("publication_port_begin", "publication_incomplete"),
++                publicationEvents(cancelledLines).map(::eventName),
++            )
++            assertTrue(publicationEvents(cancelledLines).last().contains("\"reason\":\"cancelled\""))
++        }
++
++    @Test
++    fun eventCapWritesOneInvalidMarkerWithContiguousSequenceThenStops() {
++        val lines = mutableListOf<String>()
++        val recorder = recorder(lines)
++        repeat(5_000) { recorder.observe(AutosaveSchedulerEvent.Flush(it.toLong())) }
++
++        assertEquals(4_096, lines.size)
++        assertEquals((1..4_096).toList(), lines.map { sequenceNumber(it) })
++        assertEquals(1, lines.count { it.contains("\"event\":\"diagnostic_invalid\"") })
++        assertTrue(lines.last().contains("\"reason\":\"event_limit\""))
++        recorder.observe(AutosaveSchedulerEvent.Flush(5_001))
++        assertEquals(4_096, lines.size)
++    }
++
++    @Test
++    fun invalidContextAndLimitsAreRejectedBeforeAnyOutput() {
++        val lines = mutableListOf<String>()
++        val tick = AtomicLong(1)
++        assertThrows(IllegalArgumentException::class.java) {
++            ProfileDiagnosticRecorder(
++                ProfileDiagnosticContext("bad.session", 1, 1234),
++                tick::incrementAndGet,
++                lines::add,
++            )
++        }
++        assertThrows(IllegalArgumentException::class.java) {
++            ProfileDiagnosticRecorder(ProfileDiagnosticContext("safe", 16, 1234), tick::incrementAndGet, lines::add)
++        }
++        assertThrows(IllegalArgumentException::class.java) { ProfileDiagnosticLimits(eventLimit = 4_097) }
++        assertThrows(IllegalArgumentException::class.java) { ProfileDiagnosticLimits(tokenLimit = 129) }
++        assertTrue(lines.isEmpty())
++    }
++
++    @Test
++    fun unsupportedGateIsRejectedWithoutInspectingOrLoggingItsContent() {
++        val lines = mutableListOf<String>()
++        val recorder = recorder(lines)
++        val sourceBearingGate =
++            object {
++                override fun toString(): String = error("The diagnostic inspected a source-bearing gate")
++            }
++        recorder.observe(
++            AutosaveSchedulerEvent.Sample(
++                1,
++                AutosaveObservation(AutosaveStateObservation(null, null, null), sourceBearingGate, 0),
++            ),
++        )
++
++        assertEquals(2, lines.size)
++        assertTrue(lines.last().contains("\"reason\":\"unsupported_gate\""))
++        assertFalse(lines.any { it.contains("sourceBearingGate") })
++    }
++
++    @Test
++    fun processHeaderHasAllRequiredKeysWithExpectedJsonTypes() {
++        val lines = mutableListOf<String>()
++        recorder(lines)
++        val expected =
++            Regex(
++                """^\{"schema":"nene-pixel-profile-diagnostic-v1","session":"diag_190","iteration":1,""" +
++                    """"role":"app","pid":1234,"origin_ns":\d+,"seq":1,"t_ns":\d+,"event":"process_begin"\}$""",
++            )
++        assertTrue(expected.matches(lines.single()))
++    }
++
++    @Test
++    fun foldClockDomainIsExplicit() {
++        val lines = mutableListOf<String>()
++        val recorder = recorder(lines)
++        recorder.observe(
++            AutosaveSchedulerEvent.FoldAttempt(
++                sampleId = 1,
++                attemptId = 1,
++                branch = AutosaveFoldBranch.NO_REQUESTABLE,
++                reading = AutosaveSchedulerEvent.FoldReading(500L, null),
++            ),
++        )
++        assertTrue(lines.last().contains("\"fold_now_ns\":500"))
++        assertTrue(lines.last().contains("\"deadline_clock\":\"scheduler_nano_time\""))
++    }
++
++    private fun recorder(
++        lines: MutableList<String>,
++        tokenLimit: Int = 128,
++    ): ProfileDiagnosticRecorder {
++        val tick = AtomicLong(100_000L)
++        return ProfileDiagnosticRecorder(
++            ProfileDiagnosticContext("diag_190", 1, 1234),
++            tick::incrementAndGet,
++            lines::add,
++            ProfileDiagnosticLimits(tokenLimit = tokenLimit),
++        )
++    }
++
++    private fun publicationEvents(lines: List<String>): List<String> =
++        lines.filter { it.contains("\"event\":\"publication_") }
++
++    private fun eventName(line: String): String =
++        Regex("\"event\":\"([a-z_]+)\"").find(line)?.groupValues?.get(1) ?: error("Missing diagnostic event")
++
++    private fun sequenceNumber(line: String): Int =
++        Regex("\"seq\":(\\d+)")
++            .find(line)
++            ?.groupValues
++            ?.get(1)
++            ?.toInt() ?: error("Missing sequence")
++}
++
++private class FixedOutcomeRecoveryRecordPort(
++    private val outcome: RecoveryPublicationOutcome,
++) : RecoveryRecordPort {
++    override suspend fun inspect(): RecoveryInspection = RecoveryInspection.Missing
++
++    override suspend fun retire(expected: ExpectedRecoveryLineage): RecoveryRetirementOutcome =
++        RecoveryRetirementOutcome.GenerationExhausted
++
++    override suspend fun publishCandidate(
++        expected: ExpectedRecoveryLineage,
++        document: DocumentState,
++    ): RecoveryPublicationOutcome = outcome
++}
++
++private class CancellingRecoveryRecordPort : RecoveryRecordPort {
++    override suspend fun inspect(): RecoveryInspection = RecoveryInspection.Missing
++
++    override suspend fun retire(expected: ExpectedRecoveryLineage): RecoveryRetirementOutcome =
++        RecoveryRetirementOutcome.GenerationExhausted
++
++    override suspend fun publishCandidate(
++        expected: ExpectedRecoveryLineage,
++        document: DocumentState,
++    ): RecoveryPublicationOutcome = throw CancellationException("diagnostic fixture")
++}
+diff --git a/core/application/src/main/kotlin/io/github/hideyukimori/nenepixel/core/application/editor/EditorRuntime.kt b/core/application/src/main/kotlin/io/github/hideyukimori/nenepixel/core/application/editor/EditorRuntime.kt
+index fa8359f..f851e68 100644
+--- a/core/application/src/main/kotlin/io/github/hideyukimori/nenepixel/core/application/editor/EditorRuntime.kt
++++ b/core/application/src/main/kotlin/io/github/hideyukimori/nenepixel/core/application/editor/EditorRuntime.kt
+@@ -5,8 +5,12 @@ import io.github.hideyukimori.nenepixel.core.application.document.command.Comman
+ import io.github.hideyukimori.nenepixel.core.application.document.command.CommandSourceAdmission
+ import io.github.hideyukimori.nenepixel.core.application.document.command.DocumentCommand
+ import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryPosition
++import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveDiagnosticEvent
++import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveDiagnosticObserver
+ import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveProjection
+ import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationProjection
++import io.github.hideyukimori.nenepixel.core.application.persistence.RuntimeProjectionTransition
++import io.github.hideyukimori.nenepixel.core.application.persistence.RuntimeSetStage
+ import io.github.hideyukimori.nenepixel.core.application.persistence.UnderlayMemoryProjection
+ import io.github.hideyukimori.nenepixel.core.application.workspace.ReconcileDocumentLayer
+ import io.github.hideyukimori.nenepixel.core.application.workspace.ReconcileDocumentPalette
+@@ -28,10 +32,12 @@ public class EditorRuntime private constructor(
+     private val documentIdSource: DocumentIdSource,
+     private val workspaceReducer: WorkspaceReducer,
+     initialOwners: RuntimeOwners,
++    private val autosaveDiagnostics: AutosaveDiagnosticObserver,
+ ) {
+     private val runtimeLock: Any = Any()
+     private var owners: RuntimeOwners = initialOwners
+     private var coordination: PersistenceCoordination = PersistenceCoordination.initial()
++    private var diagnosticSetId: Long = 0L
+     private val mutablePersistenceOperation: MutableStateFlow<PersistenceOperationProjection> =
+         MutableStateFlow(PersistenceProjectionMapper.project(coordination))
+     private val mutableAutosave: MutableStateFlow<AutosaveProjection> =
+@@ -172,8 +178,28 @@ public class EditorRuntime private constructor(
+     }
+
+     private fun publishProjectionsLocked() {
+-        mutablePersistenceOperation.value = PersistenceProjectionMapper.project(coordination)
+-        mutableAutosave.value = PersistenceProjectionMapper.projectAutosave(coordination)
++        diagnosticSetId += 1L
++        val setId = diagnosticSetId
++        val oldOperation = mutablePersistenceOperation.value
++        val newOperation = PersistenceProjectionMapper.project(coordination)
++        val operationTransition = RuntimeProjectionTransition(oldOperation, newOperation, oldOperation != newOperation)
++        autosaveDiagnostics.observe(
++            AutosaveDiagnosticEvent.RuntimeOperationSet(setId, RuntimeSetStage.INTENT, operationTransition),
++        )
++        mutablePersistenceOperation.value = newOperation
++        autosaveDiagnostics.observe(
++            AutosaveDiagnosticEvent.RuntimeOperationSet(setId, RuntimeSetStage.COMPLETE, operationTransition),
++        )
++        val oldAutosave = mutableAutosave.value
++        val newAutosave = PersistenceProjectionMapper.projectAutosave(coordination)
++        val autosaveTransition = RuntimeProjectionTransition(oldAutosave, newAutosave, oldAutosave != newAutosave)
++        autosaveDiagnostics.observe(
++            AutosaveDiagnosticEvent.RuntimeAutosaveSet(setId, RuntimeSetStage.INTENT, autosaveTransition),
++        )
++        mutableAutosave.value = newAutosave
++        autosaveDiagnostics.observe(
++            AutosaveDiagnosticEvent.RuntimeAutosaveSet(setId, RuntimeSetStage.COMPLETE, autosaveTransition),
++        )
+     }
+
+     private fun reduceWorkspaceLocked(action: WorkspaceAction): WorkspaceReductionResult {
+@@ -274,11 +300,19 @@ public class EditorRuntime private constructor(
+             initialCanvas: CanvasSize,
+             definition: PaletteDefinition,
+             documentIdSource: DocumentIdSource,
++        ): EditorRuntime = create(initialCanvas, definition, documentIdSource, AutosaveDiagnosticObserver.None)
++
++        public fun create(
++            initialCanvas: CanvasSize,
++            definition: PaletteDefinition,
++            documentIdSource: DocumentIdSource,
++            autosaveDiagnostics: AutosaveDiagnosticObserver,
+         ): EditorRuntime =
+             EditorRuntime(
+                 documentIdSource,
+                 WorkspaceReducer.create(),
+                 RuntimeOwners.create(initialCanvas, definition, documentIdSource),
++                autosaveDiagnostics,
+             )
+     }
+ }
+diff --git a/core/application/src/main/kotlin/io/github/hideyukimori/nenepixel/core/application/persistence/AutosaveDiagnosticObserver.kt b/core/application/src/main/kotlin/io/github/hideyukimori/nenepixel/core/application/persistence/AutosaveDiagnosticObserver.kt
+new file mode 100644
+index 0000000..4216ff5
+--- /dev/null
++++ b/core/application/src/main/kotlin/io/github/hideyukimori/nenepixel/core/application/persistence/AutosaveDiagnosticObserver.kt
+@@ -0,0 +1,58 @@
++package io.github.hideyukimori.nenepixel.core.application.persistence
++
++/** Temporary #190 diagnostic seam. The prepared patch is never part of a shipping source tree. */
++public fun interface AutosaveDiagnosticObserver {
++    public fun observe(event: AutosaveDiagnosticEvent)
++
++    public companion object {
++        public val None: AutosaveDiagnosticObserver = AutosaveDiagnosticObserver { }
++    }
++}
++
++/** Carries only existing opaque projections and identities; never a document or its contents. */
++public sealed interface AutosaveDiagnosticEvent {
++    public data class RuntimeOperationSet(
++        val setId: Long,
++        val stage: RuntimeSetStage,
++        val transition: RuntimeProjectionTransition<PersistenceOperationProjection>,
++    ) : AutosaveDiagnosticEvent
++
++    public data class RuntimeAutosaveSet(
++        val setId: Long,
++        val stage: RuntimeSetStage,
++        val transition: RuntimeProjectionTransition<AutosaveProjection>,
++    ) : AutosaveDiagnosticEvent
++
++    public data class PublicationPortBegin(
++        val token: AutosaveStateToken,
++        val operation: PersistenceOperationHandle,
++    ) : AutosaveDiagnosticEvent
++
++    public data class PublicationPortEnd(
++        val token: AutosaveStateToken,
++        val operation: PersistenceOperationHandle,
++        val outcome: RecoveryPublicationOutcome,
++    ) : AutosaveDiagnosticEvent
++
++    public data class PublicationRuntimeComplete(
++        val token: AutosaveStateToken,
++        val operation: PersistenceOperationHandle,
++        val result: AutosaveRequestResult,
++    ) : AutosaveDiagnosticEvent
++
++    public data class PublicationIncomplete(
++        val token: AutosaveStateToken,
++        val operation: PersistenceOperationHandle,
++        val reason: PublicationIncompleteReason,
++    ) : AutosaveDiagnosticEvent
++}
++
++public enum class PublicationIncompleteReason { CANCELLED, THREW }
++
++public enum class RuntimeSetStage { INTENT, COMPLETE }
++
++public data class RuntimeProjectionTransition<T>(
++    val old: T,
++    val new: T,
++    val changed: Boolean,
++)
+diff --git a/core/application/src/main/kotlin/io/github/hideyukimori/nenepixel/core/application/persistence/EditorPersistenceWorkflow.kt b/core/application/src/main/kotlin/io/github/hideyukimori/nenepixel/core/application/persistence/EditorPersistenceWorkflow.kt
+index 372ead2..f641e72 100644
+--- a/core/application/src/main/kotlin/io/github/hideyukimori/nenepixel/core/application/persistence/EditorPersistenceWorkflow.kt
++++ b/core/application/src/main/kotlin/io/github/hideyukimori/nenepixel/core/application/persistence/EditorPersistenceWorkflow.kt
+@@ -56,8 +56,10 @@ public class EditorPersistenceWorkflow private constructor(
+             runtime: EditorRuntime,
+             ports: PersistencePorts,
+             conversionDispatcher: CoroutineDispatcher,
++            autosaveDiagnostics: AutosaveDiagnosticObserver = AutosaveDiagnosticObserver.None,
+         ): EditorPersistenceWorkflow {
+-            val autosave = PersistenceAutosaveFlow(runtime.autosaveOperations, ports.recoveryRecord)
++            val autosave =
++                PersistenceAutosaveFlow(runtime.autosaveOperations, ports.recoveryRecord, autosaveDiagnostics)
+             return EditorPersistenceWorkflow(
+                 runtime,
+                 PersistenceFlows(
+diff --git a/core/application/src/main/kotlin/io/github/hideyukimori/nenepixel/core/application/persistence/PersistenceAutosaveFlow.kt b/core/application/src/main/kotlin/io/github/hideyukimori/nenepixel/core/application/persistence/PersistenceAutosaveFlow.kt
+index c4e5aa4..71db49c 100644
+--- a/core/application/src/main/kotlin/io/github/hideyukimori/nenepixel/core/application/persistence/PersistenceAutosaveFlow.kt
++++ b/core/application/src/main/kotlin/io/github/hideyukimori/nenepixel/core/application/persistence/PersistenceAutosaveFlow.kt
+@@ -11,6 +11,7 @@ import java.util.concurrent.ConcurrentHashMap
+ internal class PersistenceAutosaveFlow(
+     private val operations: RuntimeAutosaveOperations,
+     private val recoveryRecord: RecoveryRecordPort,
++    private val diagnostics: AutosaveDiagnosticObserver = AutosaveDiagnosticObserver.None,
+ ) {
+     private val completions: ConcurrentHashMap<PersistenceOperationHandle, CompletableDeferred<Unit>> =
+         ConcurrentHashMap()
+@@ -53,17 +54,33 @@ internal class PersistenceAutosaveFlow(
+      */
+     private suspend fun publish(start: AutosaveStart.Started): AutosaveRequestResult {
+         completions.getOrPut(start.handle) { CompletableDeferred() }
++        val token = start.capture.stateToken
++        var completed = false
++        var incompleteReason = PublicationIncompleteReason.THREW
+         return try {
+             withContext(NonCancellable) {
+-                operations.completePublication(
+-                    start.handle,
+-                    recoveryRecord.publishCandidate(start.expected, start.capture.document),
+-                )
++                diagnostics.observe(AutosaveDiagnosticEvent.PublicationPortBegin(token, start.handle))
++                val outcome = recoveryRecord.publishCandidate(start.expected, start.capture.document)
++                diagnostics.observe(AutosaveDiagnosticEvent.PublicationPortEnd(token, start.handle, outcome))
++                val result =
++                    operations.completePublication(
++                        start.handle,
++                        outcome,
++                    )
++                completed = true
++                diagnostics.observe(AutosaveDiagnosticEvent.PublicationRuntimeComplete(token, start.handle, result))
++                result
+             }
+         } catch (cancelled: CancellationException) {
++            incompleteReason = PublicationIncompleteReason.CANCELLED
+             withContext(NonCancellable) { operations.releasePublication(start.handle) }
+             throw cancelled
+         } finally {
++            if (!completed) {
++                diagnostics.observe(
++                    AutosaveDiagnosticEvent.PublicationIncomplete(token, start.handle, incompleteReason),
++                )
++            }
+             completions.remove(start.handle)?.complete(Unit)
+         }
+     }
+diff --git a/quality/baseline-profile/src/main/kotlin/io/github/hideyukimori/nenepixel/quality/baselineprofile/PencilUndoBaselineProfile.kt b/quality/baseline-profile/src/main/kotlin/io/github/hideyukimori/nenepixel/quality/baselineprofile/PencilUndoBaselineProfile.kt
+index 7e4f0bb..8e4ad30 100644
+--- a/quality/baseline-profile/src/main/kotlin/io/github/hideyukimori/nenepixel/quality/baselineprofile/PencilUndoBaselineProfile.kt
++++ b/quality/baseline-profile/src/main/kotlin/io/github/hideyukimori/nenepixel/quality/baselineprofile/PencilUndoBaselineProfile.kt
+@@ -23,6 +23,12 @@ internal class PencilUndoBaselineProfile {
+     @Test
+     fun collectCanonicalPencilUndoJourney() {
+         requireUnlockedDevice()
++        val session =
++            checkNotNull(InstrumentationRegistry.getArguments().getString(DIAGNOSTIC_SESSION_ARGUMENT)) {
++                "Diagnostic session argument is required."
++            }
++        val diagnostics = ProducerProfileDiagnosticRecorder(session)
++        var iteration = 0
+         baselineProfileRule.collect(
+             packageName = APPLICATION_PACKAGE,
+             maxIterations = MAX_ITERATIONS,
+@@ -30,30 +36,51 @@ internal class PencilUndoBaselineProfile {
+             includeInStartupProfile = false,
+             strictStability = true,
+         ) {
++            iteration += 1
++            check(iteration <= MAX_ITERATIONS) { "Diagnostic iteration limit exceeded." }
++            diagnostics.event(iteration, "iteration_begin")
+             pressHome()
+-            startActivityAndWait()
++            diagnostics.event(iteration, "launch_begin")
++            startActivityAndWait { intent ->
++                intent.putExtra(DIAGNOSTIC_SESSION_ARGUMENT, session)
++                intent.putExtra(DIAGNOSTIC_ITERATION_EXTRA, iteration)
++            }
++            diagnostics.event(iteration, "launch_end")
+
+-            val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+-            device.declineRecoveryOffer()
+-            device.awaitObject(By.res(CLEAN_LABEL))
+-            device.awaitObject(By.res(PENCIL_DESCRIPTION))
+-            device.awaitObject(undoButton(enabled = false))
+-            val canvas = device.awaitObject(By.res(CANVAS_DESCRIPTION))
+-            val bounds = canvas.visibleBounds
+-            check(bounds.width() > 0 && bounds.height() > 0) { "Canvas bounds must be non-empty: $bounds" }
++            UiDevice.getInstance(InstrumentationRegistry.getInstrumentation()).drawAndUndo(diagnostics, iteration)
++        }
++    }
+
+-            val fit = minOf(bounds.width().toDouble() / CANVAS_WIDTH, bounds.height().toDouble() / CANVAS_HEIGHT)
+-            val originX = bounds.left + (bounds.width() - fit * CANVAS_WIDTH) / CENTERING_DIVISOR
+-            val originY = bounds.top + (bounds.height() - fit * CANVAS_HEIGHT) / CENTERING_DIVISOR
+-            val x = floor(originX + fit / CENTERING_DIVISOR).toInt()
+-            val y = floor(originY + fit / CENTERING_DIVISOR).toInt()
+-            check(device.click(x, y)) { "Pencil input was not accepted at ($x, $y)." }
++    private fun UiDevice.drawAndUndo(
++        diagnostics: ProducerProfileDiagnosticRecorder,
++        iteration: Int,
++    ) {
++        declineRecoveryOffer(diagnostics, iteration)
++        awaitObject(By.res(CLEAN_LABEL))
++        awaitObject(By.res(PENCIL_DESCRIPTION))
++        awaitObject(undoButton(enabled = false))
++        val canvas = awaitObject(By.res(CANVAS_DESCRIPTION))
++        val bounds = canvas.visibleBounds
++        check(bounds.width() > 0 && bounds.height() > 0) { "Canvas bounds must be non-empty: $bounds" }
+
+-            device.awaitObject(By.res(DIRTY_LABEL))
+-            device.awaitObject(undoButton(enabled = true)).click(CANONICAL_TAP_DURATION_MILLIS)
+-            device.awaitObject(By.res(CLEAN_LABEL))
+-            device.awaitObject(undoButton(enabled = false))
+-        }
++        val fit = minOf(bounds.width().toDouble() / CANVAS_WIDTH, bounds.height().toDouble() / CANVAS_HEIGHT)
++        val originX = bounds.left + (bounds.width() - fit * CANVAS_WIDTH) / CENTERING_DIVISOR
++        val originY = bounds.top + (bounds.height() - fit * CANVAS_HEIGHT) / CENTERING_DIVISOR
++        val x = floor(originX + fit / CENTERING_DIVISOR).toInt()
++        val y = floor(originY + fit / CENTERING_DIVISOR).toInt()
++        diagnostics.event(iteration, "pencil_begin")
++        check(click(x, y)) { "Pencil input was not accepted at ($x, $y)." }
++        diagnostics.event(iteration, "pencil_end")
++
++        awaitObject(By.res(DIRTY_LABEL))
++        diagnostics.event(iteration, "dirty_observed")
++        diagnostics.event(iteration, "undo_begin")
++        awaitObject(undoButton(enabled = true)).click(CANONICAL_TAP_DURATION_MILLIS)
++        diagnostics.event(iteration, "undo_end")
++        awaitObject(By.res(CLEAN_LABEL))
++        diagnostics.event(iteration, "clean_observed")
++        awaitObject(undoButton(enabled = false))
++        diagnostics.event(iteration, "ui_block_end")
+     }
+
+     private fun requireUnlockedDevice() {
+@@ -70,9 +97,16 @@ internal class PencilUndoBaselineProfile {
+      * Both control taps use the same fixed pointer-down interval; a shorter press lets the ripple's delayed reset
+      * path into the profile.
+      */
+-    private fun UiDevice.declineRecoveryOffer() {
++    private fun UiDevice.declineRecoveryOffer(
++        diagnostics: ProducerProfileDiagnosticRecorder,
++        iteration: Int,
++    ) {
+         val first = awaitObject(By.res(CLEAN_OR_DISCARD))
+-        if (first.resourceName == DISCARD_RECOVERY) first.click(CANONICAL_TAP_DURATION_MILLIS)
++        if (first.resourceName == DISCARD_RECOVERY) {
++            diagnostics.event(iteration, "recovery_discard_begin")
++            first.click(CANONICAL_TAP_DURATION_MILLIS)
++            diagnostics.event(iteration, "recovery_discard_end")
++        }
+     }
+
+     private fun UiDevice.awaitObject(selector: BySelector): UiObject2 =
+@@ -96,6 +130,8 @@ internal class PencilUndoBaselineProfile {
+         const val CENTERING_DIVISOR = 2.0
+         const val UI_TIMEOUT_MILLIS = 5_000L
+         const val CANONICAL_TAP_DURATION_MILLIS = 100L
++        const val DIAGNOSTIC_SESSION_ARGUMENT = "nene_profile_diag_session"
++        const val DIAGNOSTIC_ITERATION_EXTRA = "nene_profile_diag_iteration"
+         const val MAX_ITERATIONS = 15
+         const val STABLE_ITERATIONS = 3
+     }
+diff --git a/quality/baseline-profile/src/main/kotlin/io/github/hideyukimori/nenepixel/quality/baselineprofile/ProducerProfileDiagnosticRecorder.kt b/quality/baseline-profile/src/main/kotlin/io/github/hideyukimori/nenepixel/quality/baselineprofile/ProducerProfileDiagnosticRecorder.kt
+new file mode 100644
+index 0000000..73df421
+--- /dev/null
++++ b/quality/baseline-profile/src/main/kotlin/io/github/hideyukimori/nenepixel/quality/baselineprofile/ProducerProfileDiagnosticRecorder.kt
+@@ -0,0 +1,78 @@
++package io.github.hideyukimori.nenepixel.quality.baselineprofile
++
++import android.os.Process
++import android.os.SystemClock
++import android.util.Log
++
++/** Test-process half of the temporary #190 diagnostic patch. */
++internal class ProducerProfileDiagnosticRecorder(
++    private val session: String,
++    private val pid: Int = Process.myPid(),
++    private val nanos: () -> Long = SystemClock::elapsedRealtimeNanos,
++    private val sink: (String) -> Unit = { line -> Log.i("NeneProfileDiag", line) },
++) {
++    private val lock = Any()
++    private val originNanos = nanos()
++    private var sequence = 0
++    private var invalid = false
++
++    init {
++        require(session.matches(SESSION_PATTERN)) { "Invalid diagnostic session" }
++        require(pid > 0) { "Invalid diagnostic process" }
++        event(0, "process_begin")
++    }
++
++    fun event(
++        iteration: Int,
++        event: String,
++    ) {
++        require(iteration in 0..MAX_ITERATIONS) { "Invalid diagnostic iteration" }
++        require(event in EVENTS) { "Invalid diagnostic event" }
++        synchronized(lock) {
++            if (invalid) return
++            if (sequence == EVENT_LIMIT - 1) {
++                invalid = true
++                emit(iteration, "diagnostic_invalid", "event_limit")
++            } else {
++                emit(iteration, event, null)
++            }
++        }
++    }
++
++    private fun emit(
++        iteration: Int,
++        event: String,
++        reason: String?,
++    ) {
++        sequence += 1
++        val reasonField = if (reason == null) "" else ",\"reason\":\"$reason\""
++        sink(
++            "{\"schema\":\"nene-pixel-profile-diagnostic-v1\"," +
++                "\"session\":\"$session\",\"iteration\":$iteration,\"role\":\"producer\"," +
++                "\"pid\":$pid,\"origin_ns\":$originNanos,\"seq\":$sequence," +
++                "\"t_ns\":${nanos()},\"event\":\"$event\"$reasonField}",
++        )
++    }
++
++    private companion object {
++        const val MAX_ITERATIONS = 15
++        const val EVENT_LIMIT = 512
++        val SESSION_PATTERN = Regex("[A-Za-z0-9_-]{1,64}")
++        val EVENTS =
++            setOf(
++                "process_begin",
++                "iteration_begin",
++                "launch_begin",
++                "launch_end",
++                "recovery_discard_begin",
++                "recovery_discard_end",
++                "pencil_begin",
++                "pencil_end",
++                "dirty_observed",
++                "undo_begin",
++                "undo_end",
++                "clean_observed",
++                "ui_block_end",
++            )
++    }
++}
