@@ -54,8 +54,11 @@ falling back to an Issue-local helper. No v1 record has been converted, relabell
 
 The old manifest records size and hash only. Its original tar records integer-second mtimes and
 contains no fractional PAX mtime for the four underlay files. These artifacts cannot prove original
-nanosecond mtime or exact remembered-underlay LRU order. A fresh inventory can establish current
-nanoseconds; it cannot reconstruct missing original metadata. Exact v2 restoration is not claimed.
+nanosecond mtime. A fresh inventory can establish current nanoseconds; it cannot reconstruct missing
+original metadata. Exact v2 restoration is not claimed. For the two retained underlay state files,
+the original tar seconds are distinct (`1790998943` and `1791001586`) and each matches a2's current
+seconds. Their relative LRU order is therefore preserved regardless of the missing fractional
+values: the implementation orders pairs by state-file mtime. This does not prove exact timestamps.
 
 The bounded read-only observation used the canonical native observer after hide expressly lifted
 the hold for this action alone. It required an already stopped app and the expected installed APK,
