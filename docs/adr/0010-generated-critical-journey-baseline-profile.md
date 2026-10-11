@@ -173,6 +173,31 @@ publication barrier or evidence that two independent generations followed identi
 paths. Any additional diagnostic observer requires its own prospective identity and bounded plan;
 its result cannot substitute for the unchanged acceptance comparison.
 
+### Issue #190 diagnostic preparation (2026-10-12)
+
+The retained mismatch lacks runtime and scheduler event sequences. Prepare one intrusive diagnostic
+patch for a separate lab worktree at an exact source revision. The patch instruments the existing
+producer and canonical runtime/publication/scheduler boundaries; it neither copies the journey nor
+creates a second document path. It is a diagnostic artifact under `docs/quality`, not shipping
+source, a new module, or a permanent application API. Applying it requires exact input identity and
+records patch and resulting file hashes. Its marker and diagnostic source prevent the canonical
+generation wrapper from accepting it, including after an accidental commit of the patched tree.
+
+Events distinguish projection assignment/change, scheduler observations, actual publication and UI
+input/postconditions. A single bounded app-side recorder maps opaque equality tokens to process-local
+ordinals. No document, pixel, history-position value, content URI or user text is logged. The producer
+and app carry an explicit diagnostic session/iteration and use the same Android elapsed-realtime
+clock domain; process identity and per-process sequence remain explicit. Overflow, missing records
+or ambiguous correspondence are invalid diagnostic evidence. Instrumentation changes timing and
+allocation, so these records cannot establish ordinary-product performance or Profile acceptance.
+
+The [diagnostic preparation contract](../quality/PROFILE_DIAGNOSTIC_PREPARATION.md) defines the host
+slice and its checks. This amendment authorizes preparation and host verification only. Collection
+remains deferred; no APK install, device operation, Profile generation, new run allowance or private
+data restoration is authorized by it. A later plan must bind the executable collector, exact
+artifacts, observer identity, finite budget, stopping conditions and restoration admission before
+execution. Public collector results still do not expose per-iteration raw profiles.
+
 The canonical local `check` verifies that the manual file is absent, exactly one generated text
 profile exists, it is non-empty canonical UTF-8, and its recorded canonical SHA-256 matches.
 Generated drift therefore fails locally and in CI without asking CI to provision a device. Exact

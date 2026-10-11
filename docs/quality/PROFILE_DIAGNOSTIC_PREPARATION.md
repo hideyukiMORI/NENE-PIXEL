@@ -1,0 +1,99 @@
+# Issue #190 Profile diagnostic preparation
+
+Status: host preparation; live collection remains deferred.
+
+## Purpose and boundary
+
+The third generation's two valid invocations disagree by nine signatures and two flags. The retained
+logs cannot distinguish runtime publication of intermediate autosave state, StateFlow conflation,
+scheduler short-circuit paths or actual publication. UI Clean and `publishedConsumed` are not save
+completion barriers. This slice prepares observation of those boundaries without changing autosave
+policy, the Pencil/Undo journey, canonical Profile rules or acceptance thresholds.
+
+Rules: ARC-001/003/004/007/011, CMD-001/008, QLT-004/006/011/012/013/015/017/018/019,
+ADR 0010/0018/0024. Waivers: none.
+
+## Selected design
+
+Keep the observer as a source patch plus an exact input/output manifest under `docs/quality`.
+Apply it only to a clean, separate worktree in the existing development lab, at the pinned commit
+and tree. The preparation command must reject source drift, existing diagnostic output, an unsafe
+path/link, or patch mismatch before changing files. It never builds, connects to a device, launches
+an app, generates a Profile, or cleans up another worktree. A partial application remains marked
+as diagnostic and is retained for inspection.
+
+The patch instruments existing functions and uses an explicitly composed temporary observer. There
+is no copied editor implementation, global mutable observer registry, new module, dependency or
+shipping hook. The diagnostic patch is never merged as production source. Ordinary builds have no
+new per-command, per-pixel, document-sized or preview-frame work. Diagnostic builds have bounded
+recording, token lookup and log allocation; no speed claim is made.
+
+The canonical `generate-baseline-profile.ps1` refuses the diagnostic marker or diagnostic source
+before creating evidence or invoking Gradle. A clean Git status after committing the patch cannot
+turn it into an acceptance artifact. The existing two-invocation comparison and accepted artifact
+remain unchanged.
+
+## Observation requirements
+
+- Producer: session, iteration, launch, Pencil input begin/end, Dirty observed, Undo input begin/end,
+  Clean observed and UI-block end. These are named boundaries, not actual display-present times.
+- Runtime: direct old/new projection publication, distinguishing equal assignment from changed
+  values. Observe operation and autosave publication separately and retain their order.
+- Scheduler: the sample it actually receives, its opaque token correspondence, flush/gate state,
+  scheduling decision and request start/end. Do not reconstruct runtime events from StateFlow.
+- Publication: operation/token identity, actual port call begin, typed port outcome and runtime
+  completion, including cancellation/incomplete outcomes. A request alone is not a publication.
+- Collector: later collection retains the pinned library's actual flush/save/stop log alongside
+  these events. Do not invent per-iteration raw profiles or treat UI-block end as process stop.
+
+Use session/iteration plus role, PID and monotonic process-origin identity. Producer and app use
+Android elapsed-realtime nanoseconds for cross-process alignment. Within each emitting process,
+sequence numbers are contiguous. The app shares one recorder across runtime, scheduler and
+publication, mapping equal opaque tokens to the same bounded ordinal without serializing their
+contents or hashes. The observer receives no document or pixel data. Event and token limits are
+fixed in the payload; overflow invalidates the observation and never silently evicts token mappings.
+
+No event stream proves that logging is non-intrusive. Missing or ambiguous process/token/event
+correspondence is invalid evidence, not proof that autosave skipped or failed. Recorded historical
+mismatch and invalid generations remain immutable.
+
+The hook timestamps name their recording boundaries. A scheduler on another thread can observe a
+StateFlow value between its assignment and a following log call; logger sequence is not a new
+linearization authority for application state. Runtime records retain the values and equality result
+at the canonical assignment boundary, and fold attempts are distinguished from the attempt that
+the existing scheduler update commits.
+
+Logcat alone has a remaining tail-completeness limitation: the collector kills the app outside the
+UI block, so the payload cannot emit a guaranteed final app event. Contiguous observed sequence
+numbers do not prove that no later event was lost. Live admission therefore remains closed until
+the collection plan establishes a sufficient terminal/completeness check or explicitly narrows its
+conclusion to positively observed events. In particular, an absent publication event cannot prove
+that no publication occurred. Do not add a collector fork, arbitrary sleep or private-data writer
+to hide this limitation in the preparation slice.
+
+## Host verification plan, fixed before execution
+
+| Changed behavior | Narrow check and regression detected |
+| --- | --- |
+| Preparation and admission scripts | Synthetic lab repositories: exact pin/hash application; changed/dirty input and link/path rejection; refusal before native Gradle work even after diagnostic commit |
+| Diagnostic recorder and hooks | Focused JVM contracts for opaque-token equality, bounds, ordered runtime events and publication outcomes; relevant module compile/static checks for patched source |
+| Scheduler observation | Existing schedule/scheduler contracts plus focused diagnostic tests, because hook placement could alter evaluation or ordering |
+| Producer timestamps and launch metadata | Producer compilation/static analysis only; no connected test or generation |
+| Contract and ADR | `validateDocumentation` and `git diff --check` |
+
+Normal caches and daemon settings apply. Passing checks are reused by identity across packaging,
+review and push. The Draft PR does not trigger a local full suite. Device tests, APK assembly/install,
+performance collection and Profile regeneration are outside this slice. A host compile does not
+claim device correctness or diagnose the actual mismatch.
+
+## Resumption conditions
+
+Before any live diagnostic, reconcile Issue #190, this ADR and the executable harness. Pin the
+production source, patch/observer, app/test APKs, toolchain and unchanged canonical profile. Set a
+finite run/correction budget and explicit refusal/stop rules. Bind actual collector logs and verify
+stream completeness; never infer an unobserved publication from a helper rule. Resolve the existing
+ProfileInstaller-marker restoration admission using preserved original guards and a prospective
+inventory/restoration plan. Do not repeat the interrupted restoration unchanged.
+
+Host preparation does not grant a generation attempt. Profile acceptance and #145 candidate pin
+remain blocked until their own prerequisites are met. #163 follows #145; #168 remains after M4.
