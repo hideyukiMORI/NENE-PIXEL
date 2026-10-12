@@ -81,10 +81,13 @@ internal class EditorRuntimeDuplicateLayerTest {
     }
 
     @Test
-    fun `an active document switch excludes duplication without any owner mutation`() =
+    fun `the final switch-busy phase excludes duplication without any owner mutation`() =
         runBlocking {
             val runtime = initializedFixture().runtime
-            assertInstanceOf(SwitchStart.Load::class.java, runtime.switchOperations.beginLoad())
+            val request = NewDocumentRequest.create("2", "1")
+            val ready =
+                assertInstanceOf(SwitchStart.Ready::class.java, runtime.switchOperations.beginNewDocument(request))
+            assertInstanceOf(SwitchBegin.Permit::class.java, runtime.switchOperations.beginSwitch(ready.handle))
             val before = runtime.state
             val autosave = runtime.autosaveProjection.value
             val result = runtime.execute(DuplicateLayerCommand.create(runtime.captureSource(), layerId(1)))
