@@ -57,6 +57,24 @@ written only from it, so it is the resting form of the same fact and not a secon
 document, command, history, export or recovery record reads it. This category does not authorize
 remembering other workspace facts.
 
+ADR 0041 accepts the frame hierarchy for an atomic consuming cutover; until then the ADR 0030
+single-frame model and v3/envelope 3 writes remain implemented. At that cutover `DocumentState`
+owns ordered `Frame` values and one shared palette; each frame owns its stable identity, duration
+and ordered layers. There are 1 through 16 frames, 1 through 16 layers per frame, and at most 16
+layer records in the whole document, even when immutable snapshots are shared. Layer IDs remain
+globally unique. A document-level active-layer-list alias is prohibited.
+
+The workspace `EditTarget` then owns active frame, layer and palette slot atomically. Frame choice
+is undo-neutral and neither dirty nor an autosave trigger; frame contents/order/duration are saved
+truth and change only through commands. Renderers use explicit frame identity and retain bounded
+active-frame preparations. Save/recovery capture the whole document; PNG operations capture their
+frame target under the runtime lock. The one underlay remains per work.
+
+Playback is a separate consuming decision: its session belongs to workspace, saved frame order and
+duration supply timing data, and monotonic samples enter from one platform lifecycle clock. Ticks
+never become document commands or an independent Compose frame counter. Frame editing adds no
+unused playback API.
+
 ### ARC-005 — Controlled mutation enclave
 
 Externally visible domain and application state MUST be immutable. `PixelSnapshot`, `Stroke`,
@@ -126,6 +144,10 @@ Validation MUST NOT be repeated with different rules in UI, persistence, and aut
 Project files, exported structured data, and future external command contracts MUST have explicit versions and deterministic migration rules. Serialized DTOs MUST be separate from domain models.
 
 Generated contract code MUST be clearly isolated and MUST NOT be hand-edited.
+
+ADR 0041 switches current project/recovery writes to v4/envelope 4 only with the complete frame
+runtime cutover. Exact older readers and byte authorities remain; no parallel writer accepts an
+unsavable frame model. V4 adds frames, not saved opacity; opacity requires a future version/ADR.
 
 ### ARC-010 — Errors are typed
 

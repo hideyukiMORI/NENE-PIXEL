@@ -114,6 +114,15 @@ It does not own UI state, serialization annotations, database entities, Android 
 work buffers. Its private snapshot, stroke and legacy-source arrays are immutable by construction
 and never escape. LegacyRgbaSource is not accepted by editable runtime or command owners.
 
+ADR 0041 accepts a prospective atomic frame cutover. At that cutover, the sole `DocumentState`
+representation owns an ordered nonempty list of `Frame` values and one shared palette. Each frame
+owns a stable document-unique `FrameId`, a validated 10–60,000 ms `FrameDuration` and its ordered
+nonempty layers. `LayerId` remains globally unique; every snapshot shares the document canvas and
+palette. Frames and total layer records are each bounded by 16, counting logical records even when
+snapshots are shared. No document-level editable layer alias or independent frame pixel owner
+remains. Until the consuming implementation, current v3/runtime ownership stays unchanged; this
+accepted target adds no unused frame or playback API.
+
 ### `:core:pixel-engine`
 
 Owns performance-sensitive raster behavior:
@@ -131,6 +140,10 @@ Owns performance-sensitive raster behavior:
 - render invalidation regions
 
 This is the only controlled mutation enclave. Its public API returns domain `PixelSnapshot` values and flat packed `PixelPatch` values with shared directional inverses and never leaks owned storage.
+
+Under ADR 0041, frame-aware application projections supply only the chosen frame's layers to the
+same composite arithmetic. Palette remapping still visits every layer record across all frames,
+including hidden layers. Frame selection introduces no second raster or blend implementation.
 
 ADR 0023 adds bounded palette-to-palette remapping in its `palette` package. PaletteRemapPlanner
 returns a complete domain PaletteRemap through closed planning outcomes. It has no live runtime or
@@ -171,6 +184,17 @@ future-owner preparation use an injected dispatcher outside the runtime lock whi
 existing physical-operation lease. `PersistencePorts` groups project/recovery/PNG ports for the
 workflow factory; the app injects that group and the worker dispatcher. No second workflow is added.
 
+At ADR 0041's cutover, application owns the atomic workspace `EditTarget` (FrameId, LayerId and
+palette slot), frame commands in the existing gateway/history and the hierarchical structural
+transition. Reconciliation, global layer-record capacity and global ID admission remain in the
+same runtime lock. Rendering/cache projections take explicit frame identity and retain at most
+the active frame's disposable preparation. Save/recovery/autosave captures remain whole-document
+and exact-position; frame choice is workspace state and never creates an autosave capture. PNG
+export takes one immutable document-plus-FrameId capture admitted inside that lock. PNG layer
+import retains its admitted target FrameId and insertion-anchor LayerId; later focus does not
+retarget it. Application still knows no codec bytes or storage APIs. Playback waits for its own
+clock/interaction decision and introduces no independent current-frame owner here.
+
 It does not know Compose, Android, SQL, files, project-format bytes/codecs, JSON libraries, storage
 URIs, or automation protocols. It may use platform-neutral coroutines for suspend ports, its read-only
 `StateFlow`, and the non-cancellable retirement/install critical section, but creates no scope or
@@ -194,8 +218,20 @@ ADR 0025 refines ADR 0015's boundary to one `ProjectFormatBytes` carrier, one cl
 DocumentState and reads v1/v2/v3 through DocumentImportSource: v1 retains the Legacy conversion,
 while v2 becomes one fully covered layer in Current. Exact original-v1 encoding remains available
 only from LegacyRgbaSource. Version implementations are internal. The common carrier uses the v3
-maximum-plus-one probe; each decoder separately enforces its version-specific maximum and exact
-structural/checksum/domain admission order before raster allocation.
+maximum-plus-one probe; each decoder separately enforces its version-specific maximum. Structural
+length and checksum admission precede raster mapping; layer ID/name/coverage/palette validation
+then completes the exact typed document admission.
+
+At the atomic cutover accepted in ADR 0041, write-current becomes v4 through the same codec and
+carrier; [Project Format v4](PROJECT_FORMAT_V4.md) is its exact byte authority. The maximum file
+is 1,183,006 bytes and the probe is 1,183,007. The v4 structure reader admits frame/duration/global-ID
+and aggregate 16-layer-record bounds, exact length and CRC before pixel snapshot allocation.
+V3 maps losslessly to frame ID 1 with duration 100 ms, retaining every layer and document field;
+v2 retains its fully covered mapping into that default frame. V1 remains uninstalled Legacy input
+for explicit conversion into one default frame. Lossless user-file migration creates no edit/history
+entry and retains a clean checkpoint; recovery adoption keeps its existing distinct checkpoint
+semantics. V1/v2/v3 byte authorities, goldens and per-version limits remain unchanged; no old
+writer accepts the new editable hierarchy, and no fallback bypasses unknown-version rejection.
 
 ADR 0022 adds one separate `palette` codec package here for PaletteJsonBytes, PaletteJsonCodec and
 closed format outcomes under [Palette JSON v1](PALETTE_JSON_V1.md). It maps to the domain
@@ -205,8 +241,8 @@ default semantics. No parallel tool-color list or raw JSON node crosses a public
 
 The #106 indexed cutover changes document ownership and all consumers together. Legacy RGBA import
 is bounded uninstalled input with a typed lossless/conversion-required outcome, never an alternative
-editable runtime. Future frames and tiles/maps use the boundaries in ADR 0022; the reference
-underlay uses ADR 0032. No empty module or unused frame API is introduced by palette preparation.
+editable runtime. Frames use the accepted atomic boundary in ADR 0041; future tiles/maps remain
+under ADR 0022. The reference underlay uses ADR 0032. No empty module or unused frame API is introduced by palette preparation.
 
 ### `:presentation:compose`
 
@@ -253,6 +289,22 @@ serialized framework `AtomicFile` record and conditional Retired writer fixed by
 The existing filename is retained; inspection accepts matching envelope/project versions 1, 2 and
 3. New Candidate and Retired writes use envelope 3 under ADR 0030. Inspection never rewrites a
 source or decides whether to reduce it.
+
+ADR 0041 prospectively switches the same project transport and recovery writer to v4/envelope 4
+with the runtime hierarchy. Recovery retains its existing filename, generation, 23-byte Retired
+record, checksum, ordered `AtomicFile` publication and verified read-back. Envelope 4 contains
+exactly project 4; all older exact version pairings remain readable. Candidate bounds become
+94–1,183,029 bytes with a 1,183,030-byte probe; version-specific old bounds still apply. Carrier,
+SAF read/read-back, recovery length/dispatch and verification switch together. Inspection/loading
+never rewrites an older source merely to migrate it.
+
+The PNG adapter consumes the application-owned immutable captured frame and document rather than
+reading workspace focus. It uses that frame's canonical Composite; the static RGBA/sRGB PNG limit
+stays 263,756 bytes. Import remains one bounded uninstalled raster and canonical plan/command
+insertion into the captured frame; animated PNG, sprite sheets and multiple-file frame storage
+are not admitted. New-work import creates one default-duration frame. Historical v3 maximum
+fixtures/hashes remain unchanged; a distinct v4 maximum-byte fixture and publication workload are
+registered with #145 before the later M5 collection, without a new writer or measurement path.
 
 ### `:app:android`
 
