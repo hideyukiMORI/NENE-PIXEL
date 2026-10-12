@@ -2,6 +2,8 @@ package io.github.hideyukimori.nenepixel.core.pixelengine.composite
 
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelRegion
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerVisibility
+import io.github.hideyukimori.nenepixel.core.domain.selection.PixelOrientation
+import io.github.hideyukimori.nenepixel.core.domain.selection.PixelPlacement
 import io.github.hideyukimori.nenepixel.core.domain.selection.PixelTransfer
 import io.github.hideyukimori.nenepixel.core.domain.selection.PixelTransferMode
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelPatchApplicationResult
@@ -39,7 +41,8 @@ class PixelTransferCompositeTest {
             ).composite
         PixelTransferMode.entries.forEach { mode ->
             listOf(1 to 0, 2 to 1, 0 to 1).forEach { (x, y) ->
-                val transfer = value(PixelTransfer.create(size, source, PixelTransferCells.position(x, y), mode))
+                val placement = PixelPlacement.create(PixelTransferCells.position(x, y))
+                val transfer = value(PixelTransfer.create(size, source, placement, mode))
                 val patch =
                     (
                         rasterizePixelTransfer(
@@ -54,6 +57,43 @@ class PixelTransferCompositeTest {
                     assertEquals(
                         expected[position.y.value * 4 + position.x.value],
                         prepared.packedRgba8888At(position, transfer),
+                    )
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `one prepared non-square crop evaluates all orientations with the canonical layered composite`() {
+        val size = canvas(5, 4)
+        val colors = palette(0xAABBCC00, 0xFF000080, 0x0000FFFF, 0x00FF0040)
+        val layers =
+            listOf(
+                layer(1, size, List(20) { 3 }),
+                layer(2, size, List(20) { if (it % 5 == 0) null else it % 4 }),
+                layer(3, size, List(20) { if (it % 3 == 0) null else (it + 1) % 4 }),
+                layer(4, size, List(20) { 2 }, LayerVisibility.Hidden),
+            )
+        val source = value(PixelRegion.create(size, PixelTransferCells.position(0, 0), canvas(3, 2)))
+        val prepared =
+            assertInstanceOf(
+                PixelTransferCompositeResult.Prepared::class.java,
+                preparePixelTransferComposite(size, layers, colors, PixelTransferCompositeTarget(layerId(2), source)),
+            ).composite
+        PixelOrientation.entries.forEach { orientation ->
+            PixelTransferMode.entries.forEach { mode ->
+                val placement = PixelPlacement.create(PixelTransferCells.position(2, 1), orientation)
+                val transfer = value(PixelTransfer.create(size, source, placement, mode))
+                val result = rasterizePixelTransfer(layers[1].snapshot, transfer)
+                val patch = assertInstanceOf(PixelTransferRasterizationResult.Rasterized::class.java, result).patch
+                val target = (patch.applyTo(layers[1].snapshot) as PixelPatchApplicationResult.Applied).snapshot
+                val changed = layers.toMutableList().also { it[1] = layers[1].withSnapshot(target) }
+                val expected = composited(compositeLayers(size, changed, colors))
+                prepared.forEachPosition(transfer) { position ->
+                    assertEquals(
+                        expected[position.y.value * 5 + position.x.value],
+                        prepared.packedRgba8888At(position, transfer),
+                        "$orientation $mode at $position",
                     )
                 }
             }
@@ -87,7 +127,14 @@ class PixelTransferCompositeTest {
             ).composite
         val changedSource = value(PixelRegion.create(size, PixelTransferCells.position(1, 1), canvas(1, 1)))
         val transfer =
-            value(PixelTransfer.create(size, changedSource, PixelTransferCells.position(0, 0), PixelTransferMode.Copy))
+            value(
+                PixelTransfer.create(
+                    size,
+                    changedSource,
+                    PixelPlacement.create(PixelTransferCells.position(0, 0)),
+                    PixelTransferMode.Copy,
+                ),
+            )
         assertThrows(IllegalArgumentException::class.java) { prepared.forEachPosition(transfer) {} }
     }
 }

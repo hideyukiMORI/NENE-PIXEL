@@ -4,6 +4,7 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.selection.Sel
 import io.github.hideyukimori.nenepixel.core.application.workspace.selection.SelectionPointerPolicy
 import io.github.hideyukimori.nenepixel.core.application.workspace.selection.SelectionRejection
 import io.github.hideyukimori.nenepixel.core.application.workspace.selection.SelectionSession
+import io.github.hideyukimori.nenepixel.core.application.workspace.selection.SelectionTransformPolicy
 
 /** Selection copies are geometry-only and retain every unrelated validated workspace owner. */
 internal fun WorkspaceState.withSelectionSession(session: SelectionSession?): WorkspaceState =
@@ -55,6 +56,10 @@ internal fun reduceSelection(
 
         is WorkspaceAction.SetSelectionMode -> {
             setMode(state, action)
+        }
+
+        is WorkspaceAction.TransformSelection -> {
+            transform(state, action)
         }
     }
 
@@ -137,6 +142,33 @@ private fun changed(
     } else {
         WorkspaceReductionResult.Reduced(state.withSelectionSession(session))
     }
+
+private fun transform(
+    state: WorkspaceState,
+    action: WorkspaceAction.TransformSelection,
+): WorkspaceReductionResult {
+    val session = state.selectionSession ?: return rejected(state, SelectionRejection.NoSession)
+    val draft = session.geometry.draft
+    return when {
+        session.geometry.pointer != null -> {
+            rejected(state, SelectionRejection.PointerActive)
+        }
+
+        draft == null -> {
+            rejected(state, SelectionRejection.NoRectangle)
+        }
+
+        !session.canTransform(action.operation) -> {
+            rejected(state, SelectionRejection.TransformedRegionOutsideCanvas)
+        }
+
+        else -> {
+            val next = SelectionTransformPolicy.transform(session.admission.document.size, draft, action.operation)
+            val changedSession = if (next == draft) session else session.withGeometry(SelectionGeometry(next, null))
+            changed(state, changedSession)
+        }
+    }
+}
 
 private fun rejected(
     state: WorkspaceState,

@@ -85,10 +85,12 @@ One concept has one canonical name. New synonyms in code are prohibited. Add or 
 | `Layer` | An ordered document element with a LayerId, name, visibility and one PixelSnapshot; 1 through 16 per document, bottom first (ADR 0030) | plane, sheet |
 | `LayerId` | Positive document-unique layer identity independent of order and name; new = current maximum + 1 | layer index, layer position |
 | `DuplicateLayerCommand` | Source-admitted command inserting a new layer directly above a named source, preserving its name, visibility and exact immutable pixels as one ordinary Added transition (ADR 0030 / #208) | UI copy loop, imported layer, merged layer |
-| `PixelTransfer` | Validated canvas, source PixelRegion, destination PixelPosition and Move/Copy mode for exact same-layer rectangular replacement, including Empty (ADR 0039) | clipboard pixels, raw offset, blended image |
+| `PixelTransfer` | Validated canvas, source PixelRegion, destination PixelPlacement and Move/Copy mode for exact same-layer rectangular replacement, including Empty (ADR 0039/0040) | clipboard pixels, raw offset, blended image |
 | `PixelTransferMode` | Closed Move or Copy meaning of a rectangular transfer | Boolean copy flag, drawing tool |
+| `PixelOrientation` | One of eight exact orthogonal orientations relative to the original source; then composes a later operation on the displayed rectangle (ADR 0040) | arbitrary angle, cumulative resampled pixels, presentation matrix |
+| `PixelPlacement` | Typed destination position and PixelOrientation grouped for a rectangular transfer; canvas fit is admitted by PixelTransfer (ADR 0040) | copied pixels, independently editable rectangle |
 | `TransferPixelsCommand` | Source-admitted command applying one PixelTransfer through an ordinary pixel patch and layer change | sequence of paint commands, direct UI pixel copy |
-| `SelectionSession` | Workspace-owned captured admission, target layer, rectangle/destination geometry, mode and pointer phase before Apply; owns no pixel payload | saved selection, clipboard document, Compose-local draft |
+| `SelectionSession` | Workspace-owned captured admission, target layer, rectangle/destination geometry and orientation, mode and pointer phase before Apply; owns no pixel payload | saved selection, clipboard document, Compose-local draft |
 | `EditTarget` | Workspace-owned active layer and active palette slot targeted by drawing, erasing and the eyedropper; never saved | current layer state, brush target |
 | `Empty` | A pixel cell with no palette index; always fully transparent and never remapped | transparent index, erase color |
 | `Composite` | The derived visible RGBA image of visible layers under ADR 0030's one integer source-over rule; never document truth | flattened layer, merged image |

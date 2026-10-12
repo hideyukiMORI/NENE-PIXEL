@@ -2,6 +2,7 @@ package io.github.hideyukimori.nenepixel.core.application.workspace.selection
 
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelRegion
+import io.github.hideyukimori.nenepixel.core.domain.selection.PixelOrientation
 
 /** Only geometry is retained; original indexed pixels remain in the admission's immutable document. */
 internal data class SelectionGeometry(
@@ -12,6 +13,7 @@ internal data class SelectionGeometry(
 internal data class SelectionDraft(
     val source: PixelRegion,
     val destination: PixelPosition,
+    val orientation: PixelOrientation = PixelOrientation.Identity,
 )
 
 /** A pointer retains the starting draft so cancellation can restore it after an unfinished drag. */

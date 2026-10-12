@@ -7,6 +7,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.App
 import io.github.hideyukimori.nenepixel.core.application.render.PaletteDraftCompositeFixture.drawnRuntime
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelRegion
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
+import io.github.hideyukimori.nenepixel.core.domain.selection.PixelPlacement
 import io.github.hideyukimori.nenepixel.core.domain.selection.PixelTransfer
 import io.github.hideyukimori.nenepixel.core.domain.selection.PixelTransferMode
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
@@ -21,7 +22,8 @@ class SelectionPreviewCompositeTest {
             val runtime = drawnRuntime()
             val document = runtime.state.documentState
             val source = value(PixelRegion.create(document.size, position(0, 0), canvas(2, 1)))
-            val transfer = value(PixelTransfer.create(document.size, source, position(1, 1), mode))
+            val transfer =
+                value(PixelTransfer.create(document.size, source, PixelPlacement.create(position(1, 1)), mode))
             val prepared = SelectionPreviewComposite.prepare(document, LayerId.first(), source)
             val image = prepared.render(transfer)
             val before = DocumentComposite.render(document).copyPackedRgba8888()

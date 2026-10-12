@@ -41,7 +41,7 @@ internal class PreviewBitmapCache {
         val session = state.selectionSession
         val transfer = session?.previewTransfer
         if (transfer != null) {
-            return if (transfer.source.origin == transfer.destination) {
+            return if (transfer.isIdentity) {
                 selection.hide(state.document, session.layerId, transfer.source)
                 selectionDocument = null
                 selectionTransfer = null

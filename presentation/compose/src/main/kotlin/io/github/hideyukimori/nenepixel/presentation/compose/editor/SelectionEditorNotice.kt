@@ -3,6 +3,7 @@ package io.github.hideyukimori.nenepixel.presentation.compose.editor
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandFailure
 import io.github.hideyukimori.nenepixel.core.application.document.command.RejectionReason
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceActionRejection
+import io.github.hideyukimori.nenepixel.core.application.workspace.selection.SelectionRejection
 import io.github.hideyukimori.nenepixel.presentation.compose.R
 
 /** Typed selection Apply refusals, localized only at the presentation boundary. */
@@ -23,10 +24,22 @@ internal sealed interface SelectionEditorNotice {
 internal fun SelectionEditorNotice.resource(): Int =
     when (this) {
         is SelectionEditorNotice.Rejected -> {
-            if (rejection == WorkspaceActionRejection.PersistenceBusy) {
-                R.string.selection_busy
-            } else {
-                R.string.selection_rejected
+            when (val action = rejection) {
+                WorkspaceActionRejection.PersistenceBusy -> {
+                    R.string.selection_busy
+                }
+
+                is WorkspaceActionRejection.SelectionRejected -> {
+                    if (action.reason == SelectionRejection.TransformedRegionOutsideCanvas) {
+                        R.string.selection_rotation_outside_canvas
+                    } else {
+                        R.string.selection_rejected
+                    }
+                }
+
+                else -> {
+                    R.string.selection_rejected
+                }
             }
         }
 

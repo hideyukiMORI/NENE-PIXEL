@@ -6,6 +6,7 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelX
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelY
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelCell
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
+import io.github.hideyukimori.nenepixel.core.domain.selection.PixelOrientation
 import io.github.hideyukimori.nenepixel.core.domain.selection.PixelTransfer
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 
@@ -40,13 +41,33 @@ internal class PixelTransferCells(
         val target = transfer.destinationRegion
         val localX = x - target.origin.x.value
         val localY = y - target.origin.y.value
-        return if (localX in 0 until source.size.width.value && localY in 0 until source.size.height.value) {
-            val local = localY * source.size.width.value + localX
+        return if (localX in 0 until target.size.width.value && localY in 0 until target.size.height.value) {
+            val local = sourceIndex(localX, localY, transfer.orientation)
             val covered = (coverage[local / BITS_PER_BYTE].toInt() ushr (local and COVERAGE_MASK)) and 1 == 1
             if (covered) COVERED_BIT or (indices[local].toInt() and INDEX_MASK) else 0
         } else {
             // The union's other positions are Move's source-only cells.
             0
+        }
+    }
+
+    /** The one inverse mapping used by patch planning and prepared preview; no rotated crop exists. */
+    private fun sourceIndex(
+        x: Int,
+        y: Int,
+        orientation: PixelOrientation,
+    ): Int {
+        val width = source.size.width.value
+        val height = source.size.height.value
+        return when (orientation) {
+            PixelOrientation.Identity -> y * width + x
+            PixelOrientation.RotateClockwise -> (height - 1 - x) * width + y
+            PixelOrientation.HalfTurn -> (height - 1 - y) * width + width - 1 - x
+            PixelOrientation.RotateCounterClockwise -> x * width + width - 1 - y
+            PixelOrientation.FlipHorizontal -> y * width + width - 1 - x
+            PixelOrientation.FlipVertical -> (height - 1 - y) * width + x
+            PixelOrientation.Transpose -> x * width + y
+            PixelOrientation.Transverse -> (height - 1 - x) * width + width - 1 - y
         }
     }
 
