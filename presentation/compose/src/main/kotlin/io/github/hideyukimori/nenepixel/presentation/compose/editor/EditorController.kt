@@ -98,7 +98,7 @@ public class EditorController private constructor(
             if (adjustPointer.claims()) {
                 adjustPointer.move(surface, point)
             } else {
-                mapping.withMappedPoint(surface, point, ::pointerCancel) { position ->
+                mapping.withDocumentPoint(surface, point) { position ->
                     adapter.reduce(WorkspaceAction.ExtendGesturePreview(position))
                 }
             },
@@ -112,7 +112,7 @@ public class EditorController private constructor(
             if (adjustPointer.claims()) {
                 adjustPointer.end(surface, point)
             } else {
-                mapping.withMappedPoint(surface, point, ::pointerCancel, adapter::finishGesture)
+                mapping.withDocumentPoint(surface, point, adapter::finishGesture)
             },
         )
 

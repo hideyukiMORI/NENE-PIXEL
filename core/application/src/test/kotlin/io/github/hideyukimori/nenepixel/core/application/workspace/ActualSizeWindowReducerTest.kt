@@ -4,6 +4,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.command.Comman
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.canvas
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.position
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.state
+import io.github.hideyukimori.nenepixel.core.domain.geometry.toDocumentPoint
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertInstanceOf
@@ -102,8 +103,11 @@ internal class ActualSizeWindowReducerTest {
         assertEquals(window, reduced.nextState.actualSizeWindow)
         val extended =
             reducer
-                .reduce(reduced.nextState, WorkspaceAction.ExtendGesturePreview(position(2, 1)), admission)
-                .nextState
+                .reduce(
+                    reduced.nextState,
+                    WorkspaceAction.ExtendGesturePreview(position(2, 1).toDocumentPoint()),
+                    admission,
+                ).nextState
         assertEquals(window, extended.actualSizeWindow)
         val prepared =
             assertInstanceOf(

@@ -13,6 +13,7 @@ import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelX
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelY
+import io.github.hideyukimori.nenepixel.core.domain.geometry.toDocumentPoint
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
@@ -118,7 +119,7 @@ internal class StrokePreviewBitmapTest {
             runtime.reduce(WorkspaceAction.SelectLayer(layer))
             runtime.reduce(WorkspaceAction.SelectTool(tool))
             runtime.reduce(WorkspaceAction.BeginGesturePreview(runtime.state.documentState.size, positions.first()))
-            positions.drop(1).forEach { runtime.reduce(WorkspaceAction.ExtendGesturePreview(it)) }
+            positions.drop(1).forEach { runtime.reduce(WorkspaceAction.ExtendGesturePreview(it.toDocumentPoint())) }
             checkNotNull(runtime.state.workspaceState.preview) { "The gesture on $layer did not start" }
         }
 

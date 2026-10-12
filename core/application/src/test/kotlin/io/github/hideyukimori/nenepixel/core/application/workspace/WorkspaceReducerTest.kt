@@ -28,6 +28,7 @@ import io.github.hideyukimori.nenepixel.core.domain.drawing.Stroke
 import io.github.hideyukimori.nenepixel.core.domain.drawing.StrokeEffect
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
+import io.github.hideyukimori.nenepixel.core.domain.geometry.toDocumentPoint
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelLimits
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
@@ -159,13 +160,16 @@ internal class WorkspaceReducerTest {
         val canvas = canvas(2, 1)
         val initial = WorkspaceState.create(canvas)
         val withoutPreview =
-            rejected(reduce(canvas, initial, WorkspaceAction.ExtendGesturePreview(position(2, 0))))
+            rejected(reduce(canvas, initial, WorkspaceAction.ExtendGesturePreview(position(2, 0).toDocumentPoint())))
         assertEquals(WorkspaceActionRejection.NoActivePreview, withoutPreview.rejection)
         assertSame(initial, withoutPreview.nextState)
 
         val oneSample = begin(initial, canvas, position(0, 0))
         val twoSamples = extend(oneSample, position(1, 0))
-        val duplicate = unchanged(reduce(canvas, twoSamples, WorkspaceAction.ExtendGesturePreview(position(1, 0))))
+        val duplicate =
+            unchanged(
+                reduce(canvas, twoSamples, WorkspaceAction.ExtendGesturePreview(position(1, 0).toDocumentPoint())),
+            )
         val revisited = extend(duplicate.nextState, position(0, 0))
 
         assertEquals(WorkspaceNoChangeReason.DuplicatePreviewSample, duplicate.reason)
@@ -173,8 +177,13 @@ internal class WorkspaceReducerTest {
         assertEquals(listOf(position(0, 0)), oneSample.preview?.positions())
         assertEquals(listOf(position(0, 0), position(1, 0), position(0, 0)), revisited.preview?.positions())
 
-        val outside = rejected(reduce(canvas, revisited, WorkspaceAction.ExtendGesturePreview(position(2, 0))))
-        assertOutside(outside, revisited, canvas, position(2, 0))
+        val outside =
+            reduced(reduce(canvas, revisited, WorkspaceAction.ExtendGesturePreview(position(2, 0).toDocumentPoint())))
+        assertEquals(5, outside.preview?.positionCount)
+        assertEquals(
+            listOf(position(0, 0), position(1, 0), position(0, 0), position(1, 0)),
+            outside.preview?.positions(),
+        )
     }
 
     @Test
@@ -232,7 +241,8 @@ internal class WorkspaceReducerTest {
 
         val capMinusOne = extend(state, position(2, 0))
         val cap = extend(capMinusOne, position(3, 0))
-        val rejected = rejected(reduce(canvas, cap, WorkspaceAction.ExtendGesturePreview(position(4, 0))))
+        val rejected =
+            rejected(reduce(canvas, cap, WorkspaceAction.ExtendGesturePreview(position(4, 0).toDocumentPoint())))
         val rejection =
             assertInstanceOf(
                 WorkspaceActionRejection.PreviewPathAboveSupportedMaximum::class.java,
@@ -253,10 +263,10 @@ internal class WorkspaceReducerTest {
             listOf(
                 WorkspaceAction.SelectPaletteEntry(paletteIndex(1)),
                 WorkspaceAction.BeginGesturePreview(canvas, position(0, 0)),
-                WorkspaceAction.ExtendGesturePreview(position(1, 0)),
-                WorkspaceAction.ExtendGesturePreview(position(1, 0)),
+                WorkspaceAction.ExtendGesturePreview(position(1, 0).toDocumentPoint()),
+                WorkspaceAction.ExtendGesturePreview(position(1, 0).toDocumentPoint()),
                 WorkspaceAction.SelectPaletteEntry(paletteIndex(0)),
-                WorkspaceAction.ExtendGesturePreview(position(0, 0)),
+                WorkspaceAction.ExtendGesturePreview(position(0, 0).toDocumentPoint()),
                 WorkspaceAction.PrepareGestureCommit,
                 WorkspaceAction.CancelGesturePreview,
             )
@@ -521,7 +531,13 @@ internal class WorkspaceReducerTest {
         state: WorkspaceState,
         position: PixelPosition,
     ): WorkspaceState =
-        reduced(reduce(checkNotNull(state.preview).canvas, state, WorkspaceAction.ExtendGesturePreview(position)))
+        reduced(
+            reduce(
+                checkNotNull(state.preview).canvas,
+                state,
+                WorkspaceAction.ExtendGesturePreview(position.toDocumentPoint()),
+            ),
+        )
 
     private fun replay(
         canvas: io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize,

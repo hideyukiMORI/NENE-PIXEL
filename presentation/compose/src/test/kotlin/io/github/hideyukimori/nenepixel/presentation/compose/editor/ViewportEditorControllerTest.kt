@@ -14,6 +14,7 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.View
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
+import io.github.hideyukimori.nenepixel.core.domain.geometry.toDocumentPoint
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelCell
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
@@ -188,14 +189,20 @@ internal class ViewportEditorControllerTest {
     }
 
     @Test
-    fun `outside end and explicit cancel clear preview without document command`() {
+    fun `outside end commits contained cells and explicit cancel still discards the gesture`() {
         val outside = fixture()
         outside.controller.pointerDown(surface, surfacePoint(0, 0))
         val outsideResult = outside.controller.pointerEnd(surface, surfacePoint(SURFACE_EDGE, CELL_EDGE / 2.0))
 
-        assertInstanceOf(PointerInputAcknowledgement.Cancelled::class.java, outsideResult)
+        assertInstanceOf(CommandResult.Applied::class.java, accepted(outsideResult).commandResult)
         assertNull(outside.controller.workspaceState.preview)
-        assertSame(outside.initialDocument, outside.controller.documentState)
+        repeat(4) { x -> assertEquals(red, colorAt(outside.controller.documentState, position(x, 0))) }
+        assertEquals(
+            outside.initialDocument,
+            outside.controller.callbacks
+                .onUndo()
+                .document,
+        )
 
         val cancelled = fixture()
         cancelled.controller.pointerDown(surface, surfacePoint(0, 0))
@@ -267,8 +274,11 @@ internal class ViewportEditorControllerTest {
         samples.drop(1).forEach { sample ->
             workspace =
                 fixture.reducer
-                    .reduce(workspace, WorkspaceAction.ExtendGesturePreview(sample), fixture.runtime.captureSource())
-                    .nextState
+                    .reduce(
+                        workspace,
+                        WorkspaceAction.ExtendGesturePreview(sample.toDocumentPoint()),
+                        fixture.runtime.captureSource(),
+                    ).nextState
         }
         val prepared =
             fixture.reducer

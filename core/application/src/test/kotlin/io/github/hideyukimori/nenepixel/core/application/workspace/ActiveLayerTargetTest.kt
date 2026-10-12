@@ -22,6 +22,7 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.quickselect.E
 import io.github.hideyukimori.nenepixel.core.application.workspace.quickselect.QuickSelection
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.drawing.StrokeEffect
+import io.github.hideyukimori.nenepixel.core.domain.geometry.toDocumentPoint
 import io.github.hideyukimori.nenepixel.core.domain.layer.Layer
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerName
@@ -68,7 +69,14 @@ internal class ActiveLayerTargetTest {
         val begun = reduced(reducer.reduce(onTop, WorkspaceAction.BeginGesturePreview(size, position(0, 0)), source))
         assertEquals(topId, checkNotNull(begun.preview).layerId)
         val retargeted = begun.onLayer(LayerId.first())
-        val extended = reduced(reducer.reduce(retargeted, WorkspaceAction.ExtendGesturePreview(position(1, 0)), source))
+        val extended =
+            reduced(
+                reducer.reduce(
+                    retargeted,
+                    WorkspaceAction.ExtendGesturePreview(position(1, 0).toDocumentPoint()),
+                    source,
+                ),
+            )
         val commit = prepared(reducer.reduce(extended, WorkspaceAction.PrepareGestureCommit, source))
         assertEquals(topId, commit.layerId)
         assertEquals(StrokeEffect.Paint(blackIndex), commit.stroke.effect)

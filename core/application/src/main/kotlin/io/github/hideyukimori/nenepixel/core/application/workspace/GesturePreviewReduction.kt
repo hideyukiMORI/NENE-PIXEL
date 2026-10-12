@@ -5,6 +5,7 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.quickselect.E
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
 import io.github.hideyukimori.nenepixel.core.domain.drawing.StrokeEffect
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
+import io.github.hideyukimori.nenepixel.core.domain.geometry.DocumentPoint
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelLimits
 
@@ -73,21 +74,13 @@ private fun extendGesturePreview(
 ): WorkspaceReductionResult {
     val preview =
         state.preview ?: return WorkspaceReductionResult.Rejected(state, WorkspaceActionRejection.NoActivePreview)
-    return when {
-        !preview.canvas.contains(action.position) -> {
-            outsideCanvas(state, preview.canvas, action.position)
-        }
-
-        else -> {
-            extendGesturePreview(state, preview, action.position)
-        }
-    }
+    return extendGesturePreview(state, preview, action.position)
 }
 
 private fun extendGesturePreview(
     state: WorkspaceState,
     preview: ToolGesture,
-    position: PixelPosition,
+    position: DocumentPoint,
 ): WorkspaceReductionResult =
     when (val result = preview.extend(position)) {
         is ToolGestureExtensionResult.Extended -> {

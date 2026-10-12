@@ -8,6 +8,7 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.underlay.Refe
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportState
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
+import io.github.hideyukimori.nenepixel.core.domain.geometry.DocumentPoint
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
@@ -39,7 +40,7 @@ public sealed interface WorkspaceAction {
     ) : GesturePreviewAction
 
     public data class ExtendGesturePreview(
-        public val position: PixelPosition,
+        public val position: DocumentPoint,
     ) : GesturePreviewAction
 
     public data object CancelGesturePreview : GesturePreviewAction
