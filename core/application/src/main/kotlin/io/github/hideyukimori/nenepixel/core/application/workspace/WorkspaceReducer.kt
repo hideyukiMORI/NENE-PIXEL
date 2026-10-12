@@ -3,6 +3,10 @@ package io.github.hideyukimori.nenepixel.core.application.workspace
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandSourceAdmission
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteDraftTransition
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteEditSession
+import io.github.hideyukimori.nenepixel.core.application.workspace.palette.beginColorEdit
+import io.github.hideyukimori.nenepixel.core.application.workspace.palette.cancelColorEdit
+import io.github.hideyukimori.nenepixel.core.application.workspace.palette.finishColorEdit
+import io.github.hideyukimori.nenepixel.core.application.workspace.palette.updateColorEdit
 import io.github.hideyukimori.nenepixel.core.application.workspace.quickselect.EyedropperState
 
 public class WorkspaceReducer private constructor() {
@@ -100,6 +104,14 @@ private fun reducePaletteSession(
         is BeginPaletteEdit -> beginPaletteEdit(state, action)
 
         WorkspaceAction.CancelPaletteEdit -> cancelPaletteEdit(state)
+
+        is WorkspaceAction.BeginPaletteColorEdit -> transitionPaletteDraft(state) { it.beginColorEdit(action.index) }
+
+        is WorkspaceAction.UpdatePaletteColorEdit -> transitionPaletteDraft(state) { it.updateColorEdit(action.color) }
+
+        WorkspaceAction.FinishPaletteColorEdit -> transitionPaletteDraft(state, PaletteEditSession::finishColorEdit)
+
+        WorkspaceAction.CancelPaletteColorEdit -> transitionPaletteDraft(state, PaletteEditSession::cancelColorEdit)
 
         is WorkspaceAction.EditPaletteDraft -> editPaletteDraft(state, action)
 

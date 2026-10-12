@@ -22,22 +22,41 @@ import androidx.compose.ui.unit.dp
 import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.presentation.compose.R
 
-/** The minimal RGBA editor (design ruling 7): one `#RRGGBBAA` field and four 0-255 fields, committed on Done. */
+/** Exact RGBA remains canonical; the picker never round-trips a numeric Done through HSV (#168). */
 @Composable
 internal fun PaletteColorEditor(
-    color: PixelColor,
-    enabled: Boolean,
+    model: PaletteColorEditorModel,
+    callbacks: PaletteColorEditCallbacks,
+) {
+    var numericExpanded by remember { mutableStateOf(false) }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        PaletteColorPicker(model, callbacks)
+        PaletteEditorTextField(HEX_FIELD, PaletteHexColor.format(model.color), model.numericEnabled) { text ->
+            PaletteHexColor.parse(text)?.also(callbacks::commit) != null
+        }
+        PaletteEditorDisclosure(R.string.palette_editor_numeric, numericExpanded) { numericExpanded = !numericExpanded }
+        if (numericExpanded) {
+            PaletteChannelFields(model, callbacks::commit)
+        }
+    }
+}
+
+internal data class PaletteColorEditorModel(
+    val color: PixelColor,
+    val pickerEnabled: Boolean,
+    val numericEnabled: Boolean,
+    val colorEditActive: Boolean,
+)
+
+@Composable
+private fun PaletteChannelFields(
+    model: PaletteColorEditorModel,
     commit: (PixelColor) -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        PaletteEditorTextField(HEX_FIELD, PaletteHexColor.format(color), enabled) { text ->
-            PaletteHexColor.parse(text)?.also(commit) != null
-        }
-        CHANNEL_FIELDS.chunked(2).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                row.forEach { field ->
-                    Box(Modifier.weight(1f)) { PaletteChannelField(field, color, enabled, commit) }
-                }
+    CHANNEL_FIELDS.chunked(2).forEach { row ->
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            row.forEach { field ->
+                Box(Modifier.weight(1f)) { PaletteChannelField(field, model.color, model.numericEnabled, commit) }
             }
         }
     }

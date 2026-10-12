@@ -18,6 +18,16 @@ internal class EditorPaletteCallbacks(
     private val adapter: EditorRuntimeAdapter,
     private val publish: (EditorRenderState) -> EditorRenderState,
 ) {
+    val colorEdit: EditorPaletteColorCallbacks =
+        EditorPaletteColorCallbacks(
+            ::reduce,
+            {
+                runtime.state.workspaceState.paletteEditSession
+                    ?.isColorEditActive == true
+            },
+            { adapter.renderState },
+        )
+
     fun onBegin(): EditorRenderState = adapter.settle(runtime.paletteOperations.beginPaletteEdit().notice(), publish)
 
     fun onCancel(): EditorRenderState = reduce(WorkspaceAction.CancelPaletteEdit)

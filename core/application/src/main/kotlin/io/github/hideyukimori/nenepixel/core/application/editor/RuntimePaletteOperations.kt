@@ -50,6 +50,12 @@ public class RuntimePaletteOperations internal constructor(
                         PaletteApplyResult.Rejected(WorkspaceActionRejection.NoPaletteSession)
                     }
 
+                    session.isColorEditActive -> {
+                        PaletteApplyResult.Rejected(
+                            WorkspaceActionRejection.PaletteDraftRejected(PaletteDraftRejection.ColorEditActive),
+                        )
+                    }
+
                     session.base != transaction.switchContext().source -> {
                         PaletteApplyResult.Rejected(
                             WorkspaceActionRejection.PaletteDraftRejected(PaletteDraftRejection.StaleBase),

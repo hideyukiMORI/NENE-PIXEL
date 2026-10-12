@@ -30,7 +30,12 @@ public class PaletteEditSession private constructor(
     internal val timeline: List<PaletteDraftEntry>,
     internal val cursor: Int,
     public val pendingImport: PendingPaletteImport?,
+    internal val colorEdit: PaletteColorEdit? = null,
 ) {
+    /** True while one slot has a preview-only continuous colour edit. */
+    public val isColorEditActive: Boolean
+        get() = colorEdit != null
+
     /** True when a draft-history entry before the cursor can be undone. */
     public val canUndoDraft: Boolean
         get() = cursor > 0
@@ -41,7 +46,9 @@ public class PaletteEditSession private constructor(
 
     /** Plans one draft operation; a change appends one entry after the cursor and discards the redo branch. */
     internal fun edit(operation: PaletteDraftOperation): PaletteDraftTransition =
-        if (pendingImport != null) {
+        if (isColorEditActive) {
+            draftRejected(PaletteDraftRejection.ColorEditActive)
+        } else if (pendingImport != null) {
             draftRejected(PaletteDraftRejection.ImportPending)
         } else {
             transition(PaletteDraftPlanner.plan(draft, operation))
@@ -49,7 +56,9 @@ public class PaletteEditSession private constructor(
 
     /** Moves the cursor back one entry and restores that entry's `before`; the timeline is unchanged. */
     internal fun undo(): PaletteDraftTransition =
-        if (pendingImport != null) {
+        if (isColorEditActive) {
+            draftRejected(PaletteDraftRejection.ColorEditActive)
+        } else if (pendingImport != null) {
             draftRejected(PaletteDraftRejection.ImportPending)
         } else if (cursor > 0) {
             PaletteDraftTransition.Changed(
@@ -61,7 +70,9 @@ public class PaletteEditSession private constructor(
 
     /** Moves the cursor forward one entry and restores that entry's `after`; the timeline is unchanged. */
     internal fun redo(): PaletteDraftTransition =
-        if (pendingImport != null) {
+        if (isColorEditActive) {
+            draftRejected(PaletteDraftRejection.ColorEditActive)
+        } else if (pendingImport != null) {
             draftRejected(PaletteDraftRejection.ImportPending)
         } else if (cursor < timeline.size) {
             PaletteDraftTransition.Changed(
@@ -111,9 +122,15 @@ public class PaletteEditSession private constructor(
         return PaletteEditSession(base, origin, folded, after, retained, retained.size, null)
     }
 
-    /** The same draft and history with `pending` as the pending import. */
-    internal fun withPendingImport(pending: PendingPaletteImport?): PaletteEditSession =
-        PaletteEditSession(base, origin, evicted, draft, timeline, cursor, pending)
+    /** Replaces ephemeral preview fields together, sharing history; import and colour previews are exclusive. */
+    internal fun withPreview(
+        preview: PaletteDefinition = draft,
+        pending: PendingPaletteImport? = null,
+        edit: PaletteColorEdit? = null,
+    ): PaletteEditSession {
+        check(pending == null || edit == null) { "Import and colour previews cannot coexist" }
+        return PaletteEditSession(base, origin, evicted, preview, timeline, cursor, pending, edit)
+    }
 
     override fun equals(other: Any?): Boolean =
         this === other ||
@@ -125,16 +142,17 @@ public class PaletteEditSession private constructor(
                     draft == other.draft &&
                     timeline == other.timeline &&
                     cursor == other.cursor &&
-                    pendingImport == other.pendingImport
+                    pendingImport == other.pendingImport &&
+                    colorEdit == other.colorEdit
             )
 
     override fun hashCode(): Int =
-        listOf(base, origin, evicted, draft, timeline, cursor, pendingImport)
+        listOf(base, origin, evicted, draft, timeline, cursor, pendingImport, colorEdit)
             .fold(INITIAL_HASH) { hash, value -> hash * HASH_MULTIPLIER + value.hashCode() }
 
     override fun toString(): String =
         "PaletteEditSession(base=$base, origin=$origin, evicted=$evicted, draft=$draft, " +
-            "timelineSize=${timeline.size}, cursor=$cursor, pendingImport=$pendingImport)"
+            "timelineSize=${timeline.size}, cursor=$cursor, pendingImport=$pendingImport, colorEdit=$colorEdit)"
 
     internal companion object {
         private const val INITIAL_HASH: Int = 1
@@ -197,9 +215,13 @@ public class PaletteEditSession private constructor(
 
 /** Stages `definition` as the pending import, replacing any earlier one; mode `ByNumber`, no assignments. */
 internal fun PaletteEditSession.stageImport(definition: PaletteDefinition): PaletteDraftTransition =
-    PaletteDraftTransition.Changed(
-        withPendingImport(PendingPaletteImport(definition, PaletteImportMode.ByNumber, emptyMap())),
-    )
+    if (isColorEditActive) {
+        draftRejected(PaletteDraftRejection.ColorEditActive)
+    } else {
+        PaletteDraftTransition.Changed(
+            withPreview(pending = PendingPaletteImport(definition, PaletteImportMode.ByNumber, emptyMap())),
+        )
+    }
 
 /** Changes the pending import mode and keeps its assignments. */
 internal fun PaletteEditSession.setImportMode(mode: PaletteImportMode): PaletteDraftTransition =
@@ -207,7 +229,7 @@ internal fun PaletteEditSession.setImportMode(mode: PaletteImportMode): PaletteD
         if (pending.mode == mode) {
             PaletteDraftTransition.Unchanged
         } else {
-            PaletteDraftTransition.Changed(withPendingImport(pending.withMode(mode)))
+            PaletteDraftTransition.Changed(withPreview(pending = pending.withMode(mode)))
         }
     }
 
@@ -231,7 +253,7 @@ internal fun PaletteEditSession.assignImportSlot(
             }
 
             else -> {
-                PaletteDraftTransition.Changed(withPendingImport(pending.assigned(source, destination)))
+                PaletteDraftTransition.Changed(withPreview(pending = pending.assigned(source, destination)))
             }
         }
     }
@@ -256,11 +278,16 @@ internal fun PaletteEditSession.confirmImport(): PaletteDraftTransition =
 
 /** Drops the pending import; the draft and its history are unchanged. */
 internal fun PaletteEditSession.cancelImport(): PaletteDraftTransition =
-    pendingTransition { PaletteDraftTransition.Changed(withPendingImport(null)) }
+    pendingTransition { PaletteDraftTransition.Changed(withPreview()) }
 
 private fun PaletteEditSession.pendingTransition(
     step: (PendingPaletteImport) -> PaletteDraftTransition,
-): PaletteDraftTransition = pendingImport?.let(step) ?: draftRejected(PaletteDraftRejection.NoPendingImport)
+): PaletteDraftTransition =
+    if (isColorEditActive) {
+        draftRejected(PaletteDraftRejection.ColorEditActive)
+    } else {
+        pendingImport?.let(step) ?: draftRejected(PaletteDraftRejection.NoPendingImport)
+    }
 
 private fun draftRejected(reason: PaletteDraftRejection): PaletteDraftTransition =
     PaletteDraftTransition.Rejected(WorkspaceActionRejection.PaletteDraftRejected(reason))

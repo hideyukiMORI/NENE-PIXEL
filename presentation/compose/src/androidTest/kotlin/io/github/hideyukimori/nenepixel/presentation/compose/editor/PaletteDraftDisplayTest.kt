@@ -12,7 +12,6 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
-import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -120,7 +119,7 @@ internal class PaletteDraftDisplayTest {
     }
 
     @Test
-    fun theSameSessionReusesTheBitmapAndANewSessionRebuildsIt() {
+    fun theSameEffectiveTableReusesTheBitmapAndChangedPixelsRebuildIt() {
         val editor = paintedEditor()
         openPaletteEditor(editor)
         val committed = CommittedBitmapCache()
@@ -134,7 +133,7 @@ internal class PaletteDraftDisplayTest {
         val rebuilt = committed.render(edited.document, edited.definition, edited.paletteEditSession)
 
         assertSame("Unchanged inputs keep the bitmap", first, again)
-        assertNotSame("A new draft session rebuilds the bitmap", first, rebuilt)
+        assertNotSame("Changed effective pixel colours rebuild the bitmap", first, rebuilt)
     }
 
     /**
@@ -202,7 +201,7 @@ internal class PaletteDraftDisplayTest {
     }
 
     private fun editorNode(identity: String): SemanticsNodeInteraction =
-        composeRule.onNodeWithTag(identity).performScrollTo()
+        PaletteEditorTestNavigation.node(composeRule, identity)
 
     private fun enterHex(hex: String) {
         editorNode("editor_palette_editor_hex").performTextReplacement(hex)

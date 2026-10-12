@@ -6,6 +6,7 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.palette.Palet
 import io.github.hideyukimori.nenepixel.core.application.workspace.quickselect.QuickSelectItem
 import io.github.hideyukimori.nenepixel.core.application.workspace.underlay.ReferenceUnderlay
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportState
+import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
@@ -54,6 +55,22 @@ public sealed interface WorkspaceAction {
     public sealed interface PaletteSessionAction : WorkspaceAction
 
     public data object CancelPaletteEdit : PaletteSessionAction
+
+    /** Starts one continuous colour edit of a valid draft slot, retaining its starting definition. */
+    public data class BeginPaletteColorEdit(
+        public val index: PaletteIndex,
+    ) : PaletteSessionAction
+
+    /** Changes only the active slot preview; draft history is unchanged. */
+    public data class UpdatePaletteColorEdit(
+        public val color: PixelColor,
+    ) : PaletteSessionAction
+
+    /** Ends the continuous edit as at most one bounded draft-history entry. */
+    public data object FinishPaletteColorEdit : PaletteSessionAction
+
+    /** Restores the starting draft without changing draft history. */
+    public data object CancelPaletteColorEdit : PaletteSessionAction
 
     public data class EditPaletteDraft(
         public val operation: PaletteDraftOperation,

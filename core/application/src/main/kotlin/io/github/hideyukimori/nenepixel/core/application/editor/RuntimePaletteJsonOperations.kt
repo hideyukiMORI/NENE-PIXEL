@@ -15,6 +15,9 @@ internal class RuntimePaletteJsonOperations(
 ) {
     fun begin(): PaletteJsonExportStart =
         runtime.transact { transaction ->
+            if (transaction.workspaceState().paletteEditSession?.isColorEditActive == true) {
+                return@transact PersistenceTransition(transaction.coordination, PaletteJsonExportStart.Busy)
+            }
             val lease = DocumentOutputTransitions.begin(transaction.coordination)
             val start =
                 when (val result = lease.result) {
@@ -55,6 +58,9 @@ internal class RuntimePaletteJsonOperations(
 
     fun beginImport(): PaletteJsonImportStart =
         runtime.transact { transaction ->
+            if (transaction.workspaceState().paletteEditSession?.isColorEditActive == true) {
+                return@transact PersistenceTransition(transaction.coordination, PaletteJsonImportStart.Busy)
+            }
             val lease = DocumentOutputTransitions.begin(transaction.coordination)
             val start =
                 when (val result = lease.result) {

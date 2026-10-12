@@ -352,6 +352,13 @@ runtime lock; undo/redo retains a still-valid selection or uses the restored def
 changes cancel gestures. A later #107 adds the bounded workspace PaletteEditSession and its draft
 actions; draft changes never change saved truth.
 
+Issue #168 adds one bounded continuous slot-colour edit inside that same session. Begin/update/
+finish/cancel are `WorkspaceAction`s. Intermediate colours update the draft preview only; finish
+adds one ordinary draft-history entry, and cancellation restores the starting draft. A final colour
+equal to the starting colour preserves the existing history and redo branch. Other draft edits,
+imports, Undo/Redo and Apply reject while that edit is active. Numeric submissions remain ordinary
+single draft edits. ADR 0022 fixes ownership, cancellation, and the prepared Composite preview cost.
+
 Legacy import retains an immutable exact source, origin and recovery generation in the existing
 persistence operation. Classification/reduction and future-owner preparation run on an injected
 dispatcher outside the runtime lock, retaining the one physical-operation lease through drain.

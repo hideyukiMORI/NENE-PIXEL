@@ -47,6 +47,12 @@ public sealed interface PaletteDraftRejection {
     /** Draft edits and draft history wait until the pending import is confirmed or cancelled. */
     public data object ImportPending : PaletteDraftRejection
 
+    /** Other draft operations wait until the continuous colour edit ends. */
+    public data object ColorEditActive : PaletteDraftRejection
+
+    /** Updating, finishing or cancelling requires an active continuous colour edit. */
+    public data object NoColorEdit : PaletteDraftRejection
+
     /** The pending import cannot be confirmed until each of these draft slots has a destination. */
     public data class UnresolvedImportSources internal constructor(
         public val sources: List<PaletteIndex>,

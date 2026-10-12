@@ -131,7 +131,7 @@ editing remains #107; target-only session types are introduced with their consum
 | `PaletteRemapResult` | Closed planned/rejected outcome of the bounded palette planner | command result, document commit |
 | `PaletteRemapRejection` | Domain mapping rejection or invalid reorder/deletion input | file error, stale runtime token |
 | `defaultIndex` | Slot used to fill a new indexed canvas and by Eraser; may be nontransparent | active Pencil selection, transparency sentinel |
-| `PaletteEditSession` | Workspace-owned bounded draft timeline tied to exact source generation/history position | document history, Compose-owned document copy |
+| `PaletteEditSession` | Workspace-owned bounded draft timeline tied to exact source generation/history position, with at most one continuous slot-colour edit whose intermediate values are preview only | document history, Compose-owned document copy |
 | `ReplacePaletteCommand` | Atomic source-admitted command committing definition and complete pixel mapping | immediate import side effect |
 | `PaletteJsonBytes` | Defensive bounded palette-file bytes, maximum-plus-one probe | ProjectFormatBytes, unbounded input string |
 | `PaletteJsonCodec` | The no-I/O palette JSON v1 mapping to/from PaletteDefinition | project codec, runtime mutation path |

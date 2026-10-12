@@ -88,6 +88,12 @@ colour exists (owner decision, 2026-09-29), so a stroke hidden by an upper layer
 it is drawn and an erased cell shows what lies below it. The per-position evaluation uses the same
 validation, the same first-contribution rule and the same blend as the whole-image composite.
 
+Continuous palette preview (#168, ADR 0022) prepares covered-position dependencies for the
+unchanged visible layers and evaluates positions affected by changed palette entries with that
+same per-position rule. Hidden RGB and alpha-zero cells remain dependencies because a later colour
+can make them visible. This disposable pixel-engine workspace adds no document state or alternate
+blend semantics; the ordinary whole-image Composite remains the equivalence contract.
+
 For each pixel the result starts with no contribution. Visible layers are visited bottom to top.
 An `Empty` cell or a covered color with alpha 0 contributes nothing once a contribution exists.
 The first covered color is copied exactly, hidden RGB included. After that, a color with alpha 255
