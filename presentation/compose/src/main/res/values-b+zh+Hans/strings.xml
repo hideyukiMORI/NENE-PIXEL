@@ -257,6 +257,7 @@
     <string name="layer_hide">隐藏%1$s</string>
     <string name="layer_more">%1$s的更多操作</string>
     <string name="layer_rename">重命名</string>
+    <string name="layer_duplicate">复制</string>
     <string name="layer_move_up">上移</string>
     <string name="layer_move_down">下移</string>
     <string name="layer_delete">删除</string>

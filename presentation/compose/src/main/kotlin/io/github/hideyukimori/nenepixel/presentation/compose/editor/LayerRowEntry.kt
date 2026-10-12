@@ -1,5 +1,6 @@
 package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
+import io.github.hideyukimori.nenepixel.core.domain.layer.LayerLimits
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerVisibility
 import io.github.hideyukimori.nenepixel.presentation.compose.R
 
@@ -45,6 +46,10 @@ internal data class LayerRowEntry(
     /** The document's only layer: "Delete", "Move up" and "Move down" are all disabled. */
     val only: Boolean
         get() = layerCount == 1
+
+    /** Any row can be duplicated while the shared bounded layer list has capacity. */
+    val canDuplicate: Boolean
+        get() = layerCount < LayerLimits.MAX_LAYERS
 
     /** The position "Move up" asks for: one step towards the front. */
     val moveUpPosition: Int

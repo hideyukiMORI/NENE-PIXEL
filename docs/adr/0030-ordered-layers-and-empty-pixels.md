@@ -155,6 +155,37 @@ palette. PNG stays RGBA truecolor (ADR 0019). Export when no layer is visible re
   layers charges 2,359,296 pixel bytes, inside the bound.
   This amends the ADR 0005, ADR 0009 and ADR 0022 accounting.
 
+### Layer duplication amendment — 2026-10-12 / #208
+
+The initial duplicate deferral ends after functional acceptance of the ordered-layer runtime,
+panel and PNG layer import. The owner delegated remaining design decisions on 2026-10-12. This
+addition does not advance the #145 performance collection from its owner-directed M5 exit.
+
+`DuplicateLayerCommand(admission, layerId)` joins the existing `LayerCommand` family and its one
+handler. It inserts a new layer directly above the named source through the same bounded
+maximum-id-plus-one insertion policy as Add and Import. It preserves the source's exact name,
+visibility, palette indices and `Empty` coverage, including hidden layers and covered alpha-zero
+slots. No translated suffix is written into the name. An empty name keeps the localized ID label.
+The immutable snapshot may be shared; later pixel edits replace the edited layer's snapshot, so
+the source and duplicate remain independently editable without eager pixel copying.
+
+The command produces one ordinary `LayerStructureTransition.Added`, with unchanged history byte
+accounting, revision, dirty-state, invalidation and autosave semantics. Undo removes the duplicate;
+redo restores the same ID and pixels. The existing inserted-layer reconciliation selects it. The
+source is selected by command ID, independently of which row was active. Missing source, 16-layer
+capacity, ID/revision overflow, stale admission and runtime exclusions use the existing typed
+rejections and remain atomic. Duplication of an empty or hidden layer is still an effective add.
+
+The row's existing More menu gains a localized Duplicate item, disabled at the 16-layer limit.
+Choosing it closes the menu and dispatches one command. There is no new always-visible control or
+confirmation step; the ordinary Undo control reverses it. Project v3 and envelope 3 need no change.
+Merge-down, saved opacity and frames retain their separate future decisions.
+
+Focused command/runtime tests prove exact source preservation, independent later edits, history
+and rejection boundaries. Presentation tests prove row targeting and disabled capacity, followed
+by isolated device evidence for the menu and Undo/Redo. Per-operation work and retained bytes are
+registered with #145; no feature-level performance run or Profile generation is authorized.
+
 ### Project v3 and migration
 
 Project v3 is big endian like v1 and v2 (ADR 0015) and has this layout:

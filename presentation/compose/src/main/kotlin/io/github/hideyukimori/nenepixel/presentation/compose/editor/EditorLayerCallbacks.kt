@@ -3,6 +3,7 @@ package io.github.hideyukimori.nenepixel.presentation.compose.editor
 import io.github.hideyukimori.nenepixel.core.application.document.command.AddLayerCommand
 import io.github.hideyukimori.nenepixel.core.application.document.command.DeleteLayerCommand
 import io.github.hideyukimori.nenepixel.core.application.document.command.DocumentCommand
+import io.github.hideyukimori.nenepixel.core.application.document.command.DuplicateLayerCommand
 import io.github.hideyukimori.nenepixel.core.application.document.command.MoveLayerCommand
 import io.github.hideyukimori.nenepixel.core.application.document.command.RenameLayerCommand
 import io.github.hideyukimori.nenepixel.core.application.document.command.SetLayerVisibilityCommand
@@ -42,6 +43,10 @@ internal class EditorLayerCallbacks(
 
     fun onDelete(layerId: LayerId): EditorRenderState =
         execute(DeleteLayerCommand.create(runtime.captureSource(), layerId))
+
+    /** Copies the named row even when another layer is currently active. */
+    fun onDuplicate(layerId: LayerId): EditorRenderState =
+        execute(DuplicateLayerCommand.create(runtime.captureSource(), layerId))
 
     /** Moves [layerId] to [toPosition], counted from the bottom (0) as `MoveLayerCommand` defines. */
     fun onMove(

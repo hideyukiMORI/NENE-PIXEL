@@ -29,6 +29,7 @@ internal class LayerCommandHandler {
     ): LayerCommandPlan =
         when (command) {
             is AddLayerCommand -> planAdd(state, command.aboveLayerId)
+            is DuplicateLayerCommand -> planDuplicate(state.layers, command.layerId)
             is DeleteLayerCommand -> planDelete(state.layers, command.layerId)
             is RenameLayerCommand -> planRename(state.layers, command)
             is MoveLayerCommand -> planMove(state.layers, command)
@@ -62,6 +63,22 @@ internal class LayerCommandHandler {
             else -> LayerCommandPlan.Accepted(LayerStructureTransition.Deleted(layers[position], position))
         }
     }
+
+    private fun planDuplicate(
+        layers: List<Layer>,
+        layerId: LayerId,
+    ): LayerCommandPlan =
+        when (val insertion = planLayerInsertion(layers, layerId)) {
+            is LayerInsertion.Accepted -> {
+                val source = layers[insertion.position - 1]
+                val layer = Layer.create(insertion.id, source.name, source.visibility, source.snapshot)
+                LayerCommandPlan.Accepted(LayerStructureTransition.Added(layer, insertion.position))
+            }
+
+            is LayerInsertion.Refused -> {
+                LayerCommandPlan.Refused(insertion.reason)
+            }
+        }
 
     private fun planRename(
         layers: List<Layer>,
