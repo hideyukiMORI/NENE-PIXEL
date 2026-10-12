@@ -58,15 +58,7 @@ internal class UndoRedoEditorTest {
         composeRule.onNodeWithTag("editor_undo").assertIsNotEnabled()
         composeRule.onNodeWithTag("editor_redo").assertIsNotEnabled()
         composeRule.onNodeWithTag("editor_clean_document").assertExists()
-        composeRule
-            .onNodeWithTag("editor_canvas_16_16")
-            .performTouchInput {
-                swipe(
-                    start = documentOffset(START_PERCENT, START_PERCENT),
-                    end = documentOffset(END_PERCENT, END_PERCENT),
-                    durationMillis = SWIPE_DURATION_MILLIS,
-                )
-            }
+        swipeDocument(START_PERCENT, END_PERCENT)
         composeRule.waitForIdle()
 
         val drawn = controller.renderState
@@ -78,14 +70,7 @@ internal class UndoRedoEditorTest {
         composeRule.waitForIdle()
 
         val undone = controller.renderState
-        assertEquals(
-            initial.document.layers
-                .single()
-                .snapshot,
-            undone.document.layers
-                .single()
-                .snapshot,
-        )
+        assertSameDrawing(initial, undone)
         assertEquals(0L, controller.documentState.revision.value)
         assertFalse(undone.canUndo)
         assertTrue(undone.canRedo)
@@ -94,14 +79,7 @@ internal class UndoRedoEditorTest {
         composeRule.waitForIdle()
 
         val redone = controller.renderState
-        assertEquals(
-            drawn.document.layers
-                .single()
-                .snapshot,
-            redone.document.layers
-                .single()
-                .snapshot,
-        )
+        assertSameDrawing(drawn, redone)
         assertEquals(1L, controller.documentState.revision.value)
         assertTrue(redone.canUndo)
         assertFalse(redone.canRedo)
@@ -163,27 +141,12 @@ internal class UndoRedoEditorTest {
 
         val transformed = controller.renderState
         assertNotEquals(initial.viewport, transformed.viewport)
-        assertEquals(
-            initial.document.layers
-                .single()
-                .snapshot,
-            transformed.document.layers
-                .single()
-                .snapshot,
-        )
+        assertSameDrawing(initial, transformed)
         assertEquals(0L, controller.documentState.revision.value)
         assertFalse(transformed.canUndo)
         assertFalse(transformed.canRedo)
 
-        composeRule
-            .onNodeWithTag("editor_canvas_16_16")
-            .performTouchInput {
-                swipe(
-                    start = documentOffset(AFTER_ZOOM_START_PERCENT, AFTER_ZOOM_START_PERCENT),
-                    end = documentOffset(AFTER_ZOOM_END_PERCENT, AFTER_ZOOM_END_PERCENT),
-                    durationMillis = SWIPE_DURATION_MILLIS,
-                )
-            }
+        swipeDocument(AFTER_ZOOM_START_PERCENT, AFTER_ZOOM_END_PERCENT)
         composeRule.waitForIdle()
 
         assertEquals(1L, controller.documentState.revision.value)
@@ -386,6 +349,35 @@ internal class UndoRedoEditorTest {
         assertEquals(1, ids.callCount)
         assertSame(beforeDocument, controller.documentState)
         assertSame(beforeWorkspace, controller.workspaceState)
+    }
+
+    /** A diagonal stroke in document coordinates, using the current viewport transform. */
+    private fun swipeDocument(
+        start: Float,
+        end: Float,
+    ) {
+        composeRule.onNodeWithTag("editor_canvas_16_16").performTouchInput {
+            swipe(
+                start = documentOffset(start, start),
+                end = documentOffset(end, end),
+                durationMillis = SWIPE_DURATION_MILLIS,
+            )
+        }
+    }
+
+    /** History restoration and viewport-only gestures must preserve the exact layer snapshot. */
+    private fun assertSameDrawing(
+        expected: EditorRenderState,
+        actual: EditorRenderState,
+    ) {
+        assertEquals(
+            expected.document.layers
+                .single()
+                .snapshot,
+            actual.document.layers
+                .single()
+                .snapshot,
+        )
     }
 
     private fun selectSecondColor() {

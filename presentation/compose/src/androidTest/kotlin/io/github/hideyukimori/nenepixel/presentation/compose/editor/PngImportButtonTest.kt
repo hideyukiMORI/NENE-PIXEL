@@ -26,7 +26,8 @@ internal class PngImportButtonTest {
                 PngImportOutcome.Cancelled
             }
         val controller = PresentationTestValues.fixture().controller
-        composeRule.setContent { TestNenePixelEditor(controller, pngImport = port) }
+        val configuration = TestPersistenceConfiguration(images = TestImageImportPorts(pngImport = port))
+        composeRule.setContent { TestNenePixelEditor(controller, configuration = configuration) }
 
         composeRule.onNodeWithTag("editor_file").performClick()
         val button = composeRule.onNodeWithTag(IMPORT_TAG)

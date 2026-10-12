@@ -93,7 +93,8 @@ internal class PngImportNewWorkDialogTest {
     ): EditorController {
         val controller = PresentationTestValues.fixture().controller
         val port = PngImportPort { PngImportOutcome.Picked(picked) }
-        composeRule.setContent { TestNenePixelEditor(controller, pngImport = port) }
+        val configuration = TestPersistenceConfiguration(images = TestImageImportPorts(pngImport = port))
+        composeRule.setContent { TestNenePixelEditor(controller, configuration = configuration) }
         composeRule.waitForIdle()
         composeRule.runOnIdle { repeat(layers - 1) { controller.callbacks.layers.onAdd() } }
         composeRule.onNodeWithTag(FILE_TAG).performClick()
