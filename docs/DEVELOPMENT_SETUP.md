@@ -46,7 +46,7 @@ To launch it from the canonical command-line path with a configured device and `
 adb shell am start -W -n io.github.hideyukimori.nenepixel/.MainActivity
 ```
 
-With a compatible Android Studio release, the equivalent optional path is to select the `app.android` configuration and a device, then choose **Run**. The expected smoke result is one activity displaying `NENE-PIXEL` with no editor or domain behavior.
+With a compatible Android Studio release, the equivalent optional path is to select the `app.android` configuration and a device, then choose **Run**. Current builds open the editor described in the [README](../README.md); the shell-only result below belongs to the historical M0 proof.
 
 The M0 reproducibility smoke profile is a Pixel 8 Pro AVD running API 35 / Android 15 at 1344 x 2992. A physical or newer virtual device is useful additional coverage but does not replace this fixed profile when re-running the M0 proof.
 
@@ -54,7 +54,16 @@ The verified fresh-clone transcript, including cold-launch and clean-tree eviden
 
 ## Regenerate the Baseline Profile
 
-ADR 0010 defines one explicit generation path for the committed critical-journey profile. Connect
+Current adoption follows [ADR 0010](adr/0010-generated-critical-journey-baseline-profile.md): one
+fresh valid invocation, as accepted by #190. Adoption is complete; it does not authorize another
+generation. The older executor described below still runs two invocations. Before any future
+collection, reconcile the owning Issue, current ADR, and executable harness under QLT-015; do not
+run this historical recipe merely because a handoff, memory, or commit changed. Updating that
+harness is outside the documentation-only #204 cleanup.
+
+### Historical two-invocation executor
+
+The following describes the retained executor and its evidence contract. Connect
 exactly one unlocked physical Android device, keep it on USB power, use a clean short standalone
 clone whose exact Git revision can be embedded in later release-like artifacts, and run:
 
@@ -199,7 +208,8 @@ Do not create lint or detekt baselines and do not exclude project-owned source s
 
 ## Run the developer tools under tools/
 
-`tools/` holds three PowerShell scripts that replace repeated preparation steps (ADR 0027, Issue #128).
+`tools/` holds three PowerShell scripts introduced by ADR 0027 / Issue #128 and retained by
+[ADR 0038](adr/0038-current-agent-guidance.md). Repetition alone no longer requires new tooling.
 Run them with `pwsh -NoProfile -File`; each header states its arguments, JSON output, and exit codes,
 and each has a self-test under `tools/selftest/` that is the only check a change to that script needs
 (QLT-011). `prepare-device-checkout.ps1` builds the debug APK of a worktree offline, installs it while
@@ -233,13 +243,17 @@ build does not show that a location is short enough (Issue #151).
 
 Rules:
 
-- Create no clone, worktree or evidence directory at a drive root, under a temporary directory, or
-  anywhere else outside the lab.
+- Additional copies and outputs use the owner's configured lab on D, never C or system temp.
+  If that lab is unavailable, report the constraint rather than choosing a fallback location.
 - A finished collection does not stay in the `build/` directory of a clone. Move it to
   `evidence/<Issue>-<short name>/` and name that location in the evidence document.
-- Git state alone never decides a cleanup. `evidence/` is excluded; for `clones/` and `worktrees/`
-  check the ignored `build/reports/` and the latest handoff first, and show the list to the owner
-  before deleting.
+- After technical acceptance, main integration, required reflection, and durable artifact
+  preservation, remove disposable task copies under the owner's standing cleanup instruction.
+  Git state alone is insufficient: verify resolved absolute paths, integration, modified/untracked
+  and ignored files, unique artifacts, active references, and links. `evidence/` is excluded.
+  Keep incomplete, unsaved, or active copies and record each exact path and reason in the handoff;
+  preserve branches and commits. A completed authorized cleanup does not need a new permission
+  ceremony solely because an older handoff requested one.
 - Tracked scripts resolve the lab with `Get-NenePixelLabRoot` from
   `docs/quality/measurements/nene-pixel-lab.ps1`: the environment variable `NENE_PIXEL_LAB`, else the
   nearest ancestor directory holding `.nene-pixel-lab`, else the folder `NENE-PIXEL-LAB` beside the
