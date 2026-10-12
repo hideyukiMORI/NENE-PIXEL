@@ -101,8 +101,9 @@ exercises the analyzer with synthetic events only. It checks valid prefixes and 
 pairing and bound violations without exposing arbitrary input text. It does not rerun the Kotlin
 or preparation tests, whose unchanged implementations retain their recorded results.
 
-No command for live collection is provided. Before one is added, Issue #190, ADR 0010 and the harness
-must agree on artifact identity, budget, stop rules, collector logs, stream completeness and device
+No command for live collection is provided, and none is planned: Issue #190 was closed on 2026-10-12
+by adopting one valid invocation (ADR 0010). Before one were added, Issue #190, ADR 0010 and the harness
+would have to agree on artifact identity, budget, stop rules, collector logs, stream completeness and device
 restoration admission. Logcat has no guaranteed final app event when the collector kills the app.
 Missing events cannot prove missing publication; even contiguous observed sequences cannot prove
 that the tail is complete. Historical mismatch/invalid evidence and the canonical Profile stay intact.

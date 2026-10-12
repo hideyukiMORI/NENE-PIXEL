@@ -110,8 +110,14 @@ project-owned Baseline Profile source after migration. The hand-written `baselin
 removed in the same focused change; retaining manual and generated rule paths together is
 prohibited.
 
-Two isolated generation invocations on the declared physical device must produce identical
-canonical profile content before the artifact is accepted. Canonical profile content is UTF-8
+One fresh, valid producer invocation on the declared physical device is the accepted artifact
+(amended 2026-10-12, Issue #190, owner's decision; before that date two invocations had to be
+byte-identical). The documented command still runs two invocations and compares them: a matched pair
+writes the acceptance manifest, and a mismatched pair is recorded as information about run-to-run
+variation while the first valid invocation is adopted by the documented adoption step below. A
+profile is an optimization hint; a small rule difference between runs, which the retained Issue #190
+evidence traces to autosave timing inside the collector's flush window, is not a defect of the
+artifact and is no longer a reason to withhold it. Canonical profile content is UTF-8
 without a byte-order mark, joins rules with LF and no terminal separator, retains the producer's
 deterministic rule order, and preserves every complete rule including its `H`, `S`, and `P` flags.
 CRLF and LF encodings of the same ordered rules have one canonical hash; a changed rule, flag,
@@ -205,6 +211,22 @@ publication therefore remains unknown. Schema, process identity and observed pai
 invalidate analysis without exposing arbitrary log payloads. This resolves the interpretation
 policy, not the collection hold, executable live admission, original-data restoration admission or
 Profile acceptance. No observer source, journey, accepted artifact or generation allowance changes.
+
+### Issue #190 closure by single-invocation adoption (2026-10-12)
+
+The owner decided on 2026-10-12 not to run the prepared diagnostic on the device and to adopt the
+first valid invocation of the third generation (`issue-190-20261009-1954`, invocation 1, 17,801
+rules, canonical SHA-256 `088ebdc684d0fa48a5a77023e402ba513f50c4d575f5479af5054c72021232fc`) as the
+canonical profile. The adoption step is: copy the invocation's canonical bytes (UTF-8, LF, no
+terminal separator, from the retained `source-profile.txt` through `Get-CanonicalProfileRecord`)
+into the tracked generated profile, write its canonical SHA-256 into the tracked hash file, and run
+`validateBaselineProfile`. The acceptance record is the invocation manifest (`valid`, fresh producer
+output, exact APK hashes) plus the adoption entry in the M2 frame follow-up; no acceptance manifest
+of the pair schema exists for an adopted mismatch, and the pair manifest stays `mismatch` as
+information. The diagnostic kit, analyzer and legacy-session executor remain host tooling; the
+observer patch was never applied to a shipping tree and no live diagnostic ran. The 9-signature
+difference is recorded as known run-to-run variation, not resolved. Profile acceptance is separate
+from performance evidence: the Issue #145 collection is deferred to the M5 exit by the same decision.
 
 The canonical local `check` verifies that the manual file is absent, exactly one generated text
 profile exists, it is non-empty canonical UTF-8, and its recorded canonical SHA-256 matches.

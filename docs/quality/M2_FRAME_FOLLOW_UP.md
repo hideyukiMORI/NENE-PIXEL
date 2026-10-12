@@ -2680,13 +2680,26 @@ the generation source. It does not cover the layered composite of Issue #142, wh
 `main` yet. No performance collection was part of this Issue, and the device measurements recorded
 above this section were taken with the previous profile and are not re-judged.
 
-## Baseline Profile regeneration — not accepted 2026-10-09 (Issue #190)
+## Baseline Profile regeneration — adopted 2026-10-12 from the 2026-10-09 generation (Issue #190)
 
 Issue #190 refreshes the fixed Pencil/Undo journey after the layered editor changes, before the
-Issue #145 candidate is pinned. The three attempts below remain unreconciled: no regenerated
-profile is accepted, and they establish no performance claim. Their results remain preserved
-under [ADR 0010](../adr/0010-generated-critical-journey-baseline-profile.md) and QLT-011 through
-QLT-016.
+Issue #145 candidate is pinned. The three attempts below produced no byte-identical pair. On
+2026-10-12 the owner changed the acceptance rule of
+[ADR 0010](../adr/0010-generated-critical-journey-baseline-profile.md) to one fresh valid
+invocation and adopted invocation 1 of the latest attempt; the pair difference stays recorded as
+run-to-run variation and the attempts establish no performance claim.
+
+| Item | Adopted value |
+| --- | --- |
+| Adopted invocation | `issue-190-20261009-1954`, invocation 1 (`valid`, fresh producer output) |
+| Canonical profile | 17,801 rules, 1,960,800 bytes, SHA-256 `088ebdc684d0fa48a5a77023e402ba513f50c4d575f5479af5054c72021232fc` |
+| Replaced canonical profile | Issue #151, 16,737 rules, SHA-256 `3f195727a018eb2a64a2609c473e6423dae3635a738e8b976b2d8065024805ce` |
+| Generation source and APKs | `2afa00b`; app `55ebbeb0…`, test `6def79c4…` (table below) |
+| Adoption step | Canonical bytes copied from the retained `source-profile.txt`, hash file rewritten, `validateBaselineProfile` succeeded on 2026-10-12 (53 s, offline) |
+| Not adopted | Invocation 2 (17,810 rules, `fb173ca5…`); the prepared host diagnostic kit was not run on the device |
+
+The sections below are the historical record of the attempts as they were written before the
+adoption.
 
 | Evidence identity | Source | Result |
 | --- | --- | --- |

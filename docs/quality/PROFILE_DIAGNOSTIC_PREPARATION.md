@@ -1,6 +1,8 @@
 # Issue #190 Profile diagnostic preparation
 
-Status: host preparation and analysis; live collection remains deferred.
+Status: closed without a live run. The owner adopted the first valid invocation of the third
+generation on 2026-10-12 (ADR 0010, "Issue #190 closure by single-invocation adoption"); the kit
+and analyzer remain host tooling and no device diagnostic is scheduled.
 
 ## Purpose and boundary
 

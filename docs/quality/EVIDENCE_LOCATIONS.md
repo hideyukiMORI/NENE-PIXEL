@@ -73,7 +73,8 @@ move and the two inventories are identical. Clones and worktrees were compared b
 | Accepted Baseline Profile generation of Issue #151 (`issue-151-20260929-1953`) | `evidence/151-baseline-profile/issue-151-20260929-1953` |
 | Invalid generation attempts of Issue #151 (`-1825`, `-1830`, `-1833`) | `evidence/151-baseline-profile/invalid` |
 | Invalid Baseline Profile generation of Issue #190 (`issue-190-20261008-2244`) | `evidence/190-baseline-profile/invalid/issue-190-20261008-2244` |
-| Mismatched Baseline Profile generation pairs of Issue #190 (`issue-190-20261008-2249`, `issue-190-20261009-1954`) | `evidence/190-baseline-profile/mismatch` |
+| Mismatched Baseline Profile generation pairs of Issue #190 (`issue-190-20261008-2249`, `issue-190-20261009-1954`); invocation 1 of the latter is the adopted canonical profile of 2026-10-12 | `evidence/190-baseline-profile/mismatch` |
+| Legacy v1 preservation session termination of Issue #190 (ADR 0037, `run-1`) | `evidence/190-legacy-termination` |
 | Operator preservation and restoration records of Issue #190 | `evidence/190-baseline-profile/operator-issue-190` |
 | Host-only diagnostic kit verification of Issue #190 (no device collection) | `evidence/190-baseline-profile/preparation-20261012` |
 | Single-layer drawing latency of Issue #142 (`p4-indexed-v7-20260929-layered1`), recorded in [M4 layered cutover evidence](M4_LAYERED_CUTOVER_EVIDENCE.md) | `evidence/142-latency/issue-142/p4-experiment-v7-layered1` |
