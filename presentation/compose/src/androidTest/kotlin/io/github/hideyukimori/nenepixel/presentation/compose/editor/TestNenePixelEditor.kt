@@ -22,6 +22,7 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryPub
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRecordPort
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRetirementOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.UnderlayMemoryWorkflow
+import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
