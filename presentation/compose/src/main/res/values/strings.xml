@@ -149,7 +149,7 @@
     <string name="mvp_information">About this version</string>
     <string name="close_information">Close</string>
     <string name="mvp_scope_title">Drawing</string>
-    <string name="mvp_scope">An offline editor with up to 16 frames and 16 layers in total. Width and height range (pixels): %1$d–%2$d. Choose colors from the document palette. You can edit the palette and export or import it as JSON. You can open a PNG file as a new document or import it as a new layer. Animation playback is not available yet.</string>
+    <string name="mvp_scope">An offline editor with up to 16 frames and 16 layers in total. Width and height range (pixels): %1$d–%2$d. Choose colors from the document palette. You can edit the palette and export or import it as JSON. You can open a PNG file as a new document or import it as a new layer. Preview frames in a loop or once.</string>
     <string name="mvp_save_title">Save As</string>
     <string name="mvp_save">Each save creates a new project file. Existing files are never overwritten. Keep a .nenepixel file to continue editing. A failed save may leave a newly created incomplete file; storage-provider or cloud failures can still affect saved files later.</string>
     <string name="mvp_history_title">Undo and reopening</string>
@@ -356,4 +356,15 @@
     <string name="document_layer_capacity">Layers: %1$d / %2$d · Available: %3$d</string>
     <string name="document_layer_limit">All 16 layer slots are in use across frames.</string>
     <string name="png_import_target_frame">Import into frame %1$d</string>
+    <string name="playback_play">Play</string>
+    <string name="playback_stop_frame">Stop · %1$d/%2$d</string>
+    <string name="playback_loop">Loop</string>
+    <string name="playback_once">Once</string>
+    <string name="playback_requires_frames">Add a second frame to play a preview.</string>
+    <string name="playback_import_pending">Finish the PNG import choice first.</string>
+    <string name="playback_stop_to_edit">Stop playback before editing.</string>
+    <string name="playback_clock_stopped">Playback stopped after a clock discontinuity.</string>
+    <string name="frame_add_compact">Add blank</string>
+    <string name="playback_stop_description">Stop preview; showing frame %1$d of %2$d</string>
+    <string name="frame_layer_capacity_full">Layers %1$d/%2$d · full</string>
 </resources>

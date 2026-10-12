@@ -69,10 +69,13 @@ truth and change only through commands. Renderers use explicit frame identity an
 active-frame preparations. Save/recovery capture the whole document; PNG operations capture their
 frame target under the runtime lock. The one underlay remains per work.
 
-Playback is a separate consuming decision: its session belongs to workspace, saved frame order and
-duration supply timing data, and monotonic samples enter from one platform lifecycle clock. Ticks
-never become document commands or an independent Compose frame counter. Frame editing adds no
-unused playback API.
+ADR 0042 / #217 consumes that model through one workspace playback session. Saved frame order and
+duration supply timing data; explicit monotonic samples enter the sole reducer through a locked
+runtime operation. Editing focus stays fixed while the derived displayed frame supplies both
+canvas and actual-size output. Pulses create no command, revision, history or autosave capture.
+One Compose adapter supplies boundary-driven samples and observes lifecycle stop, with no local
+frame counter or ViewModel clock. Current lifecycle Stop and token-checked asynchronous cleanup
+are distinct intents using the same action path. No playback fact is serialized.
 
 ### ARC-005 — Controlled mutation enclave
 

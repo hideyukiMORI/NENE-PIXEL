@@ -7,4 +7,6 @@ internal class FramePanelActions(
     val callbacks: EditorFrameCallbacks,
     val select: (FrameId) -> Unit,
     val back: () -> Unit,
-)
+) {
+    val playback: EditorPlaybackCallbacks get() = callbacks.playback
+}

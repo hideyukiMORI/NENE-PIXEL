@@ -7,8 +7,8 @@ It runs on Android 8.0 (API 26) or later and keeps editing and project storage o
 
 As of **2026-10-12**, M0 through M3 have documented technical acceptance and M4 development is
 under way. The current implementation includes indexed palettes, multiple frames and layers,
-selection transforms, PNG import and remembered reference underlays. M4 is **not yet accepted**:
-preview playback is tracked in [#217](https://github.com/hideyukiMORI/NENE-PIXEL/issues/217).
+selection transforms, Loop/Once preview playback, PNG import and remembered reference underlays.
+M4 is **not yet accepted**; remaining capability decisions and exit evidence are tracked by Issues.
 The worst-case performance gate remains in [#145](https://github.com/hideyukiMORI/NENE-PIXEL/issues/145),
 with collection scheduled at the owner-directed M5 exit.
 
@@ -25,6 +25,8 @@ release; they are historical evidence, not a complete guide to the current edito
   import/export, and exact eyedropper selection on the active layer.
 - Up to 16 chronological frames with saved duration: add blank, duplicate, delete, reorder and select.
   All frames share the canvas and palette, with at most 16 layer records across the whole work.
+- Loop/Once preview from the selected frame using saved durations, synchronized with the actual-size
+  window. Stop restores the editing frame; pane exit and app background stop playback without resume.
 - Ordered layers within each frame: add, duplicate, delete, rename, reorder, show/hide and select
   the drawing layer. Layer visibility is saved and undoable; erasing makes cells transparent.
 - Rectangular selection with Move/Copy, horizontal/vertical flip and quarter-turn rotation;
@@ -36,7 +38,7 @@ release; they are historical evidence, not a complete guide to the current edito
 - A reference underlay with placement, opacity and visibility controls. The device remembers it
   per work; it is excluded from the project file and PNG export.
 
-Animation playback, saved layer opacity and merge-down remain future work.
+Animated/sprite-sheet export, saved layer opacity and merge-down remain future work.
 
 Projects are written as **v4**, which stores frames, durations, ordered layers and empty-pixel
 coverage. V3 projects open losslessly in one default-duration frame; v2 projects use one fully

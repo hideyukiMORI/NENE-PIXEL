@@ -19,7 +19,7 @@ internal fun WorkspaceState.withSelectionSession(session: SelectionSession?): Wo
         quickSelection,
         underlay,
         pendingImport,
-        session,
+        previewSessions.copy(selection = session),
     )
 
 /** The sole workspace reduction for rectangle/destination input (ADR 0039). */

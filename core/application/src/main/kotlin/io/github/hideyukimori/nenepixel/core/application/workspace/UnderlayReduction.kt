@@ -29,7 +29,16 @@ internal fun WorkspaceState.withUnderlay(underlay: ReferenceUnderlay?): Workspac
         quickSelection,
         underlay,
         pendingImport,
-        if (underlay?.interaction == UnderlayInteraction.Adjusting) null else selectionSession,
+        previewSessions.copy(
+            selection =
+                if (underlay?.interaction ==
+                    UnderlayInteraction.Adjusting
+                ) {
+                    null
+                } else {
+                    selectionSession
+                },
+        ),
     )
 
 private fun setReferenceUnderlay(

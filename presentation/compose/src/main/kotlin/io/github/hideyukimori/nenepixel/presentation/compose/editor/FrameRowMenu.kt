@@ -25,7 +25,10 @@ internal fun FrameRowMenu(
     val id = entry.row.id
     Box {
         IconButton(
-            onClick = { open = true },
+            onClick = {
+                callbacks.playback.onStop()
+                open = true
+            },
             modifier =
                 Modifier.editorDescription(
                     R.string.frame_more,

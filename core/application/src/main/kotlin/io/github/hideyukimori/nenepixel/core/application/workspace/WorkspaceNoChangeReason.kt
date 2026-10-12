@@ -1,6 +1,16 @@
 package io.github.hideyukimori.nenepixel.core.application.workspace
 
 public sealed interface WorkspaceNoChangeReason {
+    public data object PlaybackAlreadyRunning : WorkspaceNoChangeReason
+
+    public data object PlaybackAlreadyStopped : WorkspaceNoChangeReason
+
+    public data object PlaybackTokenNotCurrent : WorkspaceNoChangeReason
+
+    public data object PlaybackModeAlreadySet : WorkspaceNoChangeReason
+
+    public data object PlaybackSampleUnchanged : WorkspaceNoChangeReason
+
     public data object SelectionUnchanged : WorkspaceNoChangeReason
 
     public data object NoSelectionPointer : WorkspaceNoChangeReason

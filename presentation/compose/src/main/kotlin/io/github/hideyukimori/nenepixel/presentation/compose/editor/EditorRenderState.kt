@@ -41,11 +41,15 @@ public class EditorRenderState internal constructor(
     internal val pendingImport: PendingRasterImport?,
     internal val selectionSession: SelectionSession?,
     internal val selectionNotice: SelectionEditorNotice?,
-    internal val activeFrameId: FrameId,
+    internal val frames: EditorFrameProjection,
     internal val frameNotice: FrameEditorNotice?,
     internal val importNotice: FrameEditorNotice?,
 ) {
-    internal val picture: FrameImageInputs = FrameImageInputs(document, activeFrameId, definition, paletteEditSession)
+    internal val activeFrameId: FrameId get() = frames.editingFrameId
+    internal val displayedFrameId: FrameId get() = frames.displayedFrameId
+    internal val playback get() = frames.playback
+    internal val picture: FrameImageInputs =
+        FrameImageInputs(document, displayedFrameId, definition, paletteEditSession)
     public val palette: Palette
         get() = definition.palette
 
@@ -85,7 +89,7 @@ public class EditorRenderState internal constructor(
             pendingImport,
             selectionSession,
             selectionNotice,
-            activeFrameId,
+            frames,
             frameNotice,
             importNotice,
         )
@@ -99,7 +103,7 @@ public class EditorRenderState internal constructor(
             "paletteNotice=$paletteNotice, quickSelection=$quickSelection, activeLayerId=$activeLayerId, " +
             "layerNotice=$layerNotice, underlay=$underlay, " +
             "pendingImport=$pendingImport, selectionSession=$selectionSession, selectionNotice=$selectionNotice, " +
-            "activeFrameId=$activeFrameId, frameNotice=$frameNotice, importNotice=$importNotice)"
+            "activeFrameId=$activeFrameId, playback=$playback, frameNotice=$frameNotice, importNotice=$importNotice)"
 
     private companion object {
         const val INITIAL_HASH: Int = 1

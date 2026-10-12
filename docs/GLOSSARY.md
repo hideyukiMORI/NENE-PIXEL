@@ -142,13 +142,15 @@ layer alias or unused playback API.
 | PNG export capture | Application-owned immutable committed document plus active FrameId captured together under the runtime lock; the captured frame alone supplies visibility and pixels | current UI frame at write time, animation export |
 | PNG import target | FrameId and insertion-anchor LayerId captured with source admission when picking begins; focus changes do not retarget the layer form | palette-only raster plan, current selection at confirmation |
 | `Project Format v4` | Exact bounded frame hierarchy byte contract in PROJECT_FORMAT_V4.md, used by all current document writes | saved opacity, a v3 writer accepting frames |
-| playback session | Future workspace-owned preview timing using saved duration/order and explicit monotonic platform samples from one lifecycle clock; its interaction policy requires a separate Issue | document command per tick, Compose-owned frame counter |
+| playback session | ADR0042 workspace-owned Loop/Once preview using saved duration/order and explicit monotonic samples, a fresh opaque token and bounded immutable timing metadata | document command per tick, Compose-owned frame counter |
+| `PlaybackView` | Visible mode and optional paired session token/displayed FrameId; excludes sampled time and fractional progress so same-frame pulses retain equality | editing focus, independent timeline |
+| displayed frame | PlaybackView's frame while playing, otherwise EditTarget's frame; shared by canvas and actual-size | a second editable active frame, PNG target captured from the screen |
 
 Frame LayerIds remain globally unique across the document. The shared PaletteDefinition applies
 to all frames, including non-active/hidden layers during remapping. Render/cache identity includes
 the displayed frame; preparations retain at most the active frame. Save/autosave/recovery capture
 the whole committed hierarchy, and focus changes create no history or dirty/autosave effect.
-Playback, saved opacity and animated export are separate consuming decisions.
+Playback follows ADR0042; saved opacity and animated export remain separate consuming decisions.
 
 ## Indexed palette and preserved import (ADR 0022/0024)
 

@@ -20,7 +20,10 @@ internal class EditorFrameCallbacks(
     private val adapter: EditorRuntimeAdapter,
     private val publish: (EditorRenderState) -> EditorRenderState,
 ) {
+    val playback: EditorPlaybackCallbacks = EditorPlaybackCallbacks(runtime, adapter, publish)
+
     fun onSelect(id: FrameId): WorkspaceReductionResult {
+        adapter.stopPlayback()
         val result = runtime.reduce(WorkspaceAction.SelectFrame(id))
         adapter.frameNotice =
             if (result is WorkspaceReductionResult.Rejected) FrameEditorNotice.Rejected(result.rejection) else null
@@ -46,6 +49,7 @@ internal class EditorFrameCallbacks(
     ): EditorRenderState = execute(SetFrameDurationCommand.create(runtime.captureSource(), id, duration))
 
     private fun execute(command: DocumentCommand): EditorRenderState {
+        adapter.stopPlayback()
         adapter.frameNotice =
             when (val result = runtime.execute(command)) {
                 is CommandResult.Applied -> {

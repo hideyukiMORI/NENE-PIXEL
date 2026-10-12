@@ -36,9 +36,9 @@ public class EditorController private constructor(
             viewportTransformed = ::viewportTransformed,
             undo = { publish(adapter.undo()) },
             redo = { publish(adapter.redo()) },
-            selectTool = { tool -> publish(adapter.reduce(WorkspaceAction.SelectTool(tool)).renderState) },
+            selectTool = { tool -> editingAction(WorkspaceAction.SelectTool(tool)) },
             selectPaletteEntry = { index ->
-                publish(adapter.reduce(WorkspaceAction.SelectPaletteEntry(index)).renderState)
+                editingAction(WorkspaceAction.SelectPaletteEntry(index))
             },
             setAppearance = { appearance ->
                 publish(adapter.reduce(WorkspaceAction.SetAppearance(appearance)).renderState)
@@ -65,36 +65,49 @@ public class EditorController private constructor(
     internal val workspaceState: WorkspaceState
         get() = runtime.state.workspaceState
 
+    private fun editingAction(action: WorkspaceAction): EditorRenderState {
+        adapter.stopPlayback()
+        return publish(adapter.reduce(action).renderState)
+    }
+
     internal fun pointerDown(
         surface: ViewportSurface,
         point: ViewportSurfacePoint,
     ): PointerInputAcknowledgement =
-        acknowledge(
-            when (runtime.state.workspaceState.canvasPointerIntent) {
-                CanvasPointerIntent.Draw -> {
-                    mapping.withMappedPoint(surface, point, adapter::ignored) { position ->
-                        adapter.reduce(
-                            WorkspaceAction.BeginGesturePreview(runtime.state.documentState.size, position),
-                        )
-                    }
-                }
+        if (callbacks.playback.isPlaying) {
+            PointerInputAcknowledgement.Ignored(callbacks.playback.onStop())
+        } else {
+            acknowledge(pointerDownIntent(surface, point))
+        }
 
-                CanvasPointerIntent.PickPaletteEntry -> {
-                    mapping
-                        .withMappedPoint(surface, point, adapter::rejected) { position ->
-                            adapter.reduce(WorkspaceAction.PickPaletteEntryAt(position))
-                        }.withoutDrawing()
+    private fun pointerDownIntent(
+        surface: ViewportSurface,
+        point: ViewportSurfacePoint,
+    ): PointerInputAcknowledgement =
+        when (runtime.state.workspaceState.canvasPointerIntent) {
+            CanvasPointerIntent.Draw -> {
+                mapping.withMappedPoint(surface, point, adapter::ignored) { position ->
+                    adapter.reduce(
+                        WorkspaceAction.BeginGesturePreview(runtime.state.documentState.size, position),
+                    )
                 }
+            }
 
-                CanvasPointerIntent.AdjustUnderlay -> {
-                    adjustPointer.down(point)
-                }
+            CanvasPointerIntent.PickPaletteEntry -> {
+                mapping
+                    .withMappedPoint(surface, point, adapter::rejected) { position ->
+                        adapter.reduce(WorkspaceAction.PickPaletteEntryAt(position))
+                    }.withoutDrawing()
+            }
 
-                CanvasPointerIntent.SelectPixels -> {
-                    mapping.withMappedPoint(surface, point, adapter::ignored, callbacks.selection::beginPointer)
-                }
-            },
-        )
+            CanvasPointerIntent.AdjustUnderlay -> {
+                adjustPointer.down(point)
+            }
+
+            CanvasPointerIntent.SelectPixels -> {
+                mapping.withMappedPoint(surface, point, adapter::ignored, callbacks.selection::beginPointer)
+            }
+        }
 
     internal fun pointerMove(
         surface: ViewportSurface,

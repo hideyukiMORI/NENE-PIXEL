@@ -12,7 +12,10 @@ internal class EditorQuickSelectCallbacks(
     private val adapter: EditorRuntimeAdapter,
     private val publish: (EditorRenderState) -> EditorRenderState,
 ) {
-    fun onOpen(): EditorRenderState = reduce(WorkspaceAction.OpenQuickSelect)
+    fun onOpen(): EditorRenderState {
+        adapter.stopPlayback()
+        return reduce(WorkspaceAction.OpenQuickSelect)
+    }
 
     fun onHighlight(item: QuickSelectItem?): EditorRenderState = reduce(WorkspaceAction.HighlightQuickSelectItem(item))
 

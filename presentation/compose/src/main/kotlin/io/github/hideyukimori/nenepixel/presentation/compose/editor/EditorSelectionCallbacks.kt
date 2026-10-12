@@ -17,6 +17,7 @@ internal class EditorSelectionCallbacks(
     private val publish: (EditorRenderState) -> EditorRenderState,
 ) {
     fun onBegin(layerId: LayerId): WorkspaceReductionResult {
+        adapter.stopPlayback()
         val result = runtime.selectionOperations.beginSelection(layerId)
         adapter.layerNotices.recordSelection(result, runtime.state.documentState)
         adapter.selectionNotice = null

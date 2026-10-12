@@ -25,6 +25,7 @@ internal class EditorLayerCallbacks(
     private val publish: (EditorRenderState) -> EditorRenderState,
 ) {
     fun onSelect(layerId: LayerId): EditorRenderState {
+        adapter.stopPlayback()
         val result = runtime.reduce(WorkspaceAction.SelectLayer(layerId))
         adapter.layerNotices.recordSelection(result, runtime.state.documentState)
         return publish(adapter.renderState)
@@ -64,6 +65,7 @@ internal class EditorLayerCallbacks(
         if (adapter.layerNotices.settle(serial)) publish(adapter.renderState) else adapter.renderState
 
     private fun execute(command: DocumentCommand): EditorRenderState {
+        adapter.stopPlayback()
         val result = runtime.execute(command)
         adapter.layerNotices.recordCommand(result, command is DeleteLayerCommand, runtime.state.documentState)
         return publish(adapter.renderState)

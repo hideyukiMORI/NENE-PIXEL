@@ -2,6 +2,7 @@ package io.github.hideyukimori.nenepixel.core.application.workspace
 
 import io.github.hideyukimori.nenepixel.core.application.workspace.importing.PendingRasterImport
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteEditSession
+import io.github.hideyukimori.nenepixel.core.application.workspace.playback.PlaybackState
 import io.github.hideyukimori.nenepixel.core.application.workspace.quickselect.CanvasPointerIntent
 import io.github.hideyukimori.nenepixel.core.application.workspace.quickselect.EyedropperState
 import io.github.hideyukimori.nenepixel.core.application.workspace.quickselect.QuickSelection
@@ -18,8 +19,8 @@ import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 
 /**
  * The constructor is internal only for `withUnderlay` in `UnderlayReduction.kt` and `withPendingImport`
- * in `RasterImportReduction.kt`, and selection copies in `SelectionReduction.kt`; [create] remains the canonical
- * initial factory. These reductions copy validated values only.
+ * in `RasterImportReduction.kt`, selection copies in `SelectionReduction.kt`, and playback copies.
+ * [create] remains the canonical initial factory. These reductions copy validated values only.
  */
 public class WorkspaceState internal constructor(
     public val editTarget: EditTarget,
@@ -32,8 +33,11 @@ public class WorkspaceState internal constructor(
     public val quickSelection: QuickSelection,
     public val underlay: ReferenceUnderlay?,
     public val pendingImport: PendingRasterImport?,
-    public val selectionSession: SelectionSession?,
+    internal val previewSessions: WorkspacePreviewSessions,
 ) {
+    public val selectionSession: SelectionSession? get() = previewSessions.selection
+    public val playback: PlaybackState get() = previewSessions.playback
+
     public val activePaletteIndex: PaletteIndex
         get() = editTarget.paletteIndex
 
@@ -71,7 +75,7 @@ public class WorkspaceState internal constructor(
             quickSelection,
             underlay,
             pendingImport,
-            selectionSession,
+            previewSessions,
         )
 
     internal fun withActiveTool(activeTool: DrawingTool): WorkspaceState =
@@ -86,7 +90,7 @@ public class WorkspaceState internal constructor(
             quickSelection,
             underlay,
             pendingImport,
-            selectionSession,
+            previewSessions,
         )
 
     /** Replaces the gesture preview; `null` ends it. */
@@ -102,7 +106,7 @@ public class WorkspaceState internal constructor(
             quickSelection,
             underlay,
             pendingImport,
-            selectionSession,
+            previewSessions,
         )
 
     internal fun withViewport(viewport: ViewportState): WorkspaceState =
@@ -117,7 +121,7 @@ public class WorkspaceState internal constructor(
             quickSelection,
             underlay,
             pendingImport,
-            selectionSession?.cancelPointer(),
+            previewSessions.copy(selection = selectionSession?.cancelPointer()),
         )
 
     internal fun withAppearance(appearance: EditorAppearance): WorkspaceState =
@@ -132,7 +136,7 @@ public class WorkspaceState internal constructor(
             quickSelection,
             underlay,
             pendingImport,
-            selectionSession?.cancelPointer(),
+            previewSessions.copy(selection = selectionSession?.cancelPointer()),
         )
 
     /** The actual-size window is non-modal: it never cancels an in-progress gesture (ADR 0026). */
@@ -148,7 +152,7 @@ public class WorkspaceState internal constructor(
             quickSelection,
             underlay,
             pendingImport,
-            selectionSession,
+            previewSessions,
         )
 
     /** The palette edit session is non-modal: opening or closing it never cancels an in-progress gesture (ADR 0022). */
@@ -164,7 +168,7 @@ public class WorkspaceState internal constructor(
             quickSelection,
             underlay,
             pendingImport,
-            if (paletteEditSession != null) null else selectionSession,
+            previewSessions.copy(selection = if (paletteEditSession != null) null else selectionSession),
         )
 
     /** Quick-select state never cancels an in-progress gesture (ADR 0029). */
@@ -180,11 +184,16 @@ public class WorkspaceState internal constructor(
             quickSelection,
             underlay,
             pendingImport,
-            if (quickSelection.menu != null || quickSelection.eyedropper == EyedropperState.Armed) {
-                null
-            } else {
-                selectionSession
-            },
+            previewSessions.copy(
+                selection =
+                    if (quickSelection.menu != null ||
+                        quickSelection.eyedropper == EyedropperState.Armed
+                    ) {
+                        null
+                    } else {
+                        selectionSession
+                    },
+            ),
         )
 
     override fun equals(other: Any?): Boolean =
@@ -201,7 +210,7 @@ public class WorkspaceState internal constructor(
                     quickSelection == other.quickSelection &&
                     underlay == other.underlay &&
                     pendingImport == other.pendingImport &&
-                    selectionSession == other.selectionSession
+                    previewSessions == other.previewSessions
             )
 
     override fun hashCode(): Int =
@@ -216,7 +225,7 @@ public class WorkspaceState internal constructor(
             quickSelection,
             underlay,
             pendingImport,
-            selectionSession,
+            previewSessions,
         ).fold(INITIAL_HASH) { hash, value -> hash * HASH_MULTIPLIER + (value?.hashCode() ?: 0) }
 
     override fun toString(): String =
@@ -224,7 +233,7 @@ public class WorkspaceState internal constructor(
             "editTarget=$editTarget, activeTool=$activeTool, viewport=$viewport, " +
             "preview=$preview, appearance=$appearance, actualSizeWindow=$actualSizeWindow, " +
             "paletteEditSession=$paletteEditSession, quickSelection=$quickSelection, underlay=$underlay, " +
-            "pendingImport=$pendingImport, selectionSession=$selectionSession)"
+            "pendingImport=$pendingImport, selectionSession=$selectionSession, playback=${playback.view})"
 
     public companion object {
         private const val INITIAL_HASH: Int = 1
@@ -242,7 +251,7 @@ public class WorkspaceState internal constructor(
                 QuickSelection.initial,
                 null,
                 null,
-                null,
+                WorkspacePreviewSessions(null, PlaybackState.initial),
             )
     }
 }

@@ -4,6 +4,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.command.Comman
 import io.github.hideyukimori.nenepixel.core.application.document.command.RejectionReason
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceActionRejection
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteDraftRejection
+import io.github.hideyukimori.nenepixel.core.application.workspace.playback.PlaybackRejection
 import io.github.hideyukimori.nenepixel.presentation.compose.R
 
 /** Expected frame outcomes retain their original owner vocabulary until localized here. */
@@ -61,6 +62,10 @@ private fun WorkspaceActionRejection.frameResource(): Int =
             }
         }
 
+        is WorkspaceActionRejection.PlaybackRejected -> {
+            reason.playbackResource()
+        }
+
         else -> {
             R.string.frame_unavailable
         }
@@ -73,4 +78,12 @@ private fun RejectionReason.frameResource(): Int =
         this == RejectionReason.FrameLimitReached -> R.string.frame_limit
         this == RejectionReason.LayerLimitReached -> R.string.document_layer_limit
         else -> R.string.frame_unavailable
+    }
+
+private fun PlaybackRejection.playbackResource(): Int =
+    when (this) {
+        PlaybackRejection.InsufficientFrames -> R.string.playback_requires_frames
+        PlaybackRejection.PendingImport -> R.string.playback_import_pending
+        PlaybackRejection.Playing -> R.string.playback_stop_to_edit
+        PlaybackRejection.ClockDiscontinuity -> R.string.playback_clock_stopped
     }
