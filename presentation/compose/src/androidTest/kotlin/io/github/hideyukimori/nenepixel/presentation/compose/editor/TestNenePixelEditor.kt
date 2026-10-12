@@ -9,33 +9,23 @@ import androidx.compose.ui.Modifier
 import io.github.hideyukimori.nenepixel.core.application.persistence.EditorPersistenceWorkflow
 import io.github.hideyukimori.nenepixel.core.application.persistence.ExpectedRecoveryLineage
 import io.github.hideyukimori.nenepixel.core.application.persistence.LegacyReductionHandle
-import io.github.hideyukimori.nenepixel.core.application.persistence.LegacySourceCopyOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.PaletteJsonExportOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.PaletteJsonExportPort
 import io.github.hideyukimori.nenepixel.core.application.persistence.PaletteJsonImportOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.PaletteJsonImportPort
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationHandle
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistencePorts
-import io.github.hideyukimori.nenepixel.core.application.persistence.PngImportOutcome
-import io.github.hideyukimori.nenepixel.core.application.persistence.PngImportPort
-import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectLoadOutcome
-import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectSaveOutcome
-import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectStoragePort
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryGeneration
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryGenerationResult
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryInspection
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryPublicationOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRecordPort
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRetirementOutcome
-import io.github.hideyukimori.nenepixel.core.application.persistence.ReferenceImageOutcome
-import io.github.hideyukimori.nenepixel.core.application.persistence.ReferenceImagePort
-import io.github.hideyukimori.nenepixel.core.application.persistence.UnderlayMemoryPort
 import io.github.hideyukimori.nenepixel.core.application.persistence.UnderlayMemoryWorkflow
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
-import io.github.hideyukimori.nenepixel.core.domain.document.LegacyRgbaSource
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 
@@ -43,39 +33,11 @@ import kotlinx.coroutines.launch
 internal fun TestNenePixelEditor(
     controller: EditorController,
     modifier: Modifier = Modifier,
-    projectStorage: ProjectStoragePort = TestProjectStoragePort,
-    presets: LegacyPalettePresets? = null,
-    recoveryRecord: RecoveryRecordPort? = null,
-    paletteJson: TestPaletteJsonPorts = TestPaletteJsonPorts(),
-    referenceImage: ReferenceImagePort = ReferenceImagePort { ReferenceImageOutcome.Cancelled },
-    pngImport: PngImportPort = PngImportPort { PngImportOutcome.Cancelled },
-    underlayMemory: TestUnderlayMemory? = null,
+    configuration: TestPersistenceConfiguration = TestPersistenceConfiguration(),
+    dispatchers: TestCoroutineDispatchers = TestCoroutineDispatchers(),
 ) {
-    val scope = rememberCoroutineScope()
-    val underlayMemoryPort = underlayMemory?.port ?: EmptyUnderlayMemoryPort
-    val persistence =
-        remember(
-            controller,
-            scope,
-            projectStorage,
-            presets,
-            paletteJson,
-            referenceImage,
-            pngImport,
-            underlayMemoryPort,
-        ) {
-            TestPersistenceHost(
-                controller,
-                scope,
-                projectStorage,
-                presets ?: defaultPresets(controller),
-                recoveryRecord ?: TestRecoveryRecordPort(),
-                paletteJson,
-                referenceImage,
-                pngImport,
-                underlayMemoryPort,
-            )
-        }
+    val persistence = rememberTestPersistenceHost(controller, configuration, dispatchers.inline)
+    val underlayMemory = configuration.underlayMemory
     LaunchedEffect(persistence) { persistence.initialize() }
     DisposableEffect(persistence, underlayMemory) {
         val requester: UnderlayMemoryRequester = persistence::requestUnderlayMemory
@@ -101,6 +63,37 @@ internal fun TestNenePixelEditor(
     )
 }
 
+/** Owns the same composition scope and effective port keys as the editor fixture. */
+@Composable
+private fun rememberTestPersistenceHost(
+    controller: EditorController,
+    configuration: TestPersistenceConfiguration,
+    dispatcher: CoroutineDispatcher,
+): TestPersistenceHost {
+    val scope = rememberCoroutineScope()
+    val document = configuration.document
+    val images = configuration.images
+    val underlayMemoryPort = configuration.underlayMemory?.port ?: EmptyUnderlayMemoryPort
+    return remember(
+        controller,
+        scope,
+        document.storage,
+        document.presets,
+        configuration.paletteJson,
+        images.referenceImage,
+        images.pngImport,
+        underlayMemoryPort,
+        dispatcher,
+    ) {
+        TestPersistenceHost(
+            controller,
+            scope,
+            configuration,
+            dispatcher,
+        )
+    }
+}
+
 private fun defaultPresets(controller: EditorController): LegacyPalettePresets =
     controller.renderState.definition.let { definition ->
         LegacyPalettePresets(definition, definition, definition)
@@ -115,30 +108,28 @@ internal data class TestPaletteJsonPorts(
 private class TestPersistenceHost(
     private val controller: EditorController,
     private val scope: CoroutineScope,
-    projectStorage: ProjectStoragePort,
-    presets: LegacyPalettePresets,
-    recovery: RecoveryRecordPort,
-    paletteJson: TestPaletteJsonPorts,
-    referenceImage: ReferenceImagePort,
-    pngImport: PngImportPort,
-    underlayMemory: UnderlayMemoryPort,
+    configuration: TestPersistenceConfiguration,
+    dispatcher: CoroutineDispatcher,
 ) {
+    private val document = configuration.document
+    private val images = configuration.images
+    private val presets = document.presets ?: defaultPresets(controller)
     val workflow =
         EditorPersistenceWorkflow.create(
             controller.runtime,
             PersistencePorts(
-                projectStorage,
-                recovery,
+                document.storage,
+                document.recovery ?: TestRecoveryRecordPort(),
                 io.github.hideyukimori.nenepixel.core.application.persistence.PngExportPort {
                     io.github.hideyukimori.nenepixel.core.application.persistence.PngExportOutcome.Cancelled
                 },
-                paletteJson.export,
-                paletteJson.import,
-                referenceImage,
-                pngImport,
-                underlayMemory,
+                configuration.paletteJson.export,
+                configuration.paletteJson.import,
+                images.referenceImage,
+                images.pngImport,
+                configuration.underlayMemory?.port ?: EmptyUnderlayMemoryPort,
             ),
-            Dispatchers.Unconfined,
+            dispatcher,
         )
     val callbacks =
         EditorPersistenceCallbacks.create(
@@ -201,15 +192,6 @@ private class TestPersistenceHost(
             controller.synchronizeWithRuntime()
         }
     }
-}
-
-private data object TestProjectStoragePort : ProjectStoragePort {
-    override suspend fun save(document: DocumentState): ProjectSaveOutcome = ProjectSaveOutcome.Cancelled
-
-    override suspend fun load(): ProjectLoadOutcome = ProjectLoadOutcome.Cancelled
-
-    override suspend fun copyLegacySource(source: LegacyRgbaSource): LegacySourceCopyOutcome =
-        LegacySourceCopyOutcome.Cancelled
 }
 
 private class TestRecoveryRecordPort(

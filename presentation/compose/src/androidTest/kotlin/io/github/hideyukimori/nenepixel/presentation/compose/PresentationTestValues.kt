@@ -2,8 +2,6 @@ package io.github.hideyukimori.nenepixel.presentation.compose
 
 import io.github.hideyukimori.nenepixel.core.application.editor.DocumentIdSource
 import io.github.hideyukimori.nenepixel.core.application.editor.EditorRuntime
-import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReducer
-import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceState
 import io.github.hideyukimori.nenepixel.core.domain.color.ColorChannel
 import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentId
@@ -42,8 +40,6 @@ internal object PresentationTestValues {
         return EditorFixture(
             initialDocument = state.documentState,
             runtime = runtime,
-            reducer = WorkspaceReducer.create(),
-            initialWorkspace = state.workspaceState,
             controller = EditorController.create(runtime),
         )
     }
@@ -70,8 +66,6 @@ internal object PresentationTestValues {
 internal data class EditorFixture(
     val initialDocument: DocumentState,
     val runtime: EditorRuntime,
-    val reducer: WorkspaceReducer,
-    val initialWorkspace: WorkspaceState,
     val controller: EditorController,
 )
 

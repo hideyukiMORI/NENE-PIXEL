@@ -50,7 +50,6 @@ import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -76,6 +75,8 @@ import kotlin.math.roundToInt
  * content corner (ADR 0026, Issue #147).
  */
 internal class ActualSizeWindowTest {
+    private val dispatchers = TestCoroutineDispatchers()
+
     @get:Rule
     val composeRule = createComposeRule()
 
@@ -260,7 +261,7 @@ internal class ActualSizeWindowTest {
         showWindow(controller, ActualSizeScale.X8)
         val published = CopyOnWriteArrayList<ActualSizeWindow>()
         val collector =
-            CoroutineScope(Dispatchers.Unconfined).launch {
+            CoroutineScope(dispatchers.inline).launch {
                 controller.renderStates.collect { published += it.actualSizeWindow }
             }
         val before = boundsPixels(WINDOW_TAG)

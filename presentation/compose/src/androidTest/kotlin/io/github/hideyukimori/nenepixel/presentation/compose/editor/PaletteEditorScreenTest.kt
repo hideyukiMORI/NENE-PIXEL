@@ -228,7 +228,11 @@ internal class PaletteEditorScreenTest {
     ) {
         val size = windowSize.value
         Box(Modifier.requiredSize(size).consumeWindowInsets(WindowInsets.safeDrawing)) {
-            TestNenePixelEditor(controller, Modifier.requiredSize(size), paletteJson = paletteJson)
+            TestNenePixelEditor(
+                controller,
+                Modifier.requiredSize(size),
+                configuration = TestPersistenceConfiguration(paletteJson = paletteJson),
+            )
         }
     }
 
