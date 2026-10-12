@@ -9,4 +9,5 @@ import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 internal class LayerRowActions(
     val callbacks: EditorLayerCallbacks,
     val onRename: (LayerId) -> Unit,
+    val onSelectArea: (LayerId) -> Unit,
 )

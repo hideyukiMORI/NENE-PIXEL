@@ -51,6 +51,7 @@ public class EditorController private constructor(
             layers = EditorLayerCallbacks(runtime, adapter, ::publish),
             underlay = EditorUnderlayCallbacks(runtime, adapter, ::publish),
             rasterImport = EditorImportCallbacks(runtime, adapter, ::publish),
+            selection = EditorSelectionCallbacks(runtime, adapter, ::publish),
         )
 
     public fun synchronizeWithRuntime() {
@@ -87,6 +88,10 @@ public class EditorController private constructor(
                 CanvasPointerIntent.AdjustUnderlay -> {
                     adjustPointer.down(point)
                 }
+
+                CanvasPointerIntent.SelectPixels -> {
+                    mapping.withMappedPoint(surface, point, adapter::ignored, callbacks.selection::beginPointer)
+                }
             },
         )
 
@@ -95,11 +100,21 @@ public class EditorController private constructor(
         point: ViewportSurfacePoint,
     ): PointerInputAcknowledgement =
         acknowledge(
-            if (adjustPointer.claims()) {
-                adjustPointer.move(surface, point)
-            } else {
-                mapping.withDocumentPoint(surface, point) { position ->
-                    adapter.reduce(WorkspaceAction.ExtendGesturePreview(position))
+            when {
+                adjustPointer.claims() -> {
+                    adjustPointer.move(surface, point)
+                }
+
+                runtime.state.workspaceState.selectionSession != null -> {
+                    mapping.withDocumentPoint(surface, point) { position ->
+                        adapter.reduce(WorkspaceAction.UpdateSelectionPointer(position))
+                    }
+                }
+
+                else -> {
+                    mapping.withDocumentPoint(surface, point) { position ->
+                        adapter.reduce(WorkspaceAction.ExtendGesturePreview(position))
+                    }
                 }
             },
         )
@@ -109,19 +124,39 @@ public class EditorController private constructor(
         point: ViewportSurfacePoint,
     ): PointerInputAcknowledgement =
         acknowledge(
-            if (adjustPointer.claims()) {
-                adjustPointer.end(surface, point)
-            } else {
-                mapping.withDocumentPoint(surface, point, adapter::finishGesture)
+            when {
+                adjustPointer.claims() -> {
+                    adjustPointer.end(surface, point)
+                }
+
+                runtime.state.workspaceState.selectionSession != null -> {
+                    mapping.withDocumentPoint(surface, point, callbacks.selection::finishPointer)
+                }
+
+                else -> {
+                    mapping.withDocumentPoint(surface, point, adapter::finishGesture)
+                }
             },
         )
 
     internal fun pointerCancel(): PointerInputAcknowledgement =
         acknowledge(
             when {
-                adjustPointer.claims() -> adjustPointer.forget()
-                runtime.state.workspaceState.preview == null -> adapter.ignored()
-                else -> adapter.reduce(WorkspaceAction.CancelGesturePreview)
+                adjustPointer.claims() -> {
+                    adjustPointer.forget()
+                }
+
+                runtime.state.workspaceState.selectionSession != null -> {
+                    adapter.reduce(WorkspaceAction.CancelSelectionPointer)
+                }
+
+                runtime.state.workspaceState.preview == null -> {
+                    adapter.ignored()
+                }
+
+                else -> {
+                    adapter.reduce(WorkspaceAction.CancelGesturePreview)
+                }
             },
         )
 
@@ -131,6 +166,9 @@ public class EditorController private constructor(
             if (adjustPointer.claims()) {
                 adjustPointer.forget()
             } else {
+                if (runtime.state.workspaceState.selectionSession != null) {
+                    runtime.reduce(WorkspaceAction.CancelSelectionPointer)
+                }
                 when (val transform = mapping.createTransform(surface)) {
                     is ViewportValueResult.Created -> {
                         adapter.reduce(WorkspaceAction.SetViewport(transform.value.viewport))

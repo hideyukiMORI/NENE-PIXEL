@@ -18,6 +18,8 @@ internal class EditorRuntimeAdapter(
     /** The latest palette-editor notice; the palette route clears it on its next success (S6a, S6b). */
     var paletteNotice: PaletteEditorNotice? = null
 
+    var selectionNotice: SelectionEditorNotice? = null
+
     /** The layer notice and its serials (#144 U6); a render state carries it only while it still holds. */
     val layerNotices: LayerNoticeSlot = LayerNoticeSlot()
 
@@ -123,6 +125,8 @@ internal class EditorRuntimeAdapter(
             layerNotice = layerNotices.validFor(state.documentState, state.workspaceState.activeLayerId),
             underlay = state.workspaceState.underlay,
             pendingImport = state.workspaceState.pendingImport,
+            selectionSession = state.workspaceState.selectionSession,
+            selectionNotice = selectionNotice.takeIf { state.workspaceState.selectionSession != null },
         )
     }
 

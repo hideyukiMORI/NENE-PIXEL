@@ -2,6 +2,7 @@ package io.github.hideyukimori.nenepixel.core.application.workspace
 
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandSourceAdmission
 import io.github.hideyukimori.nenepixel.core.application.workspace.quickselect.EyedropperState
+import io.github.hideyukimori.nenepixel.core.application.workspace.selection.SelectionRejection
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
 import io.github.hideyukimori.nenepixel.core.domain.drawing.StrokeEffect
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
@@ -28,6 +29,13 @@ private fun beginGesturePreview(
     source: CommandSourceAdmission,
 ): WorkspaceReductionResult =
     when {
+        state.selectionSession != null -> {
+            WorkspaceReductionResult.Rejected(
+                state,
+                WorkspaceActionRejection.SelectionRejected(SelectionRejection.SessionActive),
+            )
+        }
+
         state.preview != null -> {
             WorkspaceReductionResult.Rejected(state, WorkspaceActionRejection.PreviewAlreadyActive)
         }

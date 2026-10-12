@@ -33,6 +33,8 @@ private fun selectLayer(
         }
 
         else -> {
-            WorkspaceReductionResult.Reduced(state.withEditTarget(state.editTarget.withLayer(layerId)))
+            WorkspaceReductionResult.Reduced(
+                state.withEditTarget(state.editTarget.withLayer(layerId)).withSelectionSession(null),
+            )
         }
     }

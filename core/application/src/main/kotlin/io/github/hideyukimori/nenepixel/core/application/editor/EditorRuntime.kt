@@ -58,6 +58,7 @@ public class EditorRuntime private constructor(
     internal val autosaveOperations: RuntimeAutosaveOperations = RuntimeAutosaveOperations(this)
     internal val recoveryOperations: RuntimeRecoveryOperations = RuntimeRecoveryOperations(this)
     public val paletteOperations: RuntimePaletteOperations = RuntimePaletteOperations(this)
+    public val selectionOperations: RuntimeSelectionOperations = RuntimeSelectionOperations(this)
 
     public val state: EditorRuntimeState
         get() = synchronized(runtimeLock) { owners.toState() }
@@ -124,6 +125,10 @@ public class EditorRuntime private constructor(
     private fun executeLocked(command: DocumentCommand): CommandResult {
         val result = owners.commandGateway.execute(command)
         if (result is CommandResult.Applied) {
+            // Every public/internal command and Undo/Redo reaches this same selection invalidation (ADR 0039).
+            if (owners.workspaceState.selectionSession != null) {
+                reduceWorkspaceLocked(WorkspaceAction.CancelSelectionSession)
+            }
             reconcileSelectionLocked(command, result)
             val commandState = owners.commandGateway.runtimeState
             coordination =
@@ -197,6 +202,7 @@ public class EditorRuntime private constructor(
             RuntimeOwnerEffect.None -> { }
 
             RuntimeOwnerEffect.CancelPreview -> {
+                reduceWorkspaceLocked(WorkspaceAction.CancelSelectionPointer)
                 if (owners.workspaceState.preview != null) {
                     reduceWorkspaceLocked(WorkspaceAction.CancelGesturePreview)
                 }

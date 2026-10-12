@@ -14,6 +14,7 @@ public class CommandGateway private constructor(
     private var currentState: DocumentState = initialState
     private var history: BoundedLinearHistory = BoundedLinearHistory.empty()
     private val applyStrokeCommandHandler: ApplyStrokeCommandHandler = ApplyStrokeCommandHandler()
+    private val transferPixelsCommandHandler: TransferPixelsCommandHandler = TransferPixelsCommandHandler()
     private val replacePaletteCommandHandler: ReplacePaletteCommandHandler = ReplacePaletteCommandHandler()
     private val layerCommandHandler: LayerCommandHandler = LayerCommandHandler()
     private val importLayerCommandHandler: ImportLayerCommandHandler = ImportLayerCommandHandler()
@@ -42,6 +43,10 @@ public class CommandGateway private constructor(
     public fun execute(command: DocumentCommand): CommandResult =
         synchronized(executionLock) {
             when (command) {
+                is TransferPixelsCommand -> {
+                    executeAdmitted(command.admission) { transferPixelsCommandHandler.execute(currentState, command) }
+                }
+
                 is ApplyStrokeCommand -> {
                     executeAdmitted(command.admission) {
                         applyStrokeCommandHandler.execute(currentState, command)

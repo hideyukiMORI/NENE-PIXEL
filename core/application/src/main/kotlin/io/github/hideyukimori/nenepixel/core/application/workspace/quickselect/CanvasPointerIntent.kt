@@ -4,6 +4,7 @@ package io.github.hideyukimori.nenepixel.core.application.workspace.quickselect
 public enum class CanvasPointerIntent {
     Draw,
     PickPaletteEntry,
+    SelectPixels,
 
     /** Pointer input moves and scales the shown reference underlay; no stroke starts and the viewport stays. */
     AdjustUnderlay,

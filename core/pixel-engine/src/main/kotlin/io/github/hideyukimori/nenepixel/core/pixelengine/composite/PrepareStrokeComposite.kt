@@ -50,7 +50,7 @@ public fun prepareStrokeComposite(
 }
 
 /** Visible layers bottom to top; the target slot is `null` so its cells are never copied. */
-private fun visibleSurfaces(
+internal fun visibleSurfaces(
     layers: List<Layer>,
     targetLayerId: LayerId,
 ): Array<PixelSurface?> =

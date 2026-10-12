@@ -77,3 +77,4 @@ An ADR must include:
 | [0036](0036-android-detekt-java-classpath.md) | accepted | Existing typed Android detekt tasks consume the matching Java compiler outputs through tracked task providers |
 | [0037](0037-legacy-preservation-session-termination.md) | accepted | The one legacy v1 preservation session ends by fixed guarded moves, with the owner's recorded marker and fractional-mtime exceptions |
 | [0038](0038-current-agent-guidance.md) | accepted | Owner-directed roles, task-scoped reading, coherent delegation, and separate rule/state/memory authority; historical recipes do not authorize new work |
+| [0039](0039-rectangular-selection-transfer.md) | accepted | Workspace-only rectangular draft, exact same-layer Move/Copy through one patch command, explicit Apply/Cancel, shared Composite preview and bounded transfer work |

@@ -6,6 +6,7 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.ToolGesture
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.drawing.StrokeEffect
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
+import io.github.hideyukimori.nenepixel.core.domain.selection.PixelTransfer
 
 /**
  * One disposable rendering of the canvas while a gesture runs (Issues #124, #143), kept beside
@@ -24,13 +25,37 @@ internal class PreviewBitmapCache {
     private var compositeDocument: DocumentState? = null
     private var compositeLayerId: LayerId? = null
     private var compositeEffect: StrokeEffect? = null
+    private val selection = SelectionBitmapCache()
+    private var selectionDocument: DocumentState? = null
+    private var selectionTransfer: PixelTransfer? = null
+    private var selectionLayer: LayerId? = null
+
+    internal val selectionPreparationCount: Int
+        get() = selection.preparationCount
 
     /** The canvas bitmap while [EditorRenderState.preview] runs; `null` when there is no preview. */
     fun render(
         state: EditorRenderState,
         committed: CommittedBitmapCache,
-    ): Bitmap? =
-        state.preview?.let { preview ->
+    ): Bitmap? {
+        val session = state.selectionSession
+        val transfer = session?.previewTransfer
+        if (transfer != null) {
+            return if (transfer.source.origin == transfer.destination) {
+                selection.hide(state.document, session.layerId, transfer.source)
+                selectionDocument = null
+                selectionTransfer = null
+                selectionLayer = null
+                forgetSources()
+            } else {
+                renderSelection(state.document, session.layerId, transfer, committed)
+            }
+        }
+        selection.forget()
+        selectionDocument = null
+        selectionTransfer = null
+        selectionLayer = null
+        return state.preview?.let { preview ->
             val committedBitmap = committed.render(state.document, state.definition, state.paletteEditSession)
             val target = rasterFor(state.document.size.width.value, state.document.size.height.value)
             if (base !== committedBitmap) {
@@ -47,6 +72,41 @@ internal class PreviewBitmapCache {
             transfer(target)
             requireNotNull(rendered)
         } ?: forgetSources()
+    }
+
+    private fun renderSelection(
+        document: DocumentState,
+        layerId: LayerId,
+        pixelTransfer: PixelTransfer,
+        committed: CommittedBitmapCache,
+    ): Bitmap {
+        if (selectionDocument === document && selectionTransfer === pixelTransfer && selectionLayer == layerId) {
+            return requireNotNull(rendered)
+        }
+        val target = rasterFor(document.size.width.value, document.size.height.value)
+        // A later ordinary stroke must restore its base, rather than reuse a retained selection bitmap.
+        forgetSources()
+        val baseReplaced = selection.paint(SelectionBitmapInput(document, layerId, pixelTransfer, committed), target)
+        transfer(target)
+        target.transferChangedRegions { pixels, region ->
+            if (!baseReplaced) {
+                val stride = target.width
+                requireNotNull(rendered).setPixels(
+                    pixels,
+                    region.origin.y.value * stride + region.origin.x.value,
+                    stride,
+                    region.origin.x.value,
+                    region.origin.y.value,
+                    region.size.width.value,
+                    region.size.height.value,
+                )
+            }
+        }
+        selectionDocument = document
+        selectionTransfer = pixelTransfer
+        selectionLayer = layerId
+        return requireNotNull(rendered)
+    }
 
     /**
      * Drops every reference to the document, its composite and the committed bitmap once no gesture

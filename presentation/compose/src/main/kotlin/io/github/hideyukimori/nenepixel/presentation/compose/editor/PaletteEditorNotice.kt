@@ -47,6 +47,8 @@ private fun WorkspaceActionRejection.noticeResource(): Int =
 
         is WorkspaceActionRejection.PaletteDraftRejected -> reason.noticeResource()
 
+        is WorkspaceActionRejection.SelectionRejected -> R.string.palette_editor_rejected
+
         WorkspaceActionRejection.PreviewAlreadyActive,
         WorkspaceActionRejection.NoActivePreview,
         is WorkspaceActionRejection.PreviewCanvasMismatch,

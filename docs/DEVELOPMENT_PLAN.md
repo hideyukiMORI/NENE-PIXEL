@@ -108,11 +108,14 @@ ADR 0034 / #172 decides the underlay memory (P4-06c).
 | P4-07a | Pick a PNG and add it as a new layer, appending or converting colours (#177) | P4-07 | Raster and planner golden tests, command/undo/stale-plan/accounting contracts, bounded PNG reader JVM tests including the export round trip, localized dialog; per-operation cost statement (QLT-019) |
 | P4-07b | Open a PNG as a new work (#178) | P4-07a | New-work planner golden tests, confirmation/installation/dirtiness contracts, localized dialog form; cost statement |
 | P4-08 | Duplicate a layer directly above its source (#208) | P4-05c, P4-07a functional acceptance | ADR 0030 amendment; exact immutable snapshot/name/visibility preservation, independent subsequent edits, one history entry, bounded insertion and localized row-menu evidence; cost/workload registration with #145 |
+| P4-09 | Select a rectangle and move/copy it within one layer (#211) | P4-08, layer/palette/import functional acceptance | ADR 0039; workspace-only draft and Apply/Cancel, exact Empty/index overlap semantics, one ordinary patch/history entry, shared Composite preview, cancellation/runtime boundary and localized secondary UI evidence; source-derived cost and #145 workload registration |
 
 Preparation keeps the sole M3 editable path. P4-02 changes every live consumer together, with no
 parallel editable RGBA document or provisional indexed-to-v1 writer. P4-05a likewise moves every
 consumer to layered documents at once. P4-08 adds duplication after the layer and import functional
-results; #145 performance collection remains at the owner-directed M5 exit. Layer merge, saved
+results; P4-09 follows with same-layer rectangular Move/Copy without a format change. Selection
+drawing masks, cross-layer/external clipboard, delete and other transforms remain separate focused
+refinements. #145 performance collection remains at the owner-directed M5 exit. Layer merge, saved
 layer opacity (planned for v4) and frames remain separate refinements; animation and tiles/maps
 requirements remain recorded in ADR 0022 without unused APIs. Palette generation from an image and
 dithering stay undecided (ADR 0033). Underlay rotation, numeric placement

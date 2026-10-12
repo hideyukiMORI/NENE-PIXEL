@@ -45,7 +45,7 @@ internal fun EditorToolDock(
     val controls by remember(state) {
         derivedStateOf {
             DockInputs(
-                state.value.activeTool,
+                state.value.activeTool.takeIf { state.value.selectionSession == null },
                 DockHistory(state.value.canUndo, state.value.canRedo),
                 state.value.activeColor,
                 state.value.actualSizeWindow,
@@ -150,7 +150,7 @@ private fun DockSymbol(
 }
 
 private data class DockInputs(
-    val activeTool: DrawingTool,
+    val activeTool: DrawingTool?,
     val history: DockHistory,
     val activeColor: PixelColor,
     val actualSizeWindow: ActualSizeWindow,

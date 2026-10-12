@@ -306,4 +306,14 @@
     <string name="palette_picker_less_value">降低亮度</string>
     <string name="palette_notice_color_edit_active">请先完成当前颜色操作</string>
     <string name="palette_notice_no_color_edit">尚未开始颜色操作</string>
+    <string name="selection_title">选择区域</string>
+    <string name="selection_waiting">在画布上拖动以选择区域</string>
+    <string name="selection_size">区域：%1$d × %2$d</string>
+    <string name="selection_move">移动</string>
+    <string name="selection_copy">复制</string>
+    <string name="selection_apply">应用</string>
+    <string name="selection_cancel">取消</string>
+    <string name="selection_empty_replacement">替换整个区域，包括空白像素</string>
+    <string name="selection_rejected">无法应用该区域</string>
+    <string name="selection_busy">请等待作品切换完成</string>
 </resources>

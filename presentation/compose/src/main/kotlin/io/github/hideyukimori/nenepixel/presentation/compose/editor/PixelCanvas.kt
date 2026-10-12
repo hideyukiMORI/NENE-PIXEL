@@ -63,6 +63,7 @@ internal fun PixelCanvas(
             committed.paint,
         )
         drawGrid(geometry)
+        drawSelectionOutline(current.selectionSession?.targetRegion, geometry.transform)
     }
 }
 
@@ -124,6 +125,7 @@ private class CanvasGeometryCache {
 private class CanvasGeometry(
     val destination: RectF,
     val gridPath: Path?,
+    val transform: ViewportTransform,
 )
 
 private fun createCanvasGeometry(
@@ -152,7 +154,7 @@ private fun createCanvasGeometry(
         if (transform.gridVisibility == ViewportGridVisibility.Visible && gridPath == null) {
             null
         } else {
-            CanvasGeometry(destination, gridPath)
+            CanvasGeometry(destination, gridPath, transform)
         }
     }
 }
