@@ -4,9 +4,11 @@ import io.github.hideyukimori.nenepixel.core.application.document.command.Comman
 import io.github.hideyukimori.nenepixel.core.domain.drawing.Stroke
 import io.github.hideyukimori.nenepixel.core.domain.drawing.StrokeEffect
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
+import io.github.hideyukimori.nenepixel.core.domain.geometry.DocumentPoint
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelX
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelY
+import io.github.hideyukimori.nenepixel.core.domain.geometry.toDocumentPoint
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelLimits
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
@@ -24,20 +26,25 @@ public class ToolGesture private constructor(
     private val latestSample: GestureSample get() = path.latestSample
     private val sampleCount: Int get() = path.sampleCount
     private val sampleHash: Int get() = path.sampleHash
+
+    /** Expanded traversal count, including cells outside [canvas], bounded before accepting each sample. */
     public val positionCount: Int get() = path.positionCount
 
-    internal val lastPosition: PixelPosition
+    internal val lastPosition: DocumentPoint
         get() = latestSample.position
 
     public fun forEachPosition(action: (PixelPosition) -> Unit) {
         val samples = samplesInPathOrder()
-        action(samples.first())
+        val containedAction: (DocumentPoint) -> Unit = { point ->
+            if (canvas.contains(point)) action(pixelPosition(point.x, point.y))
+        }
+        containedAction(samples.first())
         for (index in 1 until samples.size) {
-            forEachSegmentPosition(samples[index - 1], samples[index], action)
+            forEachSegmentPosition(samples[index - 1], samples[index], containedAction)
         }
     }
 
-    internal fun extend(position: PixelPosition): ToolGestureExtensionResult {
+    internal fun extend(position: DocumentPoint): ToolGestureExtensionResult {
         if (position == lastPosition) return ToolGestureExtensionResult.Duplicate
         val attemptedCount = positionCount.toLong() + segmentAddition(lastPosition, position)
         return if (attemptedCount > PixelLimits.MAX_RAW_STROKE_POSITIONS) {
@@ -62,7 +69,7 @@ public class ToolGesture private constructor(
     }
 
     internal fun prepareStroke(): Stroke {
-        val path = buildList(positionCount) { forEachPosition(::add) }
+        val path = buildList { forEachPosition(::add) }
         return when (val result = Stroke.create(canvas, path, effect)) {
             is DomainValueResult.Created -> {
                 result.value
@@ -102,7 +109,7 @@ public class ToolGesture private constructor(
         "ToolGesture(canvas=$canvas, sampleCount=$sampleCount, positionCount=$positionCount, effect=$effect, " +
             "layerId=$layerId)"
 
-    private fun samplesInPathOrder(): Array<PixelPosition> {
+    private fun samplesInPathOrder(): Array<DocumentPoint> {
         val samples = Array(sampleCount) { latestSample.position }
         var sample: GestureSample? = latestSample
         for (index in samples.lastIndex downTo 0) {
@@ -124,7 +131,7 @@ public class ToolGesture private constructor(
         ): ToolGesture =
             ToolGesture(
                 canvas = canvas,
-                path = GesturePath(GestureSample(position, null), 1, position.hashCode(), 1),
+                path = GesturePath(GestureSample(position.toDocumentPoint(), null), 1, position.hashCode(), 1),
                 effect = effect,
                 layerId = layerId,
                 admission = admission,
@@ -140,7 +147,7 @@ private class GesturePath(
 )
 
 private class GestureSample(
-    val position: PixelPosition,
+    val position: DocumentPoint,
     val previous: GestureSample?,
 )
 
@@ -157,43 +164,42 @@ internal sealed interface ToolGestureExtensionResult {
 }
 
 private fun segmentAddition(
-    start: PixelPosition,
-    end: PixelPosition,
-): Int = max(abs(end.x.value - start.x.value), abs(end.y.value - start.y.value))
+    start: DocumentPoint,
+    end: DocumentPoint,
+): Long = max(abs(end.x.toLong() - start.x), abs(end.y.toLong() - start.y))
 
 private fun forEachSegmentPosition(
-    start: PixelPosition,
-    end: PixelPosition,
-    action: (PixelPosition) -> Unit,
+    start: DocumentPoint,
+    end: DocumentPoint,
+    action: (DocumentPoint) -> Unit,
 ) {
     val canonicalOrder = start.precedes(end)
     val canonicalStart = if (canonicalOrder) start else end
     val canonicalEnd = if (canonicalOrder) end else start
-    val steps = segmentAddition(start, end)
+    val steps = segmentAddition(start, end).toInt()
     val indexes = if (canonicalOrder) 1..steps else (steps - 1) downTo 0
     indexes.forEach { index ->
         action(interpolatedPosition(canonicalStart, canonicalEnd, index, steps))
     }
 }
 
-private fun PixelPosition.precedes(other: PixelPosition): Boolean =
-    y.value < other.y.value || (y.value == other.y.value && x.value < other.x.value)
+private fun DocumentPoint.precedes(other: DocumentPoint): Boolean = y < other.y || (y == other.y && x < other.x)
 
 private fun interpolatedPosition(
-    start: PixelPosition,
-    end: PixelPosition,
+    start: DocumentPoint,
+    end: DocumentPoint,
     index: Int,
     steps: Int,
-): PixelPosition =
-    pixelPosition(
-        start.x.value + roundedRatio((end.x.value - start.x.value) * index, steps),
-        start.y.value + roundedRatio((end.y.value - start.y.value) * index, steps),
+): DocumentPoint =
+    DocumentPoint.create(
+        (start.x.toLong() + roundedRatio((end.x.toLong() - start.x) * index, steps)).toInt(),
+        (start.y.toLong() + roundedRatio((end.y.toLong() - start.y) * index, steps)).toInt(),
     )
 
 private fun roundedRatio(
-    numerator: Int,
+    numerator: Long,
     denominator: Int,
-): Int =
+): Long =
     if (numerator >= 0) {
         (numerator + denominator / 2) / denominator
     } else {

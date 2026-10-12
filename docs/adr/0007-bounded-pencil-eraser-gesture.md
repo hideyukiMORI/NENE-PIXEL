@@ -37,6 +37,29 @@ presentation-owned tool authority.
 
 ## Decision
 
+### Signed gesture coordinates (2026-10-12, #163)
+
+`DocumentPoint` is the canonical signed integer sample in document-pixel space. Its public
+`create(x: Int, y: Int)` factory accepts the complete `Int` range without a canvas-containment
+invariant. The public `PixelPosition.toDocumentPoint()` extension lives beside that value and
+converts the two axes exactly; it performs no validation, allocation proportional to the canvas,
+or I/O. `CanvasSize.contains(DocumentPoint)` is the single containment query for these samples.
+`PixelPosition` retains its non-negative axes; its containment is checked separately against the
+specific canvas.
+
+`ViewportTransform.toDocumentPoint(ViewportSurfacePoint)` uses the same canonical edge correction
+as `toPixelPosition`, including on negative coordinates. It does not reject a point outside the
+surface or canvas. A mapped coordinate beyond the `Int` range saturates to that range's endpoint;
+the gesture-volume check still rejects an excessively long segment before any traversal.
+`toPixelPosition` remains the bounded mapping for gesture start and eyedropper picking.
+
+`WorkspaceAction.ExtendGesturePreview` now takes `DocumentPoint`. Extension retains outside
+samples, while `BeginGesturePreview` still takes `PixelPosition` and rejects an outside start.
+The presentation adapter maps move and up through `toDocumentPoint` and completes the same
+`PrepareGestureCommit` path. Explicit/system cancellation and additional-pointer arbitration
+remain unchanged. All callers migrate together; there is no compatibility overload or second
+interpolation path. These public API changes refine ADR 0004 and this ADR under KOT-008/009.
+
 ### Tool identity and committed effect
 
 `:core:domain` owns two related closed values with different meanings:
@@ -62,9 +85,14 @@ document dirty.
 
 ### Canonical interpolation and bound
 
-`ToolGesture` is the only interpolation owner. It connects each pair of accepted sampled document
-pixels with integer, endpoint-inclusive, 8-connected line traversal. The first gesture sample is
-emitted once; every later segment excludes its previous endpoint and includes its new endpoint.
+`ToolGesture` is the only interpolation owner. A gesture sample is a signed integer document
+coordinate (`DocumentPoint`, amended 2026-10-12 for Issue #163): the first sample must lie inside
+the canvas, and later samples may lie outside it while the pointer is off the picture. It connects
+each pair of consecutive samples with integer, endpoint-inclusive, 8-connected line traversal in that
+signed space and emits only the traversed cells that lie inside the canvas as `PixelPosition`
+values, so the stroke follows the pointer's real path and nothing is drawn outside the picture. The
+first gesture sample is emitted once; every later segment excludes its previous endpoint and
+includes its new endpoint.
 Endpoints are first ordered by document row then column. Each axis at step `i` of `n` advances by
 the nearest integer to `delta * i / n`, with exact halves rounded away from zero. Reverse input
 enumerates those same canonical positions in reverse. This fixes tie behavior and direction
@@ -76,8 +104,12 @@ The exact expanded position count is:
 1 + sum(max(abs(nextX - priorX), abs(nextY - priorY)))
 ```
 
-The next count is calculated as `Long` and compared with
+This count includes traversed cells outside the canvas, because it bounds the traversal work, not
+the painted pixels. The next count is calculated as `Long` and compared with
 `PixelLimits.MAX_RAW_STROKE_POSITIONS` before accepting a sample or allocating an expanded path.
+Axis differences are widened before subtraction and absolute value, and the interpolation
+numerator is calculated as `Long` before multiplication. Signed endpoint extremes must not wrap
+past the volume check; an accepted long segment must not overflow its intermediate product.
 An over-limit extension returns a typed workspace rejection and preserves the existing gesture.
 Consecutive duplicate samples use one typed unchanged result. Revisited and crossing samples
 remain in deterministic gesture order; the existing bounded pixel-engine collector performs one
@@ -95,9 +127,11 @@ Compose renders `activeTool` and emits only `SelectTool`. It holds no second mut
 Pencil preview uses the gesture-captured paint color; Eraser has a presentation-only visible
 preview treatment and does not invent a document color.
 
-Existing ADR 0004 arbitration remains authoritative. Leaving the canvas, explicit cancellation,
-surface invalidation, a second pointer, or additional-pointer suppression clears the preview
-before any command commit. A completed one-pointer gesture emits exactly one
+Existing ADR 0004 arbitration remains authoritative. Explicit cancellation, surface invalidation,
+a second pointer, or additional-pointer suppression clears the preview before any command commit.
+Leaving the canvas does not: since Issue #163 the pointer may leave and re-enter the picture within
+one gesture, the preview keeps every sample, and lifting the pointer outside the picture commits the
+cells drawn inside it as one command (amended 2026-10-12). A completed one-pointer gesture emits exactly one
 `ApplyStrokeCommand`; a no-op is still that command's typed outcome and creates no history entry.
 
 ## Rejected alternatives

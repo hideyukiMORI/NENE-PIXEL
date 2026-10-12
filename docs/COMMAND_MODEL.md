@@ -254,9 +254,11 @@ reducer returns a typed rejection for an index outside the current document pale
 result for the current index. Selection emits no document command and changes no revision, history,
 or dirty state. Displayed active color is always derived from palette plus selection.
 
-Accepted document-pixel samples are connected by the one endpoint-inclusive, direction-symmetric,
-8-connected integer line rule in `ToolGesture`. The expanded count is checked against the raw-stroke
-limit before accepting each sample. One completed gesture produces exactly one
+Accepted gesture samples (signed `DocumentPoint` coordinates; only the first must lie inside the
+canvas) are connected by the one endpoint-inclusive, direction-symmetric, 8-connected integer line
+rule in `ToolGesture`, which emits only the traversed cells inside the canvas (ADR 0007, Issue #163).
+The expanded count, including cells outside the canvas, is checked against the raw-stroke limit
+before accepting each sample. One completed gesture produces exactly one
 `ApplyStrokeCommand.create(admission, stroke)`. BeginGesturePreview captures definition and admission
 under the same runtime lock; CommitPrepared retains both rather than rereading state at commit.
 Both effects enter the same handler, rasterizer, patch, and history path. A captured paint index must

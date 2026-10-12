@@ -7,7 +7,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.command.UndoCo
 import io.github.hideyukimori.nenepixel.core.application.editor.EditorRuntime
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceAction
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReductionResult
-import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
+import io.github.hideyukimori.nenepixel.core.domain.geometry.DocumentPoint
 
 internal class EditorRuntimeAdapter(
     private val runtime: EditorRuntime,
@@ -51,7 +51,7 @@ internal class EditorRuntimeAdapter(
         }
     }
 
-    fun finishGesture(position: PixelPosition): PointerInputAcknowledgement {
+    fun finishGesture(position: DocumentPoint): PointerInputAcknowledgement {
         val extension = runtime.reduce(WorkspaceAction.ExtendGesturePreview(position))
         return when (extension) {
             is WorkspaceReductionResult.Reduced,

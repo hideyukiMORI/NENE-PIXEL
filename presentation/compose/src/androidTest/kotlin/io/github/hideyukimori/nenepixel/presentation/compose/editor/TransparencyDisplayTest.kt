@@ -29,6 +29,7 @@ import io.github.hideyukimori.nenepixel.core.domain.drawing.StrokeEffect
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelX
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelY
+import io.github.hideyukimori.nenepixel.core.domain.geometry.toDocumentPoint
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
@@ -109,7 +110,7 @@ internal class TransparencyDisplayTest {
 
         adapter.reduce(WorkspaceAction.BeginGesturePreview(adapter.renderState.document.size, pixel(0, 0)))
         val first = requireNotNull(previews.render(adapter.renderState, committed))
-        adapter.reduce(WorkspaceAction.ExtendGesturePreview(pixel(WIDTH - 1, HEIGHT - 1)))
+        adapter.reduce(WorkspaceAction.ExtendGesturePreview(pixel(WIDTH - 1, HEIGHT - 1).toDocumentPoint()))
         val second = requireNotNull(previews.render(adapter.renderState, committed))
 
         val state = adapter.renderState

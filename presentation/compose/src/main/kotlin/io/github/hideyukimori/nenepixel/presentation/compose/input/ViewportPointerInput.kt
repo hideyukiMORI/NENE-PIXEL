@@ -127,6 +127,11 @@ private class ViewportPointerSession(
                 suppress()
             }
 
+            tracked.changedToUpIgnoreConsumed() && tracked.isConsumed -> {
+                // Compose represents system cancellation as an already-consumed synthetic release.
+                cancel()
+            }
+
             tracked.changedToUpIgnoreConsumed() -> {
                 dispatcher.pointerEnd(surface, point)
                 phase = PointerPhase.Finished

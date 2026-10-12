@@ -3,7 +3,9 @@ package io.github.hideyukimori.nenepixel.presentation.compose.editor
 import io.github.hideyukimori.nenepixel.core.application.workspace.ToolGesture
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceAction
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceState
+import io.github.hideyukimori.nenepixel.core.domain.geometry.DocumentPoint
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
+import io.github.hideyukimori.nenepixel.core.domain.geometry.toDocumentPoint
 import io.github.hideyukimori.nenepixel.presentation.compose.EditorFixture
 import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestValues.canvas
 import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestValues.fixture
@@ -14,6 +16,22 @@ import org.junit.jupiter.api.Test
 
 internal class PreviewRasterTest {
     private val editor: EditorFixture = fixture(canvas(WIDTH, HEIGHT))
+
+    @Test
+    fun `outside samples paint only contained cells without joining a wholly outside segment`() {
+        var workspace =
+            reduce(
+                editor.initialWorkspace,
+                WorkspaceAction.BeginGesturePreview(editor.initialDocument.size, position(0, 0)),
+            )
+        listOf(DocumentPoint.create(-2, 0), DocumentPoint.create(-2, 2), DocumentPoint.create(4, 2)).forEach { sample ->
+            workspace = reduce(workspace, WorkspaceAction.ExtendGesturePreview(sample))
+        }
+        val raster = PreviewRaster(WIDTH, HEIGHT)
+        raster.paint(requireNotNull(workspace.preview), solid(ARGB))
+        val expected = setOf(0 to 0) + (0..4).map { it to 2 }
+        assertRaster(raster, expected, ARGB)
+    }
 
     @Test
     fun `two sample diagonal paints every interpolated position and nothing else`() {
@@ -125,7 +143,7 @@ internal class PreviewRasterTest {
                 WorkspaceAction.BeginGesturePreview(editor.initialDocument.size, samples.first()),
             )
         samples.drop(1).forEach { sample ->
-            workspace = reduce(workspace, WorkspaceAction.ExtendGesturePreview(sample))
+            workspace = reduce(workspace, WorkspaceAction.ExtendGesturePreview(sample.toDocumentPoint()))
         }
         return requireNotNull(workspace.preview)
     }

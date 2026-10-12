@@ -1,6 +1,7 @@
 package io.github.hideyukimori.nenepixel.core.application.workspace.viewport
 
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
+import io.github.hideyukimori.nenepixel.core.domain.geometry.DocumentPoint
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelX
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelY
@@ -43,11 +44,22 @@ public class ViewportTransform private constructor(
             }
 
             else -> {
-                val x = canonicalPixelIndex(point.xPixels, geometry.origin.x, canvas.width.value)
-                val y = canonicalPixelIndex(point.yPixels, geometry.origin.y, canvas.height.value)
+                val scale = geometry.cellScale
+                val x = canonicalIndex(point.xPixels, geometry.origin.x, scale, 0 until canvas.width.value)
+                val y = canonicalIndex(point.yPixels, geometry.origin.y, scale, 0 until canvas.height.value)
                 viewportMapped(PixelPosition.create(pixelX(x), pixelY(y)))
             }
         }
+
+    /**
+     * Maps any surface point, inside or outside the surface and canvas, to its document pixel with the same rounding
+     * as [toPixelPosition]; indices beyond the Int range saturate to Int.MIN_VALUE or Int.MAX_VALUE.
+     */
+    public fun toDocumentPoint(point: ViewportSurfacePoint): DocumentPoint =
+        DocumentPoint.create(
+            canonicalIndex(point.xPixels, geometry.origin.x, geometry.cellScale, UNBOUNDED_INDICES),
+            canonicalIndex(point.yPixels, geometry.origin.y, geometry.cellScale, UNBOUNDED_INDICES),
+        )
 
     public fun apply(gesture: ViewportGesture): ViewportValueResult<ViewportState> {
         val measure = gesture.measure()
@@ -124,20 +136,6 @@ public class ViewportTransform private constructor(
             point.xPixels < edge(geometry.origin.x, geometry.cellScale, canvas.width.value) &&
             point.yPixels >= edge(geometry.origin.y, geometry.cellScale, 0) &&
             point.yPixels < edge(geometry.origin.y, geometry.cellScale, canvas.height.value)
-
-    private fun canonicalPixelIndex(
-        coordinate: Double,
-        origin: Double,
-        extent: Int,
-    ): Int {
-        val quotient = floor((coordinate - origin) / geometry.cellScale)
-        val initial = quotient.toLong().coerceIn(0L, extent.toLong() - 1L).toInt()
-        return when {
-            coordinate < edge(origin, geometry.cellScale, initial) -> initial - 1
-            initial < extent - 1 && coordinate >= edge(origin, geometry.cellScale, initial + 1) -> initial + 1
-            else -> initial
-        }
-    }
 
     public companion object {
         public fun create(
@@ -328,6 +326,27 @@ private fun edge(
     scale: Double,
     index: Int,
 ): Double = origin + index.toDouble() * scale
+
+private val UNBOUNDED_INDICES: IntRange = Int.MIN_VALUE..Int.MAX_VALUE
+
+/**
+ * Floors the scaled offset in Long, clamps it to [indices], then corrects by one cell inside [indices] against the
+ * exact [edge] values so a point on a canonical edge belongs to the cell on its right or below without overflow.
+ */
+private fun canonicalIndex(
+    coordinate: Double,
+    origin: Double,
+    scale: Double,
+    indices: IntRange,
+): Int {
+    val quotient = floor((coordinate - origin) / scale)
+    val initial = quotient.toLong().coerceIn(indices.first.toLong(), indices.last.toLong()).toInt()
+    return when {
+        initial > indices.first && coordinate < edge(origin, scale, initial) -> initial - 1
+        initial < indices.last && coordinate >= edge(origin, scale, initial + 1) -> initial + 1
+        else -> initial
+    }
+}
 
 private fun pixelX(value: Int): PixelX =
     when (val result = PixelX.create(value)) {

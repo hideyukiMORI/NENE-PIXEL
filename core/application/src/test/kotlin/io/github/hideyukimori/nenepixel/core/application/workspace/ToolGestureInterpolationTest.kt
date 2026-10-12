@@ -7,6 +7,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.App
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.state
 import io.github.hideyukimori.nenepixel.core.domain.drawing.StrokeEffect
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
+import io.github.hideyukimori.nenepixel.core.domain.geometry.toDocumentPoint
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -78,7 +79,7 @@ internal class ToolGestureInterpolationTest {
         gesture: ToolGesture,
         position: PixelPosition,
     ): ToolGesture =
-        when (val result = gesture.extend(position)) {
+        when (val result = gesture.extend(position.toDocumentPoint())) {
             is ToolGestureExtensionResult.Extended -> result.gesture
             ToolGestureExtensionResult.Duplicate -> error("Distinct property endpoint was treated as duplicate.")
             is ToolGestureExtensionResult.AboveSupportedMaximum -> error("Bounded property path exceeded the limit.")

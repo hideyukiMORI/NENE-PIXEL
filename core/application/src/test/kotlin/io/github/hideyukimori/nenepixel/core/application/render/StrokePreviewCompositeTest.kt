@@ -18,6 +18,7 @@ import io.github.hideyukimori.nenepixel.core.domain.document.Revision
 import io.github.hideyukimori.nenepixel.core.domain.drawing.StrokeEffect
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
+import io.github.hideyukimori.nenepixel.core.domain.geometry.toDocumentPoint
 import io.github.hideyukimori.nenepixel.core.domain.layer.Layer
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerName
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerVisibility
@@ -98,7 +99,7 @@ internal class StrokePreviewCompositeTest {
                 scene.gateway.captureSource(),
             ),
         ) { gesture, next ->
-            (gesture.extend(next) as ToolGestureExtensionResult.Extended).gesture
+            (gesture.extend(next.toDocumentPoint()) as ToolGestureExtensionResult.Extended).gesture
         }
 
     /** Three layers with translucent, opaque and Empty cells; the middle layer has [middleVisibility]. */

@@ -70,6 +70,7 @@ One concept has one canonical name. New synonyms in code are prohibited. Add or 
 | `CanvasSize` | Validated pixel width and height whose total area is at most 65,536 pixels | image size when referring to document coordinates |
 | `CanvasWidth` / `CanvasHeight` | Positive typed axis dimension in the supported range 1 through 256 | width/height Int at a core boundary |
 | `PixelPosition` | Validated integer position in document pixel coordinates | point, coord, offset |
+| `DocumentPoint` | Signed integer document-pixel sample that may lie outside the canvas; ToolGesture emits only its canvas-contained interpolated cells (ADR 0007, #163) | PixelPosition, surface point, clipped pointer |
 | `PixelX` / `PixelY` | Non-negative typed document pixel axes used to construct PixelPosition | x/y Int at a core boundary |
 | `PixelRegion` | Canvas-contained rectangular region with half-open right/bottom bounds | rect when domain meaning is intended |
 | `ColorChannel` | One unsigned 8-bit semantic RGBA channel | color byte, channel Int |
