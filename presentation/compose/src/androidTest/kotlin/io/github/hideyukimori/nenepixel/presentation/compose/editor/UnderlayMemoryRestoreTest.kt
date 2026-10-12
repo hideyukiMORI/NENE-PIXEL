@@ -114,11 +114,13 @@ internal class UnderlayMemoryRestoreTest {
     private fun start(): EditorFixture {
         val first = editor()
         shown.value = first
+        val configuration =
+            TestPersistenceConfiguration(document = TestDocumentPersistence(storage = storage), underlayMemory = memory)
         composeRule.setContent {
             val editor = shown.value
             if (editor != null) {
                 key(editor) {
-                    TestNenePixelEditor(editor.controller, projectStorage = storage, underlayMemory = memory)
+                    TestNenePixelEditor(editor.controller, configuration = configuration)
                 }
             }
         }

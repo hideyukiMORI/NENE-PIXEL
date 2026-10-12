@@ -2,6 +2,7 @@ package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
 import android.graphics.PointF
 import org.junit.Assert.assertTrue
+import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.floor
 
@@ -81,7 +82,7 @@ internal object TransparencyExpectation {
         return result
     }
 
-    private fun hex(argb: Int): String = "0x%08X".format(argb)
+    private fun hex(argb: Int): String = "0x%08X".format(Locale.ROOT, argb)
 
     private const val ALPHA_SHIFT: Int = 24
     private const val CHANNEL_MAX: Int = 0xff

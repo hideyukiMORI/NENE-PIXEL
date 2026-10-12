@@ -48,12 +48,9 @@ internal class LegacyConversionDialogTest {
         val storage = LegacyStorage(legacySource(fixture.initialDocument.id))
         val presets = LegacyPalettePresets(definition(0x000000ff), definition(0x202020ff), definition(0x404040ff))
 
+        val document = TestDocumentPersistence(storage = storage, presets = presets)
         composeRule.setContent {
-            TestNenePixelEditor(
-                fixture.controller,
-                projectStorage = storage,
-                presets = presets,
-            )
+            TestNenePixelEditor(fixture.controller, configuration = TestPersistenceConfiguration(document = document))
         }
         composeRule.onNodeWithTag("editor_file").performClick()
         composeRule.onNodeWithTag("editor_load").performClick()
@@ -88,13 +85,10 @@ internal class LegacyConversionDialogTest {
         val storage = LegacyStorage(source)
         val presets = LegacyPalettePresets(definition(0x000000ff), definition(0x202020ff), definition(0x404040ff))
 
+        val document =
+            TestDocumentPersistence(storage = storage, presets = presets, recovery = RecoveryLegacyRecord(source))
         composeRule.setContent {
-            TestNenePixelEditor(
-                fixture.controller,
-                projectStorage = storage,
-                presets = presets,
-                recoveryRecord = RecoveryLegacyRecord(source),
-            )
+            TestNenePixelEditor(fixture.controller, configuration = TestPersistenceConfiguration(document = document))
         }
         composeRule.waitUntil(TIMEOUT) {
             composeRule.onAllNodes(hasTestTag("editor_recovery_offer")).fetchSemanticsNodes().size == 1
@@ -118,8 +112,9 @@ internal class LegacyConversionDialogTest {
         val storage = BlockingLegacyStorage(legacySource(fixture.initialDocument.id))
         val presets = LegacyPalettePresets(definition(0x000000ff), definition(0x202020ff), definition(0x404040ff))
 
+        val document = TestDocumentPersistence(storage = storage, presets = presets)
         composeRule.setContent {
-            TestNenePixelEditor(fixture.controller, projectStorage = storage, presets = presets)
+            TestNenePixelEditor(fixture.controller, configuration = TestPersistenceConfiguration(document = document))
         }
         composeRule.onNodeWithTag("editor_file").performClick()
         composeRule.onNodeWithTag("editor_load").performClick()

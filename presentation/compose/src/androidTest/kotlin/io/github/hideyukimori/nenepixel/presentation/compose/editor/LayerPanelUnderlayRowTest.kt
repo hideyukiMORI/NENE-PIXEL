@@ -115,9 +115,10 @@ internal class LayerPanelUnderlayRowTest {
     private fun show(): EditorController {
         val controller = PresentationTestValues.fixture(PresentationTestValues.canvas(WIDTH, HEIGHT)).controller
         val port = ReferenceImagePort { ReferenceImageOutcome.Picked(image) }
+        val configuration = TestPersistenceConfiguration(images = TestImageImportPorts(referenceImage = port))
         composeRule.setContent {
             Box(Modifier.requiredSize(EDGE, EDGE).consumeWindowInsets(WindowInsets.safeDrawing)) {
-                TestNenePixelEditor(controller, Modifier.requiredSize(EDGE, EDGE), referenceImage = port)
+                TestNenePixelEditor(controller, Modifier.requiredSize(EDGE, EDGE), configuration = configuration)
             }
         }
         composeRule.waitForIdle()
