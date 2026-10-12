@@ -1,9 +1,13 @@
 # ADR 0028: Implementation seat shape: one seat per stage, small tool output, small tasks
 
-- Status: accepted
+- Status: superseded
 - Date: 2026-09-23
 - Issue: #130
 - Affected rules: `QLT-005`, `QLT-011`, `QLT-017`, `QLT-018`
+
+Historical decision. [ADR 0038](0038-current-agent-guidance.md) replaces the mandatory seat
+lifetime, model, and report-shape prescriptions from 2026-10-12. The original measurements and
+rationale below remain historical evidence, not instructions for current work.
 
 ## Context
 
@@ -126,4 +130,4 @@ not restarted. Rollback is another accepted policy decision; never two active se
 - PR:
 - [ADR 0027](0027-agent-seat-model-tiers.md)
 - Supersedes: none
-- Superseded by: none
+- Superseded by: [ADR 0038](0038-current-agent-guidance.md)

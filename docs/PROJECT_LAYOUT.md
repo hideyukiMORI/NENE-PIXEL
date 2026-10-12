@@ -190,10 +190,12 @@ It maps to/from typed domain documents and uninstalled legacy sources. Domain ty
 values defensively own bytes that are immutable after construction and expose no mutable storage.
 The module performs no I/O and is never a dependency of `:core:application` or presentation.
 ADR 0025 refines ADR 0015's boundary to one `ProjectFormatBytes` carrier, one closed
-`ProjectFormatResult` and `ProjectFormatCodec`. It reads v1/v2 to DocumentImportSource, writes only v2
-from DocumentState, and exposes exact original-v1 encoding only from LegacyRgbaSource. Version
-implementations are internal. The carrier retains the v1 maximum-plus-one probe; each decoder
-separately enforces its exact structural/checksum/domain admission order before raster allocation.
+`ProjectFormatResult` and `ProjectFormatCodec`. ADR 0030 makes v3 the current write format from
+DocumentState and reads v1/v2/v3 through DocumentImportSource: v1 retains the Legacy conversion,
+while v2 becomes one fully covered layer in Current. Exact original-v1 encoding remains available
+only from LegacyRgbaSource. Version implementations are internal. The common carrier uses the v3
+maximum-plus-one probe; each decoder separately enforces its version-specific maximum and exact
+structural/checksum/domain admission order before raster allocation.
 
 ADR 0022 adds one separate `palette` codec package here for PaletteJsonBytes, PaletteJsonCodec and
 closed format outcomes under [Palette JSON v1](PALETTE_JSON_V1.md). It maps to the domain
@@ -248,8 +250,9 @@ advance a document checkpoint. The Android adapter owns typed
 SAF result contracts, fresh-document Save As, read-back verification, maximum-plus-one bounded stream
 reads, and failure normalization before invoking the no-I/O codec. App-private recovery uses the one
 serialized framework `AtomicFile` record and conditional Retired writer fixed by ADR 0016/0024.
-The existing filename is retained; inspection accepts envelope 1/project 1 and envelope 2/project 2,
-and new writes use envelope 2. Inspection never rewrites a source or decides whether to reduce it.
+The existing filename is retained; inspection accepts matching envelope/project versions 1, 2 and
+3. New Candidate and Retired writes use envelope 3 under ADR 0030. Inspection never rewrites a
+source or decides whether to reduce it.
 
 ### `:app:android`
 
@@ -311,8 +314,8 @@ verification or measurement route (QLT-018):
 - `docs/` holds the canonical documents, ADRs, waivers, and quality evidence; measurement
   collectors and analyzers live under `docs/quality/measurements/` next to the evidence they produce.
 - `build-logic/` holds the convention plugins and repository validators that the quality gate runs.
-- `tools/` holds developer scripts that replace preparation steps a model would otherwise repeat
-  ([ADR 0027](adr/0027-agent-seat-model-tiers.md)): device checkout preparation, the zero-diff and
+- `tools/` holds developer scripts introduced by [ADR 0027](adr/0027-agent-seat-model-tiers.md),
+  retained under [ADR 0038](adr/0038-current-agent-guidance.md): device checkout preparation, the zero-diff and
   field-level check of protected material, and screenshot pixel comparison. Each script states its
   arguments, output shape, and exit codes in its header, runs under `pwsh -NoProfile -File`, adds no
   dependency, and has a self-test under `tools/selftest/`. The scripts prepare and check; they never
