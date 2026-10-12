@@ -216,12 +216,15 @@ violation is a typed format rejection; unsupported versions never fall through (
 
 ### Future boundary
 
-Saved layer opacity is planned for the next format version (v4), possibly together with frames. It
-adds a stored value to `Layer`, and its effect on display and export is decided by that ADR. If
-that ADR keeps opacity out of PNG export, the export flow must disclose it whenever a visible layer
-has non-full opacity, so a display-only dimming is never mistaken for exported transparency. Frames
-follow the glossary: a frame holds an ordered layer state and the palette stays shared (ADR 0022).
-No opacity field, frame type, empty array or unused API is added now.
+The original tentative v4 opacity assignment is superseded on 2026-10-12 by
+[ADR 0041](0041-bounded-frames-and-project-v4.md). V4 is the bounded-frame format, activated with
+the atomic frame runtime/storage/UI cutover. It retains the document-wide maximum of 16 logical
+layer records, shared palette and exact v3 layer records. Until that cutover this ADR's current
+runtime and v3 writer remain the one implemented path; the v3 byte table above stays immutable.
+
+Saved layer opacity needs a future format version and its own display/export decision. If that
+decision keeps opacity out of PNG export, the export flow must disclose it whenever a visible
+layer has non-full opacity. No opacity field, reserved byte or unused API is added by frames.
 
 ### Delivery
 

@@ -160,6 +160,17 @@ The earlier v1/v2 observations and their decisions remain historical; the curren
 claimed by this prospective decision. SAF user-file save is a different interval and does not use
 this 250 ms boundary.
 
+2026-10-12 prospective frame application (#215, ADR 0041): the atomic frame/v4 cutover registers
+maximum Candidate publication for the actual 16-frame, one-layer-per-frame v4 maximum file,
+1,183,006 bytes, inside envelope 4 at 1,183,029 bytes. This is distinct from the one-frame,
+16-layer maximum drawing composite. The existing 250 ms maximum-publication decision and unchanged
+formulas above apply to that new workload; the current 1,000 ms quiet window and 5,000 ms cap stay
+unchanged until valid #145 collection at the owner-directed M5 exit decides otherwise. Reconcile
+the prospective phase protocol with its executable admission/fixture before collection. V1/v2/v3
+artifacts, fixture hashes, timings and verdicts remain historical and are neither overwritten nor
+relabeled as v4 acceptance. This design-only amendment authorizes no measurement, Profile
+regeneration or timing-constant change.
+
 Before Candidate publication code merges, one bounded device observation is collected under
 [M3 Autosave Publication Evidence](../quality/M3_AUTOSAVE_PUBLICATION_EVIDENCE.md): one invocation on
 the reference device, two fixed groups (maximum 256 × 256 document, minimum 1 × 1 document), five

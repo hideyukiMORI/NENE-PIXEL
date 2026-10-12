@@ -124,6 +124,66 @@ Touch / Stylus / Mouse / Keyboard
 
 Persistence observes committed results through an application port. It does not create another mutation path.
 
+## Accepted frame cutover (ADR 0041)
+
+The following target becomes effective with the atomic consuming implementation, not with the
+design-only Issue #215. Until then the single-frame runtime and v3/envelope 3 writer remain the
+sole implemented path. [ADR 0041](adr/0041-bounded-frames-and-project-v4.md) owns the full contract.
+
+`DocumentState` then owns chronological frames and one shared palette. Frame contents/order and
+validated duration (10 through 60,000 integer ms, default 100) are saved truth. Source-admitted
+`AddFrameCommand`, `DuplicateFrameCommand`, `DeleteFrameCommand`, `MoveFrameCommand` and
+`SetFrameDurationCommand` each use one gateway/handler route, revision and history entry. Add makes
+one visible all-Empty layer; duplicate preserves duration and exact ordered layer contents with
+fresh IDs. Last-frame deletion rejects; identical position/duration is `NoEffectiveChange`.
+
+Frame count is 1 through 16, each frame has 1 through 16 layers, and the whole document has at most
+16 logical layer records. All layer IDs are globally unique. Layer insertion/import and frame
+duplication validate document-wide capacity and allocate after the whole-document current maximum;
+bulk ID overflow rejects atomically. Last-layer protection is per frame. Palette remapping covers
+all frames and hidden layers in one command. One hierarchical structural transition records either
+a frame-targeted layer change or a frame add/delete/move/duration change. Global LayerId still
+addresses pixel changes; Undo/Redo restores recorded identities without allocating again.
+
+History retains the 32-byte ChangeSet header, existing palette charge and per-layer sparse `6*K`
+versus dense `2*(N+ceil(N/8))` choice. Structural bytes beyond the header are:
+
+| Transition | Additional logical bytes |
+| --- | ---: |
+| Frame-targeted layer structure | `4 + existing layer-transition charge` |
+| Frame added/deleted | `12 + sum(6 + UTF8(name).size + N + ceil(N/8))` over its layers |
+| Frame moved or duration changed | `12` |
+
+Whole-frame add/delete charges all retained snapshots, including Empty/shared ones, with identical
+inverse charge. The single-layer Empty-add shortcut is not extended to whole frames. Byte/change
+admission and eviction remain canonical; frame metadata does not duplicate pixel-remap payloads.
+
+`EditTarget` owns active FrameId, LayerId and palette slot together. `SelectFrame` selects a
+different valid frame's top layer; same-frame choice is Unchanged and retains its layer. Install
+selects the first frame's top layer, and `SelectLayer` rejects layers outside the active frame.
+Frame choice cancels drawing/selection and competing pointer modes through the reducer, while
+preserving the document-bound palette draft and its timeline. Shared locked post-command
+reconciliation covers ordinary commands and Undo/Redo: inserted frames/layers select their target,
+active removal chooses the recorded-position successor clamped to the final item, and reorder or
+duration changes retain valid focus. No UI-only focus repair or per-frame remembered-layer map is
+introduced.
+
+Committed and draft rendering take explicit frame identity and composite only that frame. Cache
+keys account for focus changes without document changes; preparations retain at most the active
+frame. Actual-size excludes stroke/selection drafts but retains ADR0022's shared palette-draft
+preview for that frame. PNG export captures active FrameId plus immutable
+committed document together before the picker and checks visibility only in that frame. PNG import
+captures frame, insertion anchor and admission when the pick begins; focus changes do not retarget
+the layer form, and stale document/history or missing targets reject that form. New-work import
+creates one default frame through its existing current-context confirmation/final-switch flow.
+Save/autosave/recovery capture the whole committed hierarchy; frame choice has no dirty/autosave
+effect. The existing persistence exclusions and source-preservation contract remain unchanged.
+
+V4/envelope 4 writes switch with every live consumer, preserving exact old readers. Playback has
+its own later clock/interaction decision: one workspace session consumes explicit monotonic
+platform samples and saved duration/order; ticks never enter history/autosave. No playback API,
+saved opacity or animated export is added by frame editing.
+
 ## New-document runtime boundary
 
 Creating a new document installs a newly constructed editor runtime; it is not an edit of the

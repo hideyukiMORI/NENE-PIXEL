@@ -79,3 +79,4 @@ An ADR must include:
 | [0038](0038-current-agent-guidance.md) | accepted | Owner-directed roles, task-scoped reading, coherent delegation, and separate rule/state/memory authority; historical recipes do not authorize new work |
 | [0039](0039-rectangular-selection-transfer.md) | accepted | Workspace-only rectangular draft, exact same-layer Move/Copy through one patch command, explicit Apply/Cancel, shared Composite preview and bounded transfer work |
 | [0040](0040-orthogonal-selection-transforms.md) | accepted | Eight composed exact orientations extend the existing selection transfer with flips and quarter turns; bounded oriented placement, one patch/preview/history path and no schema change |
+| [0041](0041-bounded-frames-and-project-v4.md) | accepted | Ordered frames sharing one palette and at most 16 total layer records; one command/history path, captured frame targets, atomic v4/envelope4 cutover and separate playback delivery |

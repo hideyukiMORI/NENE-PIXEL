@@ -8,7 +8,7 @@ One concept has one canonical name. New synonyms in code are prohibited. Add or 
 | --- | --- | --- |
 | `Document` | The complete user-created pixel project as a product concept | project data, canvas file, workspace |
 | `DocumentId` | Validated 32-character lowercase hexadecimal identity of one Document | document key, UUID string |
-| `DocumentState` | Immutable saved and undoable DocumentId, Revision, PaletteDefinition and ordered Layers, validated together | editor state, model data |
+| `DocumentState` | Immutable saved and undoable DocumentId, Revision, shared PaletteDefinition and ordered Layers; ADR 0041 replaces the layer list with ordered Frames at its atomic cutover | editor state, model data |
 | `WorkspaceState` | Immutable ephemeral editor/session state not saved in the Document | temporary document, UI model |
 | `EditorAppearance` | Workspace-owned session theme, tablet layout and physical control edge changed through SetAppearance | Compose theme flag, project preference |
 | `EditorTheme` | Closed Dark or Light appearance selection | system theme Boolean |
@@ -41,13 +41,13 @@ One concept has one canonical name. New synonyms in code are prohibited. Add or 
 | `PersistenceOperation` | One runtime-owned capture/completion or load/install coordination sequence with an opaque identity, one physical-operation lease, and typed busy/stale/cancelling outcomes | adapter job, UI Boolean, DocumentCommand |
 | `PersistenceOperationProjection` | Read-only immutable phase, last outcome, and recovery status derived from the sole EditorRuntime-owned persistence state | mutable UI operation flag, adapter state |
 | `Project Format v1` | The exact bounded `.nenepixel` byte contract in `PROJECT_FORMAT_V1.md` for DocumentId, Revision, CanvasSize, and straight-sRGB RGBA8 pixels | domain model serialization, recovery envelope, external API |
-| `ProjectFormatBytes` | Defensively owned bounded bytes carrying one v1/v2 file or the retained v1 maximum-plus-one validation probe | ByteArray API, stream, mutable buffer, validated document |
+| `ProjectFormatBytes` | Defensively owned bounded project bytes or the current maximum-plus-one validation probe; older decoders retain their own version limits | ByteArray API, stream, mutable buffer, validated document |
 | `Project Format v2` | Exact indexed document byte contract in PROJECT_FORMAT_V2.md, including ordered palette/default and U8 raster | RGBA v1 writer, JSON palette file |
-| `ProjectFormatCodec` | One no-I/O read-v1/read-v2, write-v2 document boundary; exact legacy-source encoding is restricted to original copying | public per-version document writer, import planner |
+| `ProjectFormatCodec` | One no-I/O read-v1/v2/v3, write-v3 boundary until ADR 0041's atomic v4 cutover; exact legacy-source encoding is restricted to original copying | public per-version document writer, import planner |
 | `ProjectFormatVersion` | Meaning-bearing unsigned 16-bit project-format wire version used in typed diagnostics | schema Int, app version |
-| `ProjectFormatResult` | Closed accepted/rejected result shared by bounded-byte construction and explicit v1/v2 decoding | nullable result, exception, Boolean success |
+| `ProjectFormatResult` | Closed accepted/rejected result shared by bounded-byte construction and explicit version decoding | nullable result, exception, Boolean success |
 | `ProjectFormatRejection` | Closed reachable reason that project-format bytes or version decoding are rejected | I/O failure, generic parse error, error string |
-| `RecoveryRecord` | One app-private AtomicFile envelope with version-matched Candidate project payload or Retired marker and conditional generation identity; read v1/v2, write v2 | project file, autosave journal, timestamp winner |
+| `RecoveryRecord` | One app-private AtomicFile envelope with version-matched Candidate project payload or Retired marker and conditional generation identity; read 1/2/3, write 3 until ADR 0041's atomic envelope 4 cutover | project file, autosave journal, timestamp winner |
 | `RecoveryGeneration` | Validated positive identity stored in a RecoveryRecord and advanced by each verified Candidate or Retired publication | Revision, runtime generation, timestamp |
 | `ExpectedRecoveryLineage` | Closed Missing or Present(RecoveryGeneration) precondition for one conditional retirement; Missing compares as virtual zero without creating RecoveryGeneration(0) | nullable generation, unchecked Long |
 | `AutosaveCapture` | Application-owned immutable latest committed DocumentState and its exact runtime-generation/history-position identity waiting for one Candidate publication | autosave queue, revision-only identity, DocumentCleanCheckpoint |
@@ -82,7 +82,7 @@ One concept has one canonical name. New synonyms in code are prohibited. Add or 
 | `PaletteIndex` | Non-negative typed position used for closed lookup and active Palette selection | palette Int, color index |
 | `PaletteEntry` | Derived immutable Palette slot with its typed index and exact PixelColor | color id, mutable swatch data |
 | `Revision` | Non-negative version of the exact committed DocumentState; canonical undo restores the recorded prior revision | global event sequence, timestamp |
-| `Layer` | An ordered document element with a LayerId, name, visibility and one PixelSnapshot; 1 through 16 per document, bottom first (ADR 0030) | plane, sheet |
+| `Layer` | An ordered element with LayerId, name, visibility and one PixelSnapshot; currently 1 through 16 per document, bottom first; frame ownership follows ADR 0041's cutover | plane, sheet |
 | `LayerId` | Positive document-unique layer identity independent of order and name; new = current maximum + 1 | layer index, layer position |
 | `DuplicateLayerCommand` | Source-admitted command inserting a new layer directly above a named source, preserving its name, visibility and exact immutable pixels as one ordinary Added transition (ADR 0030 / #208) | UI copy loop, imported layer, merged layer |
 | `PixelTransfer` | Validated canvas, source PixelRegion, destination PixelPlacement and Move/Copy mode for exact same-layer rectangular replacement, including Empty (ADR 0039/0040) | clipboard pixels, raw offset, blended image |
@@ -91,10 +91,10 @@ One concept has one canonical name. New synonyms in code are prohibited. Add or 
 | `PixelPlacement` | Typed destination position and PixelOrientation grouped for a rectangular transfer; canvas fit is admitted by PixelTransfer (ADR 0040) | copied pixels, independently editable rectangle |
 | `TransferPixelsCommand` | Source-admitted command applying one PixelTransfer through an ordinary pixel patch and layer change | sequence of paint commands, direct UI pixel copy |
 | `SelectionSession` | Workspace-owned captured admission, target layer, rectangle/destination geometry and orientation, mode and pointer phase before Apply; owns no pixel payload | saved selection, clipboard document, Compose-local draft |
-| `EditTarget` | Workspace-owned active layer and active palette slot targeted by drawing, erasing and the eyedropper; never saved | current layer state, brush target |
+| `EditTarget` | Workspace-owned active layer and palette slot; atomically includes active FrameId at ADR 0041's cutover; never saved | current layer state, brush target |
 | `Empty` | A pixel cell with no palette index; always fully transparent and never remapped | transparent index, erase color |
 | `Composite` | The derived visible RGBA image of visible layers under ADR 0030's one integer source-over rule; never document truth | flattened layer, merged image |
-| `Frame` | One animation frame containing an ordered layer state | page, image |
+| `Frame` | One ordered frame with stable identity, saved duration and ordered layer state; [accepted target](#accepted-frame-target-adr-0041) | page, image |
 | `PixelSurface` | Pixel-engine private mutable flat packed work surface for a bounded raster | Android Bitmap, domain snapshot |
 | `PixelSnapshot` | Domain-owned immutable canvas size and packed row-major U8 indices plus a one-bit coverage mask for `Empty` cells, with no second palette owner | exposed buffer, RGBA raster, Android Bitmap |
 | `PixelPatch` | Pixel-engine-owned row-major positions and before/after `PixelCell` changes (`Empty` or a covered index) for one layer, with one shared directional inverse payload | materialized inverse, diff, delta |
@@ -125,6 +125,30 @@ One concept has one canonical name. New synonyms in code are prohibited. Add or 
 | `PngExportPort` | Application-owned export of one immutable document capture without changing editor truth or recovery | save checkpoint, renderer capture |
 | `PngBytes` | Adapter-internal immutable bounded PNG encoding with defensive bulk copies | mutable pixel surface, project file |
 | `DocumentCreationRequest` | Typed fresh-destination request selecting PROJECT or PNG and a suggested filename | existing URI, raw MIME selection |
+
+## Accepted frame target (ADR 0041)
+
+These definitions become effective with the atomic consuming implementation of
+[ADR 0041](adr/0041-bounded-frames-and-project-v4.md). Current production remains the single-frame
+v3/envelope 3 path. The design adds no unused public API or document-level active-frame layer alias.
+
+| Term | Canonical target meaning | Not an alias for |
+| --- | --- | --- |
+| `FrameId` | Positive document-unique Int independent of chronological position; new ID follows the current document maximum and Undo/Redo restores recorded IDs | ordinal, filename, layer ID |
+| `FrameDuration` | Validated saved integer milliseconds from 10 through 60,000, default 100; command-editable timing data | elapsed clock sample, playback counter |
+| frame capacity | 1–16 chronological frames, each with 1–16 bottom-first layers, at most 16 total logical layer records including shared snapshots | independent 16-by-16 allowance, runtime free memory |
+| frame focus | The workspace EditTarget's atomic active FrameId, LayerId and palette slot; SelectFrame chooses a different frame's top layer, same-frame choice retains its layer | saved selection, per-frame remembered-layer map |
+| frame structure transition | One ChangeSet structural branch targeting an existing frame's layer structure or adding/deleting/moving/changing duration of a frame | frame-local history, per-layer command sequence |
+| PNG export capture | Application-owned immutable committed document plus active FrameId captured together under the runtime lock; the captured frame alone supplies visibility and pixels | current UI frame at write time, animation export |
+| PNG import target | FrameId and insertion-anchor LayerId captured with source admission when picking begins; focus changes do not retarget the layer form | palette-only raster plan, current selection at confirmation |
+| `Project Format v4` | Exact bounded frame hierarchy byte contract in PROJECT_FORMAT_V4.md, used by all current writes only at atomic cutover | saved opacity, a v3 writer accepting frames |
+| playback session | Future workspace-owned preview timing using saved duration/order and explicit monotonic platform samples from one lifecycle clock; its interaction policy requires a separate Issue | document command per tick, Compose-owned frame counter |
+
+Frame LayerIds remain globally unique across the document. The shared PaletteDefinition applies
+to all frames, including non-active/hidden layers during remapping. Render/cache identity includes
+the displayed frame; preparations retain at most the active frame. Save/autosave/recovery capture
+the whole committed hierarchy, and focus changes create no history or dirty/autosave effect.
+Playback, saved opacity and animated export are separate consuming decisions.
 
 ## Indexed palette and preserved import (ADR 0022/0024)
 

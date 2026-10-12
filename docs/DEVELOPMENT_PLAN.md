@@ -82,10 +82,12 @@ animation, tile/map and reference-image features retain their separate contract 
 M3 entry evidence is [the durable MVP exit proof](quality/M3_EXIT_PROOF.md), #89 / PR #104.
 ADR 0022 / #101 accepts this first palette-oriented portion of M4 after that gate; it does not
 claim M4 layers/frames are already planned in implementation detail or complete.
-ADR 0030 / #140 adds the ordered-layer portion (P4-05); frames remain unplanned.
+ADR 0030 / #140 adds the ordered-layer portion (P4-05), initially deferring frames.
 ADR 0032 / #169 adds the reference underlay (P4-06), which the owner placed before the layer gate.
 ADR 0033 / #176 adds PNG import (P4-07), requested by the owner on 2026-10-01.
 ADR 0034 / #172 decides the underlay memory (P4-06c).
+ADR 0041 / #215 accepts bounded frames and v4/envelope 4 for a later atomic implementation;
+current production remains the single-frame v3 model until that cutover.
 
 | ID | Work package | Depends on | Required evidence |
 | --- | --- | --- | --- |
@@ -110,6 +112,9 @@ ADR 0034 / #172 decides the underlay memory (P4-06c).
 | P4-08 | Duplicate a layer directly above its source (#208) | P4-05c, P4-07a functional acceptance | ADR 0030 amendment; exact immutable snapshot/name/visibility preservation, independent subsequent edits, one history entry, bounded insertion and localized row-menu evidence; cost/workload registration with #145 |
 | P4-09 | Select a rectangle and move/copy it within one layer (#211) | P4-08, layer/palette/import functional acceptance | ADR 0039; workspace-only draft and Apply/Cancel, exact Empty/index overlap semantics, one ordinary patch/history entry, shared Composite preview, cancellation/runtime boundary and localized secondary UI evidence; source-derived cost and #145 workload registration |
 | P4-10 | Flip and quarter-turn the selected rectangle (#213) | P4-09 | ADR 0040; eight exact composed orientations, non-square bounds and inverse mapping, existing transfer/preview/history path, retained Apply/Cancel and localized temporary controls; focused equivalence and source-derived #145 workload registration |
+| P4-11 | Accept bounded frames and project v4 design (#215) | P4-10 | ADR 0041 and exact v4/envelope 4 contract; global 16-record capacity, shared palette, frame/layer focus, captured PNG targets and atomic consuming plan; documentation validation |
+| P4-11a | Atomically implement frame editing and v4/envelope 4 (#216) | P4-11 | Every domain/command/history/workspace/render/import/export/storage/UI consumer together; exact migration, structural byte accounting, focus/cancellation and cache lifetime; focused host/native evidence and source-derived #145 workload registration |
+| P4-11b | Accept and implement deterministic playback (#217) | P4-11a | Clock/interaction decision first; one workspace session and lifecycle clock, explicit monotonic samples and saved duration/order, bounded scheduling, no tick history/autosave; focused correctness evidence |
 
 Preparation keeps the sole M3 editable path. P4-02 changes every live consumer together, with no
 parallel editable RGBA document or provisional indexed-to-v1 writer. P4-05a likewise moves every
@@ -117,8 +122,12 @@ consumer to layered documents at once. P4-08 adds duplication after the layer an
 results; P4-09 follows with same-layer rectangular Move/Copy, and P4-10 adds exact flips and quarter
 turns through that same transfer without a format change. Selection drawing masks,
 cross-layer/external clipboard, delete, arbitrary angles and scaling remain separate focused
-refinements. #145 performance collection remains at the owner-directed M5 exit. Layer merge, saved
-layer opacity (planned for v4) and frames remain separate refinements; animation and tiles/maps
+refinements. #145 performance collection remains at the owner-directed M5 exit. Layer merge remains
+separate; saved layer opacity needs a future version/ADR, and v4 contains frames only. P4-11a removes the former
+document-level layer list and changes every current writer/consumer together, with no provisional
+unsavable frames or active-frame alias. P4-11b decides playback separately and adds no unused API
+to frame editing. Existing v3 performance fixtures retain their identities; a new v4 publication
+workload is registered separately with #145, without feature-level collection. Tiles/maps
 requirements remain recorded in ADR 0022 without unused APIs. Palette generation from an image and
 dithering stay undecided (ADR 0033). Underlay rotation, numeric placement
 and colour sampling from the underlay are not planned.
