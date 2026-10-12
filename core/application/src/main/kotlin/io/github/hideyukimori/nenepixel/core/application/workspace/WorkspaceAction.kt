@@ -3,6 +3,8 @@ package io.github.hideyukimori.nenepixel.core.application.workspace
 import io.github.hideyukimori.nenepixel.core.application.workspace.importing.PendingRasterImport
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteDraftOperation
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteImportMode
+import io.github.hideyukimori.nenepixel.core.application.workspace.playback.PlaybackMode
+import io.github.hideyukimori.nenepixel.core.application.workspace.playback.PlaybackToken
 import io.github.hideyukimori.nenepixel.core.application.workspace.quickselect.QuickSelectItem
 import io.github.hideyukimori.nenepixel.core.application.workspace.underlay.ReferenceUnderlay
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportState
@@ -23,8 +25,25 @@ public sealed interface WorkspaceAction {
         public val frameId: FrameId,
     ) : EditTargetAction
 
+    /** The exclusive selection and playback sessions share one preview reduction family. */
+    public sealed interface PreviewSessionAction : WorkspaceAction
+
+    public sealed interface PlaybackAction : PreviewSessionAction
+
+    public data object StartPlayback : PlaybackAction
+
+    public data object StopPlayback : PlaybackAction
+
+    public data class StopPlaybackIfCurrent(
+        public val token: PlaybackToken,
+    ) : PlaybackAction
+
+    public data class SetPlaybackMode(
+        public val mode: PlaybackMode,
+    ) : PlaybackAction
+
     /** Geometry-only selection interaction; Apply is a runtime command operation (ADR 0039). */
-    public sealed interface SelectionAction : WorkspaceAction
+    public sealed interface SelectionAction : PreviewSessionAction
 
     public data class BeginSelectionPointer(
         public val position: PixelPosition,
@@ -199,6 +218,8 @@ internal fun WorkspaceAction.isAllowedDuringPaletteSession(): Boolean =
         is WorkspaceAction.SetViewport,
         is WorkspaceAction.SelectPaletteEntry,
         is WorkspaceAction.SelectFrame,
+        WorkspaceAction.StopPlayback,
+        is WorkspaceAction.StopPlaybackIfCurrent,
         WorkspaceAction.CancelGesturePreview,
         is WorkspaceAction.PaletteSessionAction,
         is BeginPaletteEdit,
@@ -211,6 +232,9 @@ internal fun WorkspaceAction.isAllowedDuringPaletteSession(): Boolean =
         WorkspaceAction.CancelSelectionPointer,
         -> true
 
+        WorkspaceAction.StartPlayback,
+        is WorkspaceAction.SetPlaybackMode,
+        is SamplePlayback,
         is WorkspaceAction.SelectTool,
         is WorkspaceAction.BeginGesturePreview,
         is WorkspaceAction.ExtendGesturePreview,

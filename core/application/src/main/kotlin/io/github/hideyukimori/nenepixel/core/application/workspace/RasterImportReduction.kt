@@ -29,7 +29,7 @@ internal fun WorkspaceState.withPendingImport(pending: PendingRasterImport?): Wo
         quickSelection,
         underlay,
         pending,
-        if (pending != null) null else selectionSession,
+        previewSessions.copy(selection = if (pending != null) null else selectionSession),
     )
 
 private fun setPendingRasterImport(

@@ -28,7 +28,10 @@ internal class EditorPaletteCallbacks(
             { adapter.renderState },
         )
 
-    fun onBegin(): EditorRenderState = adapter.settle(runtime.paletteOperations.beginPaletteEdit().notice(), publish)
+    fun onBegin(): EditorRenderState {
+        adapter.stopPlayback()
+        return adapter.settle(runtime.paletteOperations.beginPaletteEdit().notice(), publish)
+    }
 
     fun onCancel(): EditorRenderState = reduce(WorkspaceAction.CancelPaletteEdit)
 

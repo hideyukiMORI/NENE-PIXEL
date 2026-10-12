@@ -29,6 +29,8 @@ public class EditorCallbacks internal constructor(
     internal val selection: EditorSelectionCallbacks,
     internal val frames: EditorFrameCallbacks,
 ) {
+    internal val playback: EditorPlaybackCallbacks get() = frames.playback
+
     internal val viewport: EditorViewportCallbacks = EditorViewportCallbacks(viewportStarted, viewportTransformed)
 
     internal fun onPointerDown(

@@ -16,6 +16,9 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceRedu
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReductionResult
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceState
 import io.github.hideyukimori.nenepixel.core.application.workspace.isAllowedDuringPaletteSession
+import io.github.hideyukimori.nenepixel.core.application.workspace.isPlaybackCleanup
+import io.github.hideyukimori.nenepixel.core.application.workspace.playback.PlaybackPulseResult
+import io.github.hideyukimori.nenepixel.core.application.workspace.playback.PlaybackToken
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentId
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
@@ -88,7 +91,9 @@ public class EditorRuntime private constructor(
 
     public fun reduce(action: WorkspaceAction): WorkspaceReductionResult =
         synchronized(runtimeLock) {
-            if (coordination.activeOperation.isSwitching()) {
+            if (action.isPlaybackCleanup()) {
+                reduceWorkspaceLocked(action)
+            } else if (coordination.activeOperation.isSwitching()) {
                 WorkspaceReductionResult.Rejected(
                     owners.workspaceState,
                     WorkspaceActionRejection.PersistenceBusy,
@@ -105,6 +110,11 @@ public class EditorRuntime private constructor(
                 reduceWorkspaceLocked(action)
             }
         }
+
+    public fun advancePlayback(
+        token: PlaybackToken,
+        nanos: Long,
+    ): PlaybackPulseResult = synchronized(runtimeLock) { advancePlaybackLocked(RuntimeTransaction(), token, nanos) }
 
     internal fun <R> transact(block: (RuntimeTransaction) -> PersistenceTransition<R>): R =
         synchronized(runtimeLock) {
@@ -126,12 +136,13 @@ public class EditorRuntime private constructor(
     private fun executeLocked(command: DocumentCommand): CommandResult {
         val result = owners.commandGateway.execute(command)
         if (result is CommandResult.Applied) {
+            if (owners.workspaceState.playback.view.token != null) reduceWorkspaceLocked(WorkspaceAction.StopPlayback)
             // Every public/internal command and Undo/Redo reaches this same selection invalidation (ADR 0039).
             if (owners.workspaceState.selectionSession != null) {
                 reduceWorkspaceLocked(WorkspaceAction.CancelSelectionSession)
             }
             if (owners.workspaceState.preview != null) reduceWorkspaceLocked(WorkspaceAction.CancelGesturePreview)
-            reconcileSelectionLocked(command, result)
+            reconcileEditTargetLocked(command, result)
             val commandState = owners.commandGateway.runtimeState
             coordination =
                 AutosaveTransitions.recordCapture(
@@ -144,11 +155,13 @@ public class EditorRuntime private constructor(
         return result
     }
 
-    private fun reconcileSelectionLocked(
+    /** Reconciles both parts of the canonical edit target after the shared command cancellation. */
+    private fun reconcileEditTargetLocked(
         command: DocumentCommand,
         result: CommandResult.Applied,
     ) {
-        val definition = owners.commandGateway.runtimeState.documentState.definition
+        val document = owners.commandGateway.runtimeState.documentState
+        val definition = document.definition
         val nextIndex =
             PaletteSelectionPolicy.afterApplied(
                 owners.workspaceState.activePaletteIndex,
@@ -165,12 +178,6 @@ public class EditorRuntime private constructor(
                 )
             reduceWorkspaceLocked(ReconcileDocumentPalette(nextIndex, recent))
         }
-        reconcileLayerLocked(result)
-    }
-
-    /** Follows the active layer, then cancels a gesture whose captured layer is gone or hidden (ADR 0030). */
-    private fun reconcileLayerLocked(result: CommandResult.Applied) {
-        val document = owners.commandGateway.runtimeState.documentState
         val current = owners.workspaceState.activeLayerId
         LayerSelectionPolicy.afterApplied(current, document, result.changeSet.structure)?.let { layerId ->
             reduceWorkspaceLocked(ReconcileDocumentLayer(layerId))
@@ -204,6 +211,7 @@ public class EditorRuntime private constructor(
             RuntimeOwnerEffect.None -> { }
 
             RuntimeOwnerEffect.CancelPreview -> {
+                reduceWorkspaceLocked(WorkspaceAction.StopPlayback)
                 reduceWorkspaceLocked(WorkspaceAction.CancelSelectionPointer)
                 if (owners.workspaceState.preview != null) {
                     reduceWorkspaceLocked(WorkspaceAction.CancelGesturePreview)
@@ -229,10 +237,17 @@ public class EditorRuntime private constructor(
                     workspaceReducer
                         .reduce(withAppearance, WorkspaceAction.SetActualSizeWindow(carried.actualSizeWindow), source)
                         .nextState
+                val withMode =
+                    workspaceReducer
+                        .reduce(
+                            withWindow,
+                            WorkspaceAction.SetPlaybackMode(carried.playback.view.mode),
+                            source,
+                        ).nextState
                 // A newly installed document starts on its top layer (ADR 0030).
                 val topLayer = LayerSelectionPolicy.onInstall(source.document)
                 val workspace =
-                    workspaceReducer.reduce(withWindow, ReconcileDocumentLayer(topLayer), source).nextState
+                    workspaceReducer.reduce(withMode, ReconcileDocumentLayer(topLayer), source).nextState
                 owners = effect.owners.copy(workspaceState = workspace)
             }
         }

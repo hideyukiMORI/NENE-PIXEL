@@ -70,13 +70,19 @@ internal class EditorRuntimeAdapter(
         }
     }
 
+    fun stopPlayback() {
+        runtime.reduce(WorkspaceAction.StopPlayback)
+    }
+
     fun undo(): EditorRenderState {
+        stopPlayback()
         val target = runtime.state.documentState
         runtime.execute(UndoCommand.create(target.id, target.revision))
         return createRenderState()
     }
 
     fun redo(): EditorRenderState {
+        stopPlayback()
         val target = runtime.state.documentState
         runtime.execute(RedoCommand.create(target.id, target.revision))
         return createRenderState()
@@ -131,7 +137,7 @@ internal class EditorRuntimeAdapter(
             pendingImport = state.workspaceState.pendingImport,
             selectionSession = state.workspaceState.selectionSession,
             selectionNotice = selectionNotice.takeIf { state.workspaceState.selectionSession != null },
-            activeFrameId = state.workspaceState.activeFrameId,
+            frames = EditorFrameProjection(state.workspaceState.activeFrameId, state.workspaceState.playback.view),
             frameNotice = frameNotice,
             importNotice = importNotice.takeIf { importNoticeSource === state.workspaceState.pendingImport },
         )

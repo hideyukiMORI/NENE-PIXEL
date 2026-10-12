@@ -35,6 +35,7 @@ internal fun FramePanel(
     actions: FramePanelActions,
     modifier: Modifier,
 ) {
+    val playbackUi = framePlaybackAdapter(model.playback, actions.playback)
     var durationTarget by remember { mutableStateOf<FrameId?>(null) }
     val title = stringResource(R.string.frames)
     Surface(
@@ -44,13 +45,16 @@ internal fun FramePanel(
         border = BorderStroke(LayerGeometry.BORDER, MaterialTheme.colorScheme.primary),
     ) {
         Column(
-            Modifier.padding(LayerGeometry.PANEL_PADDING),
+            Modifier.framePanelPadding(),
             verticalArrangement = Arrangement.spacedBy(LayerGeometry.PANEL_SPACING),
         ) {
             FramePanelHeading(model, actions)
-            FramePanelRows(model, actions) { durationTarget = it }
+            FramePanelRows(model, actions) {
+                actions.playback.onStop()
+                durationTarget = it
+            }
             model.notice?.let { Text(stringResource(it.resource()), color = MaterialTheme.colorScheme.error) }
-            FrameCapacityFooter(model, actions)
+            FrameCapacityFooter(model, actions, playbackUi)
         }
     }
     val target = model.rows.firstOrNull { it.id == durationTarget }
@@ -79,18 +83,50 @@ private fun FramePanelHeading(
 private fun FrameCapacityFooter(
     model: FramePanelModel,
     actions: FramePanelActions,
+    ui: PlaybackUiActions,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(LayerGeometry.PANEL_SPACING)) {
-        DocumentLayerCapacity(model.capacity.layerCount)
-        Button(
-            onClick = { actions.callbacks.onAdd(model.active) },
-            enabled = model.capacity.canAdd,
-            colors = editorButtonColors(),
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = LayerGeometry.HEADER_HEIGHT)
-                    .editorDescription(R.string.frame_add),
-        ) { Text(stringResource(R.string.frame_add)) }
+        FrameLayerCapacity(model.capacity)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(LayerGeometry.PANEL_SPACING)) {
+            FramePlaybackTransport(model, actions.playback, ui, Modifier.weight(1f))
+            Button(
+                onClick = { actions.callbacks.onAdd(model.active) },
+                enabled = model.capacity.canAdd,
+                colors = editorButtonColors(),
+                modifier =
+                    Modifier
+                        .weight(1f)
+                        .heightIn(min = LayerGeometry.HEADER_HEIGHT)
+                        .editorDescription(R.string.frame_add),
+            ) { Text(stringResource(R.string.frame_add_compact)) }
+        }
     }
+}
+
+/** Keep one scrollable 48dp body row at short height, with the transport/capacity still fixed. */
+private fun Modifier.framePanelPadding(): Modifier =
+    padding(
+        start = LayerGeometry.PANEL_PADDING,
+        end = LayerGeometry.PANEL_PADDING,
+        top = LayerGeometry.PANEL_TOP_PADDING,
+        bottom = LayerGeometry.PANEL_TOP_PADDING,
+    )
+
+@Composable
+private fun FrameLayerCapacity(capacity: FrameCapacity) {
+    val full = capacity.remainingLayers == 0
+    val label = if (full) R.string.frame_layer_capacity_full else R.string.document_layer_capacity
+    val identity = if (full) "editor_document_layer_limit" else "editor_document_layer_capacity"
+    Text(
+        stringResource(label, capacity.layerCount, FrameLimits.MAX_TOTAL_LAYER_RECORDS, capacity.remainingLayers),
+        style = MaterialTheme.typography.bodySmall,
+        modifier =
+            Modifier.editorDescription(
+                label,
+                capacity.layerCount,
+                FrameLimits.MAX_TOTAL_LAYER_RECORDS,
+                capacity.remainingLayers,
+                identity = identity,
+            ),
+    )
 }

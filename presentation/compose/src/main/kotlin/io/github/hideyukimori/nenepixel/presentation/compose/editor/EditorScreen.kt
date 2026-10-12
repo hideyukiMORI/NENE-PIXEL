@@ -9,8 +9,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -52,6 +50,7 @@ internal fun EditorScreen(
     val appearance by remember(renderState) { derivedStateOf { renderState.value.appearance } }
     var panel by rememberSaveable { mutableStateOf<EditorPanel?>(null) }
     val openPanel: (EditorPanel) -> Unit = {
+        callbacks.playback.onStop()
         callbacks.onPointerCancel()
         panel = it
     }
@@ -59,7 +58,10 @@ internal fun EditorScreen(
         remember(persistenceOperation, autosave, persistenceCallbacks) {
             EditorStorageInputs(persistenceOperation, autosave, persistenceCallbacks)
         }
-    val workArea = remember(openPanel, persistenceCallbacks) { EditorWorkAreaActions(openPanel, persistenceCallbacks) }
+    val workArea =
+        remember(openPanel, persistenceCallbacks) {
+            EditorWorkAreaActions(openPanel, persistenceCallbacks, callbacks.playback)
+        }
     MaterialTheme(colorScheme = appearance.theme.colorScheme(), typography = localizedTypography()) {
         Surface(
             modifier =
@@ -80,9 +82,7 @@ internal fun EditorScreen(
                 EditorPanelInputs(renderState, callbacks, storage, settings),
                 openPanel,
             ) { panel = it }
-            PersistenceConfirmation(persistenceOperation, persistenceCallbacks)
-            LegacyConversionDialog(persistenceOperation, renderState.value.definition, persistenceCallbacks)
-            PngImportDialog(renderState, callbacks.rasterImport, persistenceCallbacks.openPngAsNewWork)
+            EditorFileDialogs(renderState, callbacks, storage)
         }
     }
 }
@@ -276,15 +276,7 @@ private fun PanelContent(
         }
 
         EditorPanel.File -> {
-            Column(Modifier.verticalScroll(rememberScrollState())) {
-                PersistenceControls(inputs.storage.operation, state.picture, inputs.storage.callbacks, dismiss)
-                Text(
-                    stringResource(inputs.storage.operation.statusResource(inputs.storage.autosave)),
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(top = 12.dp),
-                )
-                MvpInformationControls()
-            }
+            EditorFilePanel(state, inputs.storage, dismiss)
         }
     }
 }
@@ -308,12 +300,6 @@ private fun FollowPaletteEditSession(
     }
 }
 
-private data class EditorStorageInputs(
-    val operation: PersistenceOperationProjection,
-    val autosave: AutosaveProjection,
-    val callbacks: EditorPersistenceCallbacks,
-)
-
 private data class EditorPanelInputs(
     val state: State<EditorRenderState>,
     val callbacks: EditorCallbacks,
@@ -325,7 +311,11 @@ private data class EditorPanelInputs(
 private class EditorWorkAreaActions(
     openPanel: (EditorPanel) -> Unit,
     persistenceCallbacks: EditorPersistenceCallbacks,
+    playback: EditorPlaybackCallbacks,
 ) {
     val openPalette: () -> Unit = { openPanel(EditorPanel.Palette) }
-    val pickUnderlay: () -> Unit = persistenceCallbacks.pickReferenceImage
+    val pickUnderlay: () -> Unit = {
+        playback.onStop()
+        persistenceCallbacks.pickReferenceImage()
+    }
 }

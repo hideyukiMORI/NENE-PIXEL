@@ -38,5 +38,6 @@ internal fun ColumnScope.FramePanelRows(
                 FrameRow(FrameRowEntry(row, current, index, model.capacity), actions, { duration(row.id) }, target)
             }
         }
+        FramePlaybackOptions(model, actions.playback)
     }
 }

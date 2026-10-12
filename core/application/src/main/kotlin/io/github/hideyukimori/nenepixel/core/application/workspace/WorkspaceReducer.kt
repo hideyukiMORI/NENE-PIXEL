@@ -7,10 +7,25 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.palette.begin
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.cancelColorEdit
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.finishColorEdit
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.updateColorEdit
+import io.github.hideyukimori.nenepixel.core.application.workspace.playback.PlaybackRejection
 import io.github.hideyukimori.nenepixel.core.application.workspace.quickselect.EyedropperState
 
 public class WorkspaceReducer private constructor() {
     public fun reduce(
+        state: WorkspaceState,
+        action: WorkspaceAction,
+        source: CommandSourceAdmission,
+    ): WorkspaceReductionResult =
+        if (state.playback.isPlaying && action.isPointerBlockedByPlayback()) {
+            WorkspaceReductionResult.Rejected(
+                state,
+                WorkspaceActionRejection.PlaybackRejected(PlaybackRejection.Playing),
+            )
+        } else {
+            reduceAccepted(state, action, source).stopPlaybackForIncompatibleAction(action)
+        }
+
+    private fun reduceAccepted(
         state: WorkspaceState,
         action: WorkspaceAction,
         source: CommandSourceAdmission,
@@ -28,7 +43,7 @@ public class WorkspaceReducer private constructor() {
             is WorkspaceAction.EditTargetAction -> reduceEditTarget(state, action, source.document)
             is WorkspaceAction.ReferenceUnderlayAction -> reduceReferenceUnderlay(state, action)
             is WorkspaceAction.RasterImportAction -> reduceRasterImport(state, action)
-            is WorkspaceAction.SelectionAction -> reduceSelection(state, action)
+            is WorkspaceAction.PreviewSessionAction -> reducePreviewSession(state, action, source)
         }
 
     private fun selectPaletteEntry(

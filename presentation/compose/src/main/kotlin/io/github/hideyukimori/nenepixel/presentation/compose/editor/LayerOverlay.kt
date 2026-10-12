@@ -59,10 +59,11 @@ internal fun LayerOverlay(
     val chipFocus = remember { FocusRequester() }
     val renameTarget = remember { mutableStateOf<LayerId?>(null) }
     val close = {
+        editorCallbacks.playback.onStop()
         pane.value = null
         returnFocus = true
     }
-    val presentation = LayerOverlayPresentation(pane, chipFocus, close)
+    val presentation = LayerOverlayPresentation(pane, chipFocus, close, editorCallbacks.playback)
     val actions = rememberLayerRowActions(editorCallbacks, renameTarget, close)
     BackHandler(enabled = pane.value != null, onBack = presentation::back)
     LaunchedEffect(returnFocus) {
@@ -158,7 +159,7 @@ private fun frameActions(
             is WorkspaceReductionResult.Rejected, is WorkspaceReductionResult.CommitPrepared -> {
             }
         }
-    }, presentation::back)
+    }, presentation::exitFrames)
 
 /** Row actions retain the row identity; only a successful canonical selection start closes the panel. */
 @Composable
@@ -244,9 +245,21 @@ private class LayerOverlayPresentation(
     val pane: MutableState<LayerPane?>,
     val chipFocus: FocusRequester,
     val close: () -> Unit,
+    private val playback: EditorPlaybackCallbacks,
 ) {
     fun back() {
-        if (pane.value == LayerPane.Frames) pane.value = LayerPane.Layers else close()
+        if (pane.value == LayerPane.Frames && playback.isPlaying) {
+            playback.onStop()
+        } else if (pane.value == LayerPane.Frames) {
+            exitFrames()
+        } else {
+            close()
+        }
+    }
+
+    fun exitFrames() {
+        playback.onStop()
+        pane.value = LayerPane.Layers
     }
 }
 
