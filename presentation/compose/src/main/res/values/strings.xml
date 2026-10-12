@@ -324,4 +324,8 @@
     <string name="selection_empty_replacement">Replaces the whole area, including empty pixels</string>
     <string name="selection_rejected">The area could not be applied</string>
     <string name="selection_busy">Wait until the document switch finishes</string>
+    <string name="selection_flip_horizontal">Flip horizontal</string>
+    <string name="selection_flip_vertical">Flip vertical</string>
+    <string name="selection_rotate_clockwise">90° right</string>
+    <string name="selection_rotation_outside_canvas">Rotated area does not fit the canvas</string>
 </resources>

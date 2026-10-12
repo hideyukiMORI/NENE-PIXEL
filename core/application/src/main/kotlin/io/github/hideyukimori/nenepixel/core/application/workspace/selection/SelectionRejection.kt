@@ -9,4 +9,5 @@ public enum class SelectionRejection {
     NoRectangle,
     PointerActive,
     SessionActive,
+    TransformedRegionOutsideCanvas,
 }

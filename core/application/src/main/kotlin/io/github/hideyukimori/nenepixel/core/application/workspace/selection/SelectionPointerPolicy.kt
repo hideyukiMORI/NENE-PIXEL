@@ -69,10 +69,11 @@ internal object SelectionPointerPolicy {
                 .toLong() + point.y.toLong() -
                 pointer.anchor.y.value
                     .toLong()
-        val maximumX = (canvas.width.value - draft.source.size.width.value).toLong()
-        val maximumY = (canvas.height.value - draft.source.size.height.value).toLong()
+        val size = draft.orientation.orientedSize(draft.source.size)
+        val maximumX = (canvas.width.value - size.width.value).toLong()
+        val maximumY = (canvas.height.value - size.height.value).toLong()
         val target = position(x.coerceIn(0L, maximumX).toInt(), y.coerceIn(0L, maximumY).toInt())
-        return SelectionDraft(draft.source, target)
+        return draft.copy(destination = target)
     }
 
     private fun rectangle(

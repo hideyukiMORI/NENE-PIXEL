@@ -3,6 +3,7 @@ package io.github.hideyukimori.nenepixel.core.pixelengine
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelRegion
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
+import io.github.hideyukimori.nenepixel.core.domain.selection.PixelPlacement
 import io.github.hideyukimori.nenepixel.core.domain.selection.PixelTransfer
 import io.github.hideyukimori.nenepixel.core.domain.selection.PixelTransferMode
 import io.github.hideyukimori.nenepixel.core.pixelengine.composite.CompositeTestValues.canvas
@@ -24,7 +25,15 @@ class PixelTransferRasterizationTest {
         val destinations = listOf(0 to 0, 1 to 0, 2 to 0, 0 to 1, 2 to 1, 0 to 2, 1 to 2, 2 to 2)
         PixelTransferMode.entries.forEach { mode ->
             destinations.forEach { (x, y) ->
-                val transfer = value(PixelTransfer.create(size, source, PixelTransferCells.position(x, y), mode))
+                val transfer =
+                    value(
+                        PixelTransfer.create(
+                            size,
+                            source,
+                            PixelPlacement.create(PixelTransferCells.position(x, y)),
+                            mode,
+                        ),
+                    )
                 val patch = rasterized(snapshot, transfer)
                 val result = applied(patch, snapshot)
                 assertEquals(layer(1, size, expected(original, transfer)).snapshot, result)
@@ -39,7 +48,15 @@ class PixelTransferRasterizationTest {
         val size = canvas(6, 1)
         val snapshot = layer(1, size, listOf(null, 0, 255, 1, 2, 3)).snapshot
         val source = value(PixelRegion.create(size, PixelTransferCells.position(0, 0), canvas(3, 1)))
-        val copy = value(PixelTransfer.create(size, source, PixelTransferCells.position(3, 0), PixelTransferMode.Copy))
+        val copy =
+            value(
+                PixelTransfer.create(
+                    size,
+                    source,
+                    PixelPlacement.create(PixelTransferCells.position(3, 0)),
+                    PixelTransferMode.Copy,
+                ),
+            )
         assertEquals(
             layer(1, size, listOf(null, 0, 255, null, 0, 255)).snapshot,
             applied(rasterized(snapshot, copy), snapshot),
@@ -51,8 +68,24 @@ class PixelTransferRasterizationTest {
         val size = canvas(3, 1)
         val snapshot = layer(1, size, listOf(0, 0, 0)).snapshot
         val source = value(PixelRegion.create(size, PixelTransferCells.position(0, 0), canvas(1, 1)))
-        val same = value(PixelTransfer.create(size, source, PixelTransferCells.position(0, 0), PixelTransferMode.Move))
-        val copy = value(PixelTransfer.create(size, source, PixelTransferCells.position(2, 0), PixelTransferMode.Copy))
+        val same =
+            value(
+                PixelTransfer.create(
+                    size,
+                    source,
+                    PixelPlacement.create(PixelTransferCells.position(0, 0)),
+                    PixelTransferMode.Move,
+                ),
+            )
+        val copy =
+            value(
+                PixelTransfer.create(
+                    size,
+                    source,
+                    PixelPlacement.create(PixelTransferCells.position(2, 0)),
+                    PixelTransferMode.Copy,
+                ),
+            )
         assertSame(PixelTransferRasterizationResult.NoChanges, rasterizePixelTransfer(snapshot, same))
         assertSame(PixelTransferRasterizationResult.NoChanges, rasterizePixelTransfer(snapshot, copy))
         assertSame(
@@ -66,7 +99,14 @@ class PixelTransferRasterizationTest {
         val size = canvas(256, 256)
         val source = value(PixelRegion.create(size, PixelTransferCells.position(0, 0), canvas(1, 1)))
         val transfer =
-            value(PixelTransfer.create(size, source, PixelTransferCells.position(255, 255), PixelTransferMode.Move))
+            value(
+                PixelTransfer.create(
+                    size,
+                    source,
+                    PixelPlacement.create(PixelTransferCells.position(255, 255)),
+                    PixelTransferMode.Move,
+                ),
+            )
         val visited = mutableListOf<Int>()
         PixelTransferPositions(transfer).forEachIndex(visited::add)
         assertEquals(listOf(0, 65_535), visited)
@@ -85,7 +125,14 @@ class PixelTransferRasterizationTest {
         val snapshot = layer(1, size, original).snapshot
         val source = value(PixelRegion.create(size, PixelTransferCells.position(0, 0), canvas(128, 256)))
         val transfer =
-            value(PixelTransfer.create(size, source, PixelTransferCells.position(128, 0), PixelTransferMode.Move))
+            value(
+                PixelTransfer.create(
+                    size,
+                    source,
+                    PixelPlacement.create(PixelTransferCells.position(128, 0)),
+                    PixelTransferMode.Move,
+                ),
+            )
         val patch = rasterized(snapshot, transfer)
         assertEquals(65_536, patch.changeCount)
         val moved = applied(patch, snapshot)

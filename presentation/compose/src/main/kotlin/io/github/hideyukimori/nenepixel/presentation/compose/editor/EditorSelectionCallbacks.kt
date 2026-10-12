@@ -7,6 +7,7 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceRedu
 import io.github.hideyukimori.nenepixel.core.domain.geometry.DocumentPoint
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
+import io.github.hideyukimori.nenepixel.core.domain.selection.PixelOrientation
 import io.github.hideyukimori.nenepixel.core.domain.selection.PixelTransferMode
 
 /** Issue #211: selection controls share the canonical reducer/runtime; they own no draft geometry or pixels. */
@@ -25,6 +26,13 @@ internal class EditorSelectionCallbacks(
 
     fun onMode(mode: PixelTransferMode): EditorRenderState =
         publish(adapter.reduce(WorkspaceAction.SetSelectionMode(mode)).renderState)
+
+    fun onTransform(operation: PixelOrientation): EditorRenderState {
+        val result = runtime.reduce(WorkspaceAction.TransformSelection(operation))
+        adapter.selectionNotice =
+            if (result is WorkspaceReductionResult.Rejected) SelectionEditorNotice.Rejected(result.rejection) else null
+        return publish(adapter.renderState)
+    }
 
     fun onCancel(): EditorRenderState {
         adapter.selectionNotice = null

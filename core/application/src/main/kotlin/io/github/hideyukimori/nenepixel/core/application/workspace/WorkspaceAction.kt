@@ -14,6 +14,7 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
+import io.github.hideyukimori.nenepixel.core.domain.selection.PixelOrientation
 import io.github.hideyukimori.nenepixel.core.domain.selection.PixelTransferMode
 
 public sealed interface WorkspaceAction {
@@ -37,6 +38,10 @@ public sealed interface WorkspaceAction {
     ) : SelectionAction
 
     public data object CancelSelectionSession : SelectionAction
+
+    public data class TransformSelection(
+        public val operation: PixelOrientation,
+    ) : SelectionAction
 
     public data class SetAppearance(
         public val appearance: EditorAppearance,
@@ -214,6 +219,7 @@ internal fun WorkspaceAction.isAllowedDuringPaletteSession(): Boolean =
         is WorkspaceAction.UpdateSelectionPointer,
         WorkspaceAction.FinishSelectionPointer,
         is WorkspaceAction.SetSelectionMode,
+        is WorkspaceAction.TransformSelection,
         is BeginSelectionSession,
         -> false
     }

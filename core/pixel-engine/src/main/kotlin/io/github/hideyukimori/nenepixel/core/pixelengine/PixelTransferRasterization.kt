@@ -17,7 +17,7 @@ public fun rasterizePixelTransfer(
             )
         }
 
-        transfer.source.origin == transfer.destination -> {
+        transfer.isIdentity -> {
             PixelTransferRasterizationResult.NoChanges
         }
 

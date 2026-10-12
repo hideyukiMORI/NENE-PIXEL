@@ -316,4 +316,8 @@
     <string name="selection_empty_replacement">空白を含めて置き換えます</string>
     <string name="selection_rejected">範囲を適用できませんでした</string>
     <string name="selection_busy">作品の切り替えが終わるまでお待ちください</string>
+    <string name="selection_flip_horizontal">左右反転</string>
+    <string name="selection_flip_vertical">上下反転</string>
+    <string name="selection_rotate_clockwise">右90度</string>
+    <string name="selection_rotation_outside_canvas">回転後の範囲がキャンバスに収まりません</string>
 </resources>

@@ -316,4 +316,8 @@
     <string name="selection_empty_replacement">替换整个区域，包括空白像素</string>
     <string name="selection_rejected">无法应用该区域</string>
     <string name="selection_busy">请等待作品切换完成</string>
+    <string name="selection_flip_horizontal">左右翻转</string>
+    <string name="selection_flip_vertical">上下翻转</string>
+    <string name="selection_rotate_clockwise">右转90°</string>
+    <string name="selection_rotation_outside_canvas">旋转后的区域超出画布</string>
 </resources>

@@ -8,7 +8,7 @@ import io.github.hideyukimori.nenepixel.core.pixelengine.PixelSurface
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelTransferCells
 import io.github.hideyukimori.nenepixel.core.pixelengine.PixelTransferPositions
 
-/** Immutable source preparation reused for every offset and Move/Copy draft of one selected rectangle. */
+/** Immutable source preparation reused for every placement, orientation and mode of one selected rectangle. */
 public class PixelTransferComposite internal constructor(
     private val size: CanvasSize,
     private val palette: IntArray,

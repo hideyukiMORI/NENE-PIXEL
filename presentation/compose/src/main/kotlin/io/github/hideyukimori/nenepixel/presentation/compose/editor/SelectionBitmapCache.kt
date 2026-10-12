@@ -7,7 +7,7 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelRegion
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.selection.PixelTransfer
 
-/** Offset/mode drafts reuse one source preparation and the existing PreviewRaster's canvas buffers. */
+/** Placement/orientation/mode drafts reuse one source preparation and the existing PreviewRaster's canvas buffers. */
 internal class SelectionBitmapCache {
     private var source: DocumentState? = null
     private var sourceLayer: LayerId? = null
@@ -19,7 +19,7 @@ internal class SelectionBitmapCache {
     internal var preparationCount: Int = 0
         private set
 
-    /** Keep same-source zero-offset preparation; a changed key drops it without preparing pixels. */
+    /** Keep same-source Identity preparation; a changed key drops it without preparing pixels. */
     fun hide(
         document: DocumentState,
         layerId: LayerId,

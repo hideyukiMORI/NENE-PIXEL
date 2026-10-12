@@ -14,6 +14,7 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelX
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelY
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
+import io.github.hideyukimori.nenepixel.core.domain.selection.PixelOrientation
 import io.github.hideyukimori.nenepixel.core.domain.selection.PixelTransferMode
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestValues.canvas
@@ -99,6 +100,40 @@ internal class SelectionPreviewBitmapTest {
         val shown = requireNotNull(scene.render())
         assertEquals(GREEN, shown.getPixel(2, 0))
         assertEquals(3, scene.previews.selectionPreparationCount)
+    }
+
+    @Test
+    fun inPlaceQuarterTurnsReuseCropRestoreOldFootprintsAndEqualOneApply() {
+        val scene = scene()
+        scene.select()
+        assertNull(scene.render())
+        assertEquals(0, scene.previews.selectionPreparationCount)
+        scene.runtime.reduce(WorkspaceAction.TransformSelection(PixelOrientation.RotateClockwise))
+        val tall = requireNotNull(scene.render())
+        assertEquals(RED, tall.getPixel(0, 0))
+        assertEquals(GREEN, tall.getPixel(0, 1))
+        assertEquals(0, tall.getPixel(1, 0))
+        assertSame(tall, scene.render())
+        assertEquals(1, scene.previews.selectionPreparationCount)
+        scene.runtime.reduce(WorkspaceAction.TransformSelection(PixelOrientation.RotateClockwise))
+        val wide = requireNotNull(scene.render())
+        assertSame(tall, wide)
+        assertEquals(GREEN, wide.getPixel(0, 0))
+        assertEquals(RED, wide.getPixel(1, 0))
+        assertEquals(0, wide.getPixel(0, 1))
+        repeat(2) { scene.runtime.reduce(WorkspaceAction.TransformSelection(PixelOrientation.RotateClockwise)) }
+        assertNull(scene.render())
+        assertEquals(1, scene.previews.selectionPreparationCount)
+        scene.runtime.reduce(WorkspaceAction.TransformSelection(PixelOrientation.FlipHorizontal))
+        val flipped = requireNotNull(scene.render())
+        assertEquals(GREEN, flipped.getPixel(0, 0))
+        assertEquals(RED, flipped.getPixel(1, 0))
+        assertEquals(0, flipped.getPixel(0, 1))
+        scene.runtime.reduce(WorkspaceAction.SetSelectionMode(PixelTransferMode.Copy))
+        val shown = requireNotNull(scene.render()).pixels()
+        assertEquals(1, scene.previews.selectionPreparationCount)
+        scene.runtime.selectionOperations.applySelection()
+        assertArrayEquals(shown, scene.committedPixels())
     }
 
     private fun scene(): Scene {

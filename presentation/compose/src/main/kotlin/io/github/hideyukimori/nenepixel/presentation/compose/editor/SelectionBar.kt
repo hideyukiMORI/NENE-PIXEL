@@ -11,7 +11,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -32,6 +34,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.github.hideyukimori.nenepixel.core.application.workspace.selection.SelectionInteraction
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
+import io.github.hideyukimori.nenepixel.core.domain.selection.PixelOrientation
 import io.github.hideyukimori.nenepixel.core.domain.selection.PixelTransferMode
 import io.github.hideyukimori.nenepixel.presentation.compose.R
 
@@ -56,7 +59,8 @@ internal fun SelectionBar(
                 Modifier
                     .align(Alignment.BottomCenter)
                     .padding(start = side, end = side, bottom = bottom)
-                    .widthIn(max = LayerGeometry.NOTICE_MAX_WIDTH),
+                    .widthIn(max = LayerGeometry.NOTICE_MAX_WIDTH)
+                    .heightIn(max = (maxHeight - bottom - LayerGeometry.MARGIN).coerceAtLeast(0.dp)),
             )
         }
     }
@@ -65,6 +69,13 @@ internal fun SelectionBar(
 private data class SelectionBarInputs(
     val model: SelectionBarModel?,
     val notice: SelectionEditorNotice?,
+    val transforms: SelectionTransformAvailability,
+)
+
+private data class SelectionTransformAvailability(
+    val horizontal: Boolean,
+    val vertical: Boolean,
+    val clockwise: Boolean,
 )
 
 private data class SelectionBarModel(
@@ -79,7 +90,14 @@ private fun selectionBarInputs(state: EditorRenderState): SelectionBarInputs {
         state.selectionSession?.let {
             SelectionBarModel(it.targetRegion?.size, it.mode, it.interaction == SelectionInteraction.Idle, it.canApply)
         }
-    return SelectionBarInputs(model, state.selectionNotice)
+    val session = state.selectionSession
+    val transforms =
+        SelectionTransformAvailability(
+            session?.canTransform(PixelOrientation.FlipHorizontal) == true,
+            session?.canTransform(PixelOrientation.FlipVertical) == true,
+            session?.canTransform(PixelOrientation.RotateClockwise) == true,
+        )
+    return SelectionBarInputs(model, state.selectionNotice, transforms)
 }
 
 @Composable
@@ -100,14 +118,88 @@ private fun SelectionBarSurface(
             Modifier.padding(LayerGeometry.PANEL_PADDING),
             verticalArrangement = Arrangement.spacedBy(LayerGeometry.PANEL_SPACING),
         ) {
-            SelectionStatus(model)
-            SelectionModes(model, callbacks)
-            Text(stringResource(R.string.selection_empty_replacement), style = MaterialTheme.typography.bodySmall)
-            inputs.notice?.let { Text(stringResource(it.resource()), color = MaterialTheme.colorScheme.error) }
+            Column(
+                Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(LayerGeometry.PANEL_SPACING),
+            ) {
+                SelectionDetails(inputs, model, callbacks)
+            }
             SelectionActions(model, callbacks)
         }
     }
 }
+
+/** Only secondary content scrolls in a short work area; Apply and Cancel remain reachable below it. */
+@Composable
+private fun SelectionDetails(
+    inputs: SelectionBarInputs,
+    model: SelectionBarModel,
+    callbacks: EditorSelectionCallbacks,
+) {
+    SelectionStatus(model)
+    SelectionModes(model, callbacks)
+    SelectionTransforms(inputs.transforms, callbacks)
+    val rotationUnavailable = model.size != null && model.idle && !inputs.transforms.clockwise
+    if (rotationUnavailable) {
+        Text(
+            stringResource(R.string.selection_rotation_outside_canvas),
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.testTag("editor_selection_rotation_unavailable"),
+        )
+    }
+    Text(stringResource(R.string.selection_empty_replacement), style = MaterialTheme.typography.bodySmall)
+    val notice = inputs.notice
+    if (notice != null && (!rotationUnavailable || notice.resource() != R.string.selection_rotation_outside_canvas)) {
+        Text(stringResource(notice.resource()), color = MaterialTheme.colorScheme.error)
+    }
+}
+
+/** Controls send the operation on the displayed rectangle; composition and fit belong to the session. */
+@Composable
+private fun SelectionTransforms(
+    availability: SelectionTransformAvailability,
+    callbacks: EditorSelectionCallbacks,
+) {
+    val controls =
+        listOf(
+            SelectionTransformControl(
+                PixelOrientation.FlipHorizontal,
+                R.string.selection_flip_horizontal,
+                availability.horizontal,
+            ),
+            SelectionTransformControl(
+                PixelOrientation.FlipVertical,
+                R.string.selection_flip_vertical,
+                availability.vertical,
+            ),
+            SelectionTransformControl(
+                PixelOrientation.RotateClockwise,
+                R.string.selection_rotate_clockwise,
+                availability.clockwise,
+            ),
+        )
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(LayerGeometry.PANEL_SPACING)) {
+        controls.forEach { control ->
+            TextButton(
+                onClick = { callbacks.onTransform(control.operation) },
+                enabled = control.enabled,
+                modifier =
+                    Modifier
+                        .weight(1f)
+                        .heightIn(min = LayerGeometry.HEADER_HEIGHT)
+                        .editorDescription(control.label),
+            ) {
+                Text(stringResource(control.label), style = MaterialTheme.typography.labelMedium)
+            }
+        }
+    }
+}
+
+private data class SelectionTransformControl(
+    val operation: PixelOrientation,
+    val label: Int,
+    val enabled: Boolean,
+)
 
 @Composable
 private fun SelectionActions(

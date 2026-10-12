@@ -9,23 +9,32 @@ import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 public class PixelTransfer private constructor(
     public val canvas: CanvasSize,
     public val source: PixelRegion,
-    public val destinationRegion: PixelRegion,
+    private val target: TransferTarget,
     public val mode: PixelTransferMode,
 ) {
     public val destination: PixelPosition
-        get() = destinationRegion.origin
+        get() = target.placement.position
+
+    public val destinationRegion: PixelRegion
+        get() = target.region
+
+    public val orientation: PixelOrientation
+        get() = target.placement.orientation
+
+    public val isIdentity: Boolean
+        get() = source.origin == destination && orientation == PixelOrientation.Identity
 
     override fun equals(other: Any?): Boolean =
         this === other ||
             (
                 other is PixelTransfer && canvas == other.canvas && source == other.source &&
-                    destinationRegion == other.destinationRegion && mode == other.mode
+                    target == other.target && mode == other.mode
             )
 
     override fun hashCode(): Int =
         HASH_MULTIPLIER * (
             HASH_MULTIPLIER * (HASH_MULTIPLIER * canvas.hashCode() + source.hashCode()) +
-                destinationRegion.hashCode()
+                target.hashCode()
         ) + mode.hashCode()
 
     public companion object {
@@ -35,7 +44,7 @@ public class PixelTransfer private constructor(
         public fun create(
             canvas: CanvasSize,
             source: PixelRegion,
-            destination: PixelPosition,
+            placement: PixelPlacement,
             mode: PixelTransferMode,
         ): DomainValueResult<PixelTransfer> =
             when (val admitted = PixelRegion.create(canvas, source.origin, source.size)) {
@@ -44,14 +53,21 @@ public class PixelTransfer private constructor(
                 }
 
                 is DomainValueResult.Created -> {
-                    when (val target = PixelRegion.create(canvas, destination, source.size)) {
+                    when (
+                        val target =
+                            PixelRegion.create(
+                                canvas,
+                                placement.position,
+                                placement.orientation.orientedSize(source.size),
+                            )
+                    ) {
                         is DomainValueResult.Rejected -> {
                             target
                         }
 
                         is DomainValueResult.Created -> {
                             DomainValueResult.Created(
-                                PixelTransfer(canvas, source, target.value, mode),
+                                PixelTransfer(canvas, source, TransferTarget(placement, target.value), mode),
                             )
                         }
                     }
@@ -59,3 +75,9 @@ public class PixelTransfer private constructor(
             }
     }
 }
+
+/** The admitted placement and its derived rectangle are one validated target geometry. */
+private data class TransferTarget(
+    val placement: PixelPlacement,
+    val region: PixelRegion,
+)

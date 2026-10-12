@@ -37,6 +37,10 @@ autosave; UI never copies pixels or issues a sequence of add/draw commands to du
 alpha-zero cells; destination cells take precedence where rectangles overlap. The one engine
 planner produces an ordinary patch and the existing sparse/dense layer change supplies history,
 invalidation and autosave. No clipboard document, stroke sequence or alternate inverse exists.
+ADR 0040 / #213 adds `PixelOrientation` and typed `PixelPlacement` to the same transfer: flips and
+quarter turns compose in the workspace, then Apply uses the same command and exact inverse cell
+mapping. A zero-displacement non-identity orientation remains an effective geometric candidate;
+the ordinary patch planner alone determines whether its contents actually change.
 
 ### Workspace actions
 
@@ -57,6 +61,7 @@ Examples:
 - `BeginSelectionPointer` / `UpdateSelectionPointer` / `FinishSelectionPointer`
 - `CancelSelectionPointer` / `CancelSelectionSession`
 - `SetSelectionMode`
+- `TransformSelection`
 
 If an editor fact must survive project save/load or participate in undo, it belongs to `DocumentState`.
 Other editor/session facts belong to `WorkspaceState`. A fact must never exist authoritatively in both.
@@ -68,6 +73,10 @@ internal commands and Undo/Redo, cancels the draft through shared runtime reconc
 edit, pending PNG import and competing pointer modes cancel it through their canonical reducers.
 Ordinary save/export/autosave still capture only committed truth, and the existing final-Switching
 exclusion remains unchanged. A selection draft does not introduce a blanket storage lease lock.
+ADR 0040 adds orientation to that same draft. TransformSelection acts on the current displayed
+rectangle, preserves its top-left where it fits, clamps the whole oriented rectangle at edges and
+rejects a size larger than the canvas. Pointer translation uses the oriented size; cancellation
+restores the previous orientation and position. No temporary transform enters document history.
 Platform-wide app language is the separate `AppPreferences` boundary of ADR 0021; it has no
 document command and never changes project or workspace truth. Its request cancels preview through
 the existing workspace action before applying the setting.

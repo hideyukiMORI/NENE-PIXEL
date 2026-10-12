@@ -25,9 +25,10 @@ presentation-only move algorithm.
 
 ### First scope and interface
 
-The first scope is one axis-aligned rectangle on one visible layer, moved or copied within that
-same layer. It does not add a drawing mask, an external or cross-layer clipboard, delete, rotate,
-flip, scale, frames or a new file schema. Those capabilities require their own focused refinements.
+The initial #211 scope is one axis-aligned rectangle on one visible layer, moved or copied within
+that same layer. ADR 0040 / #213 extends this transfer with exact flips and quarter turns. A drawing
+mask, an external or cross-layer clipboard, delete, arbitrary angles, scale, frames and a new file
+schema remain separate focused refinements.
 
 The existing layer-row More menu gains **Select area** (localized). It is disabled for a hidden
 layer. Starting from a row selects that layer through the existing `SelectLayer` route and closes
@@ -43,7 +44,7 @@ cutting off pixels. Signed coordinate arithmetic handles extreme samples without
 Releasing the pointer retains the draft, permitting several position adjustments before one
 commit. A temporary bar provides Move / Copy, Apply and Cancel, a concise selected-size/status
 description, and a short explanation that empty cells also replace their destination. Apply is
-available only for a completed, effectively displaced selection. Apply ends the session after one
+available only for completed non-identity placement/orientation (ADR 0040). Apply ends the session after one
 command; Cancel and Back end it without a document change. Existing overlays and dialogs consume
 Back before the selection session. Choosing a drawing tool exits selection through the same cancel
 action. The canvas shows a clipped, pixel-aligned outline, using the existing viewport transform.
@@ -51,8 +52,9 @@ action. The canvas shows a clipped, pixel-aligned outline, using the existing vi
 ### One exact transfer value and command
 
 `PixelTransferMode` is the closed `Move` / `Copy` vocabulary. `PixelTransfer` is an immutable,
-validated value containing canvas size, source `PixelRegion`, destination `PixelPosition` and mode.
-Its canonical four-argument factory checks that both rectangles fit the declared canvas. It never
+validated value containing canvas size, source `PixelRegion`, destination placement and mode.
+ADR 0040 groups destination position and orientation in `PixelPlacement`; the canonical four-argument
+factory checks that source and oriented destination fit the declared canvas. It never
 silently clamps direct command input. The workspace's pointer policy explicitly clamps raw input
 before constructing this same value. The engine checks declared canvas identity against the
 snapshot on which it operates; a region valid for some other canvas does not bypass this check.
@@ -61,7 +63,8 @@ snapshot on which it operates; a region valid for some other canvas does not byp
 existing exact runtime-owner/document/history-position contract. The handler rejects a missing or
 hidden layer, invalid canvas input, exhausted revision or history limits with typed outcomes.
 
-Let S be the source rectangle, D its translated destination and delta the translation. Every
+For Identity orientation, let S be the source rectangle, D its translated destination and delta the
+translation. ADR 0040 specifies the exact inverse mapping for other orientations. Every
 source value is read from the same immutable starting layer snapshot, never from an earlier write:
 
 1. In D, the final cell is the starting cell at position minus delta.
@@ -75,7 +78,7 @@ The mode and geometry planner, command and preview share this one final-cell rul
 
 The pixel engine produces one sorted patch containing only effective differences. It traverses
 the ordered union of the rectangles, not the potentially much larger bounding box between them.
-Zero offset, equal cells or all-empty replacements may return `NoEffectiveChange`, with no revision,
+Zero offset with Identity orientation, equal cells or all-empty replacements may return `NoEffectiveChange`, with no revision,
 dirty, autosave, history or redo change. A direct no-op command still follows the typed command path.
 
 The handler feeds that patch into the existing `LayerIndexChanges.select`, one `LayerChange` and
@@ -86,7 +89,7 @@ workspace information is saved in history.
 ### Workspace draft, input and cancellation
 
 The workspace owns the selection session, captured source admission, target layer, source/destination
-geometry, Move/Copy mode and pointer phase. It owns no copied pixel payload. Any source crop or
+geometry/orientation (ADR 0040), Move/Copy mode and pointer phase. It owns no copied pixel payload. Any source crop or
 prepared composite belongs only to a disposable render cache. Presentation translates events into
 typed selection actions and projects this state; it does not hold a competing rectangle or offset.
 Beginning a session is atomic with the canonical active-layer selection.
@@ -192,4 +195,4 @@ documents already edited by it; they contain ordinary indexed cells and require 
 - ADR 0004, ADR 0007, ADR 0009, ADR 0016, ADR 0029, ADR 0030 and ADR 0031
 - Issue: #211
 - Supersedes: no existing file-format or drawing-tool contract
-- Superseded by: none
+- Superseded by: ADR 0040 refines orientation, destination dimensions and the transform scope; other contracts remain

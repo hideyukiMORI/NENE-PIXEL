@@ -17,6 +17,7 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelRegion
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerVisibility
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelCell
+import io.github.hideyukimori.nenepixel.core.domain.selection.PixelPlacement
 import io.github.hideyukimori.nenepixel.core.domain.selection.PixelTransfer
 import io.github.hideyukimori.nenepixel.core.domain.selection.PixelTransferMode
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
@@ -60,7 +61,8 @@ internal class TransferPixelsCommandTest {
         val size = canvas(4, 1)
         val initial = state(size, listOf(redIndex, blackIndex, redIndex, blackIndex))
         val source = value(PixelRegion.create(size, position(0, 0), canvas(3, 1)))
-        val transfer = value(PixelTransfer.create(size, source, position(1, 0), PixelTransferMode.Move))
+        val transfer =
+            value(PixelTransfer.create(size, source, PixelPlacement.create(position(1, 0)), PixelTransferMode.Move))
         val first = CommandGateway.create(initial)
         val second = CommandGateway.create(initial)
         val change = applied(first.execute(command(first, transfer)))
@@ -88,7 +90,8 @@ internal class TransferPixelsCommandTest {
         applied(gateway.execute(UndoCommand.create(moved.id, moved.revision)))
         val before = gateway.runtimeState
         val source = value(PixelRegion.create(size, position(0, 0), canvas(1, 1)))
-        val noop = value(PixelTransfer.create(size, source, source.origin, PixelTransferMode.Copy))
+        val noop =
+            value(PixelTransfer.create(size, source, PixelPlacement.create(source.origin), PixelTransferMode.Copy))
 
         assertEquals(RejectionReason.NoEffectiveChange, rejected(gateway.execute(command(gateway, noop))))
         assertEquals(before, gateway.runtimeState)
@@ -168,7 +171,7 @@ internal class TransferPixelsCommandTest {
             PixelTransfer.create(
                 size,
                 value(PixelRegion.create(size, position(0, 0), canvas(1, 1))),
-                position(1, 0),
+                PixelPlacement.create(position(1, 0)),
                 PixelTransferMode.Move,
             ),
         )
