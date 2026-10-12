@@ -75,3 +75,4 @@ An ADR must include:
 | [0034](0034-underlay-memory.md) | accepted | The device remembers the reference underlay of each work: a fifth state category, two bounded app-private records per work, least-recently-used eviction, outside the persistence lease |
 | [0035](0035-measurement-private-data-preservation.md) | accepted | Phase measurements isolate original underlays and recovery, verify exact file identity and mtime, and retain measurement data before guarded restoration |
 | [0036](0036-android-detekt-java-classpath.md) | accepted | Existing typed Android detekt tasks consume the matching Java compiler outputs through tracked task providers |
+| [0037](0037-legacy-preservation-session-termination.md) | accepted | The one legacy v1 preservation session ends by fixed guarded moves, with the owner's recorded marker and fractional-mtime exceptions |

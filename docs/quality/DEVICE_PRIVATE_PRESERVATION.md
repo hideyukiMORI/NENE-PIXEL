@@ -252,6 +252,32 @@ Complete resets and every partial directory/move prefix remain inputs to the unc
 restoration planner, which archives all measurement-created entries and returns the originals.
 Slot cleanup never consumes the original guard. These helpers do not themselves admit a phase.
 
+### Legacy v1 session termination
+
+One historical session, guard `no_backup/issue-190-user-recovery-20261008-2241`, predates this
+contract ([ADR 0037](../adr/0037-legacy-preservation-session-termination.md)). Its v1 helper moved
+only the live recovery into the guard and recorded size and hash without fractional times. The
+executor `measurements/p4-device-private-legacy-termination.ps1` ends that session with fixed
+constants and no caller-provided move list. It takes the pinned read-only observation record, the
+pinned v1 manifest and the expected installed APK hash, and verifies each by file hash and schema
+before any device command.
+
+Host admission proves from those records that the guarded recovery equals the v1 original, the live
+recovery differs from it, every original path exists, exactly 87 original files are unchanged, both
+ProfileInstaller markers are present and the archive destination is vacant. Device admission requires
+the stopped application, the expected installed APK (never an install) and a fresh inventory equal to
+the pinned observation. The fixed plan creates the missing ancestors of
+`no_backup/p4-user-preservation/legacy-190-20261008-2241/measurement/no_backup`, moves the
+measurement recovery there, then moves the guarded original recovery to its live path, each through
+the existing isolation step. The final inventory must equal the planned result, the recovery must
+carry the original hash and the empty guard directory remains.
+
+The `nene-pixel-legacy-termination-v1` record states the owner's two accepted exceptions: both
+markers keep their current bytes (original and current hashes recorded) and exact original
+fractional modification times are not claimed; seconds equality and relative underlay order are. A
+refusal or failed step retains the applied prefix and journals and is never retried automatically.
+The result closes the legacy session; it is not a v2 preservation record and admits no measurement.
+
 ## Narrow verification
 
 `validate-p4-device-private-preservation.ps1` uses synthetic inventories without adb, Gradle or
@@ -271,3 +297,9 @@ may emit extension headers. Only the directly changed validator is rerun for the
 listener split across processes, a foreign owner, and an exit-zero `features` call with daemon
 start-up stderr are refusals before any device command, and each leaves its admission record. The
 other mocked native validators supply one ready listener so that they do not depend on host state.
+
+`validate-p4-legacy-termination.ps1` drives the legacy termination executor with mocked command
+boundaries and a synthetic v1 manifest and observation record: every host refusal happens before a
+device call, device refusals (live process, unexpected APK, inventory drift, failed or misreported
+step) retain their journals, and the successful fixed plan ends with the original recovery at its
+live path and the measurement recovery archived.
