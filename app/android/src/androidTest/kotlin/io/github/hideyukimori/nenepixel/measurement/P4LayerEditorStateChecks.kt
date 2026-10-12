@@ -13,9 +13,15 @@ internal object P4LayerEditorStateChecks {
     fun empty(state: EditorRuntimeState) {
         common(state)
         check(state.documentState.revision.value == 0L)
-        check(state.documentState.layers.size == 1)
         check(
-            state.documentState.layers
+            state.documentState.frames
+                .single()
+                .layers.size == 1,
+        )
+        check(
+            state.documentState.frames
+                .single()
+                .layers
                 .single()
                 .snapshot
                 .copyCoverage()
@@ -34,7 +40,11 @@ internal object P4LayerEditorStateChecks {
         val document = state.documentState
         check(document.id.value == "14500000000000000000000000000000")
         check(document.revision.value == if (committed) 1L else 0L)
-        check(document.layers.size == 16)
+        check(
+            document.frames
+                .single()
+                .layers.size == 16,
+        )
         check(state.workspaceState.activeLayerId.value == 16)
         check(
             state.historyAvailability == if (committed) HistoryAvailability.UndoAvailable else HistoryAvailability.None,
@@ -48,7 +58,7 @@ internal object P4LayerEditorStateChecks {
         document: DocumentState,
         committed: Boolean,
     ) {
-        document.layers.forEachIndexed { index, layer ->
+        document.frames.single().layers.forEachIndexed { index, layer ->
             val id = index + 1
             check(layer.id.value == id && layer.visibility == LayerVisibility.Visible)
             check(layer.name.value == "\uD83D\uDE00".repeat(32))

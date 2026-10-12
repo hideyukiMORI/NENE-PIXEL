@@ -33,7 +33,12 @@ public class RuntimeSelectionOperations internal constructor(
         layerId: LayerId,
     ): WorkspaceReductionResult {
         val workspace = transaction.workspaceState()
-        val layer = transaction.documentState().layers.firstOrNull { it.id == layerId }
+        val layer =
+            transaction
+                .documentState()
+                .frameContainingLayer(layerId)
+                ?.layers
+                ?.firstOrNull { it.id == layerId }
         val refusal =
             when {
                 transaction.coordination.activeOperation.isSwitching() -> {
@@ -50,6 +55,10 @@ public class RuntimeSelectionOperations internal constructor(
 
                 layer == null -> {
                     WorkspaceActionRejection.LayerNotFound(layerId)
+                }
+
+                transaction.documentState().frameContainingLayer(layerId)?.id != workspace.activeFrameId -> {
+                    WorkspaceActionRejection.LayerNotInActiveFrame(layerId, workspace.activeFrameId)
                 }
 
                 layer.visibility == LayerVisibility.Hidden -> {

@@ -8,6 +8,7 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.underlay.Refe
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportState
 import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
+import io.github.hideyukimori.nenepixel.core.domain.frame.FrameId
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.DocumentPoint
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
@@ -18,6 +19,10 @@ import io.github.hideyukimori.nenepixel.core.domain.selection.PixelOrientation
 import io.github.hideyukimori.nenepixel.core.domain.selection.PixelTransferMode
 
 public sealed interface WorkspaceAction {
+    public data class SelectFrame(
+        public val frameId: FrameId,
+    ) : EditTargetAction
+
     /** Geometry-only selection interaction; Apply is a runtime command operation (ADR 0039). */
     public sealed interface SelectionAction : WorkspaceAction
 
@@ -152,13 +157,13 @@ public sealed interface WorkspaceAction {
     /** Returns the armed eyedropper to idle. */
     public data object DisarmEyedropper : QuickSelectAction
 
-    /** Every active-layer action (ADR 0030); the reducer hands the whole family to one reduction. */
-    public sealed interface LayerAction : WorkspaceAction
+    /** Frame and layer focus share one atomic edit-target reduction (ADR 0041). */
+    public sealed interface EditTargetAction : WorkspaceAction
 
     /** Makes [layerId] the active layer; the only selection route (ADR 0030). */
     public data class SelectLayer(
         public val layerId: LayerId,
-    ) : LayerAction
+    ) : EditTargetAction
 
     /** Every reference-underlay action (ADR 0032); the reducer hands the whole family to one reduction. */
     public sealed interface ReferenceUnderlayAction : WorkspaceAction
@@ -193,6 +198,7 @@ internal fun WorkspaceAction.isAllowedDuringPaletteSession(): Boolean =
         is WorkspaceAction.SetActualSizeWindow,
         is WorkspaceAction.SetViewport,
         is WorkspaceAction.SelectPaletteEntry,
+        is WorkspaceAction.SelectFrame,
         WorkspaceAction.CancelGesturePreview,
         is WorkspaceAction.PaletteSessionAction,
         is BeginPaletteEdit,
@@ -213,7 +219,7 @@ internal fun WorkspaceAction.isAllowedDuringPaletteSession(): Boolean =
         is WorkspaceAction.HighlightQuickSelectItem,
         WorkspaceAction.ConfirmQuickSelect,
         is WorkspaceAction.PickPaletteEntryAt,
-        is WorkspaceAction.LayerAction,
+        is WorkspaceAction.SelectLayer,
         is WorkspaceAction.SetPendingRasterImport,
         is WorkspaceAction.BeginSelectionPointer,
         is WorkspaceAction.UpdateSelectionPointer,

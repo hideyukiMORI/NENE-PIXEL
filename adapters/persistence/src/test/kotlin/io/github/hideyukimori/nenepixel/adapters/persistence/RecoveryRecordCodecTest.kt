@@ -202,7 +202,7 @@ internal class RecoveryRecordCodecTest {
             RecoveryRecordLayout.V2_VERSION,
             RecoveryRecordLayout.CANDIDATE_STATE,
             PersistenceTestValues.generation(generation),
-            PersistenceTestValues.v2ProjectBytes(document),
+            HistoricalProjectTestBytes.v2ProjectBytes(document),
         )
 
     private fun assertTrueCandidate(

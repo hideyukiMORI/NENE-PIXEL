@@ -6,10 +6,11 @@ It runs on Android 8.0 (API 26) or later and keeps editing and project storage o
 ## Status
 
 As of **2026-10-12**, M0 through M3 have documented technical acceptance and M4 development is
-under way. The current implementation includes indexed palettes, multiple layers, PNG import and
-remembered reference underlays. M4 is **not yet accepted**: the 16-layer worst-case performance
-gate is tracked in [#145](https://github.com/hideyukiMORI/NENE-PIXEL/issues/145), with Baseline
-Profile regeneration tracked in [#190](https://github.com/hideyukiMORI/NENE-PIXEL/issues/190).
+under way. The current implementation includes indexed palettes, multiple frames and layers,
+selection transforms, PNG import and remembered reference underlays. M4 is **not yet accepted**:
+preview playback is tracked in [#217](https://github.com/hideyukiMORI/NENE-PIXEL/issues/217).
+The worst-case performance gate remains in [#145](https://github.com/hideyukiMORI/NENE-PIXEL/issues/145),
+with collection scheduled at the owner-directed M5 exit.
 
 [GitHub Issues](https://github.com/hideyukiMORI/NENE-PIXEL/issues) are the authority for current
 work and dependencies. The [M3 exit proof](docs/quality/M3_EXIT_PROOF.md) and
@@ -20,25 +21,28 @@ release; they are historical evidence, not a complete guide to the current edito
 
 - Canvases from 1 to 256 pixels per side, pencil and transparent eraser, gesture undo/redo,
   zoom/pan and an actual-size preview window.
-- A shared indexed palette with 2–256 entries, palette editing and remapping, palette JSON
+- A shared indexed palette with 2–256 entries, graphical colour editing and remapping, palette JSON
   import/export, and exact eyedropper selection on the active layer.
-- Up to 16 ordered layers: add, delete, rename, reorder, show/hide and select the drawing layer.
-  Layer visibility is saved and undoable; erasing makes cells transparent.
+- Up to 16 chronological frames with saved duration: add blank, duplicate, delete, reorder and select.
+  All frames share the canvas and palette, with at most 16 layer records across the whole work.
+- Ordered layers within each frame: add, duplicate, delete, rename, reorder, show/hide and select
+  the drawing layer. Layer visibility is saved and undoable; erasing makes cells transparent.
+- Rectangular selection with Move/Copy, horizontal/vertical flip and quarter-turn rotation;
+  adjustments stay a preview until one undoable Apply.
 - `.nenepixel` project open/save, autosave recovery with an explicit recovery choice, and PNG
-  export of the visible layer composite.
+  export of the selected frame's visible layer composite.
 - PNG import as a new work or an added layer, with explicit colour-conversion choices. Layer
   imports keep the original pixel scale and disclose cropping and palette limits.
 - A reference underlay with placement, opacity and visibility controls. The device remembers it
   per work; it is excluded from the project file and PNG export.
 
-The current editor is single-frame. Animation, saved layer opacity, layer duplication and
-merge-down remain future work. Palette colours currently use RGBA/hex input; the graphical colour
-picker is tracked in [#168](https://github.com/hideyukiMORI/NENE-PIXEL/issues/168).
+Animation playback, saved layer opacity and merge-down remain future work.
 
-Projects are written as **v3**, which stores ordered layers and empty-pixel coverage. V2 projects
-open losslessly as one layer; v1 projects use the explicit legacy conversion flow. The current
-format and migration rules are defined in [ADR 0030](docs/adr/0030-ordered-layers-and-empty-pixels.md)
-and [ADR 0025](docs/adr/0025-indexed-project-compatibility.md). The
+Projects are written as **v4**, which stores frames, durations, ordered layers and empty-pixel
+coverage. V3 projects open losslessly in one default-duration frame; v2 projects use one fully
+covered layer in that frame. V1 projects use the explicit legacy conversion flow. The current
+format and migration rules are defined in [ADR 0041](docs/adr/0041-bounded-frames-and-project-v4.md)
+and [Project Format v4](docs/PROJECT_FORMAT_V4.md). The
 [v1](docs/PROJECT_FORMAT_V1.md) and [v2](docs/PROJECT_FORMAT_V2.md) specifications remain references
 for those older formats.
 

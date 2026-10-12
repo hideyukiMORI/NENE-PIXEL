@@ -29,7 +29,13 @@ internal class LayerRowModelTest {
         val middle = layerId(2)
         execute(fixture, AddLayerCommand.create(fixture.runtime.captureSource(), middle))
 
-        val rows = layerRowsOf(fixture.runtime.state.documentState)
+        val rows =
+            layerRowsOf(
+                fixture.runtime.state.documentState,
+                fixture.runtime.state.documentState.frames
+                    .single()
+                    .id,
+            )
 
         assertEquals(listOf(layerId(3), middle, bottom), rows.map(LayerRowModel::id))
     }
@@ -41,7 +47,13 @@ internal class LayerRowModelTest {
         val name = LayerName.create("Line").requiredValue()
         execute(fixture, RenameLayerCommand.create(fixture.runtime.captureSource(), LayerId.first(), name))
 
-        val rows = layerRowsOf(fixture.runtime.state.documentState)
+        val rows =
+            layerRowsOf(
+                fixture.runtime.state.documentState,
+                fixture.runtime.state.documentState.frames
+                    .single()
+                    .id,
+            )
 
         assertEquals(listOf(LayerName.empty, name), rows.map(LayerRowModel::name))
     }
@@ -52,7 +64,13 @@ internal class LayerRowModelTest {
         val hidden = LayerVisibility.Hidden
         execute(fixture, SetLayerVisibilityCommand.create(fixture.runtime.captureSource(), LayerId.first(), hidden))
 
-        val rows = layerRowsOf(fixture.runtime.state.documentState)
+        val rows =
+            layerRowsOf(
+                fixture.runtime.state.documentState,
+                fixture.runtime.state.documentState.frames
+                    .single()
+                    .id,
+            )
 
         assertEquals(listOf(LayerRowModel(LayerId.first(), LayerName.empty, hidden)), rows)
     }
@@ -69,8 +87,8 @@ internal class LayerRowModelTest {
 
         assertInstanceOf(PointerInputAcknowledgement.Accepted::class.java, end)
         val after = fixture.runtime.state.documentState
-        assertNotEquals(before.layers, after.layers)
-        assertEquals(layerRowsOf(before), layerRowsOf(after))
+        assertNotEquals(before.frames.single().layers, after.frames.single().layers)
+        assertEquals(layerRowsOf(before, before.frames.single().id), layerRowsOf(after, after.frames.single().id))
     }
 
     private fun execute(

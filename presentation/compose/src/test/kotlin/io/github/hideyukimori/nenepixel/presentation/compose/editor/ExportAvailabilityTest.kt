@@ -19,7 +19,7 @@ internal class ExportAvailabilityTest {
 
         val document = fixture.runtime.state.documentState
 
-        assertTrue(document.hasVisibleLayer())
+        assertTrue(document.hasVisibleLayer(fixture.runtime.state.workspaceState.activeFrameId))
     }
 
     @Test
@@ -31,8 +31,8 @@ internal class ExportAvailabilityTest {
         val runtimeDocument = fixture.runtime.state.documentState
         val renderedDocument = fixture.controller.renderState.document
 
-        assertFalse(runtimeDocument.hasVisibleLayer())
-        assertFalse(renderedDocument.hasVisibleLayer())
+        assertFalse(runtimeDocument.hasVisibleLayer(fixture.runtime.state.workspaceState.activeFrameId))
+        assertFalse(renderedDocument.hasVisibleLayer(fixture.controller.renderState.activeFrameId))
     }
 
     private fun setVisibility(

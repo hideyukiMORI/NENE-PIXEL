@@ -126,10 +126,14 @@ internal class EditorScreenLayoutTest {
                 }
             }
             assertSame(
-                initial.document.layers
+                initial.document.frames
+                    .single()
+                    .layers
                     .single()
                     .snapshot,
-                controller.renderState.document.layers
+                controller.renderState.document.frames
+                    .single()
+                    .layers
                     .single()
                     .snapshot,
             )
@@ -142,7 +146,9 @@ internal class EditorScreenLayoutTest {
         val controller = controller()
         setEditorContent(controller, 600.dp, 400.dp)
         val before =
-            controller.renderState.document.layers
+            controller.renderState.document.frames
+                .single()
+                .layers
                 .single()
                 .snapshot
         composeRule.onNodeWithTag("editor_appearance").performClick()
@@ -159,7 +165,9 @@ internal class EditorScreenLayoutTest {
         composeRule.onNodeWithTag("editor_close_panel").assertDoesNotExist()
         assertSame(
             before,
-            controller.renderState.document.layers
+            controller.renderState.document.frames
+                .single()
+                .layers
                 .single()
                 .snapshot,
         )
@@ -199,7 +207,9 @@ internal class EditorScreenLayoutTest {
         val controller = controller(paletteCount = 32)
         setEditorContent(controller, 600.dp, 400.dp)
         val before =
-            controller.renderState.document.layers
+            controller.renderState.document.frames
+                .single()
+                .layers
                 .single()
                 .snapshot
         composeRule.onNodeWithTag("editor_open_palette").performClick()
@@ -208,7 +218,9 @@ internal class EditorScreenLayoutTest {
         assertEquals(31, controller.renderState.activePaletteIndex.value)
         assertSame(
             before,
-            controller.renderState.document.layers
+            controller.renderState.document.frames
+                .single()
+                .layers
                 .single()
                 .snapshot,
         )

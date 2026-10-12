@@ -24,6 +24,7 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.View
 import io.github.hideyukimori.nenepixel.core.domain.color.ColorChannel
 import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentId
+import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasHeight
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasWidth
@@ -169,9 +170,7 @@ internal class UndoRedoEditorTest {
         val blank = PixelSnapshot.createEmpty(drawn.document.size)
         assertNotEquals(
             blank,
-            drawn.document.layers
-                .single()
-                .snapshot,
+            snapshotOf(drawn.document),
         )
 
         composeRule.onNodeWithTag("editor_eraser_tool").performClick()
@@ -179,12 +178,8 @@ internal class UndoRedoEditorTest {
         composeRule.onNodeWithTag("editor_eraser_tool").assertIsSelected()
         composeRule.onNodeWithTag("editor_pencil_tool").assertIsNotSelected()
         assertEquals(
-            drawn.document.layers
-                .single()
-                .snapshot,
-            controller.renderState.document.layers
-                .single()
-                .snapshot,
+            snapshotOf(drawn.document),
+            snapshotOf(controller.renderState.document),
         )
 
         touchFirstPixel()
@@ -193,9 +188,7 @@ internal class UndoRedoEditorTest {
         assertEquals(2L, controller.documentState.revision.value)
         assertEquals(
             blank,
-            controller.renderState.document.layers
-                .single()
-                .snapshot,
+            snapshotOf(controller.renderState.document),
         )
     }
 
@@ -227,9 +220,7 @@ internal class UndoRedoEditorTest {
         composeRule.onNodeWithTag(FIRST_PALETTE_DESCRIPTION).assertIsSelected()
         composeRule.onNodeWithTag(SECOND_PALETTE_DESCRIPTION).assertIsNotSelected()
         val before =
-            controller.renderState.document.layers
-                .single()
-                .snapshot
+            snapshotOf(controller.renderState.document)
 
         selectSecondColor()
         composeRule.waitForIdle()
@@ -241,9 +232,7 @@ internal class UndoRedoEditorTest {
         assertEquals(EXACT_PALETTE_RGBA, controller.renderState.activeColor.toPackedRgba8888())
         assertSame(
             before,
-            controller.renderState.document.layers
-                .single()
-                .snapshot,
+            snapshotOf(controller.renderState.document),
         )
         assertFalse(controller.renderState.canUndo)
         assertFalse(controller.renderState.canRedo)
@@ -253,9 +242,7 @@ internal class UndoRedoEditorTest {
 
         assertEquals(
             SECOND_PALETTE_INDEX,
-            controller.renderState.document.layers
-                .single()
-                .snapshot
+            snapshotOf(controller.renderState.document)
                 .copyPackedIndices()
                 .first()
                 .toInt() and UBYTE_MASK,
@@ -286,13 +273,17 @@ internal class UndoRedoEditorTest {
         assertEquals(2, ids.callCount)
         assertEquals(
             3,
-            controller.renderState.document.layers
+            controller.renderState.document.frames
+                .single()
+                .layers
                 .single()
                 .snapshot.size.width.value,
         )
         assertEquals(
             2,
-            controller.renderState.document.layers
+            controller.renderState.document.frames
+                .single()
+                .layers
                 .single()
                 .snapshot.size.height.value,
         )
@@ -371,10 +362,14 @@ internal class UndoRedoEditorTest {
         actual: EditorRenderState,
     ) {
         assertEquals(
-            expected.document.layers
+            expected.document.frames
+                .single()
+                .layers
                 .single()
                 .snapshot,
-            actual.document.layers
+            actual.document.frames
+                .single()
+                .layers
                 .single()
                 .snapshot,
         )
@@ -387,11 +382,19 @@ internal class UndoRedoEditorTest {
         composeRule.onNodeWithTag(SECOND_PALETTE_DESCRIPTION).performClick()
     }
 
+    private fun snapshotOf(document: DocumentState): PixelSnapshot =
+        document.frames
+            .single()
+            .layers
+            .single()
+            .snapshot
+
     private fun TouchInjectionScope.documentOffset(
         x: Float,
         y: Float,
     ): Offset {
         val current = activeController.renderState
+        val size = snapshotOf(current.document).size
         val surface =
             when (val result = ViewportSurface.create(width, height, composeRule.density.density.toDouble())) {
                 is ViewportValueResult.Created -> result.value
@@ -400,27 +403,15 @@ internal class UndoRedoEditorTest {
         val transform =
             checkNotNull(
                 createViewportTransform(
-                    current.document.layers
-                        .single()
-                        .snapshot.size,
+                    size,
                     surface,
                     current.viewport,
                 ),
             )
         val pixel =
             pixelPosition(
-                (
-                    x *
-                        current.document.layers
-                            .single()
-                            .snapshot.size.width.value
-                ).toInt(),
-                (
-                    y *
-                        current.document.layers
-                            .single()
-                            .snapshot.size.height.value
-                ).toInt(),
+                (x * size.width.value).toInt(),
+                (y * size.height.value).toInt(),
             )
         val bounds = checkNotNull(transform.surfaceBounds(pixel))
         return Offset(((bounds.left + bounds.right) / 2.0).toFloat(), ((bounds.top + bounds.bottom) / 2.0).toFloat())

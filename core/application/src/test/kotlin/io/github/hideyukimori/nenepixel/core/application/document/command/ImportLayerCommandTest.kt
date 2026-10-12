@@ -45,7 +45,7 @@ internal class ImportLayerCommandTest {
         val undone = gateway.runtimeState.documentState
         assertEquals(listOf(1, 2), ids(undone))
         assertEquals(plan.source, undone.definition)
-        assertEquals(original.layers, undone.layers)
+        assertEquals(original.frames.single().layers, undone.frames.single().layers)
     }
 
     @Test
@@ -68,7 +68,11 @@ internal class ImportLayerCommandTest {
         plan: LayerImportPlan,
         id: Int,
     ) {
-        val imported = state.layers.single { it.id == layerId(id) }
+        val imported =
+            state.frames
+                .single()
+                .layers
+                .single { it.id == layerId(id) }
         assertEquals(plan.snapshot, imported.snapshot)
         assertEquals(LayerName.empty, imported.name)
         assertEquals(LayerVisibility.Visible, imported.visibility)
@@ -78,8 +82,14 @@ internal class ImportLayerCommandTest {
         original: DocumentState,
         after: DocumentState,
     ) {
-        for (layer in original.layers) {
-            assertEquals(layer, after.layers.single { it.id == layer.id })
+        for (layer in original.frames.single().layers) {
+            assertEquals(
+                layer,
+                after.frames
+                    .single()
+                    .layers
+                    .single { it.id == layer.id },
+            )
         }
     }
 }

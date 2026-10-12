@@ -26,7 +26,9 @@ internal class EditorRuntimeImportLayerTest {
         import(runtime, above = 1, convertingPlan())
 
         val ids =
-            runtime.state.documentState.layers
+            runtime.state.documentState.frames
+                .single()
+                .layers
                 .map { it.id.value }
         assertEquals(listOf(1, 3, 2), ids)
         assertEquals(layerId(3), runtime.state.workspaceState.activeLayerId)

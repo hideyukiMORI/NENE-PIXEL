@@ -91,7 +91,10 @@ internal class StrokePreviewBitmapTest {
 
     private fun layerIds(runtime: EditorRuntime): List<LayerId> {
         val document = runtime.state.documentState
-        return document.layers.map { it.id }
+        return document.frames
+            .single()
+            .layers
+            .map { it.id }
     }
 
     private class Scene(
@@ -135,7 +138,13 @@ internal class StrokePreviewBitmapTest {
 
         fun committedPixels(): IntArray {
             val document = runtime.state.documentState
-            return CommittedBitmapCache().render(document, document.definition, null).pixels()
+            return CommittedBitmapCache()
+                .render(
+                    document,
+                    document.frames.single().id,
+                    document.definition,
+                    null,
+                ).pixels()
         }
     }
 

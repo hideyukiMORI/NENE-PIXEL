@@ -81,7 +81,7 @@ internal class LayerRowEntryTest {
         current: Boolean,
     ): LayerRowEntry {
         val row = LayerRowModel(LayerId.first(), LayerName.empty, visibility)
-        return LayerRowEntry(row, current, position = 0, layerCount = 1)
+        return LayerRowEntry(row, current, order = LayerRowOrder(0, 1), totalLayerCount = 1)
     }
 
     private fun placed(
@@ -91,7 +91,7 @@ internal class LayerRowEntryTest {
         LayerRowEntry(
             LayerRowModel(LayerId.first(), LayerName.empty, LayerVisibility.Visible),
             current = false,
-            position = position,
-            layerCount = layerCount,
+            order = LayerRowOrder(position, layerCount),
+            totalLayerCount = layerCount,
         )
 }

@@ -2,6 +2,7 @@ package io.github.hideyukimori.nenepixel.core.application.document.command
 
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentId
 import io.github.hideyukimori.nenepixel.core.domain.document.Revision
+import io.github.hideyukimori.nenepixel.core.domain.frame.FrameId
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
@@ -10,6 +11,25 @@ import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelCell
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueRejection
 
 public sealed interface RejectionReason {
+    public data class FrameNotFound internal constructor(
+        public val frameId: FrameId,
+    ) : RejectionReason
+
+    public data class FrameStructureMismatch internal constructor(
+        public val frameId: FrameId,
+    ) : RejectionReason
+
+    public data class FramePositionOutOfRange internal constructor(
+        public val attemptedPosition: Int,
+        public val frameCount: Int,
+    ) : RejectionReason
+
+    public data object LastFrameNotDeletable : RejectionReason
+
+    public data object FrameLimitReached : RejectionReason
+
+    public data object FrameIdOverflow : RejectionReason
+
     public data class TargetDocumentMismatch internal constructor(
         public val expected: DocumentId,
         public val actual: DocumentId,

@@ -4,19 +4,20 @@ import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerVisibility
 
-/** Reduces the active-layer actions (ADR 0030); no document command is emitted. */
-internal fun reduceLayer(
+/** Reduces frame and layer focus through their canonical policies; no document command is emitted. */
+internal fun reduceEditTarget(
     state: WorkspaceState,
-    action: WorkspaceAction.LayerAction,
+    action: WorkspaceAction.EditTargetAction,
     document: DocumentState,
 ): WorkspaceReductionResult =
     when (action) {
+        is WorkspaceAction.SelectFrame -> selectFrame(state, action.frameId, document)
         is WorkspaceAction.SelectLayer -> selectLayer(state, action.layerId, document)
     }
 
 /** `true` when [layerId] names a hidden layer of this document; drawing and picks on it are refused (ADR 0030). */
 internal fun DocumentState.isLayerHidden(layerId: LayerId): Boolean =
-    layers.any { it.id == layerId && it.visibility == LayerVisibility.Hidden }
+    frameContainingLayer(layerId)?.layers?.any { it.id == layerId && it.visibility == LayerVisibility.Hidden } == true
 
 private fun selectLayer(
     state: WorkspaceState,
@@ -24,8 +25,15 @@ private fun selectLayer(
     document: DocumentState,
 ): WorkspaceReductionResult =
     when {
-        document.layers.none { it.id == layerId } -> {
+        document.frameContainingLayer(layerId) == null -> {
             WorkspaceReductionResult.Rejected(state, WorkspaceActionRejection.LayerNotFound(layerId))
+        }
+
+        document.frameContainingLayer(layerId)?.id != state.activeFrameId -> {
+            WorkspaceReductionResult.Rejected(
+                state,
+                WorkspaceActionRejection.LayerNotInActiveFrame(layerId, state.activeFrameId),
+            )
         }
 
         layerId == state.activeLayerId -> {

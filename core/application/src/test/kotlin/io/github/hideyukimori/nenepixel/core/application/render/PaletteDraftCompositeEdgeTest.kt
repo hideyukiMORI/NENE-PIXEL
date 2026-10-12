@@ -46,7 +46,10 @@ internal class PaletteDraftCompositeEdgeTest {
                 edit(PaletteDraftOperation.SetSlotColor(paletteIndex(0), opaqueBlue)),
             )
         val hidden = drawnRuntime()
-        val layers = hidden.state.documentState.layers
+        val layers =
+            hidden.state.documentState.frames
+                .single()
+                .layers
         val topLayer = layers.last().id
         execute(hidden, SetLayerVisibilityCommand.create(hidden.captureSource(), topLayer, LayerVisibility.Hidden))
         val hiddenDraft = assertDraftEqualsApply(hidden, actions, changes = true)
@@ -82,7 +85,10 @@ internal class PaletteDraftCompositeEdgeTest {
 
         assertDraftEqualsApply(runtime, actions, changes = true)
 
-        val layers = runtime.state.documentState.layers
+        val layers =
+            runtime.state.documentState.frames
+                .single()
+                .layers
         assertEquals(last, layers.maxOf { it.snapshot.maximumIndex.value })
     }
 

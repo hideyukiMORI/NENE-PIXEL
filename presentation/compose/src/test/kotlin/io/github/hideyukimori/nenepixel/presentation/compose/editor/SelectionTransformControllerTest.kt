@@ -12,6 +12,8 @@ import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestVal
 import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestValues.fixture
 import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestValues.position
 import io.github.hideyukimori.nenepixel.presentation.compose.R
+import io.github.hideyukimori.nenepixel.presentation.compose.editor.SingleFrameTestValues.layerOf
+import io.github.hideyukimori.nenepixel.presentation.compose.editor.SingleFrameTestValues.layersOf
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertInstanceOf
@@ -29,7 +31,9 @@ internal class SelectionTransformControllerTest {
         val controller = fixture().controller
         drag(controller, surface, point(0, 0), point(0, 0))
         val before = controller.documentState
-        controller.callbacks.selection.onBegin(before.layers.single().id)
+        controller.callbacks.selection.onBegin(
+            layerOf(before).id,
+        )
         drag(controller, surface, point(0, 0), point(1, 0))
 
         controller.callbacks.selection.onTransform(PixelOrientation.FlipHorizontal)
@@ -48,16 +52,12 @@ internal class SelectionTransformControllerTest {
         assertEquals(PixelCell.Empty, cellAt(applied.document, position(0, 0)))
         assertEquals(cellAt(before, position(0, 0)), cellAt(applied.document, position(1, 2)))
         assertEquals(
-            before.layers,
-            controller.callbacks
-                .onUndo()
-                .document.layers,
+            layersOf(before),
+            layersOf(controller.callbacks.onUndo().document),
         )
         assertEquals(
-            applied.document.layers,
-            controller.callbacks
-                .onRedo()
-                .document.layers,
+            layersOf(applied.document),
+            layersOf(controller.callbacks.onRedo().document),
         )
     }
 
@@ -65,7 +65,9 @@ internal class SelectionTransformControllerTest {
     fun `unfinished pointer refusal is published without cancelling and cancel restores orientation`() {
         val controller = fixture().controller
         controller.callbacks.selection.onBegin(
-            controller.documentState.layers
+            controller.documentState.frames
+                .single()
+                .layers
                 .single()
                 .id,
         )
@@ -92,7 +94,13 @@ internal class SelectionTransformControllerTest {
         val controller = fixture(canvas(4, 2)).controller
         val wideSurface = ViewportSurface.create(SURFACE_EDGE, SURFACE_EDGE / 2, DENSITY).value()
         val before = controller.documentState
-        controller.callbacks.selection.onBegin(before.layers.single().id)
+        controller.callbacks.selection.onBegin(
+            before.frames
+                .single()
+                .layers
+                .single()
+                .id,
+        )
         drag(controller, wideSurface, point(0, 0), point(2, 0))
         val session = requireNotNull(controller.renderState.selectionSession)
         assertFalse(session.canTransform(PixelOrientation.RotateClockwise))

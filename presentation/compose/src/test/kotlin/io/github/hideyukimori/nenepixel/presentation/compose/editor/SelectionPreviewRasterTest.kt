@@ -1,6 +1,7 @@
 package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
 import io.github.hideyukimori.nenepixel.core.application.render.SelectionPreviewComposite
+import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelRegion
 import io.github.hideyukimori.nenepixel.core.domain.selection.PixelOrientation
@@ -20,7 +21,17 @@ class SelectionPreviewRasterTest {
         val size = canvas(256, 256)
         val document = fixture(size).initialDocument
         val source = PixelRegion.create(size, position(0, 0), canvas(1, 1)).requiredValue()
-        val composite = SelectionPreviewComposite.prepare(document, document.layers.single().id, source)
+        val composite =
+            SelectionPreviewComposite.prepare(
+                document,
+                document.frames.single().id,
+                document.frames
+                    .single()
+                    .layers
+                    .single()
+                    .id,
+                source,
+            )
         val base = IntArray(65_536) { it }
         val buffer = base.copyOf()
         val raster = SelectionPreviewRaster(256, base, buffer)
@@ -45,7 +56,7 @@ class SelectionPreviewRasterTest {
         val size = canvas(3, 1)
         val document = fixture(size).initialDocument
         val source = PixelRegion.create(size, position(0, 0), canvas(1, 1)).requiredValue()
-        val composite = SelectionPreviewComposite.prepare(document, document.layers.single().id, source)
+        val composite = selectionComposite(document, source)
         val base = intArrayOf(RED, GREEN, BLUE)
         val buffer = base.copyOf()
         val raster = SelectionPreviewRaster(3, base, buffer)
@@ -78,7 +89,7 @@ class SelectionPreviewRasterTest {
         val size = canvas(7, 4)
         val document = fixture(size).initialDocument
         val source = PixelRegion.create(size, position(0, 0), canvas(3, 2)).requiredValue()
-        val composite = SelectionPreviewComposite.prepare(document, document.layers.single().id, source)
+        val composite = selectionComposite(document, source)
         val base = IntArray(28) { it + 1 }
         val buffer = base.copyOf()
         val raster = SelectionPreviewRaster(7, base, buffer)
@@ -109,6 +120,18 @@ class SelectionPreviewRasterTest {
         assertEquals(6, raster.lastRestoredPixelCount)
         assertEquals(base.toList(), buffer.toList())
     }
+
+    /** Raster tests use one explicit single-frame/single-layer source, never a fallback frame. */
+    private fun selectionComposite(
+        document: DocumentState,
+        source: PixelRegion,
+    ): SelectionPreviewComposite =
+        SelectionPreviewComposite.prepare(
+            document,
+            SingleFrameTestValues.frameOf(document).id,
+            SingleFrameTestValues.layerOf(document).id,
+            source,
+        )
 
     private fun transfer(
         size: CanvasSize,

@@ -1,21 +1,21 @@
 package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
-import io.github.hideyukimori.nenepixel.core.domain.layer.LayerLimits
+import io.github.hideyukimori.nenepixel.core.domain.frame.FrameLimits
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerVisibility
 import io.github.hideyukimori.nenepixel.presentation.compose.R
 
 /**
- * What one layer-panel row shows (#144 UI spec "行"): the [row], whether it is the active layer, its [position]
- * counted from the bottom (0) as `MoveLayerCommand` counts it, and the document's [layerCount], plus the plain
- * mappings from those to the visibility toggle, the spoken state and the "more" menu. [row] stays the only layer
- * value a row reads; a stroke changes none of the four, so the entry stays equal across strokes.
+ * Snapshot-free row metadata, frame-local order and document-wide logical capacity.
+ * Local order gates moves and the last-layer deletion; global count gates duplication.
  */
 internal data class LayerRowEntry(
     val row: LayerRowModel,
     val current: Boolean,
-    val position: Int,
-    val layerCount: Int,
+    val order: LayerRowOrder,
+    val totalLayerCount: Int,
 ) {
+    val position: Int get() = order.position
+    val layerCount: Int get() = order.count
     val hidden: Boolean
         get() = row.visibility == LayerVisibility.Hidden
 
@@ -43,13 +43,13 @@ internal data class LayerRowEntry(
     val backMost: Boolean
         get() = position == 0
 
-    /** The document's only layer: "Delete", "Move up" and "Move down" are all disabled. */
+    /** The frame's only layer: "Delete", "Move up" and "Move down" are all disabled. */
     val only: Boolean
         get() = layerCount == 1
 
     /** Any row can be duplicated while the shared bounded layer list has capacity. */
     val canDuplicate: Boolean
-        get() = layerCount < LayerLimits.MAX_LAYERS
+        get() = totalLayerCount < FrameLimits.MAX_TOTAL_LAYER_RECORDS
 
     /** The position "Move up" asks for: one step towards the front. */
     val moveUpPosition: Int

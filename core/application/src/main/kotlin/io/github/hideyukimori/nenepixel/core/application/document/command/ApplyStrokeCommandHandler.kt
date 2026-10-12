@@ -38,7 +38,7 @@ internal class ApplyStrokeCommandHandler {
         command: ApplyStrokeCommand,
     ): DocumentTransitionResult {
         val layer =
-            currentState.layers.firstOrNull { it.id == command.layerId }
+            currentState.frameContainingLayer(command.layerId)?.layers?.firstOrNull { it.id == command.layerId }
                 ?: return rejected(RejectionReason.LayerNotFound(command.layerId))
         // A hidden layer refuses drawing (ADR 0030); the workspace refuses first, this is the command-side guard.
         return when (layer.visibility) {

@@ -43,7 +43,7 @@ internal class RecoveryRecordEnvelopeV3Test {
                 RecoveryRecordLayout.V2_VERSION,
                 RecoveryRecordLayout.CANDIDATE_STATE,
                 PersistenceTestValues.generation(3L),
-                PersistenceTestValues.v2ProjectBytes(PersistenceTestValues.minimalDocument),
+                HistoricalProjectTestBytes.v2ProjectBytes(PersistenceTestValues.minimalDocument),
             )
 
         assertEquals(MINIMAL_V2_CANDIDATE_HEX, bytes.toHexadecimal())
@@ -56,7 +56,7 @@ internal class RecoveryRecordEnvelopeV3Test {
                 RecoveryRecordLayout.V3_VERSION,
                 RecoveryRecordLayout.CANDIDATE_STATE,
                 PersistenceTestValues.generation(1L),
-                PersistenceTestValues.v2ProjectBytes(PersistenceTestValues.maximumDocument()),
+                HistoricalProjectTestBytes.v2ProjectBytes(PersistenceTestValues.maximumDocument()),
             )
 
         // 66,628 bytes: inside the v3 length range, so the version pairing (not the length) rejects it.
@@ -71,7 +71,7 @@ internal class RecoveryRecordEnvelopeV3Test {
                 RecoveryRecordLayout.V2_VERSION,
                 RecoveryRecordLayout.CANDIDATE_STATE,
                 PersistenceTestValues.generation(1L),
-                ProjectFormatCodec.encode(PersistenceTestValues.minimalDocument).copyBytes(),
+                HistoricalProjectTestBytes.v3ProjectBytes(PersistenceTestValues.minimalDocument),
             )
 
         // 85 bytes: inside the v2 length range, so the version pairing (not the length) rejects it.
@@ -94,23 +94,23 @@ internal class RecoveryRecordEnvelopeV3Test {
     }
 
     @Test
-    fun `maximum layered candidate reaches the exact shared record bound and one more byte is rejected`() {
+    fun `historical layered candidate reaches its exact version bound and one more byte is rejected`() {
         val encoded =
-            RecoveryRecordCodec.encodeCandidate(
+            historicalCandidate(
                 PersistenceTestValues.generation(Long.MAX_VALUE),
                 PersistenceTestValues.maximumLayeredDocument(),
             ) as RecoveryEncodeResult.Encoded
 
         assertEquals(1_182_885, encoded.bytes.size)
         assertEquals(RecoveryRecordLayout.V3_MAX_CANDIDATE_BYTE_COUNT, encoded.bytes.size)
-        assertEquals(RecoveryRecordCodec.MAX_RECORD_BYTE_COUNT, encoded.bytes.size)
+        assertEquals(RecoveryRecordLayout.V3_MAX_CANDIDATE_BYTE_COUNT, encoded.bytes.size)
         assertEquals(RecoveryRecordLayout.V3_VERSION, RecoveryRecordLayout.version(encoded.bytes))
         val record = (RecoveryRecordCodec.decode(encoded.bytes) as RecoveryDecodeResult.Accepted).record
         assertEquals(Long.MAX_VALUE, record.generation.value)
 
         val overBound = encoded.bytes.copyOf(encoded.bytes.size + 1).withUpdatedChecksum()
         assertEquals(
-            RecoveryDecodeResult.Rejected(RecoveryRejection.RESOURCE_LIMIT_EXCEEDED),
+            RecoveryDecodeResult.Rejected(RecoveryRejection.CORRUPT),
             RecoveryRecordCodec.decode(overBound),
         )
     }
@@ -121,13 +121,14 @@ internal class RecoveryRecordEnvelopeV3Test {
             RecoveryRecordLayout.HEADER_BYTE_COUNT + ProjectFormatBytes.MAX_FILE_BYTE_COUNT,
             RecoveryRecordLayout.MAX_RECORD_BYTE_COUNT,
         )
-        assertEquals(1_182_886, RecoveryRecordCodec.MAX_PROBE_BYTE_COUNT)
+        assertEquals(1_183_030, RecoveryRecordCodec.MAX_PROBE_BYTE_COUNT)
         assertEquals(
             RecoveryRecordLayout.MAX_RECORD_BYTE_COUNT,
             maxOf(
                 RecoveryRecordLayout.V1_MAX_CANDIDATE_BYTE_COUNT,
                 RecoveryRecordLayout.V2_MAX_CANDIDATE_BYTE_COUNT,
                 RecoveryRecordLayout.V3_MAX_CANDIDATE_BYTE_COUNT,
+                RecoveryRecordLayout.V4_MAX_CANDIDATE_BYTE_COUNT,
             ),
         )
         assertEquals(
@@ -137,8 +138,8 @@ internal class RecoveryRecordEnvelopeV3Test {
     }
 
     @Test
-    fun `unknown envelope version four is unsupported`() {
-        val bytes = encodedRetired(1L).also { it[9] = 4 }.withUpdatedChecksum()
+    fun `unknown envelope version five is unsupported`() {
+        val bytes = encodedRetired(1L).also { it[9] = 5 }.withUpdatedChecksum()
 
         assertEquals(
             RecoveryDecodeResult.Rejected(RecoveryRejection.UNSUPPORTED_VERSION),
@@ -146,14 +147,25 @@ internal class RecoveryRecordEnvelopeV3Test {
         )
     }
 
+    private fun historicalCandidate(
+        generation: io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryGeneration,
+        document: io.github.hideyukimori.nenepixel.core.domain.document.DocumentState,
+    ): RecoveryEncodeResult =
+        RecoveryEncodeResult.Encoded(
+            RecoveryRecordLayout.encode(3, 1, generation, HistoricalProjectTestBytes.v3ProjectBytes(document)),
+        )
+
     private fun encodedRetired(generation: Long): ByteArray {
-        val result = RecoveryRecordCodec.encodeRetired(PersistenceTestValues.generation(generation))
-        return (result as RecoveryEncodeResult.Encoded).bytes
+        val result =
+            RecoveryEncodeResult.Encoded(
+                RecoveryRecordLayout.encode(3, 2, PersistenceTestValues.generation(generation), ByteArray(0)),
+            )
+        return result.bytes
     }
 
     private fun encodedCandidate(generation: Long): ByteArray =
         (
-            RecoveryRecordCodec.encodeCandidate(
+            historicalCandidate(
                 PersistenceTestValues.generation(generation),
                 PersistenceTestValues.minimalDocument,
             ) as RecoveryEncodeResult.Encoded

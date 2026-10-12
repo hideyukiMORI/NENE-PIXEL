@@ -17,8 +17,9 @@ import java.io.OutputStream
 // Aligned with envelope 3 / project v3 by #142 (ADR 0030). The v2 results collected by #106 remain
 // historical evidence for that artifact; new acceptance measurement follows the #145 protocol.
 
-// One-layer 256x256, 256-color Candidate written as envelope 3; not the 16-layer V3_MAX_CANDIDATE_BYTE_COUNT.
-private const val SINGLE_LAYER_MAX_CANDIDATE_BYTE_COUNT: Int = 74_827
+// Current fixture correctness uses envelope4 (one default frame).
+// Historical measurement entry refuses v4 before metadata/timing output.
+private const val SINGLE_LAYER_MAX_CANDIDATE_BYTE_COUNT: Int = 74_836
 private const val WARMUP_COUNT: Int = 5
 private const val SAMPLE_COUNT: Int = 20
 private const val SAMPLE_ANOMALY_NANOS: Long = 1_000_000_000L
@@ -28,6 +29,13 @@ private const val NEXT_GENERATION: Long = 2L
 
 internal fun main(arguments: Array<String>) {
     require(arguments.contentEquals(arrayOf(CANDIDATE_ROLE))) { "Candidate host evidence requires sole role argument" }
+    val admission =
+        RecoveryRecordCodec.encodeRetired(
+            PersistenceTestValues.generation(1),
+        ) as RecoveryEncodeResult.Encoded
+    check(RecoveryRecordLayout.version(admission.bytes) == RecoveryRecordLayout.V3_VERSION) {
+        "Historical envelope3 measurement requires its original writer; v4 needs an accepted #145 protocol"
+    }
     val fixture = RecoveryHostEvidenceFixture()
     reportMetadata()
     val observations = fixture.groups().flatMap { group -> group.measure() }
@@ -258,7 +266,7 @@ private fun verifyEncodedFacts(
 ) {
     val bytes = encoded(result)
     check(bytes.size == byteCount)
-    check(RecoveryRecordLayout.version(bytes) == RecoveryRecordLayout.V3_VERSION)
+    check(RecoveryRecordLayout.version(bytes) == RecoveryRecordLayout.V4_VERSION)
     check(RecoveryRecordLayout.state(bytes) == state)
 }
 

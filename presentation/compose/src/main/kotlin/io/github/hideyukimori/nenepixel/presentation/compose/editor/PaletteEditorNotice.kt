@@ -64,6 +64,10 @@ private fun WorkspaceActionRejection.noticeResource(): Int =
         is WorkspaceActionRejection.ActiveLayerNotFound,
         is WorkspaceActionRejection.LayerNotFound,
         is WorkspaceActionRejection.ActiveLayerHidden,
+        is WorkspaceActionRejection.FrameNotFound,
+        is WorkspaceActionRejection.LayerNotInActiveFrame,
+        WorkspaceActionRejection.NoPendingRasterImport,
+        is WorkspaceActionRejection.RasterImportFormUnavailable,
         -> R.string.palette_editor_rejected
     }
 
@@ -137,6 +141,12 @@ private fun RejectionReason.noticeResource(): Int =
         RejectionReason.LayerIdOverflow,
         RejectionReason.LastLayerNotDeletable,
         is RejectionReason.LayerPositionOutOfRange,
+        is RejectionReason.FrameNotFound,
+        is RejectionReason.FramePositionOutOfRange,
+        is RejectionReason.FrameStructureMismatch,
+        RejectionReason.LastFrameNotDeletable,
+        RejectionReason.FrameLimitReached,
+        RejectionReason.FrameIdOverflow,
         -> R.string.palette_editor_apply_failed
     }
 

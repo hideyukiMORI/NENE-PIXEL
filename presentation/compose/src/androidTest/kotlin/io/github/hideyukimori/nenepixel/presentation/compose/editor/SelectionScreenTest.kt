@@ -60,9 +60,19 @@ internal class SelectionScreenTest {
         assertNull(controller.renderState.selectionSession)
         assertEquals(copied, SelectionScreenFixture.samples(rule, controller))
         rule.onNodeWithTag("editor_undo").performClick()
-        assertEquals(before.layers, controller.documentState.layers)
+        assertEquals(
+            before.frames.single().layers,
+            controller.documentState.frames
+                .single()
+                .layers,
+        )
         rule.onNodeWithTag("editor_redo").performClick()
-        assertEquals(applied.layers, controller.documentState.layers)
+        assertEquals(
+            applied.frames.single().layers,
+            controller.documentState.frames
+                .single()
+                .layers,
+        )
     }
 
     @Test
@@ -104,11 +114,15 @@ internal class SelectionScreenTest {
     fun moreTargetsVisibleInactiveRowAndBackClosesPanelBeforeSelection() {
         val controller = LayerMenuFixture.show(rule, 2)
         val target =
-            controller.documentState.layers
+            controller.documentState.frames
+                .single()
+                .layers
                 .first()
                 .id
         val hidden =
-            controller.documentState.layers
+            controller.documentState.frames
+                .single()
+                .layers
                 .last()
                 .id
         rule.runOnIdle { controller.callbacks.layers.onSetVisibility(hidden, LayerVisibility.Hidden) }
@@ -172,7 +186,9 @@ internal class SelectionScreenTest {
     private fun begin(controller: EditorController) {
         LayerMenuFixture.choose(
             rule,
-            controller.documentState.layers
+            controller.documentState.frames
+                .single()
+                .layers
                 .single()
                 .id,
             SELECT_TAG,

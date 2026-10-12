@@ -44,9 +44,25 @@ internal class ChangeSetTest {
         assertEquals(revision(4L), changeSet.inverse().afterRevision)
         assertEquals(changeSet.renderInvalidation, inverse.affectedRegion)
 
-        val changed = appliedSnapshot(forward.applyTo(original.layers.single().snapshot))
+        val changed =
+            appliedSnapshot(
+                forward.applyTo(
+                    original.frames
+                        .single()
+                        .layers
+                        .single()
+                        .snapshot,
+                ),
+            )
         val restored = appliedSnapshot(inverse.applyTo(changed))
-        assertEquals(original.layers.single().snapshot, restored)
+        assertEquals(
+            original.frames
+                .single()
+                .layers
+                .single()
+                .snapshot,
+            restored,
+        )
     }
 
     @Test

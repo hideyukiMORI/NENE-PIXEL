@@ -133,7 +133,9 @@ internal class LayerRenameDialogTest {
     }
 
     private fun nameOf(controller: EditorController): String =
-        controller.renderState.document.layers
+        controller.renderState.document.frames
+            .single()
+            .layers
             .single()
             .name.value
 

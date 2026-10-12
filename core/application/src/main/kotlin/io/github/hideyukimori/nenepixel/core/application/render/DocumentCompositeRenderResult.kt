@@ -2,6 +2,10 @@ package io.github.hideyukimori.nenepixel.core.application.render
 
 /** Result of composing a document's layers with a draft palette definition. */
 public sealed interface DocumentCompositeRenderResult {
+    public data class FrameNotFound internal constructor(
+        public val frameId: io.github.hideyukimori.nenepixel.core.domain.frame.FrameId,
+    ) : DocumentCompositeRenderResult
+
     public data class Rendered internal constructor(
         public val image: DocumentCompositeImage,
     ) : DocumentCompositeRenderResult

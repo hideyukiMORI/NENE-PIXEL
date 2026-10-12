@@ -18,6 +18,8 @@ Examples:
 - `ApplyPixelPatchCommand`
 - `AddLayerCommand`
 - `DuplicateLayerCommand`
+- `AddFrameCommand` / `DuplicateFrameCommand` / `DeleteFrameCommand`
+- `MoveFrameCommand` / `SetFrameDurationCommand`
 - `TransferPixelsCommand`
 - `DeleteLayerCommand`
 - `RenameLayerCommand`
@@ -56,6 +58,7 @@ Examples:
 - `SetAppearance`
 - `SetActualSizeWindow`
 - `SelectLayer`
+- `SelectFrame`
 - `SetReferenceUnderlay`
 - `ClearReferenceUnderlay`
 - `BeginSelectionPointer` / `UpdateSelectionPointer` / `FinishSelectionPointer`
@@ -124,13 +127,12 @@ Touch / Stylus / Mouse / Keyboard
 
 Persistence observes committed results through an application port. It does not create another mutation path.
 
-## Accepted frame cutover (ADR 0041)
+## Frame commands and focus (ADR 0041)
 
-The following target becomes effective with the atomic consuming implementation, not with the
-design-only Issue #215. Until then the single-frame runtime and v3/envelope 3 writer remain the
-sole implemented path. [ADR 0041](adr/0041-bounded-frames-and-project-v4.md) owns the full contract.
+Issue #216 implements the atomic hierarchy, frame commands and v4/envelope 4 writer accepted in
+design Issue #215. [ADR 0041](adr/0041-bounded-frames-and-project-v4.md) owns the full contract.
 
-`DocumentState` then owns chronological frames and one shared palette. Frame contents/order and
+`DocumentState` owns chronological frames and one shared palette. Frame contents/order and
 validated duration (10 through 60,000 integer ms, default 100) are saved truth. Source-admitted
 `AddFrameCommand`, `DuplicateFrameCommand`, `DeleteFrameCommand`, `MoveFrameCommand` and
 `SetFrameDurationCommand` each use one gateway/handler route, revision and history entry. Add makes

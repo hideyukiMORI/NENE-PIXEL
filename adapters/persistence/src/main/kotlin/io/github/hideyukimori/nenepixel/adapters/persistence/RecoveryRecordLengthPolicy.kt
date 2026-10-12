@@ -26,8 +26,16 @@ internal object RecoveryRecordLengthPolicy {
                     RecoveryRecordLayout.V2_MIN_CANDIDATE_BYTE_COUNT..RecoveryRecordLayout.V2_MAX_CANDIDATE_BYTE_COUNT
                 }
 
-                else -> {
+                RecoveryRecordLayout.V3_VERSION -> {
                     RecoveryRecordLayout.V3_MIN_CANDIDATE_BYTE_COUNT..RecoveryRecordLayout.V3_MAX_CANDIDATE_BYTE_COUNT
+                }
+
+                RecoveryRecordLayout.V4_VERSION -> {
+                    RecoveryRecordLayout.V4_MIN_CANDIDATE_BYTE_COUNT..RecoveryRecordLayout.V4_MAX_CANDIDATE_BYTE_COUNT
+                }
+
+                else -> {
+                    return RecoveryRejection.UNSUPPORTED_VERSION
                 }
             }
         return if (byteCount in range) null else RecoveryRejection.CORRUPT

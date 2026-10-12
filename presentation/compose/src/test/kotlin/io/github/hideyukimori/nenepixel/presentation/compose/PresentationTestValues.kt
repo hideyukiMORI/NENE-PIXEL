@@ -56,7 +56,9 @@ internal object PresentationTestValues {
         state: DocumentState,
         position: PixelPosition,
     ): PixelCell =
-        state.layers
+        state.frames
+            .single()
+            .layers
             .single()
             .snapshot
             .cellAt(position)

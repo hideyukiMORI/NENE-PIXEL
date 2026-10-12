@@ -48,12 +48,17 @@ internal object LayerStructureTestValues {
     fun layeredState(
         layers: List<Layer>,
         revision: Revision = Revision.initial(),
-    ): DocumentState = DocumentState.createLayered(defaultDocumentId, revision, defaultDefinition, layers).value()
+    ): DocumentState = DocumentState.createSingleFrame(defaultDocumentId, revision, defaultDefinition, layers).value()
 
     fun structural(
         source: DocumentState,
         structure: LayerStructureTransition,
-    ): ChangeSet = ChangeSet.createStructural(source, revision(source.revision.value + 1L), structure)
+    ): ChangeSet =
+        ChangeSet.createStructural(
+            source,
+            revision(source.revision.value + 1L),
+            DocumentStructureTransition.LayerChanged(source.frames.single().id, structure),
+        )
 
     /** Applies [changeSet] and its inverse, asserts the inverse restores [original], and returns the forward result. */
     fun roundTrip(

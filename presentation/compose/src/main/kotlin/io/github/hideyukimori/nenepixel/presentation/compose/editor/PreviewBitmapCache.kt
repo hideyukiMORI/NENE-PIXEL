@@ -5,6 +5,7 @@ import io.github.hideyukimori.nenepixel.core.application.render.StrokePreviewCom
 import io.github.hideyukimori.nenepixel.core.application.workspace.ToolGesture
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.drawing.StrokeEffect
+import io.github.hideyukimori.nenepixel.core.domain.frame.FrameId
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.selection.PixelTransfer
 
@@ -24,11 +25,13 @@ internal class PreviewBitmapCache {
     private var composite: StrokePreviewComposite? = null
     private var compositeDocument: DocumentState? = null
     private var compositeLayerId: LayerId? = null
+    private var compositeFrameId: FrameId? = null
     private var compositeEffect: StrokeEffect? = null
     private val selection = SelectionBitmapCache()
     private var selectionDocument: DocumentState? = null
     private var selectionTransfer: PixelTransfer? = null
     private var selectionLayer: LayerId? = null
+    private var selectionFrame: FrameId? = null
 
     internal val selectionPreparationCount: Int
         get() = selection.preparationCount
@@ -42,51 +45,67 @@ internal class PreviewBitmapCache {
         val transfer = session?.previewTransfer
         if (transfer != null) {
             return if (transfer.isIdentity) {
-                selection.hide(state.document, session.layerId, transfer.source)
+                selection.hide(state.document, state.activeFrameId, session.layerId, transfer.source)
                 selectionDocument = null
                 selectionTransfer = null
                 selectionLayer = null
+                selectionFrame = null
                 forgetSources()
             } else {
-                renderSelection(state.document, session.layerId, transfer, committed)
+                renderSelection(
+                    FrameImageInputs.committed(state.document, state.activeFrameId),
+                    session.layerId,
+                    transfer,
+                    committed,
+                )
             }
         }
         selection.forget()
         selectionDocument = null
         selectionTransfer = null
         selectionLayer = null
+        selectionFrame = null
         return state.preview?.let { preview ->
-            val committedBitmap = committed.render(state.document, state.definition, state.paletteEditSession)
-            val target = rasterFor(state.document.size.width.value, state.document.size.height.value)
-            if (base !== committedBitmap) {
-                base = committedBitmap
-                source = null
-                target.replaceBase(committed::copyRenderedArgbInto)
-            }
-            val colors = compositeFor(state.document, preview)
-            if (source !== preview || sourceComposite !== colors) {
-                source = preview
-                sourceComposite = colors
-                target.paint(preview) { position -> colors.packedRgba8888At(position).rgbaToArgb8888() }
-            }
-            transfer(target)
-            requireNotNull(rendered)
+            renderStroke(state.picture, preview, committed)
         } ?: forgetSources()
     }
 
+    /** The ordinary stroke path shares the same raster/bitmap and base restoration as selection. */
+    private fun renderStroke(
+        picture: FrameImageInputs,
+        preview: ToolGesture,
+        committed: CommittedBitmapCache,
+    ): Bitmap {
+        val committedBitmap = committed.render(picture)
+        val target = rasterFor(picture.document.size.width.value, picture.document.size.height.value)
+        if (base !== committedBitmap) {
+            base = committedBitmap
+            source = null
+            target.replaceBase(committed::copyRenderedArgbInto)
+        }
+        val colors = compositeFor(picture, preview)
+        if (source !== preview || sourceComposite !== colors) {
+            source = preview
+            sourceComposite = colors
+            target.paint(preview) { position -> colors.packedRgba8888At(position).rgbaToArgb8888() }
+        }
+        transfer(target)
+        return requireNotNull(rendered)
+    }
+
     private fun renderSelection(
-        document: DocumentState,
+        picture: FrameImageInputs,
         layerId: LayerId,
         pixelTransfer: PixelTransfer,
         committed: CommittedBitmapCache,
     ): Bitmap {
-        if (selectionDocument === document && selectionTransfer === pixelTransfer && selectionLayer == layerId) {
+        if (sameSelectionSource(picture, layerId) && selectionTransfer === pixelTransfer) {
             return requireNotNull(rendered)
         }
-        val target = rasterFor(document.size.width.value, document.size.height.value)
+        val target = rasterFor(picture.document.size.width.value, picture.document.size.height.value)
         // A later ordinary stroke must restore its base, rather than reuse a retained selection bitmap.
         forgetSources()
-        val baseReplaced = selection.paint(SelectionBitmapInput(document, layerId, pixelTransfer, committed), target)
+        val baseReplaced = selection.paint(SelectionBitmapInput(picture, layerId, pixelTransfer, committed), target)
         transfer(target)
         target.transferChangedRegions { pixels, region ->
             if (!baseReplaced) {
@@ -102,11 +121,19 @@ internal class PreviewBitmapCache {
                 )
             }
         }
-        selectionDocument = document
+        selectionDocument = picture.document
+        selectionFrame = picture.frameId
         selectionTransfer = pixelTransfer
         selectionLayer = layerId
         return requireNotNull(rendered)
     }
+
+    /** Document/frame/layer identify the prepared source; transfer identity identifies its current placement. */
+    private fun sameSelectionSource(
+        picture: FrameImageInputs,
+        layerId: LayerId,
+    ): Boolean =
+        selectionDocument === picture.document && selectionFrame == picture.frameId && selectionLayer == layerId
 
     /**
      * Drops every reference to the document, its composite and the committed bitmap once no gesture
@@ -119,23 +146,26 @@ internal class PreviewBitmapCache {
         composite = null
         compositeDocument = null
         compositeLayerId = null
+        compositeFrameId = null
         compositeEffect = null
         return null
     }
 
     /** Reuses the composite while the document reference, target layer and effect stay the same. */
     private fun compositeFor(
-        document: DocumentState,
+        picture: FrameImageInputs,
         preview: ToolGesture,
     ): StrokePreviewComposite {
         val reusable =
-            compositeDocument === document &&
+            compositeDocument === picture.document &&
+                compositeFrameId == picture.frameId &&
                 compositeLayerId == preview.layerId &&
                 compositeEffect == preview.effect
         return composite?.takeIf { reusable }
-            ?: StrokePreviewComposite.prepare(document, preview).also { prepared ->
+            ?: StrokePreviewComposite.prepare(picture.document, picture.frameId, preview).also { prepared ->
                 composite = prepared
-                compositeDocument = document
+                compositeDocument = picture.document
+                compositeFrameId = picture.frameId
                 compositeLayerId = preview.layerId
                 compositeEffect = preview.effect
             }

@@ -29,8 +29,8 @@ internal class ReplacePaletteCommandHandler {
         currentState: DocumentState,
         remap: PaletteRemap,
     ): DocumentTransitionResult {
-        val changes = ArrayList<LayerChange>(currentState.layers.size)
-        for (layer in currentState.layers) {
+        val changes = ArrayList<LayerChange>(currentState.totalLayerCount)
+        for (layer in currentState.frames.flatMap { it.layers }) {
             val result = applyPaletteRemap(layer.snapshot, remap)
             if (result is PaletteRemapApplicationResult.Rejected) {
                 return rejected(result.rejection.toReason())

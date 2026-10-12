@@ -50,7 +50,10 @@ internal object PaletteDraftCompositeFixture {
         val runtime = EditorRuntime.create(canvas(WIDTH, HEIGHT), source, FixedDocumentIdSource())
         paint(runtime, LayerId.first(), listOf(0 to 1, 1 to 2, 2 to 3, 3 to 0))
         execute(runtime, AddLayerCommand.create(runtime.captureSource(), LayerId.first()))
-        val layers = runtime.state.documentState.layers
+        val layers =
+            runtime.state.documentState.frames
+                .single()
+                .layers
         paint(runtime, layers.last().id, listOf(0 to 3, 1 to 1, 3 to 2))
         return runtime
     }
@@ -78,12 +81,22 @@ internal object PaletteDraftCompositeFixture {
 
     fun draftPixels(runtime: EditorRuntime): IntArray {
         val session = runtime.state.workspaceState.paletteEditSession ?: fail("Palette session was closed")
-        val result = PaletteDraftComposite.render(runtime.state.documentState, session)
+        val result =
+            PaletteDraftComposite.render(
+                runtime.state.documentState,
+                runtime.state.documentState.frames
+                    .single()
+                    .id,
+                session,
+            )
         return assertInstanceOf(PaletteDraftCompositeResult.Rendered::class.java, result).image.copyPackedRgba8888()
     }
 
     fun documentPixels(runtime: EditorRuntime): IntArray =
-        DocumentComposite.render(runtime.state.documentState).copyPackedRgba8888()
+        io.github.hideyukimori.nenepixel.core.application.render.SingleFrameRenderTestValues
+            .image(
+                runtime.state.documentState,
+            ).copyPackedRgba8888()
 
     /**
      * Begins a session on [runtime], reduces [actions], then applies for real: the draft picture must equal the

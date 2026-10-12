@@ -74,7 +74,10 @@ internal class LayerRecompositionTest {
         val overlay = overlayRuns.get()
         val layer = layerRuns.get()
         Log.i(LOG_TAG, "toggle: overlay=$overlay layer=$layer names=$layerNames")
-        val layers = controller.renderState.document.layers
+        val layers =
+            controller.renderState.document.frames
+                .single()
+                .layers
         assertEquals(LayerVisibility.Hidden, layers.first { layer -> layer.id == active }.visibility)
         assertTrue("LayerOverlay must run on a visibility change: $overlay", overlay >= 1)
         assertTrue("Layer composables must run on a visibility change: $layer", layer >= 1)
@@ -86,7 +89,12 @@ internal class LayerRecompositionTest {
         QuickSelectFixture.show(composeRule, controller)
         composeRule.runOnIdle { repeat(LAYERS - 1) { controller.callbacks.layers.onAdd() } }
         composeRule.waitForIdle()
-        assertEquals(LAYERS, controller.renderState.document.layers.size)
+        assertEquals(
+            LAYERS,
+            controller.renderState.document.frames
+                .single()
+                .layers.size,
+        )
         return controller
     }
 

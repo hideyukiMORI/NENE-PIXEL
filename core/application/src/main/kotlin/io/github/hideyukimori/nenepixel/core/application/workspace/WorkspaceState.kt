@@ -11,6 +11,7 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.underlay.Unde
 import io.github.hideyukimori.nenepixel.core.application.workspace.underlay.UnderlayVisibility
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportState
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
+import io.github.hideyukimori.nenepixel.core.domain.frame.FrameId
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
@@ -35,6 +36,8 @@ public class WorkspaceState internal constructor(
 ) {
     public val activePaletteIndex: PaletteIndex
         get() = editTarget.paletteIndex
+
+    public val activeFrameId: FrameId get() = editTarget.frameId
 
     public val activeLayerId: LayerId
         get() = editTarget.layerId
@@ -229,7 +232,7 @@ public class WorkspaceState internal constructor(
 
         public fun create(canvas: CanvasSize): WorkspaceState =
             WorkspaceState(
-                EditTarget.create(LayerId.first(), PaletteIndex.first),
+                EditTarget.create(FrameId.first(), LayerId.first(), PaletteIndex.first),
                 DrawingTool.Pencil,
                 ViewportState.initial(canvas),
                 null,

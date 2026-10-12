@@ -71,6 +71,12 @@ public class AutosavePublicationDeviceEvidence {
     }
 
     private fun prepareOutputs() {
+        check(
+            RecoveryRecordLayout.version(encoded(RecoveryRecordCodec.encodeRetired(generation(FIRST_GENERATION)))) ==
+                RecoveryRecordLayout.V3_VERSION,
+        ) {
+            "Historical envelope3 publication lane refuses v4; admit a versioned #145 workload first"
+        }
         layerPhase =
             if (layerArgument() == "publication-v1") AutosaveLayerPublicationAdmission.read(context) else null
         outputReservation = layerPhase?.reserveOutputs() ?: reserveAutosavePublicationEvidenceOutputs(context)

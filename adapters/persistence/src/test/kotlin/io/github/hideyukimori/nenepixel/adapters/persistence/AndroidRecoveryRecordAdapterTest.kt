@@ -8,6 +8,7 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRet
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRetirementOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRollbackOutcome
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentImportSource
+import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
@@ -26,8 +27,8 @@ import java.io.OutputStream
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicInteger
 
-/** 23-byte envelope plus the project v3 bytes of the 256x256, 256-colour, one-layer maximum document. */
-private const val MAXIMUM_SINGLE_LAYER_V3_RECORD_BYTE_COUNT: Int = 74_827
+/** 23-byte envelope plus the project v4 bytes of the 256x256, 256-colour, one-layer maximum document. */
+private const val MAXIMUM_SINGLE_FRAME_V4_RECORD_BYTE_COUNT: Int = 74_836
 
 internal class AndroidRecoveryRecordAdapterTest {
     private val dispatchers = TestCoroutineDispatchers()
@@ -270,7 +271,7 @@ internal class AndroidRecoveryRecordAdapterTest {
         runBlocking {
             val file = MemoryRecoveryAtomicFile()
             val adapter = adapter(file)
-            val document = PersistenceTestValues.minimalDocument
+            val document = PersistenceTestValues.twoFramesDocument()
 
             val result = adapter.publishCandidate(ExpectedRecoveryLineage.Missing, document)
 
@@ -282,7 +283,7 @@ internal class AndroidRecoveryRecordAdapterTest {
             assertEquals(1, file.syncCalls)
             assertEquals(1, file.finishCalls)
             assertEquals(0, file.failCalls)
-            assertArrayEquals(encodedCandidate(1L), file.bytes)
+            assertArrayEquals(encodedCandidate(1L, document), file.bytes)
             assertEquals(
                 RecoveryInspection.Candidate(
                     PersistenceTestValues.generation(1L),
@@ -362,7 +363,7 @@ internal class AndroidRecoveryRecordAdapterTest {
                 RecoveryPublicationOutcome.Published(PersistenceTestValues.generation(1L)),
                 result,
             )
-            assertEquals(MAXIMUM_SINGLE_LAYER_V3_RECORD_BYTE_COUNT, file.bytes?.size)
+            assertEquals(MAXIMUM_SINGLE_FRAME_V4_RECORD_BYTE_COUNT, file.bytes?.size)
             assertEquals(
                 RecoveryInspection.Candidate(
                     PersistenceTestValues.generation(1L),
@@ -396,11 +397,14 @@ internal class AndroidRecoveryRecordAdapterTest {
             ) as RecoveryEncodeResult.Encoded
         ).bytes
 
-    private fun encodedCandidate(generation: Long): ByteArray =
+    private fun encodedCandidate(
+        generation: Long,
+        document: DocumentState = PersistenceTestValues.minimalDocument,
+    ): ByteArray =
         (
             RecoveryRecordCodec.encodeCandidate(
                 PersistenceTestValues.generation(generation),
-                PersistenceTestValues.minimalDocument,
+                document,
             ) as RecoveryEncodeResult.Encoded
         ).bytes
 }

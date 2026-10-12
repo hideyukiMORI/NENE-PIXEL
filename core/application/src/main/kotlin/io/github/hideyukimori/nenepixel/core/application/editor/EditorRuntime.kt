@@ -59,6 +59,7 @@ public class EditorRuntime private constructor(
     internal val recoveryOperations: RuntimeRecoveryOperations = RuntimeRecoveryOperations(this)
     public val paletteOperations: RuntimePaletteOperations = RuntimePaletteOperations(this)
     public val selectionOperations: RuntimeSelectionOperations = RuntimeSelectionOperations(this)
+    public val rasterImportOperations: RuntimeRasterImportOperations = RuntimeRasterImportOperations(this)
 
     public val state: EditorRuntimeState
         get() = synchronized(runtimeLock) { owners.toState() }
@@ -129,6 +130,7 @@ public class EditorRuntime private constructor(
             if (owners.workspaceState.selectionSession != null) {
                 reduceWorkspaceLocked(WorkspaceAction.CancelSelectionSession)
             }
+            if (owners.workspaceState.preview != null) reduceWorkspaceLocked(WorkspaceAction.CancelGesturePreview)
             reconcileSelectionLocked(command, result)
             val commandState = owners.commandGateway.runtimeState
             coordination =

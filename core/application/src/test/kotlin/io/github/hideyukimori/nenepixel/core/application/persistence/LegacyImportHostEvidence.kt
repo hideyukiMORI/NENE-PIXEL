@@ -312,7 +312,9 @@ private fun verifyDocumentPixels(
 ) {
     val packed = source.copyPackedRgba8888()
     val indices =
-        document.layers
+        document.frames
+            .single()
+            .layers
             .single()
             .snapshot
             .copyPackedIndices()

@@ -7,14 +7,14 @@ import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueRejection
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 
-internal fun documentLayersRejection(
+internal fun layerListRejection(layers: List<Layer>): DomainValueRejection? =
+    layerCountRejection(layers.size) ?: duplicateLayerIdRejection(layers) ?: layerSizeRejection(layers)
+
+internal fun allLayerRejection(
     definition: PaletteDefinition,
     layers: List<Layer>,
 ): DomainValueRejection? =
-    layerCountRejection(layers.size)
-        ?: duplicateLayerIdRejection(layers)
-        ?: layerSizeRejection(layers)
-        ?: layerPaletteRejection(definition, layers)
+    duplicateLayerIdRejection(layers) ?: layerSizeRejection(layers) ?: layerPaletteRejection(definition, layers)
 
 private fun layerCountRejection(count: Int): DomainValueRejection? =
     if (count in 1..LayerLimits.MAX_LAYERS) null else DomainValueRejection.DocumentLayerCountOutOfRange(count)

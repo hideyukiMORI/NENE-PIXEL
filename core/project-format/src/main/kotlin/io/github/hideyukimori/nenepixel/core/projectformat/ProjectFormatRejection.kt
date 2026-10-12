@@ -51,6 +51,27 @@ public sealed interface ProjectFormatRejection {
         public val entryCount: Int,
     ) : ProjectFormatRejection
 
+    public data class InvalidFrameCount internal constructor(
+        public val count: Int,
+    ) : ProjectFormatRejection
+
+    public data class InvalidFrameId internal constructor(
+        public val wireValue: Long,
+    ) : ProjectFormatRejection
+
+    public data class DuplicateFrameId internal constructor(
+        public val id: Int,
+    ) : ProjectFormatRejection
+
+    public data class InvalidFrameDuration internal constructor(
+        public val frameIndex: Int,
+        public val wireValue: Long,
+    ) : ProjectFormatRejection
+
+    public data class InvalidTotalLayerCount internal constructor(
+        public val count: Int,
+    ) : ProjectFormatRejection
+
     public data class InvalidLayerCount internal constructor(
         public val count: Int,
     ) : ProjectFormatRejection

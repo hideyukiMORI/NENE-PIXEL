@@ -8,8 +8,9 @@ public object ProjectFormatCodec {
     private val v1Decoder: ProjectFormatV1Decoder = ProjectFormatV1Decoder()
     private val v2Decoder: ProjectFormatV2Decoder = ProjectFormatV2Decoder()
     private val v3Decoder: ProjectFormatV3Decoder = ProjectFormatV3Decoder()
+    private val v4Decoder: ProjectFormatV4Decoder = ProjectFormatV4Decoder()
 
-    public fun encode(document: DocumentState): ProjectFormatBytes = ProjectFormatV3Encoder.encode(document)
+    public fun encode(document: DocumentState): ProjectFormatBytes = ProjectFormatV4Encoder.encode(document)
 
     public fun decode(source: ProjectFormatBytes): ProjectFormatResult<DocumentImportSource> =
         when {
@@ -31,32 +32,17 @@ public object ProjectFormatCodec {
             }
 
             else -> {
-                when (
-                    val version =
-                        ProjectFormatBigEndian.readUnsignedShort(
-                            source,
-                            ProjectFormatV1Layout.VERSION_OFFSET,
-                        )
-                ) {
-                    ProjectFormatV1Layout.VERSION -> {
-                        v1Decoder.decode(source)
-                    }
-
-                    ProjectFormatV2Layout.VERSION -> {
-                        v2Decoder.decode(source)
-                    }
-
-                    ProjectFormatV3Layout.VERSION -> {
-                        v3Decoder.decode(source)
-                    }
-
-                    else -> {
-                        rejected(
-                            ProjectFormatRejection.UnsupportedVersion(ProjectFormatVersion.fromWireValue(version)),
-                        )
-                    }
-                }
+                decodeVersion(source)
             }
+        }
+
+    private fun decodeVersion(source: ProjectFormatBytes): ProjectFormatResult<DocumentImportSource> =
+        when (val version = ProjectFormatBigEndian.readUnsignedShort(source, ProjectFormatV1Layout.VERSION_OFFSET)) {
+            ProjectFormatV1Layout.VERSION -> v1Decoder.decode(source)
+            ProjectFormatV2Layout.VERSION -> v2Decoder.decode(source)
+            ProjectFormatV3Layout.VERSION -> v3Decoder.decode(source)
+            ProjectFormatV4Layout.VERSION -> v4Decoder.decode(source)
+            else -> rejected(ProjectFormatRejection.UnsupportedVersion(ProjectFormatVersion.fromWireValue(version)))
         }
 
     public fun encodeLegacySource(source: LegacyRgbaSource): ProjectFormatBytes = ProjectFormatV1Encoder.encode(source)

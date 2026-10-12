@@ -63,8 +63,28 @@ internal class RuntimePaletteOperationsTest {
         assertSame(PaletteApplyResult.Applied, runtime.paletteOperations.applyPaletteDraft())
 
         val document = runtime.state.documentState
-        assertEquals(PixelCell.Covered(blackIndex), cellAt(document.layers.single().snapshot, position(0, 0)))
-        assertEquals(PixelCell.Empty, cellAt(document.layers.single().snapshot, position(1, 1)))
+        assertEquals(
+            PixelCell.Covered(blackIndex),
+            cellAt(
+                document.frames
+                    .single()
+                    .layers
+                    .single()
+                    .snapshot,
+                position(0, 0),
+            ),
+        )
+        assertEquals(
+            PixelCell.Empty,
+            cellAt(
+                document.frames
+                    .single()
+                    .layers
+                    .single()
+                    .snapshot,
+                position(1, 1),
+            ),
+        )
         val colors =
             document.definition.palette
                 .entries()

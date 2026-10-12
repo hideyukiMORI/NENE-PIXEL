@@ -60,7 +60,7 @@ internal object LayerPhaseFixture {
                 )
             }
         return created(
-            DocumentState.createLayered(
+            DocumentState.createSingleFrame(
                 created(DocumentId.create(DOCUMENT_ID)),
                 Revision.initial(),
                 definition,
@@ -72,9 +72,8 @@ internal object LayerPhaseFixture {
     fun verifiedProjectBytes(): ByteArray {
         val source = document()
         verifyFacts(source)
-        val bytes = ProjectFormatCodec.encode(source).copyBytes()
+        val bytes = HistoricalProjectTestBytes.v3ProjectBytes(source)
         check(bytes.size == PROJECT_BYTE_COUNT)
-        check(bytes.size == ProjectFormatBytes.MAX_FILE_BYTE_COUNT)
         verifyDecoded(bytes)
         return bytes
     }
@@ -101,10 +100,11 @@ internal object LayerPhaseFixture {
                 is RecoveryGenerationResult.Created -> result.generation
                 RecoveryGenerationResult.Rejected -> error("Fixture generation rejected")
             }
-        val encoded = RecoveryRecordCodec.encodeCandidate(generation, document)
-        check(encoded is RecoveryEncodeResult.Encoded)
+        val encoded =
+            RecoveryEncodeResult.Encoded(
+                RecoveryRecordLayout.encode(3, 1, generation, HistoricalProjectTestBytes.v3ProjectBytes(document)),
+            )
         check(encoded.bytes.size == CANDIDATE_BYTE_COUNT)
-        check(encoded.bytes.size == RecoveryRecordCodec.MAX_RECORD_BYTE_COUNT)
         val decoded = RecoveryRecordCodec.decode(encoded.bytes)
         check(decoded is RecoveryDecodeResult.Accepted)
         check(decoded.record == RecoveryRecord.Candidate(generation, DocumentImportSource.Current(document)))
@@ -123,8 +123,12 @@ internal object LayerPhaseFixture {
             check(entry.index.value == index && entry.color.toPackedRgba8888() == expected)
         }
         check(layerName.toByteArray(StandardCharsets.UTF_8).size == 128)
-        check(document.layers.size == LAYER_COUNT)
-        document.layers.forEachIndexed { index, layer ->
+        check(
+            document.frames
+                .single()
+                .layers.size == LAYER_COUNT,
+        )
+        document.frames.single().layers.forEachIndexed { index, layer ->
             val id = index + 1
             check(layer.id.value == id)
             check(layer.visibility == LayerVisibility.Visible)
@@ -138,7 +142,11 @@ internal object LayerPhaseFixture {
         }
         // The canonical load policy selects the last layer. Its index 16 differs from pencil index 0
         // at every cell, including DOWN (one cell) and all 256 cells of the diagonal.
-        val top = document.layers.last()
+        val top =
+            document.frames
+                .single()
+                .layers
+                .last()
         check(top.id.value == LAYER_COUNT)
         val topIndices = top.snapshot.copyPackedIndices()
         check((topIndices[0].toInt() and 0xff) != 0)

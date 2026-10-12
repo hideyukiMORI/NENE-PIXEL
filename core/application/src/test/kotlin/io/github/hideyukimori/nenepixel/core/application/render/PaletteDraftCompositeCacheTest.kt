@@ -35,7 +35,15 @@ class PaletteDraftCompositeCacheTest {
     fun `begin reorder and finish with the same effective table reuse image`() {
         val runtime = drawnRuntime()
         val cache = PaletteDraftCompositeCache()
-        val original = cache.render(runtime.state.documentState, sourceDefinition, null)
+        val original =
+            cache.render(
+                runtime.state.documentState,
+                runtime.state.documentState.frames
+                    .single()
+                    .id,
+                sourceDefinition,
+                null,
+            )
         begin(runtime)
         assertSame(original, render(cache, runtime))
         assertEquals(1, cache.preparationCount)
@@ -86,11 +94,17 @@ class PaletteDraftCompositeCacheTest {
         val otherDefinition = definition(paletteIndex(0), green, opaqueBlue, green, opaqueBlue)
         val another = drawnRuntime(otherDefinition)
         val document = another.state.documentState
-        val fallback = cache.render(document, document.definition, session)
-        assertArrayEquals(DocumentComposite.render(document).copyPackedRgba8888(), fallback.copyPackedRgba8888())
+        val fallback = cache.render(document, document.frames.single().id, document.definition, session)
+        assertArrayEquals(
+            io.github.hideyukimori.nenepixel.core.application.render.SingleFrameRenderTestValues
+                .image(
+                    document,
+                ).copyPackedRgba8888(),
+            fallback.copyPackedRgba8888(),
+        )
         assertEquals(0, cache.preparationCount)
         val replaced = drawnRuntime(otherDefinition).state.documentState
-        assertNotSame(fallback, cache.render(replaced, replaced.definition, session))
+        assertNotSame(fallback, cache.render(replaced, replaced.frames.single().id, replaced.definition, session))
     }
 
     @Test
@@ -101,10 +115,16 @@ class PaletteDraftCompositeCacheTest {
         val first = render(cache, runtime)
         val session = requireNotNull(runtime.state.workspaceState.paletteEditSession)
         val replacement = drawnRuntime().state.documentState
-        val next = cache.render(replacement, replacement.definition, session)
+        val next = cache.render(replacement, replacement.frames.single().id, replacement.definition, session)
         assertNotSame(first, next)
         assertEquals(2, cache.preparationCount)
-        assertArrayEquals(DocumentComposite.render(replacement).copyPackedRgba8888(), next.copyPackedRgba8888())
+        assertArrayEquals(
+            io.github.hideyukimori.nenepixel.core.application.render.SingleFrameRenderTestValues
+                .image(
+                    replacement,
+                ).copyPackedRgba8888(),
+            next.copyPackedRgba8888(),
+        )
     }
 
     @Test
@@ -127,6 +147,9 @@ class PaletteDraftCompositeCacheTest {
     ): DocumentCompositeImage =
         cache.render(
             runtime.state.documentState,
+            runtime.state.documentState.frames
+                .single()
+                .id,
             runtime.state.documentState.definition,
             runtime.state.workspaceState.paletteEditSession,
         )

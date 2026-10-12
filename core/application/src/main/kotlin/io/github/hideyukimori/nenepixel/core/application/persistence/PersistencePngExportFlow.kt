@@ -1,6 +1,5 @@
 package io.github.hideyukimori.nenepixel.core.application.persistence
 
-import io.github.hideyukimori.nenepixel.core.application.editor.DocumentOutputStart
 import io.github.hideyukimori.nenepixel.core.application.editor.PngExportStart
 import io.github.hideyukimori.nenepixel.core.application.editor.RuntimePngExportOperations
 import kotlinx.coroutines.CancellationException
@@ -14,21 +13,16 @@ internal class PersistencePngExportFlow(
 
     private suspend fun attempt(): PersistenceRequestResult =
         when (val begun = operations.begin()) {
-            is PngExportStart.Output -> output(begun.start)
+            is PngExportStart.Started -> export(begun)
+            PngExportStart.Busy -> PersistenceRequestResult.Busy
+            PngExportStart.RecoveryUnavailable -> PersistenceRequestResult.RecoveryUnavailable
+            PngExportStart.IdentityExhausted -> identityExhaustedResult()
             PngExportStart.NoVisibleLayer -> PersistenceRequestResult.NoVisibleLayer
         }
 
-    private suspend fun output(start: DocumentOutputStart): PersistenceRequestResult =
-        when (start) {
-            is DocumentOutputStart.Started -> export(start)
-            DocumentOutputStart.Busy -> PersistenceRequestResult.Busy
-            DocumentOutputStart.RecoveryUnavailable -> PersistenceRequestResult.RecoveryUnavailable
-            DocumentOutputStart.IdentityExhausted -> identityExhaustedResult()
-        }
-
-    private suspend fun export(start: DocumentOutputStart.Started): PersistenceRequestResult =
+    private suspend fun export(start: PngExportStart.Started): PersistenceRequestResult =
         try {
-            operations.complete(start.handle, exporter.export(start.document))
+            operations.complete(start.handle, exporter.export(start.capture))
         } catch (cancelled: CancellationException) {
             operations.cancel(start.handle)
             throw cancelled

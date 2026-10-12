@@ -128,7 +128,9 @@ internal class LayerPanelRowsTest {
     }
 
     private fun frontToBack(controller: EditorController): List<LayerId> =
-        controller.renderState.document.layers
+        controller.renderState.document.frames
+            .single()
+            .layers
             .asReversed()
             .map { layer -> layer.id }
 
@@ -136,7 +138,10 @@ internal class LayerPanelRowsTest {
         controller: EditorController,
         id: LayerId,
     ): LayerVisibility {
-        val layers = controller.renderState.document.layers
+        val layers =
+            controller.renderState.document.frames
+                .single()
+                .layers
         val layer = layers.first { candidate -> candidate.id == id }
         return layer.visibility
     }

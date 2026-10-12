@@ -63,7 +63,14 @@ internal class LayerNoticeTest {
         notice(R.string.layer_notice_show).performClick()
         composeRule.waitForIdle()
         val shown = controller.renderState.document
-        assertEquals(LayerVisibility.Visible, shown.layers.single().visibility)
+        assertEquals(
+            LayerVisibility.Visible,
+            shown.frames
+                .single()
+                .layers
+                .single()
+                .visibility,
+        )
         tapCanvas()
         assertNotEquals(shown.revision, controller.renderState.document.revision)
     }

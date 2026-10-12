@@ -61,6 +61,7 @@ internal class CommittedPaletteBitmapCacheTest {
     ): Bitmap =
         cache.render(
             runtime.state.documentState,
+            runtime.state.workspaceState.activeFrameId,
             runtime.state.documentState.definition,
             runtime.state.workspaceState.paletteEditSession,
         )

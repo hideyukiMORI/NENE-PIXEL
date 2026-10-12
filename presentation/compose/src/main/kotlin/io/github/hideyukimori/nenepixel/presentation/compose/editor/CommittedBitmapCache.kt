@@ -6,6 +6,7 @@ import io.github.hideyukimori.nenepixel.core.application.render.DocumentComposit
 import io.github.hideyukimori.nenepixel.core.application.render.PaletteDraftCompositeCache
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteEditSession
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
+import io.github.hideyukimori.nenepixel.core.domain.frame.FrameId
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 
 /**
@@ -34,10 +35,11 @@ internal class CommittedBitmapCache {
      */
     fun render(
         document: DocumentState,
+        frameId: FrameId,
         definition: PaletteDefinition,
         session: PaletteEditSession?,
     ): Bitmap {
-        val image = composite.render(document, definition, session)
+        val image = composite.render(document, frameId, definition, session)
         if (sourceImage !== image) {
             sourceImage = image
             val argb = image.toStraightArgb()
@@ -47,6 +49,9 @@ internal class CommittedBitmapCache {
         }
         return requireNotNull(rendered)
     }
+
+    fun render(picture: FrameImageInputs): Bitmap =
+        render(picture.document, picture.frameId, picture.definition, picture.session)
 
     /** Copies the straight-alpha ARGB of the latest [render] into [target] (row-major); the array stays private. */
     fun copyRenderedArgbInto(target: IntArray) {

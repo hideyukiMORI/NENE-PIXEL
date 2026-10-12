@@ -20,10 +20,14 @@ internal class EditorAppearanceControllerTest {
         assertEquals(choice, fixture.runtime.state.workspaceState.appearance)
         assertSame(result, fixture.controller.renderStates.value)
         assertSame(
-            before.document.layers
+            before.document.frames
+                .single()
+                .layers
                 .single()
                 .snapshot,
-            result.document.layers
+            result.document.frames
+                .single()
+                .layers
                 .single()
                 .snapshot,
         )

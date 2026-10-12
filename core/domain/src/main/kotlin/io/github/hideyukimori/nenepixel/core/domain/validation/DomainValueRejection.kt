@@ -5,6 +5,28 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 
 public sealed interface DomainValueRejection {
+    public data class InvalidFrameId internal constructor(
+        public val value: Int,
+    ) : DomainValueRejection
+
+    public data object FrameIdOverflow : DomainValueRejection
+
+    public data class InvalidFrameDuration internal constructor(
+        public val value: Int,
+    ) : DomainValueRejection
+
+    public data class DocumentFrameCountOutOfRange internal constructor(
+        public val count: Int,
+    ) : DomainValueRejection
+
+    public data class DocumentLayerRecordCountOutOfRange internal constructor(
+        public val count: Int,
+    ) : DomainValueRejection
+
+    public data class DuplicateFrameId internal constructor(
+        public val frameId: Int,
+    ) : DomainValueRejection
+
     public data class InvalidDocumentIdLength internal constructor(
         public val actualLength: Int,
     ) : DomainValueRejection

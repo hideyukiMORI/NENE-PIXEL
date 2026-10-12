@@ -13,6 +13,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.App
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.defaultDefinition
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.defaultDocumentId
 import io.github.hideyukimori.nenepixel.core.application.document.transition.LayerStructureTestValues.layerId
+import io.github.hideyukimori.nenepixel.core.application.document.transition.singleFrameLayers
 import io.github.hideyukimori.nenepixel.core.application.persistence.initializedFixture
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerVisibility
 import kotlinx.coroutines.runBlocking
@@ -39,10 +40,11 @@ internal class EditorRuntimeDuplicateLayerTest {
         duplicate(runtime, 1)
 
         val copied = runtime.state.documentState
-        assertEquals(listOf(1, 4, 2, 3), copied.layers.map { it.id.value })
+        val copiedLayers = copied.singleFrameLayers()
+        assertEquals(listOf(1, 4, 2, 3), copiedLayers.map { it.id.value })
         assertEquals(layerId(4), runtime.state.workspaceState.activeLayerId)
-        assertEquals(LayerVisibility.Hidden, copied.layers[1].visibility)
-        assertSame(before.layers.first().snapshot, copied.layers[1].snapshot)
+        assertEquals(LayerVisibility.Hidden, copiedLayers[1].visibility)
+        assertSame(before.singleFrameLayers().first().snapshot, copiedLayers[1].snapshot)
         undo(runtime)
         assertEquals(before, runtime.state.documentState)
         assertEquals(layerId(2), runtime.state.workspaceState.activeLayerId)

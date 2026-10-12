@@ -50,7 +50,9 @@ internal class ReplacePaletteCommandTest {
         assertEquals(
             PixelCell.Covered(paletteIndex(2)),
             cellAt(
-                gateway.runtimeState.documentState.layers
+                gateway.runtimeState.documentState.frames
+                    .single()
+                    .layers
                     .single()
                     .snapshot,
                 position(0, 0),
@@ -72,12 +74,16 @@ internal class ReplacePaletteCommandTest {
         assertEquals(1L, gateway.runtimeState.documentState.revision.value)
         assertEquals(target, gateway.runtimeState.documentState.definition)
         assertEquals(
-            initial.layers
+            initial.frames
+                .single()
+                .layers
                 .single()
                 .snapshot
                 .copyPackedIndices()
                 .toList(),
-            gateway.runtimeState.documentState.layers
+            gateway.runtimeState.documentState.frames
+                .single()
+                .layers
                 .single()
                 .snapshot
                 .copyPackedIndices()
@@ -95,7 +101,9 @@ internal class ReplacePaletteCommandTest {
         val changed = gateway.runtimeState.documentState
         assertEquals(
             listOf(1, 1),
-            changed.layers
+            changed.frames
+                .single()
+                .layers
                 .single()
                 .snapshot
                 .copyPackedIndices()
@@ -123,7 +131,17 @@ internal class ReplacePaletteCommandTest {
         assertEquals(0, result.retainedChangeCount)
         assertEquals(32L + 147_456L + (4L * (2 + 2) + 8L), result.retainedByteCount)
         assertEquals(size, result.renderInvalidation.size)
-        assertEquals(PixelCell.Covered(paletteIndex(1)), cellAt(changed.layers.single().snapshot, position(255, 255)))
+        assertEquals(
+            PixelCell.Covered(paletteIndex(1)),
+            cellAt(
+                changed.frames
+                    .single()
+                    .layers
+                    .single()
+                    .snapshot,
+                position(255, 255),
+            ),
+        )
         applied(gateway.execute(UndoCommand.create(changed.id, changed.revision)))
         assertEquals(initial, gateway.runtimeState.documentState)
         applied(gateway.execute(RedoCommand.create(initial.id, initial.revision)))
@@ -138,7 +156,7 @@ internal class ReplacePaletteCommandTest {
         val hiddenId = LayerId.create(2).value()
         val initial =
             DocumentState
-                .createLayered(
+                .createSingleFrame(
                     state(size).id,
                     state(size).revision,
                     source,

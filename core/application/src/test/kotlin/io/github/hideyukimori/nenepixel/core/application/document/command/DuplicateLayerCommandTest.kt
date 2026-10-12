@@ -21,6 +21,8 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.Lay
 import io.github.hideyukimori.nenepixel.core.application.document.transition.LayerStructureTestValues.layerId
 import io.github.hideyukimori.nenepixel.core.application.document.transition.LayerStructureTestValues.layeredState
 import io.github.hideyukimori.nenepixel.core.application.document.transition.LayerStructureTestValues.value
+import io.github.hideyukimori.nenepixel.core.application.document.transition.singleFrameLayers
+import io.github.hideyukimori.nenepixel.core.application.document.transition.singleFrameSnapshot
 import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.document.Revision
@@ -37,23 +39,23 @@ internal class DuplicateLayerCommandTest {
     fun `hidden named layer keeps exact covered alpha-zero and Empty cells with one Added transition`() {
         val original = sourceDocument()
         val gateway = CommandGateway.create(original)
-        val source = original.layers[1]
+        val source = original.singleFrameLayers()[1]
         val change = applied(gateway.execute(DuplicateLayerCommand.create(gateway.captureSource(), source.id)))
         val after = gateway.runtimeState.documentState
-        val duplicate = after.layers[2]
+        val duplicate = after.singleFrameLayers()[2]
 
         assertEquals(listOf(1, 7, 8, 4), ids(after))
         assertEquals(source.name, duplicate.name)
         assertEquals(LayerVisibility.Hidden, duplicate.visibility)
         assertSame(source.snapshot, duplicate.snapshot)
-        assertSame(source, after.layers[1])
+        assertSame(source, after.singleFrameLayers()[1])
         assertSame(original.definition, after.definition)
         assertEquals(cellAt(source.snapshot, position(0, 0)), cellAt(duplicate.snapshot, position(0, 0)))
         assertEquals(PixelCell.Empty, cellAt(duplicate.snapshot, position(2, 0)))
         assertEquals(1, gateway.runtimeState.historyEntryCount)
         assertEquals(0, gateway.runtimeState.retainedHistoryChangeCount)
         assertEquals(
-            32L + 3L + 1L +
+            32L + 4L + 3L + 1L +
                 source.name.value
                     .encodeToByteArray()
                     .size,
@@ -66,7 +68,8 @@ internal class DuplicateLayerCommandTest {
         assertEquals(after, gateway.runtimeState.documentState)
         assertSame(
             source.snapshot,
-            gateway.runtimeState.documentState.layers[2]
+            gateway.runtimeState.documentState
+                .singleFrameLayers()[2]
                 .snapshot,
         )
     }
@@ -78,11 +81,37 @@ internal class DuplicateLayerCommandTest {
         val after = applyUndoRedo(gateway, DuplicateLayerCommand.create(gateway.captureSource(), layerId(5)))
 
         assertEquals(listOf(5, 6), ids(after))
-        assertEquals(original.layers.single().name, after.layers[1].name)
-        assertSame(original.layers.single().snapshot, after.layers[1].snapshot)
-        assertEquals(LayerVisibility.Visible, after.layers[1].visibility)
-        assertEquals(PixelCell.Empty, cellAt(after.layers[1].snapshot, position(0, 0)))
-        assertEquals(32L, gateway.runtimeState.retainedHistoryByteCount)
+        assertEquals(
+            original
+                .singleFrameLayers()
+                .single()
+                .name,
+            after
+                .singleFrameLayers()[1]
+                .name,
+        )
+        assertSame(
+            original.singleFrameSnapshot(),
+            after
+                .singleFrameLayers()[1]
+                .snapshot,
+        )
+        assertEquals(
+            LayerVisibility.Visible,
+            after
+                .singleFrameLayers()[1]
+                .visibility,
+        )
+        assertEquals(
+            PixelCell.Empty,
+            cellAt(
+                after
+                    .singleFrameLayers()[1]
+                    .snapshot,
+                position(0, 0),
+            ),
+        )
+        assertEquals(36L, gateway.runtimeState.retainedHistoryByteCount)
         assertEquals(1, gateway.runtimeState.historyEntryCount)
     }
 
@@ -92,38 +121,28 @@ internal class DuplicateLayerCommandTest {
         val gateway = CommandGateway.create(original)
         applied(gateway.execute(DuplicateLayerCommand.create(gateway.captureSource(), layerId(1))))
         val shared =
-            gateway.runtimeState.documentState.layers[0]
+            gateway.runtimeState.documentState
+                .singleFrameLayers()[0]
                 .snapshot
         val paint = stroke(original.size, listOf(position(0, 0)), redIndex)
         applied(gateway.execute(ApplyStrokeCommand.create(gateway.captureSource(), layerId(2), paint)))
 
-        val paintedCopy =
-            gateway.runtimeState.documentState.layers[1]
-                .snapshot
-        assertSame(
-            shared,
-            gateway.runtimeState.documentState.layers[0]
-                .snapshot,
-        )
+        val paintedLayers = gateway.runtimeState.documentState.singleFrameLayers()
+        val paintedCopy = paintedLayers[1].snapshot
+        assertSame(shared, paintedLayers[0].snapshot)
         assertEquals(PixelCell.Empty, cellAt(shared, position(0, 0)))
         assertEquals(PixelCell.Covered(redIndex), cellAt(paintedCopy, position(0, 0)))
         applied(gateway.execute(ApplyStrokeCommand.create(gateway.captureSource(), layerId(1), paint)))
         assertSame(
             paintedCopy,
-            gateway.runtimeState.documentState.layers[1]
+            gateway.runtimeState.documentState
+                .singleFrameLayers()[1]
                 .snapshot,
         )
         undo(gateway)
-        assertEquals(
-            shared,
-            gateway.runtimeState.documentState.layers[0]
-                .snapshot,
-        )
-        assertSame(
-            paintedCopy,
-            gateway.runtimeState.documentState.layers[1]
-                .snapshot,
-        )
+        val undoneLayers = gateway.runtimeState.documentState.singleFrameLayers()
+        assertEquals(shared, undoneLayers[0].snapshot)
+        assertSame(paintedCopy, undoneLayers[1].snapshot)
     }
 
     private fun sourceDocument(): DocumentState {
@@ -136,6 +155,6 @@ internal class DuplicateLayerCommandTest {
                 layer(7, "原画✨", pixels, LayerVisibility.Hidden),
                 layer(4, "top", PixelSnapshot.createEmpty(size)),
             )
-        return DocumentState.createLayered(defaultDocumentId, Revision.initial(), colors, layers).value()
+        return DocumentState.createSingleFrame(defaultDocumentId, Revision.initial(), colors, layers).value()
     }
 }

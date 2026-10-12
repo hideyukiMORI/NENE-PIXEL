@@ -106,7 +106,15 @@ internal class TransparencyDisplayTest {
         val adapter = EditorRuntimeAdapter(editor.runtime)
         val committed = CommittedBitmapCache()
         val previews = PreviewBitmapCache()
-        val before = committed.render(adapter.renderState.document, adapter.renderState.definition, null)
+        val before =
+            committed.render(
+                adapter.renderState.document,
+                adapter.renderState.document.frames
+                    .single()
+                    .id,
+                adapter.renderState.definition,
+                null,
+            )
 
         adapter.reduce(WorkspaceAction.BeginGesturePreview(adapter.renderState.document.size, pixel(0, 0)))
         val first = requireNotNull(previews.render(adapter.renderState, committed))
@@ -114,7 +122,15 @@ internal class TransparencyDisplayTest {
         val second = requireNotNull(previews.render(adapter.renderState, committed))
 
         val state = adapter.renderState
-        val after = committed.render(state.document, state.definition, null)
+        val after =
+            committed.render(
+                state.document,
+                state.document.frames
+                    .single()
+                    .id,
+                state.definition,
+                null,
+            )
         assertSame("The stroke must not rebuild the committed bitmap", before, after)
         assertSame("The working bitmap is reused between positions", first, second)
         assertTrue("The committed bitmap keeps alpha", before.hasAlpha())

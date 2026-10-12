@@ -24,14 +24,28 @@ class SelectionPreviewCompositeTest {
             val source = value(PixelRegion.create(document.size, position(0, 0), canvas(2, 1)))
             val transfer =
                 value(PixelTransfer.create(document.size, source, PixelPlacement.create(position(1, 1)), mode))
-            val prepared = SelectionPreviewComposite.prepare(document, LayerId.first(), source)
+            val prepared =
+                SelectionPreviewComposite.prepare(
+                    document,
+                    document.frames.single().id,
+                    LayerId.first(),
+                    source,
+                )
             val image = prepared.render(transfer)
-            val before = DocumentComposite.render(document).copyPackedRgba8888()
+            val before =
+                io.github.hideyukimori.nenepixel.core.application.render.SingleFrameRenderTestValues
+                    .image(
+                        document,
+                    ).copyPackedRgba8888()
             assertInstanceOf(
                 CommandResult.Applied::class.java,
                 runtime.execute(TransferPixelsCommand.create(runtime.captureSource(), LayerId.first(), transfer)),
             )
-            val expected = DocumentComposite.render(runtime.state.documentState).copyPackedRgba8888()
+            val expected =
+                io.github.hideyukimori.nenepixel.core.application.render.SingleFrameRenderTestValues
+                    .image(
+                        runtime.state.documentState,
+                    ).copyPackedRgba8888()
             val actual = before.copyOf()
             image.forEachPosition { pixel -> actual[pixel.y.value * 3 + pixel.x.value] = image.packedRgba8888At(pixel) }
             assertEquals(expected.toList(), actual.toList())

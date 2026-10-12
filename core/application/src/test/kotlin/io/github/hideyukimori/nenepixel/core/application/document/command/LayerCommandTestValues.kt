@@ -15,7 +15,11 @@ internal object LayerCommandTestValues {
     /** Layers with ids [ids], bottom first, each named `layer<id>` on the 2x1 canvas. */
     fun stateWithIds(vararg ids: Int): DocumentState = layeredState(ids.map { layer(it, "layer$it") })
 
-    fun ids(state: DocumentState): List<Int> = state.layers.map { it.id.value }
+    fun ids(state: DocumentState): List<Int> =
+        state.frames
+            .single()
+            .layers
+            .map { it.id.value }
 
     fun missing(): LayerId = layerId(MISSING_ID)
 

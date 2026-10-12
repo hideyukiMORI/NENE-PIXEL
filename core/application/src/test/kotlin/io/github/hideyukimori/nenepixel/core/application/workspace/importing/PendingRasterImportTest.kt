@@ -16,7 +16,13 @@ import org.junit.jupiter.api.fail
 internal class PendingRasterImportTest {
     @Test
     fun `a raster whose colours are all in the palette plans both forms without appending or converting`() {
-        val pending = PendingRasterImport.planned(raster(2, 1, RED, BLACK), canvas(2, 1), defaultDefinition)
+        val pending =
+            io.github.hideyukimori.nenepixel.core.application.workspace.importing.RasterImportTestValues
+                .planned(
+                    raster(2, 1, RED, BLACK),
+                    canvas(2, 1),
+                    defaultDefinition,
+                )
 
         assertEquals(RasterImportFacts(2, 1, 2), pending.facts)
         val appending = plan(pending.appending)
@@ -30,7 +36,13 @@ internal class PendingRasterImportTest {
 
     @Test
     fun `a new colour is appended by one form and takes the nearest colour in the other`() {
-        val pending = PendingRasterImport.planned(raster(1, 1, BLUE), canvas(1, 1), defaultDefinition)
+        val pending =
+            io.github.hideyukimori.nenepixel.core.application.workspace.importing.RasterImportTestValues
+                .planned(
+                    raster(1, 1, BLUE),
+                    canvas(1, 1),
+                    defaultDefinition,
+                )
 
         assertEquals(RasterImportFacts(1, 1, 1), pending.facts)
         assertEquals(1, plan(pending.appending).appendedColorCount)
@@ -41,7 +53,13 @@ internal class PendingRasterImportTest {
 
     @Test
     fun `a fully transparent raster has nothing to import in either form`() {
-        val pending = PendingRasterImport.planned(raster(2, 1, CLEAR, CLEAR), canvas(2, 1), defaultDefinition)
+        val pending =
+            io.github.hideyukimori.nenepixel.core.application.workspace.importing.RasterImportTestValues
+                .planned(
+                    raster(2, 1, CLEAR, CLEAR),
+                    canvas(2, 1),
+                    defaultDefinition,
+                )
 
         assertEquals(RasterImportFacts(2, 1, 0), pending.facts)
         assertSame(RasterImportOption.NothingToImport, pending.appending)
@@ -50,7 +68,13 @@ internal class PendingRasterImportTest {
 
     @Test
     fun `pixels outside a smaller canvas are counted as dropped in both forms`() {
-        val pending = PendingRasterImport.planned(raster(3, 1, RED, RED, GREEN), canvas(2, 1), defaultDefinition)
+        val pending =
+            io.github.hideyukimori.nenepixel.core.application.workspace.importing.RasterImportTestValues
+                .planned(
+                    raster(3, 1, RED, RED, GREEN),
+                    canvas(2, 1),
+                    defaultDefinition,
+                )
 
         assertEquals(RasterImportFacts(3, 1, 2), pending.facts)
         assertEquals(1, plan(pending.appending).loss.droppedPixelCount)
@@ -59,8 +83,20 @@ internal class PendingRasterImportTest {
 
     @Test
     fun `equality is identity and the text shows only the facts`() {
-        val first = PendingRasterImport.planned(raster(1, 1, RED), canvas(1, 1), defaultDefinition)
-        val second = PendingRasterImport.planned(raster(1, 1, RED), canvas(1, 1), defaultDefinition)
+        val first =
+            io.github.hideyukimori.nenepixel.core.application.workspace.importing.RasterImportTestValues
+                .planned(
+                    raster(1, 1, RED),
+                    canvas(1, 1),
+                    defaultDefinition,
+                )
+        val second =
+            io.github.hideyukimori.nenepixel.core.application.workspace.importing.RasterImportTestValues
+                .planned(
+                    raster(1, 1, RED),
+                    canvas(1, 1),
+                    defaultDefinition,
+                )
 
         assertEquals(first, first)
         assertNotEquals(first, second)
@@ -69,7 +105,13 @@ internal class PendingRasterImportTest {
 
     @Test
     fun `a small raster with two colours can be opened as a new work of its size`() {
-        val pending = PendingRasterImport.planned(raster(2, 1, RED, GREEN), canvas(1, 1), defaultDefinition)
+        val pending =
+            io.github.hideyukimori.nenepixel.core.application.workspace.importing.RasterImportTestValues
+                .planned(
+                    raster(2, 1, RED, GREEN),
+                    canvas(1, 1),
+                    defaultDefinition,
+                )
 
         val plan = assertInstanceOf(NewWorkImportOption.Available::class.java, pending.newWork).plan
         assertEquals(2, plan.definition.palette.entryCount)
@@ -79,7 +121,20 @@ internal class PendingRasterImportTest {
     @Test
     fun `a raster wider than the canvas limit cannot be a new work but is cropped into a layer`() {
         val pending =
-            PendingRasterImport.planned(raster(WIDE, 1, *IntArray(WIDE) { RED }), canvas(2, 1), defaultDefinition)
+            io.github.hideyukimori.nenepixel.core.application.workspace.importing.RasterImportTestValues
+                .planned(
+                    raster(
+                        WIDE,
+                        1,
+                        *IntArray(
+                            WIDE,
+                        ) {
+                            RED
+                        },
+                    ),
+                    canvas(2, 1),
+                    defaultDefinition,
+                )
 
         assertSame(NewWorkImportOption.AboveCanvasLimit, pending.newWork)
         assertInstanceOf(RasterImportOption.Available::class.java, pending.appending)
@@ -88,7 +143,13 @@ internal class PendingRasterImportTest {
     @Test
     fun `a raster with more colours than a palette holds cannot be a new work and the facts keep the count`() {
         val colors = IntArray(2 * HALF) { index -> (minOf(index, WIDE - 1) shl 8) or OPAQUE }
-        val pending = PendingRasterImport.planned(raster(HALF, 2, *colors), canvas(2, 1), defaultDefinition)
+        val pending =
+            io.github.hideyukimori.nenepixel.core.application.workspace.importing.RasterImportTestValues
+                .planned(
+                    raster(HALF, 2, *colors),
+                    canvas(2, 1),
+                    defaultDefinition,
+                )
 
         assertSame(NewWorkImportOption.TooManyColors, pending.newWork)
         assertEquals(WIDE, pending.facts.colorCount)
@@ -96,7 +157,13 @@ internal class PendingRasterImportTest {
 
     @Test
     fun `a fully transparent raster has nothing to import as a new work`() {
-        val pending = PendingRasterImport.planned(raster(2, 1, CLEAR, CLEAR), canvas(2, 1), defaultDefinition)
+        val pending =
+            io.github.hideyukimori.nenepixel.core.application.workspace.importing.RasterImportTestValues
+                .planned(
+                    raster(2, 1, CLEAR, CLEAR),
+                    canvas(2, 1),
+                    defaultDefinition,
+                )
 
         assertSame(NewWorkImportOption.NothingToImport, pending.newWork)
     }

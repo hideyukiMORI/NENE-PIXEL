@@ -170,7 +170,9 @@ internal class OutsideCanvasPointerTest {
 
     private fun assertCells(covered: Set<Pair<Int, Int>>) {
         val snapshot =
-            controller.documentState.layers
+            controller.documentState.frames
+                .single()
+                .layers
                 .single()
                 .snapshot
         repeat(DOCUMENT_HEIGHT) { y ->

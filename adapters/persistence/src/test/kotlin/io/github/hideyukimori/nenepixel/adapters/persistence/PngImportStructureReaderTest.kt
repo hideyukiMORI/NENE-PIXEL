@@ -113,7 +113,7 @@ internal class PngImportStructureReaderTest {
 
     @Test
     fun `output of the repository PNG writer is parsed as truecolour with alpha`() {
-        val parsed = parsed(PngEncoder.encode(PersistenceTestValues.minimalDocument).copyBytes())
+        val parsed = parsed(PngEncoderTestValues.encodeSingleFrame(PersistenceTestValues.minimalDocument).copyBytes())
         assertEquals(listOf(1, 1, 8, 6), fields(parsed.header))
     }
 

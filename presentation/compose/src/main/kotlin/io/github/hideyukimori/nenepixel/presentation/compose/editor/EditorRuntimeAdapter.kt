@@ -7,6 +7,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.command.UndoCo
 import io.github.hideyukimori.nenepixel.core.application.editor.EditorRuntime
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceAction
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReductionResult
+import io.github.hideyukimori.nenepixel.core.application.workspace.importing.PendingRasterImport
 import io.github.hideyukimori.nenepixel.core.domain.geometry.DocumentPoint
 
 internal class EditorRuntimeAdapter(
@@ -19,6 +20,9 @@ internal class EditorRuntimeAdapter(
     var paletteNotice: PaletteEditorNotice? = null
 
     var selectionNotice: SelectionEditorNotice? = null
+    var frameNotice: FrameEditorNotice? = null
+    var importNotice: FrameEditorNotice? = null
+    var importNoticeSource: PendingRasterImport? = null
 
     /** The layer notice and its serials (#144 U6); a render state carries it only while it still holds. */
     val layerNotices: LayerNoticeSlot = LayerNoticeSlot()
@@ -127,6 +131,9 @@ internal class EditorRuntimeAdapter(
             pendingImport = state.workspaceState.pendingImport,
             selectionSession = state.workspaceState.selectionSession,
             selectionNotice = selectionNotice.takeIf { state.workspaceState.selectionSession != null },
+            activeFrameId = state.workspaceState.activeFrameId,
+            frameNotice = frameNotice,
+            importNotice = importNotice.takeIf { importNoticeSource === state.workspaceState.pendingImport },
         )
     }
 

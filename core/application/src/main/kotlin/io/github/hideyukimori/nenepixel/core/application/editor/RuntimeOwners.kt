@@ -1,6 +1,7 @@
 package io.github.hideyukimori.nenepixel.core.application.editor
 
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandGateway
+import io.github.hideyukimori.nenepixel.core.application.workspace.EditTarget
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceState
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentId
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
@@ -61,7 +62,13 @@ internal data class RuntimeOwners(
             val commandGateway = CommandGateway.create(document)
             return RuntimeOwners(
                 commandGateway,
-                WorkspaceState.create(document.size),
+                WorkspaceState.create(document.size).withEditTarget(
+                    EditTarget.create(
+                        document.frames.first().id,
+                        LayerSelectionPolicy.onInstall(document),
+                        io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex.first,
+                    ),
+                ),
                 DocumentCleanCheckpoint.create(commandGateway.runtimeState),
             )
         }

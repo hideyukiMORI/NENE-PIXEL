@@ -10,6 +10,7 @@ import android.net.Uri
 import android.os.ParcelFileDescriptor
 import androidx.test.core.app.ApplicationProvider
 import io.github.hideyukimori.nenepixel.adapters.persistence.AndroidPngExportAdapter
+import io.github.hideyukimori.nenepixel.adapters.persistence.AndroidProjectStorageAdapter
 import io.github.hideyukimori.nenepixel.adapters.persistence.ProjectPickerResult
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
@@ -35,8 +36,14 @@ internal class PngPickerCancellationTest {
                     broker,
                     dispatchers.inline,
                 )
-            val document = createEditorRuntime().state.documentState
-            val job = async { exporter.export(document) }
+            val workflow =
+                PngPickerWorkflowFixture.create(
+                    AndroidProjectStorageAdapter.create(ContentResolver.wrap(provider), broker, dispatchers.inline),
+                    exporter,
+                    dispatchers.inline,
+                )
+            workflow.initializeRecovery()
+            val job = async { workflow.exportPng() }
             yield()
             assertTrue(broker.claim(checkNotNull(broker.pendingRequest.value)))
             job.cancel()

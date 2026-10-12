@@ -104,7 +104,12 @@ internal class LayerPanelUnderlayRowTest {
         val controller = showWithUnderlay()
         composeRule.runOnIdle { repeat(MAX_LAYERS - 1) { controller.callbacks.layers.onAdd() } }
         composeRule.waitForIdle()
-        assertEquals(MAX_LAYERS, controller.renderState.document.layers.size)
+        assertEquals(
+            MAX_LAYERS,
+            controller.renderState.document.frames
+                .single()
+                .layers.size,
+        )
         composeRule.onNodeWithTag(ADD_TAG).assertIsDisplayed()
         listOf(VISIBILITY_TAG, OPACITY_TAG).forEach { tag ->
             composeRule.onNodeWithTag(tag).performScrollTo().assertIsDisplayed()

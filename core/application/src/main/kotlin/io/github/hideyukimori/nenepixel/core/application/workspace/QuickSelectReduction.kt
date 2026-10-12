@@ -129,7 +129,11 @@ private fun pickPaletteEntryAt(
     action: WorkspaceAction.PickPaletteEntryAt,
     source: CommandSourceAdmission,
 ): WorkspaceReductionResult {
-    val layer = source.document.layers.firstOrNull { it.id == state.activeLayerId }
+    val layer =
+        source.document
+            .frameById(state.activeFrameId)
+            ?.layers
+            ?.firstOrNull { it.id == state.activeLayerId }
     return when {
         state.quickSelection.eyedropper == EyedropperState.Idle -> {
             WorkspaceReductionResult.Rejected(state, WorkspaceActionRejection.EyedropperNotArmed)

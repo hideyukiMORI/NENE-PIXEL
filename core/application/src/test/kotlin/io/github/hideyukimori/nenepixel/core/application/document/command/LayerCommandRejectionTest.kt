@@ -40,7 +40,12 @@ internal class LayerCommandRejectionTest {
     fun `add reaches sixteen layers and rejects the seventeenth`() {
         val gateway = CommandGateway.create(stateWithIds(1))
         repeat(LayerLimits.MAX_LAYERS - 1) { applied(gateway.execute(add(gateway, above = 1))) }
-        assertEquals(LayerLimits.MAX_LAYERS, gateway.runtimeState.documentState.layers.size)
+        assertEquals(
+            LayerLimits.MAX_LAYERS,
+            gateway.runtimeState.documentState.frames
+                .single()
+                .layers.size,
+        )
 
         assertRejectedWithoutEffect(gateway, add(gateway, above = 1), RejectionReason.LayerLimitReached)
     }

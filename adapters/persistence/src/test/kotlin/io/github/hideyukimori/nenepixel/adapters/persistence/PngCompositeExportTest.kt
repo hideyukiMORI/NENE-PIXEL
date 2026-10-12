@@ -26,7 +26,7 @@ internal class PngCompositeExportTest {
 
     @Test
     fun `layered PNG carries the hand computed composite and transparent empty pixels`() {
-        val bytes = PngEncoder.encode(document()).copyBytes()
+        val bytes = PngEncoderTestValues.encodeSingleFrame(document()).copyBytes()
         val image = checkNotNull(ImageIO.read(ByteArrayInputStream(bytes)))
         assertEquals(3, image.width)
         assertEquals(1, image.height)
@@ -44,7 +44,7 @@ internal class PngCompositeExportTest {
         val colors = listOf(0x204060ff, 0xa0c0e080.toInt()).map(PixelColor::fromPackedRgba8888)
         val definition = value(PaletteDefinition.create(value(Palette.create(colors)), value(PaletteIndex.create(0))))
         val id = value(DocumentId.create("0".repeat(32)))
-        return value(DocumentState.createLayered(id, value(Revision.create(0)), definition, layers))
+        return value(DocumentState.createSingleFrame(id, value(Revision.create(0)), definition, layers))
     }
 
     private fun layer(

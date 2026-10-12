@@ -25,7 +25,7 @@ internal class AndroidProjectStorageAdapterTest {
     private val dispatchers = TestCoroutineDispatchers()
 
     @Test
-    fun `load returns typed current v2 source`() =
+    fun `load returns typed current v4 frame hierarchy`() =
         runBlocking {
             val document = PersistenceTestValues.minimalDocument
             val content = MemoryProjectContent(ProjectFormatCodec.encode(document).copyBytes())
@@ -60,7 +60,8 @@ internal class AndroidProjectStorageAdapterTest {
             val content = MemoryProjectContent()
             val adapter = adapter(content, InternalPickerResult.Selected(TestLocation))
 
-            val result = adapter.save(PersistenceTestValues.minimalDocument)
+            val document = PersistenceTestValues.twoFramesDocument()
+            val result = adapter.save(document)
 
             assertSame(ProjectSaveOutcome.Saved, result)
             assertTrue(content.outputClosed)
@@ -68,6 +69,8 @@ internal class AndroidProjectStorageAdapterTest {
             assertEquals(1, content.openOutputCalls)
             assertEquals(1, content.openInputCalls)
             assertEquals(0, content.deleteCalls)
+            assertEquals(ProjectLoadOutcome.Loaded(DocumentImportSource.Current(document)), adapter.load())
+            assertEquals(2, content.openInputCalls)
         }
 
     @Test

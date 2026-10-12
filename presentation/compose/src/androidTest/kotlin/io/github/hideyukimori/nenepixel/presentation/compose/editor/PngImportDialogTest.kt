@@ -50,7 +50,12 @@ internal class PngImportDialogTest {
         composeRule.onNodeWithTag(APPEND_TAG).performScrollTo().performClick()
 
         awaitClosed()
-        assertEquals(2, controller.renderState.document.layers.size)
+        assertEquals(
+            2,
+            controller.renderState.document.frames
+                .single()
+                .layers.size,
+        )
         assertEquals(PALETTE_SIZE + 1, controller.renderState.palette.entryCount)
     }
 
@@ -61,7 +66,12 @@ internal class PngImportDialogTest {
         composeRule.onNodeWithTag(CONVERT_TAG).performScrollTo().performClick()
 
         awaitClosed()
-        assertEquals(2, controller.renderState.document.layers.size)
+        assertEquals(
+            2,
+            controller.renderState.document.frames
+                .single()
+                .layers.size,
+        )
         assertEquals(PALETTE_SIZE, controller.renderState.palette.entryCount)
     }
 
@@ -100,7 +110,7 @@ internal class PngImportDialogTest {
 
         composeRule.onNodeWithTag(APPEND_TAG).assertIsNotEnabled()
         composeRule.onNodeWithTag(CONVERT_TAG).assertIsNotEnabled()
-        val limit = resources.getQuantityString(R.plurals.layer_limit, MAX_LAYERS, MAX_LAYERS)
+        val limit = resources.getString(R.string.document_layer_limit)
         composeRule.onAllNodesWithText(limit).assertCountEquals(2)
     }
 

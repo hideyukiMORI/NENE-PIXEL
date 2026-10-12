@@ -2,6 +2,7 @@ package io.github.hideyukimori.nenepixel.core.application.persistence
 
 import io.github.hideyukimori.nenepixel.core.application.editor.PngImportPickStart
 import io.github.hideyukimori.nenepixel.core.application.editor.RuntimePngImportOperations
+import io.github.hideyukimori.nenepixel.core.application.workspace.importing.LayerImportTarget
 import io.github.hideyukimori.nenepixel.core.application.workspace.importing.PendingRasterImport
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -27,18 +28,20 @@ internal class PersistencePngImportFlow(
     private suspend fun pick(start: PngImportPickStart.Started): PersistenceRequestResult =
         try {
             val outcome = picker.pick()
-            operations.completePick(start.handle, outcome, plan(outcome))
+            operations.completePick(start.handle, outcome, plan(outcome, start.target))
         } catch (cancelled: CancellationException) {
             operations.cancelPick(start.handle)
             throw cancelled
         }
 
     /** Plans the picked raster off the main thread while the lease is still held (ADR 0033). */
-    private suspend fun plan(outcome: PngImportOutcome): PendingRasterImport? {
+    private suspend fun plan(
+        outcome: PngImportOutcome,
+        target: LayerImportTarget,
+    ): PendingRasterImport? {
         val picked = outcome as? PngImportOutcome.Picked ?: return null
-        val source = operations.planningSource()
         return withContext(conversionDispatcher) {
-            PendingRasterImport.planned(picked.raster, source.canvas, source.definition)
+            PendingRasterImport.planned(picked.raster, target)
         }
     }
 }

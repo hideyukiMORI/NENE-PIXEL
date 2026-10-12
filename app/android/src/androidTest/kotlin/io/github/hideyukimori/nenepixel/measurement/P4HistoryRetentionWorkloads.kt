@@ -190,7 +190,15 @@ private class P4HistoryValues {
                 transitionCount % 2 == 0 -> 2
                 else -> 1
             }
-        assertIndices(document.layers.single().snapshot, expectedChanged, 0)
+        assertIndices(
+            document.frames
+                .single()
+                .layers
+                .single()
+                .snapshot,
+            expectedChanged,
+            0,
+        )
     }
 
     fun assertPaletteState(
@@ -205,7 +213,15 @@ private class P4HistoryValues {
                 transitionCount % 2 == 0 -> 0
                 else -> 2
             }
-        assertIndices(document.layers.single().snapshot, expectedChanged, UNCHANGED_SLOT)
+        assertIndices(
+            document.frames
+                .single()
+                .layers
+                .single()
+                .snapshot,
+            expectedChanged,
+            UNCHANGED_SLOT,
+        )
     }
 
     fun assertFullUndoRedo(

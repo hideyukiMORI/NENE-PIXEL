@@ -24,7 +24,7 @@ internal class PngEncoderTest {
     fun `minimal PNG matches independently constructed golden and decoded pixels`() {
         val document = PersistenceTestValues.minimalDocument
         assertGolden("minimal.png", document)
-        assertEquals(86, PngEncoder.encode(document).byteCount)
+        assertEquals(86, PngEncoderTestValues.encodeSingleFrame(document).byteCount)
     }
 
     @Test
@@ -36,7 +36,7 @@ internal class PngEncoderTest {
     @Test
     fun `maximum PNG has bounded retained payload and every decoded pixel matches`() {
         val document = PersistenceTestValues.maximumDocument()
-        val encoded = PngEncoder.encode(document)
+        val encoded = PngEncoderTestValues.encodeSingleFrame(document)
         assertEquals(263_756, encoded.byteCount)
         assertEquals(PngBytes.MAX_BYTE_COUNT, encoded.byteCount)
         assertPixels(document, encoded.copyBytes())
@@ -47,14 +47,14 @@ internal class PngEncoderTest {
         val size = CanvasSize.create(created(CanvasWidth.create(256)), created(CanvasHeight.create(1)))
         val pixels = IntArray(256) { value -> (value shl 24) or ((255 - value) shl 16) or (value shl 8) }
         val document = document(size, pixels, ByteArray(256) { it.toByte() })
-        val bytes = PngEncoder.encode(document).copyBytes()
+        val bytes = PngEncoderTestValues.encodeSingleFrame(document).copyBytes()
         assertPixels(document, bytes)
-        assertArrayEquals(bytes, PngEncoder.encode(document).copyBytes())
+        assertArrayEquals(bytes, PngEncoderTestValues.encodeSingleFrame(document).copyBytes())
     }
 
     @Test
     fun `PNG carrier owns input and output copies`() {
-        val input = PngEncoder.encode(rectangle()).copyBytes()
+        val input = PngEncoderTestValues.encodeSingleFrame(rectangle()).copyBytes()
         val expected = input.copyOf()
         val carrier = PngBytes.create(input)
         input.fill(0)
@@ -68,7 +68,7 @@ internal class PngEncoderTest {
     ) {
         val resource = checkNotNull(javaClass.getResourceAsStream("/png-v1/$name"))
         val golden = resource.use { it.readBytes() }
-        val encoded = PngEncoder.encode(document).copyBytes()
+        val encoded = PngEncoderTestValues.encodeSingleFrame(document).copyBytes()
         assertArrayEquals(golden, encoded)
         assertPixels(document, encoded)
     }
@@ -86,7 +86,9 @@ internal class PngEncoderTest {
                 .entries()
                 .map { it.color.toPackedRgba8888() }
         val expected =
-            document.layers
+            document.frames
+                .single()
+                .layers
                 .single()
                 .snapshot
                 .copyPackedIndices()

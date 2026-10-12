@@ -25,6 +25,7 @@ import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestVal
 import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestValues.green
 import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestValues.position
 import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestValues.red
+import io.github.hideyukimori.nenepixel.presentation.compose.editor.SingleFrameTestValues.snapshotOf
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertInstanceOf
@@ -60,24 +61,16 @@ internal class ViewportEditorControllerTest {
 
         val undone = fixture.controller.callbacks.onUndo()
         assertEquals(
-            initial.document.layers
-                .single()
-                .snapshot,
-            undone.document.layers
-                .single()
-                .snapshot,
+            snapshotOf(initial.document),
+            snapshotOf(undone.document),
         )
         assertFalse(undone.canUndo)
         assertTrue(undone.canRedo)
 
         val redone = fixture.controller.callbacks.onRedo()
         assertEquals(
-            accepted.renderState.document.layers
-                .single()
-                .snapshot,
-            redone.document.layers
-                .single()
-                .snapshot,
+            snapshotOf(accepted.renderState.document),
+            snapshotOf(redone.document),
         )
         assertTrue(redone.canUndo)
         assertFalse(redone.canRedo)

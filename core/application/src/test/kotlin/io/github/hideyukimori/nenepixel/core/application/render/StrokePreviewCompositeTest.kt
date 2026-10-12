@@ -48,7 +48,13 @@ internal class StrokePreviewCompositeTest {
                 PreviewScene(document, canvas(2, 1)),
                 GestureStroke(2, StrokeEffect.Erase, listOf(position(0, 0))),
             )
-        assertThrows<IllegalStateException> { StrokePreviewComposite.prepare(document, gesture) }
+        assertThrows<IllegalStateException> {
+            StrokePreviewComposite.prepare(
+                document,
+                document.frames.single().id,
+                gesture,
+            )
+        }
     }
 
     @Test
@@ -56,7 +62,13 @@ internal class StrokePreviewCompositeTest {
         val document = document(LayerVisibility.Hidden)
         val gesture =
             gesture(PreviewScene(document, size), GestureStroke(2, StrokeEffect.Erase, listOf(position(0, 0))))
-        assertThrows<IllegalStateException> { StrokePreviewComposite.prepare(document, gesture) }
+        assertThrows<IllegalStateException> {
+            StrokePreviewComposite.prepare(
+                document,
+                document.frames.single().id,
+                gesture,
+            )
+        }
     }
 
     @Test
@@ -65,6 +77,7 @@ internal class StrokePreviewCompositeTest {
         val preview =
             StrokePreviewComposite.prepare(
                 document,
+                document.frames.single().id,
                 gesture(PreviewScene(document, size), GestureStroke(1, StrokeEffect.Erase, path)),
             )
         assertThrows<IllegalArgumentException> { preview.packedRgba8888At(position(4, 0)) }
@@ -77,9 +90,13 @@ internal class StrokePreviewCompositeTest {
         val document = document(LayerVisibility.Visible)
         val gateway = CommandGateway.create(document)
         val gesture = gesture(PreviewScene(document, size, gateway), GestureStroke(target, effect, path))
-        val preview = StrokePreviewComposite.prepare(document, gesture)
+        val preview = StrokePreviewComposite.prepare(document, document.frames.single().id, gesture)
         applied(gateway.execute(ApplyStrokeCommand.create(gesture.admission, layerId(target), gesture.prepareStroke())))
-        val committed = DocumentComposite.render(gateway.runtimeState.documentState).copyPackedRgba8888()
+        val committed =
+            io.github.hideyukimori.nenepixel.core.application.render.SingleFrameRenderTestValues
+                .image(
+                    gateway.runtimeState.documentState,
+                ).copyPackedRgba8888()
         gesture.forEachPosition { position ->
             val pixel = position.y.value * size.width.value + position.x.value
             assertEquals(committed[pixel], preview.packedRgba8888At(position), "target=$target $effect at $position")
@@ -105,7 +122,7 @@ internal class StrokePreviewCompositeTest {
     /** Three layers with translucent, opaque and Empty cells; the middle layer has [middleVisibility]. */
     private fun document(middleVisibility: LayerVisibility): DocumentState =
         DocumentState
-            .createLayered(
+            .createSingleFrame(
                 defaultDocumentId,
                 Revision.initial(),
                 definition(paletteIndex(0), *palette.toTypedArray()),

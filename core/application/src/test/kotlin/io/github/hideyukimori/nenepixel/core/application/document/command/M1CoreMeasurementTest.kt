@@ -81,7 +81,9 @@ internal class M1CoreMeasurementTest {
             MeasuredOperation(
                 execute = {
                     rasterizeStroke(
-                        fixture.initial.layers
+                        fixture.initial.frames
+                            .single()
+                            .layers
                             .single()
                             .snapshot,
                         fixture.stroke,
@@ -188,7 +190,9 @@ internal class M1CoreMeasurementTest {
         assertEquals(fixture.stroke.positionCount, patch.changeCount)
         val applied =
             patch.applyTo(
-                fixture.initial.layers
+                fixture.initial.frames
+                    .single()
+                    .layers
                     .single()
                     .snapshot,
             )
@@ -198,7 +202,9 @@ internal class M1CoreMeasurementTest {
                 is PixelPatchApplicationResult.Rejected -> fail("Measurement patch was rejected: ${applied.rejection}")
             }
         assertEquals(
-            fixture.expectedApplied.layers
+            fixture.expectedApplied.frames
+                .single()
+                .layers
                 .single()
                 .snapshot,
             snapshot,

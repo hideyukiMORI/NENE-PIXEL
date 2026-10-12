@@ -41,20 +41,29 @@ internal class CommandGatewayTest {
         val restored =
             created(
                 DocumentTransition.create(firstGateway.runtimeState.documentState, changeSet.inverse()),
-            ).nextState.layers.single().snapshot
+            ).nextState.frames.single().layers.single().snapshot
 
         assertEquals(firstResult, secondResult)
         assertEquals(firstGateway.runtimeState.documentState, secondGateway.runtimeState.documentState)
         assertEquals(revision(0), changeSet.beforeRevision)
         assertEquals(revision(1), changeSet.afterRevision)
         val committed =
-            firstGateway.runtimeState.documentState.layers
+            firstGateway.runtimeState.documentState.frames
+                .single()
+                .layers
                 .single()
                 .snapshot
         assertEquals(PixelCell.Covered(redIndex), cellAt(committed, position(0, 0)))
         assertEquals(PixelCell.Covered(greenIndex), cellAt(committed, position(1, 0)))
         assertEquals(PixelCell.Covered(redIndex), cellAt(committed, position(2, 0)))
-        assertEquals(initial.layers.single().snapshot, restored)
+        assertEquals(
+            initial.frames
+                .single()
+                .layers
+                .single()
+                .snapshot,
+            restored,
+        )
     }
 
     @Test
@@ -92,8 +101,28 @@ internal class CommandGatewayTest {
         )
         val erased = gateway.runtimeState.documentState
 
-        assertEquals(PixelCell.Empty, cellAt(erased.layers.single().snapshot, position(0, 0)))
-        assertEquals(PixelCell.Empty, cellAt(erased.layers.single().snapshot, position(1, 0)))
+        assertEquals(
+            PixelCell.Empty,
+            cellAt(
+                erased.frames
+                    .single()
+                    .layers
+                    .single()
+                    .snapshot,
+                position(0, 0),
+            ),
+        )
+        assertEquals(
+            PixelCell.Empty,
+            cellAt(
+                erased.frames
+                    .single()
+                    .layers
+                    .single()
+                    .snapshot,
+                position(1, 0),
+            ),
+        )
         assertEquals(HistoryAvailability.UndoAvailable, gateway.runtimeState.historyAvailability)
         applied(gateway.execute(UndoCommand.create(erased.id, erased.revision)))
         assertEquals(initial, gateway.runtimeState.documentState)
@@ -124,7 +153,9 @@ internal class CommandGatewayTest {
         assertEquals(
             PixelCell.Covered(greenIndex),
             cellAt(
-                gateway.runtimeState.documentState.layers
+                gateway.runtimeState.documentState.frames
+                    .single()
+                    .layers
                     .single()
                     .snapshot,
                 position(0, 0),
@@ -160,7 +191,9 @@ internal class CommandGatewayTest {
             )
             assertEquals(revision(1), gateway.runtimeState.documentState.revision)
             val committed =
-                gateway.runtimeState.documentState.layers
+                gateway.runtimeState.documentState.frames
+                    .single()
+                    .layers
                     .single()
                     .snapshot
             assertTrue(

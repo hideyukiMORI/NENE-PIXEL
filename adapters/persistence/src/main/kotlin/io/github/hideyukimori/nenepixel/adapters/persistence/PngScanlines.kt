@@ -1,15 +1,20 @@
 package io.github.hideyukimori.nenepixel.adapters.persistence
 
 import io.github.hideyukimori.nenepixel.core.application.render.DocumentComposite
+import io.github.hideyukimori.nenepixel.core.application.render.DocumentCompositeRenderResult
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
+import io.github.hideyukimori.nenepixel.core.domain.frame.Frame
 import java.nio.ByteBuffer
 import java.util.zip.Adler32
 
 internal object PngScanlines {
-    fun encode(document: DocumentState): ByteArray {
+    fun encode(
+        document: DocumentState,
+        frame: Frame,
+    ): ByteArray {
         val rowBytes = CHANNEL_COUNT * document.size.width.value + 1
         val height = document.size.height.value
-        val raw = filteredRows(document, rowBytes)
+        val raw = filteredRows(document, frame, rowBytes)
         val output = ByteBuffer.allocate(ZLIB_OVERHEAD + raw.size + BLOCK_OVERHEAD * height)
         output.put(ZLIB_METHOD).put(ZLIB_FLAGS)
         repeat(height) { row ->
@@ -27,9 +32,15 @@ internal object PngScanlines {
 
     private fun filteredRows(
         document: DocumentState,
+        frame: Frame,
         rowBytes: Int,
     ): ByteArray {
-        val pixels = DocumentComposite.render(document).copyPackedRgba8888()
+        val pixels =
+            when (val result = DocumentComposite.render(document, frame.id)) {
+                is DocumentCompositeRenderResult.Rendered -> result.image.copyPackedRgba8888()
+                is DocumentCompositeRenderResult.FrameNotFound -> error("Captured export frame is missing")
+                is DocumentCompositeRenderResult.IndexOutsidePalette -> error("Captured export palette is invalid")
+            }
         val width = document.size.width.value
         return ByteArray(rowBytes * document.size.height.value) { offset ->
             val columnByte = offset % rowBytes

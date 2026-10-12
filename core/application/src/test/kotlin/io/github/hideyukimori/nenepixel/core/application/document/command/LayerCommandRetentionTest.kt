@@ -19,8 +19,8 @@ internal class LayerCommandRetentionTest {
 
         applied(gateway.execute(add(gateway, above = 1)))
 
-        // 32 transition bytes + 0 UTF-8 bytes of the empty name.
-        assertRetention(gateway, entries = 1, bytes = 32L)
+        // 32 transition bytes + 4 owner FrameId bytes + 0 UTF-8 bytes of the empty name.
+        assertRetention(gateway, entries = 1, bytes = 36L)
     }
 
     @Test
@@ -29,8 +29,9 @@ internal class LayerCommandRetentionTest {
 
         applied(gateway.execute(rename(gateway)))
 
-        // 32 transition bytes + 6 bytes of "layer2" + 18 bytes of "線画レイヤー" (6 characters x 3 UTF-8 bytes).
-        assertRetention(gateway, entries = 1, bytes = 56L)
+        // 32 transition bytes + 4 owner FrameId bytes + 6 bytes of "layer2"
+        // + 18 bytes of "線画レイヤー" (6 characters x 3 UTF-8 bytes).
+        assertRetention(gateway, entries = 1, bytes = 60L)
     }
 
     @Test
@@ -39,8 +40,8 @@ internal class LayerCommandRetentionTest {
 
         applied(gateway.execute(move(gateway, id = 1, toPosition = 2)))
 
-        // 32 transition bytes; a move keeps no pixel or name bytes.
-        assertRetention(gateway, entries = 1, bytes = 32L)
+        // 32 transition bytes + 4 owner FrameId bytes; a move keeps no pixel or name bytes.
+        assertRetention(gateway, entries = 1, bytes = 36L)
     }
 
     @Test
@@ -49,8 +50,8 @@ internal class LayerCommandRetentionTest {
 
         applied(gateway.execute(hide(gateway)))
 
-        // 32 transition bytes; a visibility change keeps no pixel or name bytes.
-        assertRetention(gateway, entries = 1, bytes = 32L)
+        // 32 transition bytes + 4 owner FrameId bytes; a visibility change keeps no pixel or name bytes.
+        assertRetention(gateway, entries = 1, bytes = 36L)
     }
 
     @Test
@@ -59,8 +60,9 @@ internal class LayerCommandRetentionTest {
 
         applied(gateway.execute(delete(gateway, id = 2)))
 
-        // 32 transition bytes + 2 index bytes + 1 coverage byte of the 2x1 layer + 6 bytes of "layer2".
-        assertRetention(gateway, entries = 1, bytes = 41L)
+        // 32 transition bytes + 4 owner FrameId bytes + 2 index bytes
+        // + 1 coverage byte of the 2x1 layer + 6 bytes of "layer2".
+        assertRetention(gateway, entries = 1, bytes = 45L)
     }
 
     @Test
@@ -72,8 +74,8 @@ internal class LayerCommandRetentionTest {
         applied(gateway.execute(move(gateway, id = 1, toPosition = 2)))
         applied(gateway.execute(hide(gateway)))
 
-        // add 32 + rename 56 + move 32 + visibility 32.
-        assertRetention(gateway, entries = 4, bytes = 152L)
+        // add 36 + rename 60 + move 36 + visibility 36.
+        assertRetention(gateway, entries = 4, bytes = 168L)
     }
 
     private fun rename(gateway: CommandGateway): RenameLayerCommand =

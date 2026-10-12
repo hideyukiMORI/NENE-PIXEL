@@ -1,11 +1,15 @@
 package io.github.hideyukimori.nenepixel.adapters.persistence
 
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
+import io.github.hideyukimori.nenepixel.core.domain.frame.Frame
 import java.nio.ByteBuffer
 import java.util.zip.CRC32
 
 internal object PngEncoder {
-    fun encode(document: DocumentState): PngBytes {
+    fun encode(
+        document: DocumentState,
+        frame: Frame,
+    ): PngBytes {
         val width = document.size.width.value
         val height = document.size.height.value
         val output = ByteBuffer.allocate(FIXED_BYTE_COUNT + height * (CHANNEL_COUNT * width + ROW_OVERHEAD))
@@ -23,7 +27,7 @@ internal object PngEncoder {
                 .array()
         chunk(output, "IHDR", header)
         chunk(output, "sRGB", byteArrayOf(RELATIVE_COLORIMETRIC))
-        chunk(output, "IDAT", PngScanlines.encode(document))
+        chunk(output, "IDAT", PngScanlines.encode(document, frame))
         chunk(output, "IEND", byteArrayOf())
         check(!output.hasRemaining())
         return PngBytes.create(output.array())

@@ -9,6 +9,8 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.App
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.defaultDefinition
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.position
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.redIndex
+import io.github.hideyukimori.nenepixel.core.application.document.transition.assertSingleFrameCell
+import io.github.hideyukimori.nenepixel.core.application.document.transition.singleFrameSnapshot
 import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveStateToken
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceAction
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceActionRejection
@@ -57,8 +59,8 @@ internal class RuntimeSelectionOperationsTest {
         assertEquals(initial.revision.value + 1L, applied.revision.value)
         assertEquals(history.value + 1L, runtime.read { it.historyPosition().value })
         assertNull(runtime.state.workspaceState.selectionSession)
-        assertEquals(PixelCell.Empty, cellAt(applied.layers.single().snapshot, position(0, 0)))
-        assertEquals(PixelCell.Covered(redIndex), cellAt(applied.layers.single().snapshot, position(2, 1)))
+        assertSingleFrameCell(applied, position(0, 0), PixelCell.Empty)
+        assertSingleFrameCell(applied, position(2, 1), PixelCell.Covered(redIndex))
         val expected = runtime.read { AutosaveStateToken(it.coordination.runtimeGeneration, it.historyPosition()) }
         assertNotEquals(pending, runtime.autosaveProjection.value.pendingStateToken)
         assertEquals(expected, runtime.autosaveProjection.value.pendingStateToken)

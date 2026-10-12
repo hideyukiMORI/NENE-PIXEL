@@ -1,6 +1,7 @@
 package io.github.hideyukimori.nenepixel.core.application.document.command
 
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ChangeSet
+import io.github.hideyukimori.nenepixel.core.application.document.transition.DocumentStructureTransition
 import io.github.hideyukimori.nenepixel.core.application.document.transition.DocumentTransition
 import io.github.hideyukimori.nenepixel.core.application.document.transition.DocumentTransitionResult
 import io.github.hideyukimori.nenepixel.core.application.document.transition.LayerStructureTransition
@@ -29,7 +30,7 @@ internal class ImportLayerCommandHandler {
             }
 
             else -> {
-                when (val insertion = planLayerInsertion(currentState.layers, command.aboveLayerId)) {
+                when (val insertion = planLayerInsertion(currentState, command.aboveLayerId)) {
                     is LayerInsertion.Accepted -> transition(currentState, plan, insertion)
                     is LayerInsertion.Refused -> rejected(insertion.reason)
                 }
@@ -51,7 +52,11 @@ internal class ImportLayerCommandHandler {
             }
         return when (val next = currentState.revision.advance()) {
             is DomainValueResult.Created -> {
-                val added = LayerStructureTransition.Added(layer, insertion.position)
+                val added =
+                    DocumentStructureTransition.LayerChanged(
+                        insertion.frameId,
+                        LayerStructureTransition.Added(layer, insertion.position),
+                    )
                 DocumentTransition.create(
                     currentState,
                     ChangeSet.createImportedLayer(currentState, next.value, palette, added),

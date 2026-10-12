@@ -19,12 +19,8 @@ import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelSnapshot
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
-import io.github.hideyukimori.nenepixel.core.projectformat.ProjectFormatCodec
-import java.util.zip.CRC32
 
 internal object PersistenceTestValues {
-    private const val V3_LAYER_FIXED_BYTE_COUNT: Int = 6
-
     /** One 128-byte layer name: 32 code points of U+1F600, four UTF-8 bytes each. */
     private val LONGEST_LAYER_NAME: String = "😀".repeat(32)
 
@@ -64,23 +60,68 @@ internal object PersistenceTestValues {
                 )
             }
         val id = created(DocumentId.create("f0e0d0c0b0a090807060504030201000"))
-        return created(DocumentState.createLayered(id, created(Revision.create(Long.MAX_VALUE)), definition, layers))
+        return created(
+            DocumentState.createSingleFrame(id, created(Revision.create(Long.MAX_VALUE)), definition, layers),
+        )
     }
 
-    /**
-     * Project v2 bytes for a one-layer, fully covered, unnamed document: the v3 header and palette with
-     * version 2, then the palette slots of the layer, then a fresh CRC32. The production encoder writes v3.
-     */
-    fun v2ProjectBytes(document: DocumentState): ByteArray {
-        val v3 = ProjectFormatCodec.encode(document).copyBytes()
-        val pixelCount = document.size.pixelCount.toInt()
-        val pixelOffset = v3.size - Int.SIZE_BYTES - pixelCount
-        val layerCountOffset = pixelOffset - (pixelCount + 7) / 8 - V3_LAYER_FIXED_BYTE_COUNT - 1
-        check(v3[layerCountOffset].toInt() == 1)
-        val body = v3.copyOfRange(0, layerCountOffset) + v3.copyOfRange(pixelOffset, v3.size - Int.SIZE_BYTES)
-        body[9] = 2
-        val crc = CRC32().also { checksum -> checksum.update(body) }.value
-        return body + ByteArray(Int.SIZE_BYTES) { index -> (crc ushr (24 - index * 8)).toByte() }
+    fun twoFramesDocument(): DocumentState {
+        val first = minimalDocument.frames.single()
+        val secondLayer =
+            Layer.create(
+                created(LayerId.create(2)),
+                LayerName.empty,
+                LayerVisibility.Visible,
+                created(PixelSnapshot.createFilled(minimalDocument.size, PaletteIndex.first)),
+            )
+        val second =
+            created(
+                io.github.hideyukimori.nenepixel.core.domain.frame.Frame.create(
+                    created(
+                        io.github.hideyukimori.nenepixel.core.domain.frame.FrameId
+                            .create(2),
+                    ),
+                    created(
+                        io.github.hideyukimori.nenepixel.core.domain.frame.FrameDuration
+                            .create(250),
+                    ),
+                    listOf(
+                        secondLayer,
+                        Layer.create(
+                            created(LayerId.create(3)),
+                            LayerName.empty,
+                            LayerVisibility.Hidden,
+                            first.layers.single().snapshot,
+                        ),
+                    ),
+                ),
+            )
+        return created(
+            DocumentState.create(
+                minimalDocument.id,
+                minimalDocument.revision,
+                minimalDocument.definition,
+                listOf(first, second),
+            ),
+        )
+    }
+
+    fun maximumFramesDocument(): DocumentState {
+        val layered = maximumLayeredDocument()
+        val frames =
+            layered.frames.single().layers.mapIndexed { index, layer ->
+                created(
+                    io.github.hideyukimori.nenepixel.core.domain.frame.Frame.create(
+                        created(
+                            io.github.hideyukimori.nenepixel.core.domain.frame.FrameId
+                                .create(index + 1),
+                        ),
+                        io.github.hideyukimori.nenepixel.core.domain.frame.FrameDuration.default,
+                        listOf(layer),
+                    ),
+                )
+            }
+        return created(DocumentState.create(layered.id, layered.revision, layered.definition, frames))
     }
 
     fun maximumLegacySource(): LegacyRgbaSource {

@@ -2,7 +2,7 @@
 
 - Status: accepted
 - Date: 2026-10-12
-- Issue: #215
+- Issue: #215 (design), #216 (atomic consuming implementation)
 - Affected rules: `ARC-001`, `ARC-004`, `ARC-005`, `ARC-007`, `ARC-008`, `ARC-009`,
   `ARC-010`, `ARC-011`, `CMD-001`, `CMD-002`, `CMD-003`, `CMD-005`, `CMD-006`,
   `CMD-008`, `CMD-009`, `CMD-010`, `KOT-003`, `KOT-007`, `KOT-013`, `QLT-006`,
@@ -16,10 +16,10 @@ currently stores one ordered layer list. hide delegated design and execution on 
 requested continuous progress. The design seat accepts this bounded first frame model. The #145
 performance collection remains at the owner-directed M5 exit.
 
-This is an accepted target contract, activated by the atomic implementation described below.
-Until that cutover, the existing single-frame runtime and v3 writer remain the sole implemented
-path. This design-only change adds no unused public types, compatibility getters or alternative
-writer. It needs documentation verification, not app/device execution.
+Issue #215 accepted the target contract without runtime changes. Issue #216 activates it with the
+atomic implementation described below: the single document hierarchy and v4/envelope 4 writer
+replace the former single-frame model together. No compatibility layer getter or alternative
+editable-model writer remains. Playback is a separate decision and implementation in #217.
 
 ## Decision
 

@@ -4,6 +4,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.command.Comman
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandResultAssertions.rejected
 import io.github.hideyukimori.nenepixel.core.application.document.history.HistoryAvailability
 import io.github.hideyukimori.nenepixel.core.application.document.transition.LayerIndexChanges
+import io.github.hideyukimori.nenepixel.core.application.document.transition.singleFrameLayers
 import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentId
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
@@ -36,14 +37,19 @@ internal class LayeredPaletteHistoryRetentionContractTest {
         val forward = fixture.applyNext(gateway, transitionIndex = 0)
         val changed = gateway.runtimeState.documentState
         val inverse = forward.inverse()
+        val initialLayers = initial.singleFrameLayers()
+        val changedLayers = changed.singleFrameLayers()
 
         assertEquals(LAYER_COUNT, forward.layerChanges.size)
-        assertEquals(initial.layers.map(Layer::id), forward.layerChanges.map { it.layerId })
+        assertEquals(
+            initialLayers.map(Layer::id),
+            forward.layerChanges.map { it.layerId },
+        )
         forward.layerChanges.forEachIndexed { ordinal, change ->
             val dense = assertInstanceOf(LayerIndexChanges.Dense::class.java, change.changes)
             val reverse = assertInstanceOf(LayerIndexChanges.Dense::class.java, inverse.layerChanges[ordinal].changes)
-            assertSame(initial.layers[ordinal].snapshot, dense.before)
-            assertSame(changed.layers[ordinal].snapshot, dense.after)
+            assertSame(initialLayers[ordinal].snapshot, dense.before)
+            assertSame(changedLayers[ordinal].snapshot, dense.after)
             assertSame(dense.before, reverse.after)
             assertSame(dense.after, reverse.before)
         }
@@ -126,7 +132,7 @@ private class LayeredPaletteHistoryFixture {
 
     fun initialDocument(): DocumentState =
         DocumentState
-            .createLayered(
+            .createSingleFrame(
                 DocumentId.create("14514514514514514514514514514514").value(),
                 Revision.initial(),
                 paletteA,
@@ -163,8 +169,11 @@ private class LayeredPaletteHistoryFixture {
     ) {
         assertEquals(expectedRevision.toLong(), document.revision.value)
         assertEquals(if (expectedRevision % 2 == 0) paletteA else paletteB, document.definition)
-        assertEquals(16, document.layers.size)
-        document.layers.forEachIndexed { ordinal, layer ->
+        assertEquals(
+            16,
+            document.singleFrameLayers().size,
+        )
+        document.singleFrameLayers().forEachIndexed { ordinal, layer ->
             assertEquals(LayerId.create(21 + ordinal * 2).value(), layer.id)
             assertEquals(LayerName.create("layer-$ordinal").value(), layer.name)
             assertEquals(if (ordinal % 2 == 0) LayerVisibility.Visible else LayerVisibility.Hidden, layer.visibility)

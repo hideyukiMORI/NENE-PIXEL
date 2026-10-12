@@ -4,6 +4,7 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.Persistence
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceLastOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationHandle
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceRequestResult
+import io.github.hideyukimori.nenepixel.core.application.persistence.PngExportCapture
 import io.github.hideyukimori.nenepixel.core.application.persistence.PngExportOutcome
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerVisibility
 
@@ -16,34 +17,42 @@ internal class RuntimePngExportOperations(
      */
     fun begin(): PngExportStart =
         runtime.transact { transaction ->
-            if (transaction.documentState().layers.none { it.visibility == LayerVisibility.Visible }) {
+            val capture =
+                PngExportCapture.capture(
+                    transaction.documentState(),
+                    transaction.workspaceState().activeFrameId,
+                )
+            if (capture.frame.layers.none { it.visibility == LayerVisibility.Visible }) {
                 PersistenceTransition(transaction.coordination, PngExportStart.NoVisibleLayer)
             } else {
-                beginOutput(transaction)
+                beginOutput(transaction, capture)
             }
         }
 
-    private fun beginOutput(transaction: EditorRuntime.RuntimeTransaction): PersistenceTransition<PngExportStart> {
+    private fun beginOutput(
+        transaction: EditorRuntime.RuntimeTransaction,
+        capture: PngExportCapture,
+    ): PersistenceTransition<PngExportStart> {
         val lease = DocumentOutputTransitions.begin(transaction.coordination)
         val start =
             when (val result = lease.result) {
                 is DocumentOutputLease.Started -> {
-                    DocumentOutputStart.Started(result.handle, transaction.documentState())
+                    PngExportStart.Started(result.handle, capture)
                 }
 
                 DocumentOutputLease.Busy -> {
-                    DocumentOutputStart.Busy
+                    PngExportStart.Busy
                 }
 
                 DocumentOutputLease.RecoveryUnavailable -> {
-                    DocumentOutputStart.RecoveryUnavailable
+                    PngExportStart.RecoveryUnavailable
                 }
 
                 DocumentOutputLease.IdentityExhausted -> {
-                    DocumentOutputStart.IdentityExhausted
+                    PngExportStart.IdentityExhausted
                 }
             }
-        return PersistenceTransition(lease.next, PngExportStart.Output(start), lease.effect)
+        return PersistenceTransition(lease.next, start, lease.effect)
     }
 
     fun complete(
@@ -68,9 +77,16 @@ internal class RuntimePngExportOperations(
 }
 
 internal sealed interface PngExportStart {
-    data class Output(
-        val start: DocumentOutputStart,
+    data class Started(
+        val handle: PersistenceOperationHandle,
+        val capture: PngExportCapture,
     ) : PngExportStart
+
+    data object Busy : PngExportStart
+
+    data object RecoveryUnavailable : PngExportStart
+
+    data object IdentityExhausted : PngExportStart
 
     data object NoVisibleLayer : PngExportStart
 }

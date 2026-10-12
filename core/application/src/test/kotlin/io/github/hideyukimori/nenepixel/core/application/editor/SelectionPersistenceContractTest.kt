@@ -123,7 +123,7 @@ internal class SelectionPersistenceContractTest {
             select(runtime)
             val document = runtime.state.documentState
             val raster = value(ImportRaster.create(1, 1, intArrayOf(0xFF0000FF.toInt())))
-            val pending = PendingRasterImport.planned(raster, document.size, document.definition)
+            val pending = PendingRasterImport.planned(raster, lease.target)
 
             assertEquals(
                 PersistenceRequestResult.Completed(PersistenceLastOutcome.PngImportRead),

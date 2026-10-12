@@ -13,6 +13,7 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.View
 import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
+import io.github.hideyukimori.nenepixel.core.domain.frame.FrameId
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
@@ -40,7 +41,11 @@ public class EditorRenderState internal constructor(
     internal val pendingImport: PendingRasterImport?,
     internal val selectionSession: SelectionSession?,
     internal val selectionNotice: SelectionEditorNotice?,
+    internal val activeFrameId: FrameId,
+    internal val frameNotice: FrameEditorNotice?,
+    internal val importNotice: FrameEditorNotice?,
 ) {
+    internal val picture: FrameImageInputs = FrameImageInputs(document, activeFrameId, definition, paletteEditSession)
     public val palette: Palette
         get() = definition.palette
 
@@ -80,6 +85,9 @@ public class EditorRenderState internal constructor(
             pendingImport,
             selectionSession,
             selectionNotice,
+            activeFrameId,
+            frameNotice,
+            importNotice,
         )
 
     override fun toString(): String =
@@ -90,7 +98,8 @@ public class EditorRenderState internal constructor(
             "actualSizeWindow=$actualSizeWindow, paletteEditSession=$paletteEditSession, " +
             "paletteNotice=$paletteNotice, quickSelection=$quickSelection, activeLayerId=$activeLayerId, " +
             "layerNotice=$layerNotice, underlay=$underlay, " +
-            "pendingImport=$pendingImport, selectionSession=$selectionSession, selectionNotice=$selectionNotice)"
+            "pendingImport=$pendingImport, selectionSession=$selectionSession, selectionNotice=$selectionNotice, " +
+            "activeFrameId=$activeFrameId, frameNotice=$frameNotice, importNotice=$importNotice)"
 
     private companion object {
         const val INITIAL_HASH: Int = 1

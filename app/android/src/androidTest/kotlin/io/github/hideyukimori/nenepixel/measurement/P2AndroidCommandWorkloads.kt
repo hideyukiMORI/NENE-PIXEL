@@ -284,7 +284,9 @@ internal class PreparedCommandWorkload internal constructor(
             outcome = verifySample(result),
             documentHash = runtimeState.documentState.hashCode(),
             snapshotHash =
-                runtimeState.documentState.layers
+                runtimeState.documentState.frames
+                    .single()
+                    .layers
                     .single()
                     .snapshot
                     .hashCode(),
