@@ -1,9 +1,13 @@
 # ADR 0027: Agent seats, model tiers, and the owner's instruction form
 
-- Status: accepted
+- Status: superseded
 - Date: 2026-09-23
 - Issue: #128
 - Affected rules: `QLT-005`, `QLT-011`, `QLT-012`, `QLT-017`, `QLT-018`
+
+Historical decision. [ADR 0038](0038-current-agent-guidance.md) replaces the model table and
+operating prescriptions from 2026-10-12. The original rationale and script provenance below are
+retained; they are not current instructions for spawning agents or adding tooling.
 
 ## Context
 
@@ -118,4 +122,4 @@ Rollback is another accepted policy decision; never two active tier tables.
 - [ADR 0024](0024-differential-check-selection-and-result-reuse.md)
 - [Development Workflow](../DEVELOPMENT_WORKFLOW.md)
 - Supersedes: none
-- Superseded by: none
+- Superseded by: [ADR 0038](0038-current-agent-guidance.md)

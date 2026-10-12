@@ -1,108 +1,82 @@
 # NENE-PIXEL Agent Guide
 
-This file is the mandatory entry point for AI agents and automation working on NENE-PIXEL.
+Mandatory entry point for agents working on NENE-PIXEL, an Android-first Kotlin pixel drawing tool.
+Governing principle: one meaning, one canonical implementation path.
 
-## Project identity
+## Start from current facts
 
-- Codename: `NENE-PIXEL`
-- Product: Android-first pixel drawing tool
-- Language: Kotlin
-- Governing principle: one meaning, one canonical implementation path
+Read the focused live GitHub Issue/PR and the relevant sections of
+[Development Workflow](docs/DEVELOPMENT_WORKFLOW.md) and
+[Quality Gates](docs/QUALITY_GATES.md#verification-execution-policy). Issues are the TODO authority;
+handoffs and memories are dated restart aids. Confirm the active branch/worktree before editing.
+Do not reset or switch an existing dirty checkout to obtain a newer entry file.
 
-## Required reading
+Read by affected contract, as accepted in [ADR 0038](docs/adr/0038-current-agent-guidance.md):
 
-Before proposing or changing production code, read all of the following:
+| When needed | Canonical guidance |
+| --- | --- |
+| Project purpose or ownership is unfamiliar | [Charter](docs/PROJECT_CHARTER.md), [Layout](docs/PROJECT_LAYOUT.md), [Glossary](docs/GLOSSARY.md) |
+| Production code, state, command, or module boundary | [Architecture](docs/ARCHITECTURE_CONSTITUTION.md), [Command Model](docs/COMMAND_MODEL.md), [Coding Rules](docs/CODING_RULES.md), affected consumers and accepted ADRs |
+| Persistence, import/export, or migration | Current v3/recovery contract in [ADR 0030](docs/adr/0030-ordered-layers-and-empty-pixels.md), [Layout](docs/PROJECT_LAYOUT.md), and affected legacy contracts in [ADR 0025](docs/adr/0025-indexed-project-compatibility.md) and v1/v2 specifications |
+| Build, device, or working-copy operations | [Development Setup](docs/DEVELOPMENT_SETUP.md), applicable device/data-preservation protocol |
+| Scope, sequencing, or milestone acceptance | [Roadmap](docs/ROADMAP.md), [Milestones](docs/MILESTONES.md), [MVP Scope](docs/MVP_SCOPE.md), [Development Plan](docs/DEVELOPMENT_PLAN.md) |
+| Public/external API decision | [API Strategy](docs/API_STRATEGY.md) and [Workflow](docs/DEVELOPMENT_WORKFLOW.md#decision-policy) |
 
-1. `docs/PROJECT_CHARTER.md`
-2. `docs/ARCHITECTURE_CONSTITUTION.md`
-3. `docs/COMMAND_MODEL.md`
-4. `docs/PROJECT_LAYOUT.md`
-5. `docs/CODING_RULES.md`
-6. `docs/QUALITY_GATES.md`
-7. `docs/DEVELOPMENT_WORKFLOW.md`
-8. `docs/DEVELOPMENT_SETUP.md`
-9. `docs/GLOSSARY.md`
-10. `docs/PROJECT_FORMAT_V1.md`
-11. `docs/ROADMAP.md`
-12. `docs/MILESTONES.md`
-13. `docs/MVP_SCOPE.md`
-14. `docs/DEVELOPMENT_PLAN.md`
-15. `docs/API_STRATEGY.md`
-16. `docs/PROJECT_FORMAT_V2.md`
+Read applicable [accepted ADRs](docs/adr/README.md) and [active waivers](docs/waivers/README.md)
+before acting on their boundaries. Reuse unchanged guidance already read in this task; expand the
+reading scope when understanding is incomplete. There is no per-edit whole-document reading ritual.
 
-Read the active GitHub Issue, relevant accepted ADRs, and active waivers after the documents above.
-
-## Agent rules
+## Implementation boundaries
 
 - Do not invent a second implementation path because it is locally convenient.
-- Do not add production code before an Issue defines the focused change.
-- Do not change an architectural rule and its implementation in the opposite order. Update the governing document or add an ADR first, in the same focused change.
-- Do not add dependencies, Gradle plugins, modules, serialization formats, or public APIs without recording the decision required by `docs/DEVELOPMENT_WORKFLOW.md`.
-- Do not access document state directly from Compose UI, Android components, persistence adapters, or future MCP adapters.
-- Do not bypass `DocumentCommand` for persistent/undoable mutations or `WorkspaceAction` for ephemeral editor-state changes.
-- Do not expose mutable pixel storage outside the pixel-engine implementation boundary.
-- Do not add `@Suppress`, lint baselines, detekt baselines, generated-code exclusions, or dependency exceptions without an approved waiver.
-- Do not weaken a quality gate to make a change pass.
-- Do not treat a Markdown checklist as current task state. GitHub Issues are the TODO authority.
-- Do not introduce OpenAPI, HTTP, or MCP before the decision gate in `docs/API_STRATEGY.md` is satisfied.
-- Do not commit secrets, local SDK paths, signing materials, generated build output, IDE state, or private user assets.
-- Do not create clones, worktrees, or evidence directories outside the development lab (`docs/DEVELOPMENT_SETUP.md`). Do not leave collected evidence inside the `build/` directory of a clone or worktree, do not write a lab location as an absolute path in a tracked file, and do not delete or overwrite anything under the lab's `evidence/`.
+- A focused Issue precedes production, build, policy, or documentation changes. Update the governing document or ADR before an architectural implementation change, in the same focused change.
+- Dependencies, Gradle plugins, modules, formats, and public APIs require the decision recorded by Development Workflow.
+- Compose UI, Android components, persistence adapters, and future MCP adapters do not access document state directly. Use DocumentCommand for persistent/undoable mutations and WorkspaceAction for ephemeral editor changes.
+- Mutable pixel storage stays inside the pixel-engine implementation boundary.
+- Do not add suppressions, lint/detekt baselines, generated-code exclusions, or dependency exceptions without an approved waiver. Do not weaken a quality gate to pass a change.
+- OpenAPI, HTTP, and MCP wait for the decision gate in API Strategy.
+- Do not commit secrets, local SDK paths, signing material, build output, IDE state, or private assets.
+- Use the owner's D-drive development lab for additional copies and outputs; never fall back to C or system temp. Preserve raw evidence outside disposable build directories. Do not put private absolute lab paths in tracked files or delete/overwrite lab evidence.
 - Prefer the smallest change that fully follows the canonical path.
-- MUST follow QLT-011 through QLT-019 in `docs/QUALITY_GATES.md` when planning, running, and reporting verification. Record the change scope and applicable checks before execution.
-- MUST select checks from the diff. Name the changed behavior and the regression each check detects in the changed code or in a direct dependent or caller; do not run a check that cannot be explained that way. Documentation, comment, and rule changes need no app behavior tests. A hook or developer-tool change needs only that tool's short check.
-- MUST reuse a passing result across assignee, work stage, appended documentation, and commit-identity changes while the verified paths and their relevant dependencies are unchanged. Rerun only for a relevant change, a failure, or a concrete unverified concern. Record the reused command, tree identity, and log location.
-- MUST NOT run the full canonical check/build by default. Run it locally only when narrow checks cannot show the impact, such as a shared build-logic, toolchain, or cross-module contract change, and state the scope and reason in one line first without adding approval ceremony. Required CI `quality` on the Issue's final non-draft PR candidate is the single full gate; a valid result is not duplicated locally. Follow QLT-012 for invalidation.
-- MUST NOT derail into unrelated failures. Fix failures the diff causes; record others with evidence in a separate Issue and continue. A check that passes on a rerun with unchanged inputs is failing: record the instability instead of the pass.
-- MUST NOT add hooks or automation that run an unscoped full suite or force a rerun of verified work at push, review, or merge. Prefer existing target selection and recorded result reuse; do not build automatic test-selection infrastructure or disable verification wholesale.
-- MUST NOT add a device performance collection to a feature Issue. Register the affected workload with the phase gate Issue and state the per-operation cost of a measured-path change in the completion report: whole-document scans, size-proportional allocations and copies, per-pixel arithmetic, and work added to preview frames (QLT-019). Remove avoidable work before the merge.
-- MUST NOT start device performance measurement, profile regeneration, or forced cold builds merely because a commit, documentation, or handoff changed. Apply the documented trigger and artifact-identity rules.
-- MUST NOT treat historical measurement recipes as current authorization. Reconcile the Issue, accepted protocol, and executable harness before collecting new acceptance evidence; preserve historical FAIL/invalid results.
 
-## Agent seats and model tiers
+## Work ownership and completion
 
-The design seat (the top model) owns adjudication, acceptance, scoring, the wording of instructions
-and specifications, narrative, and decisions about protected material; it never delegates them.
-Every background agent is created with an explicit model by the kind of work, accepted in
-[ADR 0027](docs/adr/0027-agent-seat-model-tiers.md):
+The current NENE-PIXEL assignment from hide is Astra as design Sana, with suitable SOL/LUNA
+execution. The design seat owns requirements, design decisions, acceptance, integration, and
+communication. Delegate useful bounded work at the required precision using available models;
+keep small or tightly coupled work local. Do not force new agents per file, stage, or correction.
+Follow runtime restrictions, and use read-only independent review when risk warrants it.
+[ADR 0038](docs/adr/0038-current-agent-guidance.md) supersedes the old Claude-specific seat tables.
 
-| Work | Model |
-| --- | --- |
-| Implementation (one task = one branch = one PR) and rework after a returned review | `opus` |
-| Preparation: survey notes, inventories, output or PNG comparison, device checkout preparation, persona opinions, reconciling reports against evidence | `sonnet` |
-| Pure mechanical work: mailbox moves, test-list matching, diff enumeration, zero-diff confirmation on protected material | `haiku` |
+Delegations name the outcome, owned paths, applicable rules, D-drive location, selected checks,
+and completion/cleanup conditions. Avoid concurrent edits or Gradle runs sharing mutable outputs.
+Helpers do not recursively delegate without the parent's instruction. Read actual diffs and
+verification evidence before accepting their reports. Visual design uses requested Claude Code
+capabilities or an available equivalent; report unavailable skills/quota honestly.
 
-The tier test is who fixes the error: work the design seat verifies by comparison may go down a
-tier. A preparation note is at most 300 lines with at most 15 open questions; persona seats are at
-most four on `sonnet`, at most 150 lines each; from the second returned review on, an instruction
-names one changed proposition and one rerun set. A procedure walked by a model twice becomes a
-`tools/` script through a `chore` Issue, and the design seat runs scripts directly. An owner
-instruction that changes operating policy is recorded as an ADR, a handoff section, and the first
-line of the handoff's next actions in one focused change.
+Continue authorized work through applicable verification, PR, required CI, integration, and
+cleanup. Reuse successful evidence at handoff/review. Keep unfinished acceptance in draft; state
+real dependencies on hide precisely and continue independent work. After integration and artifact
+preservation, remove disposable task copies after checking absolute paths, ignored/untracked or
+unique files, active references, and links. Retain uncertain/active copies with the path and reason.
 
-An implementation seat lives for one stage, accepted in
-[ADR 0028](docs/adr/0028-implementation-seat-shape.md): the probe of the actual code, the
-implementation, and each rework after a returned review are separate agents, and state passes
-between them through the report file and the mailbox. An `opus` seat is not reused for the next
-piece of work with `SendMessage`, and `fork` is never used for a background seat. Three S-size tasks
-beat one M-size task; one changed proposition is one new seat. Every implementation seat
-instruction contains the same four lines: run only the tests for the changed target and tail only
-the failing lines; write build and test logs to a file and read them with `grep`; read only the
-needed range of a file; report in at most 30 lines with the detail in the report file and only the
-path and the numbers returned to the parent. When quota consumption is suspected, the transcript
-usage is aggregated per seat (cache read, output, maximum context, turn count) before any remedy is
-chosen.
+## Verification
+
+QLT-011 through QLT-019 in Quality Gates are mandatory and remain the authority:
+
+- Before execution, record changed behavior/paths and the regression each check detects, including affected callers. Use narrow checks; documentation-only changes need documentation validation, not app/device tests.
+- Reuse equivalent passing results across assignees, stages, prose, and commit identities. Record the original command, source/artifact identity, and log. Rerun only for changed relevant inputs, failure, or a concrete unresolved concern (QLT-012).
+- The final non-draft PR candidate needs successful required CI quality running canonical check plus Android assembly. Do not duplicate it locally. A local full run needs a concrete cross-cutting impact or CI diagnosis that narrow checks cannot resolve, stated before execution.
+- Fix failures caused by the diff. Record unrelated failures separately and continue within scope. An unchanged retry that passes is instability, not accepted evidence (QLT-017).
+- Hooks and automation follow the same selection/reuse policy; do not create a second test-selection system or disable checks (QLT-018).
+- Register measured-path workloads with the phase gate and report per-operation cost; remove avoidable work. No feature-level performance collection, Profile regeneration, or forced cold build merely for handoff/commit/prose (QLT-019).
+- Historical recipes are not execution authorization. Reconcile the live Issue, accepted protocol, and harness before new acceptance collection; retain historical FAIL/invalid results.
 
 ## Required completion report
 
-Every completed change must report:
+Report Issue/rule IDs; changed files and behavior; commands/results; reused evidence with original
+identity/log or none; unrelated failures and their Issues or none; documentation/schema changes;
+remaining risks; active waiver IDs or none. Handoffs record the next action and dated state, not a
+second copy of the rulebook.
 
-- Issue and rule IDs involved
-- files and behavior changed
-- verification commands and results
-- reused results with their command, tree identity, and log, or `none`
-- unrelated failures recorded in their own Issue, or `none`
-- documentation or schema changes
-- remaining risks
-- active waiver IDs, or `none`
-
-Investigation-only requests do not authorize editing, committing, pushing, opening PRs, or changing external state.
+Investigation-only requests do not authorize edits, commits, pushes, PRs, or external state changes.

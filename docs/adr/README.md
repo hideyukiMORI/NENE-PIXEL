@@ -65,8 +65,8 @@ An ADR must include:
 | [0024](0024-differential-check-selection-and-result-reuse.md) | accepted | Diff-derived check selection, cross-stage reuse of passing results, unrelated-failure scope discipline, and policy-bound automation |
 | [0025](0025-indexed-project-compatibility.md) | accepted | Exact indexed v2, typed legacy import and original-preserving recovery conversion before atomic cutover |
 | [0026](0026-actual-size-window.md) | accepted | One actual-size window over the canvas: closed integer scales, workspace-owned placement, shared committed bitmap |
-| [0027](0027-agent-seat-model-tiers.md) | accepted | Design seat keeps judgment; implementation on Opus, preparation on Sonnet, mechanical work on Haiku; repeated preparation becomes `tools/` scripts |
-| [0028](0028-implementation-seat-shape.md) | accepted | One implementation seat per stage (probe, implementation, each rework), small tool output in the instruction form, S-size tasks; Opus 5.5 as a measured trial |
+| [0027](0027-agent-seat-model-tiers.md) | superseded | Historical Claude model tiers and preparation scripts; current operating policy is ADR 0038 |
+| [0028](0028-implementation-seat-shape.md) | superseded | Historical per-stage implementation seats and Opus quota trial; current operating policy is ADR 0038 |
 | [0029](0029-quick-select-and-exact-eyedropper.md) | accepted | Floating quick-select control with recent painted slots, workspace-owned menu and one-shot exact-slot eyedropper |
 | [0030](0030-ordered-layers-and-empty-pixels.md) | accepted | Up to 16 ordered layers, palette-independent `Empty` cells, one integer composite, project v3 and recovery envelope 3 |
 | [0031](0031-phase-gate-device-performance.md) | accepted | Device performance collection once per phase in a gate Issue; feature Issues state per-operation cost and register workloads |
@@ -76,3 +76,4 @@ An ADR must include:
 | [0035](0035-measurement-private-data-preservation.md) | accepted | Phase measurements isolate original underlays and recovery, verify exact file identity and mtime, and retain measurement data before guarded restoration |
 | [0036](0036-android-detekt-java-classpath.md) | accepted | Existing typed Android detekt tasks consume the matching Java compiler outputs through tracked task providers |
 | [0037](0037-legacy-preservation-session-termination.md) | accepted | The one legacy v1 preservation session ends by fixed guarded moves, with the owner's recorded marker and fractional-mtime exceptions |
+| [0038](0038-current-agent-guidance.md) | accepted | Owner-directed roles, task-scoped reading, coherent delegation, and separate rule/state/memory authority; historical recipes do not authorize new work |
