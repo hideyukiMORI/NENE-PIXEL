@@ -1,6 +1,7 @@
 package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
+import io.github.hideyukimori.nenepixel.core.domain.layer.LayerLimits
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerName
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerVisibility
 import io.github.hideyukimori.nenepixel.presentation.compose.R
@@ -65,6 +66,14 @@ internal class LayerRowEntryTest {
         assertTrue(entry.frontMost)
         assertTrue(entry.backMost)
         assertTrue(entry.only)
+    }
+
+    @Test
+    fun `duplicate remains available for any row below the sixteen-layer limit`() {
+        assertTrue(placed(position = 0, layerCount = 1).canDuplicate)
+        assertTrue(placed(position = 1, layerCount = LayerLimits.MAX_LAYERS - 1).canDuplicate)
+        assertFalse(placed(position = 0, layerCount = LayerLimits.MAX_LAYERS).canDuplicate)
+        assertFalse(placed(position = LayerLimits.MAX_LAYERS - 1, layerCount = LayerLimits.MAX_LAYERS).canDuplicate)
     }
 
     private fun entry(

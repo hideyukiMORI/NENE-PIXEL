@@ -257,6 +257,7 @@
     <string name="layer_hide">%1$s を非表示にする</string>
     <string name="layer_more">%1$s のその他の操作</string>
     <string name="layer_rename">名前を変更</string>
+    <string name="layer_duplicate">複製</string>
     <string name="layer_move_up">上へ</string>
     <string name="layer_move_down">下へ</string>
     <string name="layer_delete">削除</string>

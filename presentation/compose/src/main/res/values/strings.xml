@@ -278,6 +278,7 @@
     <string name="layer_hide">Hide %1$s</string>
     <string name="layer_more">More actions for %1$s</string>
     <string name="layer_rename">Rename</string>
+    <string name="layer_duplicate">Duplicate</string>
     <string name="layer_move_up">Move up</string>
     <string name="layer_move_down">Move down</string>
     <string name="layer_delete">Delete</string>

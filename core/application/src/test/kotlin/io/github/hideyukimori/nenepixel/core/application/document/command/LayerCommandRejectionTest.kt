@@ -25,6 +25,7 @@ internal class LayerCommandRejectionTest {
         val notFound = RejectionReason.LayerNotFound(missing())
 
         assertRejectedWithoutEffect(gateway, AddLayerCommand.create(source, missing()), notFound)
+        assertRejectedWithoutEffect(gateway, DuplicateLayerCommand.create(source, missing()), notFound)
         assertRejectedWithoutEffect(gateway, DeleteLayerCommand.create(source, missing()), notFound)
         assertRejectedWithoutEffect(gateway, RenameLayerCommand.create(source, missing(), layerName("x")), notFound)
         assertRejectedWithoutEffect(gateway, MoveLayerCommand.create(source, missing(), 0), notFound)

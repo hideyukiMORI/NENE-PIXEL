@@ -38,6 +38,39 @@ internal class EditorLayerCallbacksTest {
     }
 
     @Test
+    fun `duplicate targets its row instead of the active layer and publishes the newly selected exact copy`() {
+        val fixture = fixture()
+        val layers = fixture.controller.callbacks.layers
+        layers.onAdd()
+        val name = LayerName.create("原画").requiredValue()
+        layers.onRename(LayerId.first(), name)
+        layers.onSetVisibility(LayerId.first(), LayerVisibility.Hidden)
+        val source =
+            fixture.controller.renderState.document.layers
+                .first()
+        assertEquals(layerId(2), fixture.controller.renderState.activeLayerId)
+        val duplicated = layers.onDuplicate(source.id)
+
+        assertNull(duplicated.layerNotice)
+        assertEquals(listOf(LayerId.first(), layerId(3), layerId(2)), duplicated.document.layers.map { it.id })
+        assertEquals(layerId(3), duplicated.activeLayerId)
+        val copy = duplicated.document.layers[1]
+        assertEquals(source.name, copy.name)
+        assertEquals(source.visibility, copy.visibility)
+        assertSame(source.snapshot, copy.snapshot)
+        assertSame(duplicated, fixture.controller.renderState)
+        fixture.controller.callbacks.onUndo()
+        assertEquals(
+            listOf(LayerId.first(), layerId(2)),
+            fixture.controller.renderState.document.layers
+                .map { it.id },
+        )
+        fixture.controller.callbacks.onRedo()
+        assertEquals(duplicated.document, fixture.controller.renderState.document)
+        assertEquals(layerId(3), fixture.controller.renderState.activeLayerId)
+    }
+
+    @Test
     fun `visibility, rename and move are applied and published`() {
         val fixture = fixture()
         val layers = fixture.controller.callbacks.layers

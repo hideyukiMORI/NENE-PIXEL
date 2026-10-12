@@ -107,11 +107,13 @@ ADR 0034 / #172 decides the underlay memory (P4-06c).
 | P4-07 | Accept the PNG import contract (#176) | P4-05b, P4-03 | Accepted ADR 0033, updated governing documents and focused Issues |
 | P4-07a | Pick a PNG and add it as a new layer, appending or converting colours (#177) | P4-07 | Raster and planner golden tests, command/undo/stale-plan/accounting contracts, bounded PNG reader JVM tests including the export round trip, localized dialog; per-operation cost statement (QLT-019) |
 | P4-07b | Open a PNG as a new work (#178) | P4-07a | New-work planner golden tests, confirmation/installation/dirtiness contracts, localized dialog form; cost statement |
+| P4-08 | Duplicate a layer directly above its source (#208) | P4-05c, P4-07a functional acceptance | ADR 0030 amendment; exact immutable snapshot/name/visibility preservation, independent subsequent edits, one history entry, bounded insertion and localized row-menu evidence; cost/workload registration with #145 |
 
 Preparation keeps the sole M3 editable path. P4-02 changes every live consumer together, with no
 parallel editable RGBA document or provisional indexed-to-v1 writer. P4-05a likewise moves every
-consumer to layered documents at once. Layer duplicate/merge, saved layer opacity (planned for v4)
-and frames are refined after the P4-05 results; animation and tiles/maps
+consumer to layered documents at once. P4-08 adds duplication after the layer and import functional
+results; #145 performance collection remains at the owner-directed M5 exit. Layer merge, saved
+layer opacity (planned for v4) and frames remain separate refinements; animation and tiles/maps
 requirements remain recorded in ADR 0022 without unused APIs. Palette generation from an image and
 dithering stay undecided (ADR 0033). Underlay rotation, numeric placement
 and colour sampling from the underlay are not planned.

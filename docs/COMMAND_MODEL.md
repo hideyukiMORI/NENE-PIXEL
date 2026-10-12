@@ -17,6 +17,7 @@ Examples:
 - `ApplyStrokeCommand`
 - `ApplyPixelPatchCommand`
 - `AddLayerCommand`
+- `DuplicateLayerCommand`
 - `DeleteLayerCommand`
 - `RenameLayerCommand`
 - `MoveLayerCommand`
@@ -24,6 +25,11 @@ Examples:
 - `ImportLayerCommand`
 - `ReplacePaletteCommand`
 - `ReplaceDocumentCommand`
+
+`DuplicateLayerCommand` uses the existing layer-command handler and source admission to insert an
+exact copy of a named layer directly above it (ADR 0030 / #208). The new ID follows the sole insertion
+policy. One Added transition supplies ordinary history, selection reconciliation, invalidation and
+autosave; UI never copies pixels or issues a sequence of add/draw commands to duplicate a layer.
 
 ### Workspace actions
 

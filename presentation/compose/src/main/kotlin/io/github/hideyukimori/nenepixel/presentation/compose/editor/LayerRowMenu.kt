@@ -16,7 +16,7 @@ import androidx.compose.ui.res.stringResource
 import io.github.hideyukimori.nenepixel.presentation.compose.R
 
 /**
- * A row's "more" button and its menu (#144 UI spec "その他"): rename, move up, move down and delete.
+ * A row's "more" button and menu (#144/#208): rename, duplicate, move up, move down and delete.
  *
  * Open or closed is local Compose state inside the row's `key`, so the menu goes away with its layer's row. The
  * material3 menu composes its items only while open. Choosing an item closes the menu first. Move up and move down
@@ -30,7 +30,6 @@ internal fun LayerRowMenu(
 ) {
     var expanded by remember { mutableStateOf(false) }
     val id = entry.row.id
-    val callbacks = actions.callbacks
     val label = layerLabel(entry.row)
     Box {
         IconButton(
@@ -44,18 +43,30 @@ internal fun LayerRowMenu(
                 expanded = false
                 action()
             }
-            LayerMenuItem(R.string.layer_rename, RENAME_TAG, enabled = true) { choose { actions.onRename(id) } }
-            LayerMenuItem(R.string.layer_move_up, MOVE_UP_TAG, enabled = !entry.frontMost) {
-                choose { callbacks.onMove(id, entry.moveUpPosition) }
-            }
-            LayerMenuItem(R.string.layer_move_down, MOVE_DOWN_TAG, enabled = !entry.backMost) {
-                choose { callbacks.onMove(id, entry.moveDownPosition) }
-            }
-            LayerMenuItem(R.string.layer_delete, DELETE_TAG, enabled = !entry.only) {
-                choose { callbacks.onDelete(id) }
-            }
+            LayerRowMenuItems(entry, actions, choose)
         }
     }
+}
+
+@Composable
+private fun LayerRowMenuItems(
+    entry: LayerRowEntry,
+    actions: LayerRowActions,
+    choose: (() -> Unit) -> Unit,
+) {
+    val id = entry.row.id
+    val callbacks = actions.callbacks
+    LayerMenuItem(R.string.layer_rename, RENAME_TAG, enabled = true) { choose { actions.onRename(id) } }
+    LayerMenuItem(R.string.layer_duplicate, DUPLICATE_TAG, enabled = entry.canDuplicate) {
+        choose { callbacks.onDuplicate(id) }
+    }
+    LayerMenuItem(R.string.layer_move_up, MOVE_UP_TAG, enabled = !entry.frontMost) {
+        choose { callbacks.onMove(id, entry.moveUpPosition) }
+    }
+    LayerMenuItem(R.string.layer_move_down, MOVE_DOWN_TAG, enabled = !entry.backMost) {
+        choose { callbacks.onMove(id, entry.moveDownPosition) }
+    }
+    LayerMenuItem(R.string.layer_delete, DELETE_TAG, enabled = !entry.only) { choose { callbacks.onDelete(id) } }
 }
 
 @Composable
@@ -75,6 +86,7 @@ private fun LayerMenuItem(
 
 private const val MORE_TAG: String = "editor_layer_more_"
 private const val RENAME_TAG: String = "editor_layer_rename"
+private const val DUPLICATE_TAG: String = "editor_layer_duplicate"
 private const val MOVE_UP_TAG: String = "editor_layer_move_up"
 private const val MOVE_DOWN_TAG: String = "editor_layer_move_down"
 private const val DELETE_TAG: String = "editor_layer_delete"
