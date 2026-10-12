@@ -333,7 +333,7 @@
     <string name="frame_label">Frame %1$d</string>
     <string name="frame_row">Frame %1$d · %2$d ms</string>
     <string name="frame_current">Current frame</string>
-    <string name="frame_more">Frame %1$d actions</string>
+    <string name="frame_more">Actions for frame %1$d</string>
     <string name="frame_duplicate">Duplicate frame</string>
     <string name="frame_earlier">Move earlier</string>
     <string name="frame_later">Move later</string>
@@ -343,7 +343,7 @@
     <string name="frame_panel_back">Back to layers</string>
     <string name="frame_chosen">Frame %1$d / %2$d · Frames</string>
     <string name="frame_preview">Preview: frame %1$d / %2$d</string>
-    <string name="frame_duration_title">Frame %1$d duration</string>
+    <string name="frame_duration_title">Duration for frame %1$d</string>
     <string name="frame_duration_milliseconds">Duration (ms)</string>
     <string name="frame_duration_bounds">%1$d–%2$d ms</string>
     <string name="frame_duration_invalid">Enter a duration within the allowed range.</string>
@@ -353,7 +353,7 @@
     <string name="frame_missing">This frame is no longer available.</string>
     <string name="frame_last">Keep at least one frame.</string>
     <string name="frame_limit">Up to 16 frames.</string>
-    <string name="document_layer_capacity">Layers %1$d / %2$d · %3$d available</string>
+    <string name="document_layer_capacity">Layers: %1$d / %2$d · Available: %3$d</string>
     <string name="document_layer_limit">All 16 layer slots are in use across frames.</string>
     <string name="png_import_target_frame">Import into frame %1$d</string>
 </resources>

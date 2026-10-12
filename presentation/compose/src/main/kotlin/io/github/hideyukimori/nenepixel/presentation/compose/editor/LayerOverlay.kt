@@ -115,7 +115,7 @@ private fun LayerOverlayPane(
         FramePanel(
             inputs.frames,
             frameActions(actions.callbacks.frames, presentation),
-            bounds.modifier(LayerPane.Frames),
+            Modifier.layerPaneBounds(bounds, LayerPane.Frames),
         )
     } else {
         val rows = inputs.layers.rows
@@ -130,7 +130,7 @@ private fun LayerOverlayPane(
         LayerPanel(
             heading,
             LayerPanelNavigation(presentation.close) { presentation.pane.value = LayerPane.Frames },
-            bounds.modifier(LayerPane.Layers),
+            Modifier.layerPaneBounds(bounds, LayerPane.Layers),
         ) {
             LayerPanelRows(rows, actions.rows) {
                 LayerPanelUnderlayRow(
@@ -260,12 +260,15 @@ private class LayerPaneBounds(
     val width: Dp,
     val height: Dp,
     val edge: EditorControlEdge,
-) {
-    fun modifier(pane: LayerPane): Modifier {
-        val maximum = if (pane == LayerPane.Frames) LayerGeometry.NOTICE_MAX_WIDTH else LayerGeometry.PANEL_WIDTH
-        return Modifier
-            .padding(LayerGeometry.PANEL_MARGIN)
-            .width(min(maximum, (width - LayerGeometry.PANEL_MARGIN * 2).coerceAtLeast(0.dp)))
-            .heightIn(max = LayerGeometry.panelMaxHeight(height, edge))
-    }
+)
+
+private fun Modifier.layerPaneBounds(
+    bounds: LayerPaneBounds,
+    pane: LayerPane,
+): Modifier {
+    val maximum = if (pane == LayerPane.Frames) LayerGeometry.NOTICE_MAX_WIDTH else LayerGeometry.PANEL_WIDTH
+    return this
+        .padding(LayerGeometry.PANEL_MARGIN)
+        .width(min(maximum, (bounds.width - LayerGeometry.PANEL_MARGIN * 2).coerceAtLeast(0.dp)))
+        .heightIn(max = LayerGeometry.panelMaxHeight(bounds.height, bounds.edge))
 }
