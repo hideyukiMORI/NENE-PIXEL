@@ -22,6 +22,7 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceRedu
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentImportSource
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.document.LegacyRgbaSource
+import io.github.hideyukimori.nenepixel.core.domain.geometry.toDocumentPoint
 import io.github.hideyukimori.nenepixel.presentation.compose.EditorFixture
 import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestValues
 import io.github.hideyukimori.nenepixel.presentation.compose.R
@@ -121,7 +122,7 @@ internal class RecoveryOfferStatusTest {
             fixture.reducer
                 .reduce(
                     begun,
-                    WorkspaceAction.ExtendGesturePreview(PresentationTestValues.position(1, 0)),
+                    WorkspaceAction.ExtendGesturePreview(PresentationTestValues.position(1, 0).toDocumentPoint()),
                     fixture.runtime.captureSource(),
                 ).nextState
         val prepared =

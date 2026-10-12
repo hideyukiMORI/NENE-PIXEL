@@ -29,6 +29,7 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.palette.Palet
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportState
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentId
 import io.github.hideyukimori.nenepixel.core.domain.drawing.DrawingTool
+import io.github.hideyukimori.nenepixel.core.domain.geometry.DocumentPoint
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteRemap
@@ -46,6 +47,65 @@ import org.junit.jupiter.api.fail
 
 internal class EditorRuntimeTest {
     private val toolDefinition = defaultDefinition
+
+    @Test
+    fun `paint and erase leaving reentering and ending outside commit once and undo together`() {
+        val expected =
+            listOf(position(2, 1), position(3, 1), position(3, 3), position(2, 3), position(1, 3), position(0, 3))
+        DrawingTool.entries.forEach { tool ->
+            val runtime = EditorRuntime.create(canvas(4, 4), toolDefinition, SequentialDocumentIdSource())
+            if (tool == DrawingTool.Eraser) expected.forEach { apply(runtime, it, redIndex) }
+            val before = runtime.state.documentState
+            runtime.reduce(WorkspaceAction.SelectPaletteEntry(redIndex))
+            runtime.reduce(WorkspaceAction.SelectTool(tool))
+            runtime.reduce(WorkspaceAction.BeginGesturePreview(before.size, position(2, 1)))
+            listOf(
+                DocumentPoint.create(5, 1),
+                DocumentPoint.create(5, 3),
+                DocumentPoint.create(2, 3),
+                DocumentPoint.create(-2, 3),
+            ).forEach { point ->
+                val result = runtime.reduce(WorkspaceAction.ExtendGesturePreview(point))
+                assertInstanceOf(WorkspaceReductionResult.Reduced::class.java, result)
+            }
+            assertSame(before, runtime.state.documentState)
+            val prepared =
+                assertInstanceOf(
+                    WorkspaceReductionResult.CommitPrepared::class.java,
+                    runtime.reduce(WorkspaceAction.PrepareGestureCommit),
+                )
+            assertEquals(expected, buildList { prepared.stroke.forEachPosition(::add) })
+            assertInstanceOf(
+                CommandResult.Applied::class.java,
+                runtime.execute(ApplyStrokeCommand.create(prepared.admission, prepared.layerId, prepared.stroke)),
+            )
+            val after = runtime.state.documentState
+            assertEquals(before.revision.value + 1, after.revision.value)
+            val cell = if (tool == DrawingTool.Pencil) PixelCell.Covered(redIndex) else PixelCell.Empty
+            expected.forEach { assertEquals(cell, cellAt(after.layers.single().snapshot, it)) }
+            runtime.execute(UndoCommand.create(after.id, after.revision))
+            assertEquals(before, runtime.state.documentState)
+            runtime.execute(RedoCommand.create(before.id, before.revision))
+            assertEquals(after, runtime.state.documentState)
+        }
+    }
+
+    @Test
+    fun `cancel after an outside extension discards the complete gesture without history`() {
+        val runtime = EditorRuntime.create(canvas(4, 4), toolDefinition, SequentialDocumentIdSource())
+        val before = runtime.state
+        runtime.reduce(WorkspaceAction.BeginGesturePreview(before.documentState.size, position(2, 1)))
+        runtime.reduce(WorkspaceAction.ExtendGesturePreview(DocumentPoint.create(5, 1)))
+
+        assertInstanceOf(
+            WorkspaceReductionResult.Reduced::class.java,
+            runtime.reduce(WorkspaceAction.CancelGesturePreview),
+        )
+        assertNull(runtime.state.workspaceState.preview)
+        assertSame(before.documentState, runtime.state.documentState)
+        assertEquals(HistoryAvailability.None, runtime.state.historyAvailability)
+        assertEquals(DocumentDirtyState.Clean, runtime.state.dirtyState)
+    }
 
     @Test
     fun `palette only command advances dirty history autosave and invalidates full canvas`() {

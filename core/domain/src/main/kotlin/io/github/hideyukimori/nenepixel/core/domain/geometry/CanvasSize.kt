@@ -18,6 +18,10 @@ public data class CanvasSize private constructor(
     public fun contains(position: PixelPosition): Boolean =
         position.x.value < width.value && position.y.value < height.value
 
+    /** True when the signed point lies in the half-open canvas rectangle [0, width) x [0, height). */
+    public fun contains(point: DocumentPoint): Boolean =
+        point.x >= 0 && point.y >= 0 && point.x < width.value && point.y < height.value
+
     public companion object {
         public fun create(
             width: CanvasWidth,

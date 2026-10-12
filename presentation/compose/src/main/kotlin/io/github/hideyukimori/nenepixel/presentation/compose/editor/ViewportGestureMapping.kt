@@ -8,6 +8,7 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.View
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportSurfacePoint
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportTransform
 import io.github.hideyukimori.nenepixel.core.application.workspace.viewport.ViewportValueResult
+import io.github.hideyukimori.nenepixel.core.domain.geometry.DocumentPoint
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 
 internal class ViewportGestureMapping(
@@ -38,9 +39,30 @@ internal class ViewportGestureMapping(
         outside: () -> PointerInputAcknowledgement,
         action: (PixelPosition) -> PointerInputAcknowledgement,
     ): PointerInputAcknowledgement =
+        withNormalizedTransform(surface) { transform ->
+            when (val mapping = transform.toPixelPosition(point)) {
+                is ViewportMappingResult.Mapped -> action(mapping.value)
+
+                ViewportMappingResult.OutsideCanvas,
+                ViewportMappingResult.OutsideSurface,
+                -> outside()
+            }
+        }
+
+    fun withDocumentPoint(
+        surface: ViewportSurface,
+        point: ViewportSurfacePoint,
+        action: (DocumentPoint) -> PointerInputAcknowledgement,
+    ): PointerInputAcknowledgement =
+        withNormalizedTransform(surface) { transform -> action(transform.toDocumentPoint(point)) }
+
+    private fun withNormalizedTransform(
+        surface: ViewportSurface,
+        action: (ViewportTransform) -> PointerInputAcknowledgement,
+    ): PointerInputAcknowledgement =
         when (val transform = createTransform(surface)) {
             is ViewportValueResult.Created -> {
-                mapWithNormalizedViewport(transform.value, point, outside, action)
+                withNormalizedViewport(transform.value, action)
             }
 
             is ViewportValueResult.Rejected -> {
@@ -48,11 +70,9 @@ internal class ViewportGestureMapping(
             }
         }
 
-    private fun mapWithNormalizedViewport(
+    private fun withNormalizedViewport(
         transform: ViewportTransform,
-        point: ViewportSurfacePoint,
-        outside: () -> PointerInputAcknowledgement,
-        action: (PixelPosition) -> PointerInputAcknowledgement,
+        action: (ViewportTransform) -> PointerInputAcknowledgement,
     ): PointerInputAcknowledgement {
         if (transform.viewport != runtime.state.workspaceState.viewport) {
             val normalization = adapter.reduce(WorkspaceAction.SetViewport(transform.viewport))
@@ -63,12 +83,6 @@ internal class ViewportGestureMapping(
                 return normalization
             }
         }
-        return when (val mapping = transform.toPixelPosition(point)) {
-            is ViewportMappingResult.Mapped -> action(mapping.value)
-
-            ViewportMappingResult.OutsideCanvas,
-            ViewportMappingResult.OutsideSurface,
-            -> outside()
-        }
+        return action(transform)
     }
 }
