@@ -151,7 +151,14 @@ internal class PngImportWorkflowLeaseTest {
         }
 
     private fun planned(fixture: Fixture): PendingRasterImport {
-        val source = fixture.runtime.pngImportOperations.planningSource()
-        return PendingRasterImport.planned(raster, source.canvas, source.definition)
+        val source =
+            fixture.runtime.read { transaction ->
+                io.github.hideyukimori.nenepixel.core.application.workspace.importing.LayerImportTarget.capture(
+                    transaction.captureSource(),
+                    transaction.workspaceState().activeFrameId,
+                    transaction.workspaceState().activeLayerId,
+                )
+            }
+        return PendingRasterImport.planned(raster, source)
     }
 }

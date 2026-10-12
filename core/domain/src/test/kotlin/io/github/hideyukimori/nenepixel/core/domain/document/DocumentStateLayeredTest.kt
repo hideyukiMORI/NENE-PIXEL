@@ -23,28 +23,32 @@ internal class DocumentStateLayeredTest {
     @Test
     fun `layered factory accepts one layer and keeps document revision`() {
         val layer = layer(1, snapshot(2, 1, listOf(0, 1)))
-        val state = created(DocumentState.createLayered(DOCUMENT_ID, REVISION, DEFINITION, listOf(layer)))
+        val state = created(DocumentState.createSingleFrame(DOCUMENT_ID, REVISION, DEFINITION, listOf(layer)))
 
         assertEquals(DOCUMENT_ID, state.id)
         assertEquals(REVISION, state.revision)
         assertEquals(DEFINITION, state.definition)
-        assertEquals(listOf(layer), state.layers)
+        assertEquals(listOf(layer), state.frames.single().layers)
         assertEquals(canvasSize(2, 1), state.size)
     }
 
     @Test
     fun `layered factory accepts the maximum layer count in bottom to top order`() {
         val layers = (1..LayerLimits.MAX_LAYERS).map { layer(it, snapshot(2, 1, listOf(0, 0))) }
-        val state = created(DocumentState.createLayered(DOCUMENT_ID, REVISION, DEFINITION, layers))
+        val state = created(DocumentState.createSingleFrame(DOCUMENT_ID, REVISION, DEFINITION, layers))
 
-        assertEquals(layers, state.layers)
-        val top = state.layers.last()
+        assertEquals(layers, state.frames.single().layers)
+        val top =
+            state.frames
+                .single()
+                .layers
+                .last()
         assertEquals(LayerLimits.MAX_LAYERS, top.id.value)
     }
 
     @Test
     fun `layered factory rejects zero layers`() {
-        val rejection = rejected(DocumentState.createLayered(DOCUMENT_ID, REVISION, DEFINITION, emptyList()))
+        val rejection = rejected(DocumentState.createSingleFrame(DOCUMENT_ID, REVISION, DEFINITION, emptyList()))
 
         assertEquals(DomainValueRejection.DocumentLayerCountOutOfRange(0), rejection)
     }
@@ -52,7 +56,7 @@ internal class DocumentStateLayeredTest {
     @Test
     fun `layered factory rejects more than the maximum layer count`() {
         val layers = (1..LayerLimits.MAX_LAYERS + 1).map { layer(it, snapshot(2, 1, listOf(0, 0))) }
-        val rejection = rejected(DocumentState.createLayered(DOCUMENT_ID, REVISION, DEFINITION, layers))
+        val rejection = rejected(DocumentState.createSingleFrame(DOCUMENT_ID, REVISION, DEFINITION, layers))
 
         assertEquals(DomainValueRejection.DocumentLayerCountOutOfRange(LayerLimits.MAX_LAYERS + 1), rejection)
     }
@@ -61,7 +65,7 @@ internal class DocumentStateLayeredTest {
     fun `layered factory rejects the first duplicated layer id`() {
         val pixels = snapshot(2, 1, listOf(0, 0))
         val layers = listOf(layer(1, pixels), layer(2, pixels), layer(3, pixels), layer(2, pixels), layer(1, pixels))
-        val rejection = rejected(DocumentState.createLayered(DOCUMENT_ID, REVISION, DEFINITION, layers))
+        val rejection = rejected(DocumentState.createSingleFrame(DOCUMENT_ID, REVISION, DEFINITION, layers))
 
         assertEquals(DomainValueRejection.DuplicateLayerId(2), rejection)
     }
@@ -69,7 +73,7 @@ internal class DocumentStateLayeredTest {
     @Test
     fun `layered factory rejects a layer whose size differs from the bottom layer`() {
         val layers = listOf(layer(1, snapshot(2, 1, listOf(0, 0))), layer(2, snapshot(1, 2, listOf(0, 0))))
-        val rejection = rejected(DocumentState.createLayered(DOCUMENT_ID, REVISION, DEFINITION, layers))
+        val rejection = rejected(DocumentState.createSingleFrame(DOCUMENT_ID, REVISION, DEFINITION, layers))
 
         val mismatch = assertInstanceOf(DomainValueRejection.LayerSizeMismatch::class.java, rejection)
         assertEquals(2, mismatch.layerId)
@@ -80,7 +84,7 @@ internal class DocumentStateLayeredTest {
     @Test
     fun `layered factory rejects a palette index outside the definition in any layer`() {
         val layers = listOf(layer(1, snapshot(2, 1, listOf(0, 1))), layer(2, snapshot(2, 1, listOf(0, 3))))
-        val rejection = rejected(DocumentState.createLayered(DOCUMENT_ID, REVISION, DEFINITION, layers))
+        val rejection = rejected(DocumentState.createSingleFrame(DOCUMENT_ID, REVISION, DEFINITION, layers))
 
         val outside = assertInstanceOf(DomainValueRejection.PaletteIndexOutsidePalette::class.java, rejection)
         assertEquals(index(3), outside.attemptedIndex)
@@ -91,12 +95,12 @@ internal class DocumentStateLayeredTest {
     fun `document keeps its own copy of the caller layer list`() {
         val bottom = layer(1, snapshot(2, 1, listOf(0, 0)))
         val callerLayers = mutableListOf(bottom)
-        val state = created(DocumentState.createLayered(DOCUMENT_ID, REVISION, DEFINITION, callerLayers))
+        val state = created(DocumentState.createSingleFrame(DOCUMENT_ID, REVISION, DEFINITION, callerLayers))
 
         callerLayers.add(layer(2, snapshot(2, 1, listOf(1, 1))))
         callerLayers[0] = layer(3, snapshot(2, 1, listOf(2, 2)))
 
-        assertEquals(listOf(bottom), state.layers)
+        assertEquals(listOf(bottom), state.frames.single().layers)
     }
 
     @Test
@@ -105,8 +109,17 @@ internal class DocumentStateLayeredTest {
         val revision = created(Revision.create(7))
         val state = created(DocumentState.createSingleLayer(DOCUMENT_ID, revision, DEFINITION, pixels))
 
-        assertEquals(1, state.layers.size)
-        val only = state.layers.single()
+        assertEquals(
+            1,
+            state.frames
+                .single()
+                .layers.size,
+        )
+        val only =
+            state.frames
+                .single()
+                .layers
+                .single()
         assertEquals(LayerId.first(), only.id)
         assertEquals(LayerName.empty, only.name)
         assertEquals(LayerVisibility.Visible, only.visibility)
@@ -117,12 +130,13 @@ internal class DocumentStateLayeredTest {
     @Test
     fun `equality distinguishes document revision and layers`() {
         val layers = listOf(layer(1, snapshot(2, 1, listOf(0, 0))))
-        val state = created(DocumentState.createLayered(DOCUMENT_ID, REVISION, DEFINITION, layers))
-        val same = created(DocumentState.createLayered(DOCUMENT_ID, REVISION, DEFINITION, layers.toList()))
-        val otherRevision = created(DocumentState.createLayered(DOCUMENT_ID, Revision.initial(), DEFINITION, layers))
+        val state = created(DocumentState.createSingleFrame(DOCUMENT_ID, REVISION, DEFINITION, layers))
+        val same = created(DocumentState.createSingleFrame(DOCUMENT_ID, REVISION, DEFINITION, layers.toList()))
+        val otherRevision =
+            created(DocumentState.createSingleFrame(DOCUMENT_ID, Revision.initial(), DEFINITION, layers))
         val otherLayers =
             created(
-                DocumentState.createLayered(
+                DocumentState.createSingleFrame(
                     DOCUMENT_ID,
                     REVISION,
                     DEFINITION,

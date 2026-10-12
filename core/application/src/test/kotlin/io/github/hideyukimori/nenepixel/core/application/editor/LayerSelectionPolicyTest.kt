@@ -1,11 +1,13 @@
 package io.github.hideyukimori.nenepixel.core.application.editor
 
+import io.github.hideyukimori.nenepixel.core.application.document.transition.DocumentStructureTransition
 import io.github.hideyukimori.nenepixel.core.application.document.transition.LayerStructureTestValues.layer
 import io.github.hideyukimori.nenepixel.core.application.document.transition.LayerStructureTestValues.layerId
 import io.github.hideyukimori.nenepixel.core.application.document.transition.LayerStructureTestValues.layerName
 import io.github.hideyukimori.nenepixel.core.application.document.transition.LayerStructureTestValues.layeredState
 import io.github.hideyukimori.nenepixel.core.application.document.transition.LayerStructureTransition
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
+import io.github.hideyukimori.nenepixel.core.domain.frame.FrameId
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerVisibility
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -26,8 +28,20 @@ internal class LayerSelectionPolicyTest {
     fun `a present active layer is kept after a command`() {
         val document = document(1, 2)
 
-        assertNull(LayerSelectionPolicy.afterApplied(layerId(1), document, none))
-        assertNull(LayerSelectionPolicy.afterApplied(layerId(2), document, none))
+        assertNull(
+            LayerSelectionPolicy.afterApplied(
+                layerId(1),
+                document,
+                frameChange(none),
+            ),
+        )
+        assertNull(
+            LayerSelectionPolicy.afterApplied(
+                layerId(2),
+                document,
+                frameChange(none),
+            ),
+        )
     }
 
     @Test
@@ -36,10 +50,31 @@ internal class LayerSelectionPolicyTest {
         val added = LayerStructureTransition.Added(layer(4, ""), 1)
         val undoneDelete = LayerStructureTransition.Deleted(layer(4, "layer4"), 1).inverse()
 
-        assertEquals(layerId(4), LayerSelectionPolicy.afterApplied(layerId(1), after, added))
+        assertEquals(
+            layerId(4),
+            LayerSelectionPolicy.afterApplied(
+                layerId(1),
+                after,
+                frameChange(added),
+            ),
+        )
         // A redo applies the recorded add again, so it arrives as the same insertion.
-        assertEquals(layerId(4), LayerSelectionPolicy.afterApplied(layerId(2), after, added))
-        assertEquals(layerId(4), LayerSelectionPolicy.afterApplied(layerId(1), after, undoneDelete))
+        assertEquals(
+            layerId(4),
+            LayerSelectionPolicy.afterApplied(
+                layerId(2),
+                after,
+                frameChange(added),
+            ),
+        )
+        assertEquals(
+            layerId(4),
+            LayerSelectionPolicy.afterApplied(
+                layerId(1),
+                after,
+                frameChange(undoneDelete),
+            ),
+        )
     }
 
     @Test
@@ -47,12 +82,30 @@ internal class LayerSelectionPolicyTest {
         val after = document(1, 2, 3)
 
         val renamed = LayerStructureTransition.Renamed(layerId(2), layerName("a"), layerName("layer2"))
-        assertNull(LayerSelectionPolicy.afterApplied(layerId(2), after, renamed))
+        assertNull(
+            LayerSelectionPolicy.afterApplied(
+                layerId(2),
+                after,
+                frameChange(renamed),
+            ),
+        )
         val moved = LayerStructureTransition.Moved(layerId(2), 0, 1)
-        assertNull(LayerSelectionPolicy.afterApplied(layerId(2), after, moved))
+        assertNull(
+            LayerSelectionPolicy.afterApplied(
+                layerId(2),
+                after,
+                frameChange(moved),
+            ),
+        )
         val hidden =
             LayerStructureTransition.VisibilityChanged(layerId(2), LayerVisibility.Visible, LayerVisibility.Hidden)
-        assertNull(LayerSelectionPolicy.afterApplied(layerId(2), after, hidden))
+        assertNull(
+            LayerSelectionPolicy.afterApplied(
+                layerId(2),
+                after,
+                frameChange(hidden),
+            ),
+        )
     }
 
     @Test
@@ -60,16 +113,37 @@ internal class LayerSelectionPolicyTest {
         val after = document(1, 3)
 
         val middle = LayerStructureTransition.Deleted(layer(2, "layer2"), 1)
-        assertEquals(layerId(3), LayerSelectionPolicy.afterApplied(layerId(2), after, middle))
+        assertEquals(
+            layerId(3),
+            LayerSelectionPolicy.afterApplied(
+                layerId(2),
+                after,
+                frameChange(middle),
+            ),
+        )
         val top = LayerStructureTransition.Deleted(layer(4, "layer4"), 2)
-        assertEquals(layerId(3), LayerSelectionPolicy.afterApplied(layerId(4), after, top))
+        assertEquals(
+            layerId(3),
+            LayerSelectionPolicy.afterApplied(
+                layerId(4),
+                after,
+                frameChange(top),
+            ),
+        )
     }
 
     @Test
     fun `any other vanished active layer moves to the top layer`() {
         val after = document(1, 2, 3)
 
-        assertEquals(layerId(3), LayerSelectionPolicy.afterApplied(layerId(9), after, none))
+        assertEquals(
+            layerId(3),
+            LayerSelectionPolicy.afterApplied(
+                layerId(9),
+                after,
+                frameChange(none),
+            ),
+        )
     }
 
     @Test
@@ -84,3 +158,6 @@ internal class LayerSelectionPolicyTest {
 
     private fun document(vararg ids: Int): DocumentState = layeredState(ids.map { layer(it, "layer$it") })
 }
+
+private fun frameChange(change: LayerStructureTransition): DocumentStructureTransition =
+    DocumentStructureTransition.LayerChanged(FrameId.first(), change)

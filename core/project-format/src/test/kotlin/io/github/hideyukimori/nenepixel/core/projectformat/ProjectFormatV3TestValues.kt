@@ -65,7 +65,7 @@ internal object ProjectFormatV3TestValues {
         val palette = created(Palette.create(colors.map(PixelColor::fromPackedRgba8888)))
         val definition = created(PaletteDefinition.create(palette, created(PaletteIndex.create(0))))
         return created(
-            DocumentState.createLayered(
+            DocumentState.createSingleFrame(
                 created(DocumentId.create(GOLDEN_ID)),
                 created(Revision.create(revision)),
                 definition,

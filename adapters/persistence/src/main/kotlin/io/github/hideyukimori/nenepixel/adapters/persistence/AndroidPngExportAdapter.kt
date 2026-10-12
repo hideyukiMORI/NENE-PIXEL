@@ -1,9 +1,9 @@
 package io.github.hideyukimori.nenepixel.adapters.persistence
 
 import android.content.ContentResolver
+import io.github.hideyukimori.nenepixel.core.application.persistence.PngExportCapture
 import io.github.hideyukimori.nenepixel.core.application.persistence.PngExportOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.PngExportPort
-import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 
@@ -11,8 +11,8 @@ public class AndroidPngExportAdapter private constructor(
     private val output: FreshDocumentOutput,
     private val ioDispatcher: CoroutineDispatcher,
 ) : PngExportPort {
-    override suspend fun export(document: DocumentState): PngExportOutcome {
-        val bytes = withContext(ioDispatcher) { PngEncoder.encode(document).copyBytes() }
+    override suspend fun export(capture: PngExportCapture): PngExportOutcome {
+        val bytes = withContext(ioDispatcher) { PngEncoder.encode(capture.document, capture.frame).copyBytes() }
         return when (
             val result =
                 output.write(

@@ -59,7 +59,12 @@ internal class LayerPlacementTest {
             controller.callbacks.onSetAppearance(appearance.copy(layout = layout, controlEdge = edge))
         }
         composeRule.waitForIdle()
-        assertEquals(MAX_LAYERS, controller.renderState.document.layers.size)
+        assertEquals(
+            MAX_LAYERS,
+            controller.renderState.document.frames
+                .single()
+                .layers.size,
+        )
         val name = "$layout/$edge"
         val area = bounds(CANVAS_TAG)
         val control = bounds(CONTROL_TAG)

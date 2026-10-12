@@ -17,7 +17,7 @@ Read by affected contract, as accepted in [ADR 0038](docs/adr/0038-current-agent
 | --- | --- |
 | Project purpose or ownership is unfamiliar | [Charter](docs/PROJECT_CHARTER.md), [Layout](docs/PROJECT_LAYOUT.md), [Glossary](docs/GLOSSARY.md) |
 | Production code, state, command, or module boundary | [Architecture](docs/ARCHITECTURE_CONSTITUTION.md), [Command Model](docs/COMMAND_MODEL.md), [Coding Rules](docs/CODING_RULES.md), affected consumers and accepted ADRs |
-| Persistence, import/export, or migration | Current v3/recovery contract in [ADR 0030](docs/adr/0030-ordered-layers-and-empty-pixels.md), [Layout](docs/PROJECT_LAYOUT.md), and affected legacy contracts in [ADR 0025](docs/adr/0025-indexed-project-compatibility.md) and v1/v2 specifications |
+| Persistence, import/export, or migration | Current frames/v4/recovery contract in [ADR 0041](docs/adr/0041-bounded-frames-and-project-v4.md), [Project Format v4](docs/PROJECT_FORMAT_V4.md), [Layout](docs/PROJECT_LAYOUT.md), and affected legacy contracts in [ADR 0030](docs/adr/0030-ordered-layers-and-empty-pixels.md), [ADR 0025](docs/adr/0025-indexed-project-compatibility.md) and v1/v2 specifications |
 | Build, device, or working-copy operations | [Development Setup](docs/DEVELOPMENT_SETUP.md), applicable device/data-preservation protocol |
 | Scope, sequencing, or milestone acceptance | [Roadmap](docs/ROADMAP.md), [Milestones](docs/MILESTONES.md), [MVP Scope](docs/MVP_SCOPE.md), [Development Plan](docs/DEVELOPMENT_PLAN.md) |
 | Public/external API decision | [API Strategy](docs/API_STRATEGY.md) and [Workflow](docs/DEVELOPMENT_WORKFLOW.md#decision-policy) |

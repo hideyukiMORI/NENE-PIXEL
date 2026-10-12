@@ -41,10 +41,32 @@ internal class ActiveLayerTargetTest {
 
     @Test
     fun `edit target replaces one part at a time`() {
-        val target = EditTarget.create(LayerId.first(), paletteIndex(0))
+        val target =
+            EditTarget.create(
+                io.github.hideyukimori.nenepixel.core.domain.frame.FrameId
+                    .first(),
+                LayerId.first(),
+                paletteIndex(0),
+            )
 
-        assertEquals(EditTarget.create(topId, paletteIndex(0)), target.withLayer(topId))
-        assertEquals(EditTarget.create(LayerId.first(), paletteIndex(2)), target.withPaletteIndex(paletteIndex(2)))
+        assertEquals(
+            EditTarget.create(
+                io.github.hideyukimori.nenepixel.core.domain.frame.FrameId
+                    .first(),
+                topId,
+                paletteIndex(0),
+            ),
+            target.withLayer(topId),
+        )
+        assertEquals(
+            EditTarget.create(
+                io.github.hideyukimori.nenepixel.core.domain.frame.FrameId
+                    .first(),
+                LayerId.first(),
+                paletteIndex(2),
+            ),
+            target.withPaletteIndex(paletteIndex(2)),
+        )
         assertEquals(LayerId.first(), WorkspaceState.create(size).activeLayerId)
         assertEquals(paletteIndex(0), WorkspaceState.create(size).activePaletteIndex)
     }
@@ -83,8 +105,18 @@ internal class ActiveLayerTargetTest {
 
         applied(gateway.execute(ApplyStrokeCommand.create(commit.admission, commit.layerId, commit.stroke)))
 
-        val layers = gateway.runtimeState.documentState.layers
-        assertEquals(twoLayers().layers.first(), layers.first())
+        val layers =
+            gateway.runtimeState.documentState.frames
+                .single()
+                .layers
+        assertEquals(
+            twoLayers()
+                .frames
+                .single()
+                .layers
+                .first(),
+            layers.first(),
+        )
         assertEquals(PixelCell.Covered(blackIndex), cellAt(layers.last().snapshot, position(0, 0)))
         assertEquals(PixelCell.Covered(blackIndex), cellAt(layers.last().snapshot, position(1, 0)))
     }
@@ -96,8 +128,18 @@ internal class ActiveLayerTargetTest {
 
         applied(gateway.execute(command))
 
-        val layers = gateway.runtimeState.documentState.layers
-        assertEquals(twoLayers().layers.first(), layers.first())
+        val layers =
+            gateway.runtimeState.documentState.frames
+                .single()
+                .layers
+        assertEquals(
+            twoLayers()
+                .frames
+                .single()
+                .layers
+                .first(),
+            layers.first(),
+        )
         assertEquals(PixelCell.Empty, cellAt(layers.last().snapshot, position(0, 0)))
         assertEquals(PixelCell.Covered(redIndex), cellAt(layers.last().snapshot, position(1, 0)))
     }
@@ -168,7 +210,7 @@ internal class ActiveLayerTargetTest {
 
     private fun twoLayers(top: PixelSnapshot = PixelSnapshot.createEmpty(size)): DocumentState =
         DocumentState
-            .createLayered(
+            .createSingleFrame(
                 state(size).id,
                 state(size).revision,
                 defaultDefinition,

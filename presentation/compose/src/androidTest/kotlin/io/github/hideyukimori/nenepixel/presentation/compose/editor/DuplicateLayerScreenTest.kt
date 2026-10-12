@@ -9,6 +9,8 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.test.platform.app.InstrumentationRegistry
+import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
+import io.github.hideyukimori.nenepixel.core.domain.layer.Layer
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerName
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerVisibility
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
@@ -26,16 +28,13 @@ internal class DuplicateLayerScreenTest {
     @Test
     fun duplicateTargetsAnInactiveHiddenRowClosesTheMenuAndUndoRedoRestoreIt() {
         val controller = LayerMenuFixture.show(composeRule, layers = 3)
-        val sourceId =
-            controller.renderState.document.layers
-                .first()
-                .id
+        val sourceId = layersOf(controller.renderState.document).first().id
         composeRule.runOnIdle {
             controller.callbacks.layers.onRename(sourceId, name("Ink"))
             controller.callbacks.layers.onSetVisibility(sourceId, LayerVisibility.Hidden)
         }
         val before = controller.renderState.document
-        val source = before.layers.first()
+        val source = layersOf(before).first()
         val active = controller.renderState.activeLayerId
         LayerMenuFixture.openPanel(composeRule)
         LayerMenuFixture.openMenu(composeRule, sourceId)
@@ -43,8 +42,11 @@ internal class DuplicateLayerScreenTest {
         LayerMenuFixture.click(composeRule, DUPLICATE_TAG)
 
         val after = controller.renderState.document
-        val copy = after.layers[1]
-        assertEquals(listOf(sourceId, copy.id, before.layers[1].id, active), after.layers.map { it.id })
+        val copy = layersOf(after)[1]
+        assertEquals(
+            listOf(sourceId, copy.id, layersOf(before)[1].id, active),
+            layersOf(after).map { it.id },
+        )
         assertEquals(copy.id, controller.renderState.activeLayerId)
         assertEquals(source.name, copy.name)
         assertEquals(LayerVisibility.Hidden, copy.visibility)
@@ -75,17 +77,37 @@ internal class DuplicateLayerScreenTest {
     fun theOnlyEmptyUnnamedLayerCanBeDuplicatedWithoutANameSuffix() {
         val controller = LayerMenuFixture.show(composeRule, layers = 1)
         val before = controller.renderState.document
-        LayerMenuFixture.choose(composeRule, before.layers.single().id, DUPLICATE_TAG)
+        val original = layersOf(before).single()
+        LayerMenuFixture.choose(
+            composeRule,
+            original.id,
+            DUPLICATE_TAG,
+        )
         val after = controller.renderState.document
-        assertEquals(2, after.layers.size)
-        assertEquals(LayerName.empty, after.layers.last().name)
-        assertSame(before.layers.single().snapshot, after.layers.last().snapshot)
-        assertEquals(after.layers.last().id, controller.renderState.activeLayerId)
+        val copy = layersOf(after).last()
+        assertEquals(
+            2,
+            layersOf(after).size,
+        )
+        assertEquals(
+            LayerName.empty,
+            copy.name,
+        )
+        assertSame(
+            original.snapshot,
+            copy.snapshot,
+        )
+        assertEquals(
+            copy.id,
+            controller.renderState.activeLayerId,
+        )
         composeRule.onNodeWithTag("editor_undo").performClick()
         assertEquals(before, controller.renderState.document)
         composeRule.onNodeWithTag("editor_redo").performClick()
         assertEquals(after, controller.renderState.document)
     }
+
+    private fun layersOf(document: DocumentState): List<Layer> = document.frames.single().layers
 
     private fun name(value: String): LayerName =
         when (val result = LayerName.create(value)) {

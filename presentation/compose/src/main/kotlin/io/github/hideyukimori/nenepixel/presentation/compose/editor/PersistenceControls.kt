@@ -24,16 +24,18 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.Persistence
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationProjection
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryStatus
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
+import io.github.hideyukimori.nenepixel.core.domain.frame.FrameId
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerVisibility
 import io.github.hideyukimori.nenepixel.presentation.compose.R
 
 @Composable
 internal fun PersistenceControls(
     operation: PersistenceOperationProjection,
-    document: DocumentState,
+    picture: FrameImageInputs,
     callbacks: EditorPersistenceCallbacks,
     submitted: () -> Unit,
 ) {
+    val document = picture.document
     val idle = operation.phase is PersistenceOperationPhase.Idle
     val switchAvailable = idle && operation.recoveryStatus.isAvailableForDocumentSwitch()
     FlowRow(horizontalArrangement = Arrangement.spacedBy(PERSISTENCE_SPACING)) {
@@ -46,7 +48,7 @@ internal fun PersistenceControls(
             submitted()
         }
         NewDocumentControls(document.size, callbacks, switchAvailable, submitted)
-        val exportable = document.hasVisibleLayer()
+        val exportable = document.hasVisibleLayer(picture.frameId)
         EditorActionButton(R.string.export_png, idle && exportable) {
             callbacks.onExportPng()
             submitted()
@@ -143,7 +145,8 @@ private fun PersistenceOperationPhase.cancellableOperation(): PersistenceOperati
  * Display-only guard for the export button. The application still refuses the export with
  * `PersistenceRequestResult.NoVisibleLayer` (ADR 0030); this only keeps the button from inviting it.
  */
-internal fun DocumentState.hasVisibleLayer(): Boolean = layers.any { it.visibility == LayerVisibility.Visible }
+internal fun DocumentState.hasVisibleLayer(frameId: FrameId): Boolean =
+    requireNotNull(frameById(frameId)).layers.any { it.visibility == LayerVisibility.Visible }
 
 internal fun RecoveryStatus.isAvailableForDocumentSwitch(): Boolean =
     this is RecoveryStatus.Clear || this is RecoveryStatus.UnadoptedCandidate

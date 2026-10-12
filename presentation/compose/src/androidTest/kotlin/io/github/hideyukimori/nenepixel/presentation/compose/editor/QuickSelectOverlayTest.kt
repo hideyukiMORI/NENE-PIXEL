@@ -95,7 +95,9 @@ internal class QuickSelectOverlayTest {
         assertEquals(EyedropperState.Armed, controller.renderState.quickSelection.eyedropper)
         composeRule.onNodeWithTag(CONTROL_TAG).assert(stateDescription(R.string.quick_select_state_eyedropper))
         val snapshot =
-            controller.renderState.document.layers
+            controller.renderState.document.frames
+                .single()
+                .layers
                 .single()
                 .snapshot
         val canUndo = controller.renderState.canUndo
@@ -104,7 +106,9 @@ internal class QuickSelectOverlayTest {
         assertEquals(index(2), controller.renderState.activePaletteIndex)
         assertEquals(
             snapshot,
-            controller.renderState.document.layers
+            controller.renderState.document.frames
+                .single()
+                .layers
                 .single()
                 .snapshot,
         )
@@ -182,7 +186,9 @@ internal class QuickSelectOverlayTest {
         val controller = paintedController()
         enterTapMode()
         val snapshot =
-            controller.renderState.document.layers
+            controller.renderState.document.frames
+                .single()
+                .layers
                 .single()
                 .snapshot
         val canUndo = controller.renderState.canUndo
@@ -192,7 +198,9 @@ internal class QuickSelectOverlayTest {
         assertNull(controller.renderState.quickSelection.menu)
         assertEquals(
             snapshot,
-            controller.renderState.document.layers
+            controller.renderState.document.frames
+                .single()
+                .layers
                 .single()
                 .snapshot,
         )

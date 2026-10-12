@@ -6,6 +6,8 @@ import io.github.hideyukimori.nenepixel.core.application.document.command.UndoCo
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.cellAt
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.position
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.redIndex
+import io.github.hideyukimori.nenepixel.core.application.document.transition.assertSingleFrameCell
+import io.github.hideyukimori.nenepixel.core.application.document.transition.singleFrameSnapshot
 import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveStateToken
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceAction
 import io.github.hideyukimori.nenepixel.core.application.workspace.selection.SelectionTestValues.begin
@@ -43,9 +45,9 @@ internal class SelectionTransformOperationsTest {
         val after = runtime.state.documentState
         assertEquals(history.value + 1L, runtime.read { it.historyPosition().value })
         assertEquals(before.revision.value + 1L, after.revision.value)
-        assertEquals(PixelCell.Covered(redIndex), cellAt(after.layers.single().snapshot, position(1, 0)))
-        assertEquals(PixelCell.Empty, cellAt(after.layers.single().snapshot, position(0, 0)))
-        assertEquals(PixelCell.Empty, cellAt(after.layers.single().snapshot, position(2, 0)))
+        assertSingleFrameCell(after, position(1, 0), PixelCell.Covered(redIndex))
+        assertSingleFrameCell(after, position(0, 0), PixelCell.Empty)
+        assertSingleFrameCell(after, position(2, 0), PixelCell.Empty)
         assertNull(runtime.state.workspaceState.selectionSession)
         assertEquals(
             runtime.read { AutosaveStateToken(it.coordination.runtimeGeneration, it.historyPosition()) },

@@ -364,7 +364,9 @@ private class P4MissingRecoveryRecord : RecoveryRecordPort {
 }
 
 private class P4CancelledPngExport : PngExportPort {
-    override suspend fun export(document: DocumentState): PngExportOutcome = PngExportOutcome.Cancelled
+    override suspend fun export(
+        capture: io.github.hideyukimori.nenepixel.core.application.persistence.PngExportCapture,
+    ): PngExportOutcome = PngExportOutcome.Cancelled
 }
 
 private class P4CancelledPaletteJsonExport : PaletteJsonExportPort {

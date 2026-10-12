@@ -40,13 +40,25 @@ internal class DocumentTransitionTest {
         assertEquals(
             PixelCell.Covered(redIndex),
             cellAt(
-                first.nextState.layers
+                first.nextState.frames
+                    .single()
+                    .layers
                     .single()
                     .snapshot,
                 position(1, 0),
             ),
         )
-        assertEquals(PixelCell.Covered(blackIndex), cellAt(current.layers.single().snapshot, position(1, 0)))
+        assertEquals(
+            PixelCell.Covered(blackIndex),
+            cellAt(
+                current.frames
+                    .single()
+                    .layers
+                    .single()
+                    .snapshot,
+                position(1, 0),
+            ),
+        )
         assertEquals(first.changeSet, second.changeSet)
     }
 
@@ -66,8 +78,28 @@ internal class DocumentTransitionTest {
         assertEquals(smallerCanvas, mismatch.expected)
         assertEquals(current.size, mismatch.actual)
         assertEquals(revision(0L), current.revision)
-        assertEquals(PixelCell.Covered(blackIndex), cellAt(current.layers.single().snapshot, position(0, 0)))
-        assertEquals(PixelCell.Covered(blackIndex), cellAt(current.layers.single().snapshot, position(1, 0)))
+        assertEquals(
+            PixelCell.Covered(blackIndex),
+            cellAt(
+                current.frames
+                    .single()
+                    .layers
+                    .single()
+                    .snapshot,
+                position(0, 0),
+            ),
+        )
+        assertEquals(
+            PixelCell.Covered(blackIndex),
+            cellAt(
+                current.frames
+                    .single()
+                    .layers
+                    .single()
+                    .snapshot,
+                position(1, 0),
+            ),
+        )
     }
 
     @Test
@@ -87,7 +119,17 @@ internal class DocumentTransitionTest {
         assertEquals(revision(1L), mismatch.expected)
         assertEquals(revision(2L), mismatch.actual)
         assertEquals(revision(2L), current.revision)
-        assertEquals(PixelCell.Covered(blackIndex), cellAt(current.layers.single().snapshot, position(0, 0)))
+        assertEquals(
+            PixelCell.Covered(blackIndex),
+            cellAt(
+                current.frames
+                    .single()
+                    .layers
+                    .single()
+                    .snapshot,
+                position(0, 0),
+            ),
+        )
     }
 
     @Test
@@ -106,6 +148,16 @@ internal class DocumentTransitionTest {
         assertEquals(PixelCell.Covered(blackIndex), mismatch.expected)
         assertEquals(PixelCell.Covered(greenIndex), mismatch.actual)
         assertEquals(revision(0L), current.revision)
-        assertEquals(PixelCell.Covered(greenIndex), cellAt(current.layers.single().snapshot, position(0, 0)))
+        assertEquals(
+            PixelCell.Covered(greenIndex),
+            cellAt(
+                current.frames
+                    .single()
+                    .layers
+                    .single()
+                    .snapshot,
+                position(0, 0),
+            ),
+        )
     }
 }

@@ -1,20 +1,24 @@
 package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
+import io.github.hideyukimori.nenepixel.core.application.workspace.importing.LayerImportTarget
 import io.github.hideyukimori.nenepixel.core.application.workspace.importing.NewWorkImportOption
 import io.github.hideyukimori.nenepixel.core.application.workspace.importing.PendingRasterImport
 import io.github.hideyukimori.nenepixel.core.application.workspace.importing.RasterImportFacts
 import io.github.hideyukimori.nenepixel.core.application.workspace.importing.RasterImportOption
+import io.github.hideyukimori.nenepixel.core.domain.frame.FrameLimits
 import io.github.hideyukimori.nenepixel.core.domain.importing.LayerImportPlan
-import io.github.hideyukimori.nenepixel.core.domain.layer.LayerLimits
 import io.github.hideyukimori.nenepixel.presentation.compose.R
 
 /** What the PNG import dialog shows for one picked PNG (ADR 0033 "Controls"). */
 internal data class PngImportDialogModel(
     val facts: RasterImportFacts,
-    val append: PngImportFormModel,
-    val convert: PngImportFormModel,
-    val newWork: PngImportFormModel,
-)
+    val forms: PngImportFormChoices,
+    val target: LayerImportTarget,
+) {
+    val append: PngImportFormModel get() = forms.append
+    val convert: PngImportFormModel get() = forms.convert
+    val newWork: PngImportFormModel get() = forms.newWork
+}
 
 /**
  * One import form (a layer form or the new work): whether it can be chosen, and the lines that state what it does or
@@ -42,9 +46,13 @@ internal fun pngImportDialogModel(
 ): PngImportDialogModel =
     PngImportDialogModel(
         facts = pending.facts,
-        append = formModel(pending.appending, layerCount, ::appendLines),
-        convert = formModel(pending.converting, layerCount, ::convertLines),
-        newWork = newWorkModel(pending.newWork),
+        forms =
+            PngImportFormChoices(
+                formModel(pending.appending, layerCount, ::appendLines),
+                formModel(pending.converting, layerCount, ::convertLines),
+                newWorkModel(pending.newWork),
+            ),
+        target = pending.target,
     )
 
 private fun formModel(
@@ -53,8 +61,8 @@ private fun formModel(
     lines: (LayerImportPlan) -> List<PngImportLine>,
 ): PngImportFormModel =
     when {
-        layerCount >= LayerLimits.MAX_LAYERS -> {
-            PngImportFormModel(false, listOf(PngImportLine(R.plurals.layer_limit, LayerLimits.MAX_LAYERS)))
+        layerCount >= FrameLimits.MAX_TOTAL_LAYER_RECORDS -> {
+            PngImportFormModel(false, listOf(PngImportLine(R.string.document_layer_limit)))
         }
 
         option is RasterImportOption.Available -> {

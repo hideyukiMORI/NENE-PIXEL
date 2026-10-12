@@ -41,8 +41,20 @@ internal class LayerCommandHistoryTest {
 
         val restored = gateway.runtimeState.documentState
         assertEquals(original, restored)
-        assertEquals(layerId(2), restored.layers[1].id)
-        assertEquals(pixels, restored.layers[1].snapshot)
+        assertEquals(
+            layerId(2),
+            restored.frames
+                .single()
+                .layers[1]
+                .id,
+        )
+        assertEquals(
+            pixels,
+            restored.frames
+                .single()
+                .layers[1]
+                .snapshot,
+        )
     }
 
     @Test

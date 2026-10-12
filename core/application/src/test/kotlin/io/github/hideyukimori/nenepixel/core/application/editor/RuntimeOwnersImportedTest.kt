@@ -26,8 +26,20 @@ internal class RuntimeOwnersImportedTest {
         assertEquals(documentId('1'), owners.documentId())
         assertEquals(Revision.initial(), document.revision)
         assertEquals(plan.definition, document.definition)
-        assertEquals(1, document.layers.size)
-        assertEquals(plan.snapshot, document.layers.single().snapshot)
+        assertEquals(
+            1,
+            document.frames
+                .single()
+                .layers.size,
+        )
+        assertEquals(
+            plan.snapshot,
+            document.frames
+                .single()
+                .layers
+                .single()
+                .snapshot,
+        )
         assertTrue(owners.isDirty())
     }
 

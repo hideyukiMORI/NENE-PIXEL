@@ -15,6 +15,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.App
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.stroke
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ChangeSet
 import io.github.hideyukimori.nenepixel.core.application.document.transition.LayerIndexChanges
+import io.github.hideyukimori.nenepixel.core.application.document.transition.singleFrameSnapshot
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
@@ -203,18 +204,14 @@ internal class CommandGatewayHistoryTest {
         assertEquals(
             PixelCell.Covered(blackIndex),
             cellAt(
-                gateway.runtimeState.documentState.layers
-                    .single()
-                    .snapshot,
+                gateway.runtimeState.documentState.singleFrameSnapshot(),
                 position(0, 0),
             ),
         )
         assertEquals(
             PixelCell.Covered(greenIndex),
             cellAt(
-                gateway.runtimeState.documentState.layers
-                    .single()
-                    .snapshot,
+                gateway.runtimeState.documentState.singleFrameSnapshot(),
                 position(1, 0),
             ),
         )
@@ -234,7 +231,10 @@ internal class CommandGatewayHistoryTest {
         val branched = gateway.runtimeState.documentState
 
         assertEquals(abandoned.revision, branched.revision)
-        assertNotEquals(abandoned.layers.single().snapshot, branched.layers.single().snapshot)
+        assertNotEquals(
+            abandoned.singleFrameSnapshot(),
+            branched.singleFrameSnapshot(),
+        )
         assertEquals(HistoryAvailability.UndoAvailable, gateway.runtimeState.historyAvailability)
         assertEquals(
             RejectionReason.NoRedoAvailable,
@@ -267,9 +267,7 @@ internal class CommandGatewayHistoryTest {
         assertEquals(
             PixelCell.Covered(redIndex),
             cellAt(
-                gateway.runtimeState.documentState.layers
-                    .single()
-                    .snapshot,
+                gateway.runtimeState.documentState.singleFrameSnapshot(),
                 position(0, 0),
             ),
         )
@@ -305,9 +303,7 @@ internal class CommandGatewayHistoryTest {
         assertEquals(
             PixelCell.Covered(redIndex),
             cellAt(
-                gateway.runtimeState.documentState.layers
-                    .single()
-                    .snapshot,
+                gateway.runtimeState.documentState.singleFrameSnapshot(),
                 position(0, 0),
             ),
         )
@@ -384,9 +380,7 @@ internal class CommandGatewayHistoryTest {
         assertEquals(
             PixelCell.Covered(redIndex),
             cellAt(
-                gateway.runtimeState.documentState.layers
-                    .single()
-                    .snapshot,
+                gateway.runtimeState.documentState.singleFrameSnapshot(),
                 position(0, 0),
             ),
         )

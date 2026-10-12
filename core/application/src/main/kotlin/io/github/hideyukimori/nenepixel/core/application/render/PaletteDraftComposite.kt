@@ -3,6 +3,7 @@ package io.github.hideyukimori.nenepixel.core.application.render
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteEditSession
 import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
+import io.github.hideyukimori.nenepixel.core.domain.frame.FrameId
 import io.github.hideyukimori.nenepixel.core.domain.palette.Palette
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
@@ -19,14 +20,26 @@ import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 public object PaletteDraftComposite {
     public fun render(
         document: DocumentState,
+        frameId: FrameId,
         session: PaletteEditSession,
     ): PaletteDraftCompositeResult =
         if (document.definition != session.origin) {
             PaletteDraftCompositeResult.SourceMismatch
         } else {
-            when (val result = DocumentComposite.render(document, colorTable(session))) {
-                is DocumentCompositeRenderResult.Rendered -> PaletteDraftCompositeResult.Rendered(result.image)
-                DocumentCompositeRenderResult.IndexOutsidePalette -> error("Draft colour table lost an origin index")
+            when (val result = DocumentComposite.render(document, frameId, colorTable(session))) {
+                is DocumentCompositeRenderResult.Rendered -> {
+                    PaletteDraftCompositeResult.Rendered(result.image)
+                }
+
+                is DocumentCompositeRenderResult.FrameNotFound -> {
+                    PaletteDraftCompositeResult.FrameNotFound(
+                        result.frameId,
+                    )
+                }
+
+                DocumentCompositeRenderResult.IndexOutsidePalette -> {
+                    error("Draft colour table lost an origin index")
+                }
             }
         }
 

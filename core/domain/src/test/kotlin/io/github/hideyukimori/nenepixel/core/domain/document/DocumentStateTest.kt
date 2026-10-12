@@ -27,7 +27,14 @@ internal class DocumentStateTest {
 
         assertEquals(DOCUMENT_ID, state.id)
         assertEquals(definition, state.definition)
-        assertEquals(snapshot, state.layers.single().snapshot)
+        assertEquals(
+            snapshot,
+            state.frames
+                .single()
+                .layers
+                .single()
+                .snapshot,
+        )
         assertEquals(snapshot.size, state.size)
         assertEquals(revision, state.revision)
         assertEquals(state, created(DocumentState.createSingleLayer(DOCUMENT_ID, revision, definition, snapshot)))

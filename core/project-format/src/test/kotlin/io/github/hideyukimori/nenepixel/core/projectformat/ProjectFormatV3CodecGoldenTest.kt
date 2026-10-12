@@ -37,7 +37,7 @@ internal class ProjectFormatV3CodecGoldenTest {
         val document = ProjectFormatTestValues.v2MinimalDocument
 
         assertEquals(62, golden.size)
-        assertArrayEquals(golden, ProjectFormatCodec.encode(document).copyBytes())
+        assertArrayEquals(golden, HistoricalProjectFormatV3Encoder.encode(document).copyBytes())
         assertEquals(document, current(ProjectFormatTestValues.carrier(golden)))
     }
 
@@ -46,13 +46,22 @@ internal class ProjectFormatV3CodecGoldenTest {
         val golden = ProjectFormatTestValues.golden("layered-v3.hex")
 
         assertEquals(77, golden.size)
-        assertArrayEquals(golden, ProjectFormatCodec.encode(ProjectFormatV3TestValues.layeredDocument).copyBytes())
+        assertArrayEquals(
+            golden,
+            HistoricalProjectFormatV3Encoder.encode(ProjectFormatV3TestValues.layeredDocument).copyBytes(),
+        )
         val decoded = current(ProjectFormatTestValues.carrier(golden))
         assertEquals(ProjectFormatV3TestValues.layeredDocument, decoded)
-        val (bottom, top) = decoded.layers
-        assertEquals(listOf(1, 5), decoded.layers.map { layer -> layer.id.value })
+        val (bottom, top) = decoded.frames.single().layers
+        assertEquals(
+            listOf(1, 5),
+            decoded.frames
+                .single()
+                .layers
+                .map { layer -> layer.id.value },
+        )
         assertEquals("A", bottom.name.value)
-        assertEquals("é", top.name.value)
+        assertEquals("\u00e9", top.name.value)
         assertEquals(LayerVisibility.Visible, bottom.visibility)
         assertEquals(LayerVisibility.Hidden, top.visibility)
         assertEquals(listOf(covered(0), PixelCell.Empty, covered(1)), cells(decoded, 0))
@@ -66,25 +75,24 @@ internal class ProjectFormatV3CodecGoldenTest {
             ProjectFormatTestValues.rectangularDocument,
             ProjectFormatV3TestValues.layeredDocument,
         ).forEach { document ->
-            assertEquals(document, current(ProjectFormatCodec.encode(document)))
+            assertEquals(document, current(HistoricalProjectFormatV3Encoder.encode(document)))
         }
     }
 
     @Test
-    fun `maximum v3 round trips at the common maximum and one more byte is rejected`() {
+    fun `maximum v3 round trips at its own version maximum and one more byte is rejected`() {
         val document = ProjectFormatV3TestValues.maximumLayeredDocument()
-        val encoded = ProjectFormatCodec.encode(document)
+        val encoded = HistoricalProjectFormatV3Encoder.encode(document)
 
         assertEquals(1_182_862, ProjectFormatV3Layout.MAX_FILE_BYTE_COUNT)
-        assertEquals(ProjectFormatBytes.MAX_FILE_BYTE_COUNT, encoded.byteCount)
         assertEquals(ProjectFormatV3Layout.MAX_FILE_BYTE_COUNT, encoded.byteCount)
         assertEquals(document, current(encoded))
 
         val oversized = ProjectFormatTestValues.carrier(encoded.copyBytes().copyOf(encoded.byteCount + 1))
         val resource =
             assertInstanceOf(ProjectFormatRejection.ResourceLimitExceeded::class.java, rejected(oversized))
-        assertEquals(ProjectFormatBytes.MAX_FILE_BYTE_COUNT + 1, resource.actualByteCount)
-        assertEquals(ProjectFormatBytes.MAX_FILE_BYTE_COUNT, resource.maximumByteCount)
+        assertEquals(ProjectFormatV3Layout.MAX_FILE_BYTE_COUNT + 1, resource.actualByteCount)
+        assertEquals(ProjectFormatV3Layout.MAX_FILE_BYTE_COUNT, resource.maximumByteCount)
     }
 
     @Test
@@ -98,15 +106,19 @@ internal class ProjectFormatV3CodecGoldenTest {
     }
 
     @Test
-    fun `v2 decodes as one covered layer and re-encodes as v3 with the same cells`() {
+    fun `historical v2 decodes into one default frame and v3 fixture preserves the same cells`() {
         val golden = ProjectFormatTestValues.golden("rectangular-duplicates-v2.hex")
         val fromV2 = current(ProjectFormatTestValues.carrier(golden))
-        val layer = fromV2.layers.single()
+        val layer =
+            fromV2.frames
+                .single()
+                .layers
+                .single()
         assertEquals(LayerId.first(), layer.id)
         assertEquals(LayerName.empty, layer.name)
         assertEquals(LayerVisibility.Visible, layer.visibility)
 
-        val rewritten = ProjectFormatCodec.encode(fromV2)
+        val rewritten = HistoricalProjectFormatV3Encoder.encode(fromV2)
         assertEquals(ProjectFormatV3Layout.VERSION, ProjectFormatBigEndian.readUnsignedShort(rewritten, 8))
         val fromV3 = current(rewritten)
         assertEquals(fromV2, fromV3)
@@ -118,7 +130,11 @@ internal class ProjectFormatV3CodecGoldenTest {
         document: DocumentState,
         layerIndex: Int,
     ): List<PixelCell> {
-        val snapshot = document.layers[layerIndex].snapshot
+        val snapshot =
+            document.frames
+                .single()
+                .layers[layerIndex]
+                .snapshot
         return List(snapshot.size.pixelCount.toInt()) { pixel ->
             val position =
                 PixelPosition.create(

@@ -44,6 +44,10 @@ internal data class P4LayerRunAdmission(
 
         fun read(): P4LayerRunAdmission {
             val arguments = InstrumentationRegistry.getArguments()
+            check(arguments.getString("p4LayerCollect") != "saf-save-v1") {
+                "Historical v3 SAF contract is not admitted with the v4 writer; " +
+                    "reconcile #145 protocol before collection"
+            }
             check(arguments.getString("p4LayerPreserved") == "true")
             val admission =
                 P4LayerRunAdmission(

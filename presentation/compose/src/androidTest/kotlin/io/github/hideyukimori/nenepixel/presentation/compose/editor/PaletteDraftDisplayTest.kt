@@ -124,13 +124,37 @@ internal class PaletteDraftDisplayTest {
         openPaletteEditor(editor)
         val committed = CommittedBitmapCache()
         val opened = editor.controller.renderState
-        val first = committed.render(opened.document, opened.definition, opened.paletteEditSession)
-        val again = committed.render(opened.document, opened.definition, opened.paletteEditSession)
+        val first =
+            committed.render(
+                opened.document,
+                opened.document.frames
+                    .single()
+                    .id,
+                opened.definition,
+                opened.paletteEditSession,
+            )
+        val again =
+            committed.render(
+                opened.document,
+                opened.document.frames
+                    .single()
+                    .id,
+                opened.definition,
+                opened.paletteEditSession,
+            )
         editorNode("editor_palette_editor_slot_2").performClick()
         enterHex(EDITED_HEX)
         val edited = editor.controller.renderState
         assertNotSame(opened.paletteEditSession, edited.paletteEditSession)
-        val rebuilt = committed.render(edited.document, edited.definition, edited.paletteEditSession)
+        val rebuilt =
+            committed.render(
+                edited.document,
+                edited.document.frames
+                    .single()
+                    .id,
+                edited.definition,
+                edited.paletteEditSession,
+            )
 
         assertSame("Unchanged inputs keep the bitmap", first, again)
         assertNotSame("Changed effective pixel colours rebuild the bitmap", first, rebuilt)
@@ -155,15 +179,33 @@ internal class PaletteDraftDisplayTest {
     private fun draftDefinitionWithoutRemap(editor: EditorFixture): IntArray {
         val state = editor.controller.renderState
         val session = requireNotNull(state.paletteEditSession) { "No palette edit session" }
-        return when (val result = DocumentComposite.render(state.document, session.draft)) {
+        return when (
+            val result =
+                DocumentComposite.render(
+                    state.document,
+                    state.document.frames
+                        .single()
+                        .id,
+                    session.draft,
+                )
+        ) {
             is DocumentCompositeRenderResult.Rendered -> result.image.toStraightArgb()
+            is DocumentCompositeRenderResult.FrameNotFound -> error("Missing fixture frame")
             DocumentCompositeRenderResult.IndexOutsidePalette -> error("The draft keeps every index")
         }
     }
 
     private fun shownPixels(editor: EditorFixture): IntArray {
         val state = editor.controller.renderState
-        return CommittedBitmapCache().render(state.document, state.definition, state.paletteEditSession).pixels()
+        return CommittedBitmapCache()
+            .render(
+                state.document,
+                state.document.frames
+                    .single()
+                    .id,
+                state.definition,
+                state.paletteEditSession,
+            ).pixels()
     }
 
     /** Red at (0, 0), green at (1, 0), blue at (2, 0); every other pixel is Empty. */

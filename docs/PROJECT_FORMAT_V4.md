@@ -2,8 +2,8 @@
 
 Status: normative byte-contract authority for schema version 4; ADR 0041 / Issue #215
 
-This contract becomes write-current only with the atomic frame runtime/storage/UI cutover in
-[ADR 0041](adr/0041-bounded-frames-and-project-v4.md). The design change itself adds no codec.
+This is write-current with Issue #216's atomic frame runtime/storage/UI cutover under
+[ADR 0041](adr/0041-bounded-frames-and-project-v4.md), following design Issue #215.
 [V1](PROJECT_FORMAT_V1.md), [v2](PROJECT_FORMAT_V2.md) and the v3 byte table in
 [ADR 0030](adr/0030-ordered-layers-and-empty-pixels.md#project-v3-and-migration) remain their exact
 historical byte authorities. V4 does not amend their bytes or version-specific limits.
@@ -125,7 +125,7 @@ Internal snapshot-mapper seams may verify allocation ordering; they are not publ
 
 ## Write-current and migration
 
-The atomic consuming change makes ProjectFormatCodec.encode(DocumentState) emit only v4. Identical
+ProjectFormatCodec.encode(DocumentState) emits only v4. Identical
 documents yield identical bytes, independent of workspace focus, clock, locale or renderer. Frame
 and layer iteration follow their saved orders. A visible composite never substitutes for indexed
 records. There is no editable-model v1/v2/v3 writer or silent downgrade to a single frame.

@@ -86,8 +86,8 @@ ADR 0030 / #140 adds the ordered-layer portion (P4-05), initially deferring fram
 ADR 0032 / #169 adds the reference underlay (P4-06), which the owner placed before the layer gate.
 ADR 0033 / #176 adds PNG import (P4-07), requested by the owner on 2026-10-01.
 ADR 0034 / #172 decides the underlay memory (P4-06c).
-ADR 0041 / #215 accepts bounded frames and v4/envelope 4 for a later atomic implementation;
-current production remains the single-frame v3 model until that cutover.
+ADR 0041 / #215 accepts bounded frames and v4/envelope 4; #216 implements the atomic hierarchy,
+storage and frame-editing interface. Playback remains the separate consuming decision in #217.
 
 | ID | Work package | Depends on | Required evidence |
 | --- | --- | --- | --- |

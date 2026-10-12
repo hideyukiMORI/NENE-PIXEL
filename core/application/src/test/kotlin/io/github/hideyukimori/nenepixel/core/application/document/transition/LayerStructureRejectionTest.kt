@@ -39,7 +39,11 @@ internal class LayerStructureRejectionTest {
     @Test
     fun `deleting a layer that differs from the recorded one or its position is a structure mismatch`() {
         val current = threeLayerState()
-        val renamed = current.layers[1].withName(layerName("other"))
+        val renamed =
+            current.frames
+                .single()
+                .layers[1]
+                .withName(layerName("other"))
 
         assertEquals(
             RejectionReason.LayerStructureMismatch(layerId(2)),
@@ -47,7 +51,7 @@ internal class LayerStructureRejectionTest {
         )
         assertEquals(
             RejectionReason.LayerStructureMismatch(layerId(2)),
-            reasonFor(LayerStructureTransition.Deleted(current.layers[1], 0)),
+            reasonFor(LayerStructureTransition.Deleted(current.frames.single().layers[1], 0)),
         )
     }
 

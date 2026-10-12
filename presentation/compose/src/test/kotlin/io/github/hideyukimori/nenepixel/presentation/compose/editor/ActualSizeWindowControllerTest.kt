@@ -22,10 +22,14 @@ internal class ActualSizeWindowControllerTest {
         assertEquals(shown, fixture.runtime.state.workspaceState.actualSizeWindow)
         assertSame(result, fixture.controller.renderStates.value)
         assertSame(
-            before.document.layers
+            before.document.frames
+                .single()
+                .layers
                 .single()
                 .snapshot,
-            result.document.layers
+            result.document.frames
+                .single()
+                .layers
                 .single()
                 .snapshot,
         )

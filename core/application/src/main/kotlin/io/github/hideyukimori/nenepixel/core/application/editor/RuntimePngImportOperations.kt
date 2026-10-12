@@ -6,6 +6,7 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.Persistence
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceRequestResult
 import io.github.hideyukimori.nenepixel.core.application.persistence.PngImportOutcome
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceAction
+import io.github.hideyukimori.nenepixel.core.application.workspace.importing.LayerImportTarget
 import io.github.hideyukimori.nenepixel.core.application.workspace.importing.PendingRasterImport
 
 /** Runs the PNG-import pick on the shared document-output lease (ADR 0033). */
@@ -18,15 +19,8 @@ internal class RuntimePngImportOperations(
                 PersistenceTransition(transaction.coordination, PngImportPickStart.PaletteSessionActive)
             } else {
                 val lease = DocumentOutputTransitions.begin(transaction.coordination)
-                PersistenceTransition(lease.next, lease.result.toPickStart(), lease.effect)
+                PersistenceTransition(lease.next, lease.result.toPickStart(transaction), lease.effect)
             }
-        }
-
-    /** The installed document's canvas size and palette definition, read under the runtime lock. */
-    fun planningSource(): PngImportPlanningSource =
-        runtime.read { transaction ->
-            val document = transaction.documentState()
-            PngImportPlanningSource(document.size, document.definition)
         }
 
     /**
@@ -56,10 +50,17 @@ internal class RuntimePngImportOperations(
             CancellationTransitions.completeCancellation(transaction.coordination, handle)
         }
 
-    private fun DocumentOutputLease.toPickStart(): PngImportPickStart =
+    private fun DocumentOutputLease.toPickStart(transaction: EditorRuntime.RuntimeTransaction): PngImportPickStart =
         when (this) {
             is DocumentOutputLease.Started -> {
-                PngImportPickStart.Started(handle)
+                PngImportPickStart.Started(
+                    handle,
+                    LayerImportTarget.capture(
+                        transaction.captureSource(),
+                        transaction.workspaceState().activeFrameId,
+                        transaction.workspaceState().activeLayerId,
+                    ),
+                )
             }
 
             DocumentOutputLease.Busy -> {

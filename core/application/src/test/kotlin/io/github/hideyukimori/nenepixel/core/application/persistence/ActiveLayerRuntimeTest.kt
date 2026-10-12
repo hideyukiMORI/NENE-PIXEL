@@ -64,7 +64,7 @@ internal class ActiveLayerRuntimeTest {
 
     private fun twoLayers(id: DocumentId): DocumentState =
         DocumentState
-            .createLayered(
+            .createSingleFrame(
                 id,
                 Revision.initial(),
                 defaultDefinition,

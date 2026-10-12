@@ -4,6 +4,7 @@ import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerName
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerVisibility
 import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestValues.fixture
+import io.github.hideyukimori.nenepixel.presentation.compose.editor.SingleFrameTestValues.layersOf
 import io.github.hideyukimori.nenepixel.presentation.compose.requiredValue
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
@@ -19,7 +20,15 @@ internal class EditorLayerCallbacksTest {
         val added = layers.onAdd()
 
         assertNull(added.layerNotice)
-        assertEquals(listOf(layerId(2), LayerId.first()), layerRowsOf(added.document).map { it.id })
+        assertEquals(
+            listOf(layerId(2), LayerId.first()),
+            layerRowsOf(
+                added.document,
+                added.document.frames
+                    .single()
+                    .id,
+            ).map { it.id },
+        )
         assertEquals(layerId(2), added.activeLayerId)
         assertSame(added, fixture.controller.renderState)
     }
@@ -46,15 +55,20 @@ internal class EditorLayerCallbacksTest {
         layers.onRename(LayerId.first(), name)
         layers.onSetVisibility(LayerId.first(), LayerVisibility.Hidden)
         val source =
-            fixture.controller.renderState.document.layers
+            layersOf(fixture.controller.renderState.document)
                 .first()
         assertEquals(layerId(2), fixture.controller.renderState.activeLayerId)
         val duplicated = layers.onDuplicate(source.id)
 
         assertNull(duplicated.layerNotice)
-        assertEquals(listOf(LayerId.first(), layerId(3), layerId(2)), duplicated.document.layers.map { it.id })
+        assertEquals(
+            listOf(LayerId.first(), layerId(3), layerId(2)),
+            layersOf(duplicated.document)
+                .map { it.id },
+        )
         assertEquals(layerId(3), duplicated.activeLayerId)
-        val copy = duplicated.document.layers[1]
+        val copy =
+            layersOf(duplicated.document)[1]
         assertEquals(source.name, copy.name)
         assertEquals(source.visibility, copy.visibility)
         assertSame(source.snapshot, copy.snapshot)
@@ -62,7 +76,7 @@ internal class EditorLayerCallbacksTest {
         fixture.controller.callbacks.onUndo()
         assertEquals(
             listOf(LayerId.first(), layerId(2)),
-            fixture.controller.renderState.document.layers
+            layersOf(fixture.controller.renderState.document)
                 .map { it.id },
         )
         fixture.controller.callbacks.onRedo()
@@ -87,7 +101,12 @@ internal class EditorLayerCallbacksTest {
                 LayerRowModel(LayerId.first(), name, LayerVisibility.Hidden),
                 LayerRowModel(layerId(2), LayerName.empty, LayerVisibility.Visible),
             ),
-            layerRowsOf(fixture.controller.renderState.document),
+            layerRowsOf(
+                fixture.controller.renderState.document,
+                fixture.controller.renderState.document.frames
+                    .single()
+                    .id,
+            ),
         )
     }
 

@@ -14,6 +14,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,8 +34,8 @@ import io.github.hideyukimori.nenepixel.presentation.compose.R
  */
 @Composable
 internal fun LayerPanel(
-    count: Int,
-    onClose: () -> Unit,
+    heading: LayerPanelHeadingModel,
+    navigation: LayerPanelNavigation,
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit = {},
 ) {
@@ -55,9 +56,26 @@ internal fun LayerPanel(
             ),
             verticalArrangement = Arrangement.spacedBy(LayerGeometry.PANEL_SPACING),
         ) {
-            LayerPanelHeading(title, count, onClose)
+            LayerPanelHeading(title, heading.layerCount, navigation.close)
+            LayerFrameHeading(heading, navigation)
             content()
         }
+    }
+}
+
+@Composable
+private fun LayerFrameHeading(
+    heading: LayerPanelHeadingModel,
+    navigation: LayerPanelNavigation,
+) {
+    TextButton(
+        onClick = navigation.frames,
+        modifier =
+            Modifier
+                .heightIn(min = LayerGeometry.HEADER_HEIGHT)
+                .editorDescription(R.string.frame_chosen, heading.frameOrdinal, heading.frameCount),
+    ) {
+        Text(stringResource(R.string.frame_chosen, heading.frameOrdinal, heading.frameCount))
     }
 }
 

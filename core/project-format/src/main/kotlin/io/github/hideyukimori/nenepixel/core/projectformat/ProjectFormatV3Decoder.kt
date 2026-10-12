@@ -40,7 +40,7 @@ internal class ProjectFormatV3Decoder {
         header: ProjectFormatV3Header,
         layers: List<Layer>,
     ): ProjectFormatResult<DocumentImportSource> =
-        when (val result = DocumentState.createLayered(header.id, header.revision, header.definition, layers)) {
+        when (val result = DocumentState.createSingleFrame(header.id, header.revision, header.definition, layers)) {
             is DomainValueResult.Created -> accepted(DocumentImportSource.Current(result.value))
             is DomainValueResult.Rejected -> error("Validated v3 document failed domain mapping: ${result.rejection}")
         }

@@ -38,7 +38,7 @@ internal fun PngImportDialog(
     onOpenAsNewWork: () -> Unit,
 ) {
     val pending by remember(state) { derivedStateOf { state.value.pendingImport } }
-    val layerCount by remember(state) { derivedStateOf { state.value.document.layers.size } }
+    val layerCount by remember(state) { derivedStateOf { state.value.document.totalLayerCount } }
     pending?.let { picked ->
         val model = pngImportDialogModel(picked, layerCount)
         Dialog(onDismissRequest = { callbacks.onCancel() }) {
@@ -47,7 +47,7 @@ internal fun PngImportDialog(
                 shape = MaterialTheme.shapes.extraLarge,
                 tonalElevation = 6.dp,
             ) {
-                PngImportContent(model, callbacks, onOpenAsNewWork)
+                PngImportContent(model, callbacks, onOpenAsNewWork, state.value.importNotice)
             }
         }
     }
@@ -58,6 +58,7 @@ private fun PngImportContent(
     model: PngImportDialogModel,
     callbacks: EditorImportCallbacks,
     onOpenAsNewWork: () -> Unit,
+    notice: FrameEditorNotice?,
 ) {
     val facts = model.facts
     Column(
@@ -69,6 +70,13 @@ private fun PngImportContent(
             Text(stringResource(R.string.png_import_size, facts.width, facts.height))
             Text(pluralStringResource(R.plurals.png_import_colors, facts.colorCount, facts.colorCount))
         }
+        if (model.target.frameCount > 1) {
+            Text(
+                stringResource(R.string.png_import_target_frame, model.target.frameOrdinal),
+                modifier = Modifier.editorDescription(R.string.png_import_target_frame, model.target.frameOrdinal),
+            )
+        }
+        notice?.let { Text(stringResource(it.resource()), color = MaterialTheme.colorScheme.error) }
         PngImportForm(R.string.png_import_append, model.append) { callbacks.onAppend() }
         PngImportForm(R.string.png_import_convert, model.convert) { callbacks.onConvert() }
         PngImportForm(R.string.png_import_new_work, model.newWork) { onOpenAsNewWork() }

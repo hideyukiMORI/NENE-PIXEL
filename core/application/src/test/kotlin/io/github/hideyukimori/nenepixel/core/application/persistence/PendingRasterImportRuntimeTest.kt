@@ -53,8 +53,18 @@ internal class PendingRasterImportRuntimeTest {
 
     private fun pending(): PendingRasterImport =
         when (val result = ImportRaster.create(1, 1, intArrayOf(RED_PIXEL))) {
-            is DomainValueResult.Created -> PendingRasterImport.planned(result.value, canvas(1, 1), defaultDefinition)
-            is DomainValueResult.Rejected -> fail("Raster rejected: ${result.rejection}")
+            is DomainValueResult.Created -> {
+                io.github.hideyukimori.nenepixel.core.application.workspace.importing.RasterImportTestValues
+                    .planned(
+                        result.value,
+                        canvas(1, 1),
+                        defaultDefinition,
+                    )
+            }
+
+            is DomainValueResult.Rejected -> {
+                fail("Raster rejected: ${result.rejection}")
+            }
         }
 
     private companion object {

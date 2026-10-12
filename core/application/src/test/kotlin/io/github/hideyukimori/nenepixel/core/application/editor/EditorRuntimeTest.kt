@@ -3,6 +3,7 @@ package io.github.hideyukimori.nenepixel.core.application.editor
 import io.github.hideyukimori.nenepixel.core.application.document.command.ApplyStrokeCommand
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandFailure
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandResult
+import io.github.hideyukimori.nenepixel.core.application.document.command.CommandResultAssertions.applied
 import io.github.hideyukimori.nenepixel.core.application.document.command.RedoCommand
 import io.github.hideyukimori.nenepixel.core.application.document.command.RejectionReason
 import io.github.hideyukimori.nenepixel.core.application.document.command.ReplacePaletteCommand
@@ -22,6 +23,8 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.App
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.red
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.redIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.stroke
+import io.github.hideyukimori.nenepixel.core.application.document.transition.assertSingleFrameCell
+import io.github.hideyukimori.nenepixel.core.application.document.transition.singleFrameSnapshot
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceAction
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceActionRejection
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReductionResult
@@ -75,14 +78,13 @@ internal class EditorRuntimeTest {
                     runtime.reduce(WorkspaceAction.PrepareGestureCommit),
                 )
             assertEquals(expected, buildList { prepared.stroke.forEachPosition(::add) })
-            assertInstanceOf(
-                CommandResult.Applied::class.java,
-                runtime.execute(ApplyStrokeCommand.create(prepared.admission, prepared.layerId, prepared.stroke)),
-            )
+            applied(runtime.execute(ApplyStrokeCommand.create(prepared.admission, prepared.layerId, prepared.stroke)))
             val after = runtime.state.documentState
             assertEquals(before.revision.value + 1, after.revision.value)
             val cell = if (tool == DrawingTool.Pencil) PixelCell.Covered(redIndex) else PixelCell.Empty
-            expected.forEach { assertEquals(cell, cellAt(after.layers.single().snapshot, it)) }
+            expected.forEach {
+                assertSingleFrameCell(after, it, cell)
+            }
             runtime.execute(UndoCommand.create(after.id, after.revision))
             assertEquals(before, runtime.state.documentState)
             runtime.execute(RedoCommand.create(before.id, before.revision))
@@ -169,9 +171,8 @@ internal class EditorRuntimeTest {
         assertEquals(0L, state.documentState.revision.value)
         assertEquals(
             List(6) { 0 },
-            state.documentState.layers
-                .single()
-                .snapshot
+            state.documentState
+                .singleFrameSnapshot()
                 .copyPackedIndices()
                 .map { it.toInt() and 0xff },
         )
@@ -233,10 +234,8 @@ internal class EditorRuntimeTest {
 
         assertEquals(abandoned.revision, runtime.state.documentState.revision)
         assertNotEquals(
-            abandoned.layers.single().snapshot,
-            runtime.state.documentState.layers
-                .single()
-                .snapshot,
+            abandoned.singleFrameSnapshot(),
+            runtime.state.documentState.singleFrameSnapshot(),
         )
         assertEquals(DocumentDirtyState.Dirty, runtime.state.dirtyState)
 
@@ -279,9 +278,7 @@ internal class EditorRuntimeTest {
     fun `new document starts with every pixel Empty`() {
         val runtime = EditorRuntime.create(canvas(3, 2), toolDefinition, SequentialDocumentIdSource())
         val snapshot =
-            runtime.state.documentState.layers
-                .single()
-                .snapshot
+            runtime.state.documentState.singleFrameSnapshot()
 
         assertEquals(PixelSnapshot.createEmpty(snapshot.size), snapshot)
         for (y in 0 until 2) {

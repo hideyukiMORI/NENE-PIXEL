@@ -2,6 +2,7 @@ package io.github.hideyukimori.nenepixel.core.application.render
 
 import io.github.hideyukimori.nenepixel.core.application.workspace.ToolGesture
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
+import io.github.hideyukimori.nenepixel.core.domain.frame.FrameId
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.pixelengine.composite.StrokeComposite
 import io.github.hideyukimori.nenepixel.core.pixelengine.composite.StrokeCompositeResult
@@ -25,13 +26,16 @@ public class StrokePreviewComposite private constructor(
         /** Prepares the preview of [gesture] over [document]; the document invariants rule out rejection. */
         public fun prepare(
             document: DocumentState,
+            frameId: FrameId,
             gesture: ToolGesture,
         ): StrokePreviewComposite {
             check(gesture.canvas == document.size) {
                 "Gesture canvas ${gesture.canvas} does not match the document size ${document.size}"
             }
+            val frame = requireNotNull(document.frameById(frameId))
+            check(frame.layers.any { it.id == gesture.layerId }) { "Gesture target is outside its preview frame" }
             val target = StrokeCompositeTarget(gesture.layerId, gesture.effect)
-            val result = prepareStrokeComposite(document.size, document.layers, document.definition, target)
+            val result = prepareStrokeComposite(document.size, frame.layers, document.definition, target)
             return when (result) {
                 is StrokeCompositeResult.Prepared -> {
                     StrokePreviewComposite(result.composite)

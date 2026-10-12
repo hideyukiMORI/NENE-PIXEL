@@ -65,7 +65,9 @@ internal object LayerMenuFixture {
     }
 
     fun frontToBack(controller: EditorController): List<LayerId> =
-        controller.renderState.document.layers
+        controller.renderState.document.frames
+            .single()
+            .layers
             .asReversed()
             .map { layer -> layer.id }
 

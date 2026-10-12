@@ -1,8 +1,10 @@
 package io.github.hideyukimori.nenepixel.core.application.document.command
 
+import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
+import io.github.hideyukimori.nenepixel.core.domain.frame.FrameId
+import io.github.hideyukimori.nenepixel.core.domain.frame.FrameLimits
 import io.github.hideyukimori.nenepixel.core.domain.layer.Layer
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
-import io.github.hideyukimori.nenepixel.core.domain.layer.LayerLimits
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 
 /** Where and under which id a new layer goes; shared by every command that inserts a layer (ADR 0030, ADR 0033). */
@@ -10,6 +12,7 @@ internal sealed interface LayerInsertion {
     /** [position] counts from the bottom after the insertion. */
     data class Accepted(
         val id: LayerId,
+        val frameId: FrameId,
         val position: Int,
     ) : LayerInsertion
 
@@ -20,22 +23,32 @@ internal sealed interface LayerInsertion {
 
 /** Places a new layer directly above [aboveLayerId], refusing a missing anchor, a full list or exhausted ids. */
 internal fun planLayerInsertion(
-    layers: List<Layer>,
+    document: DocumentState,
     aboveLayerId: LayerId,
 ): LayerInsertion {
+    val frame =
+        document.frameContainingLayer(aboveLayerId)
+            ?: return LayerInsertion.Refused(RejectionReason.LayerNotFound(aboveLayerId))
+    val layers = frame.layers
     val below = layers.positionOf(aboveLayerId)
     return when {
         below < 0 -> {
             LayerInsertion.Refused(RejectionReason.LayerNotFound(aboveLayerId))
         }
 
-        layers.size >= LayerLimits.MAX_LAYERS -> {
+        document.totalLayerCount >= FrameLimits.MAX_TOTAL_LAYER_RECORDS -> {
             LayerInsertion.Refused(RejectionReason.LayerLimitReached)
         }
 
         else -> {
-            when (val next = layers.highestId().next()) {
-                is DomainValueResult.Created -> LayerInsertion.Accepted(next.value, below + 1)
+            when (
+                val next =
+                    document.frames
+                        .flatMap { it.layers }
+                        .highestId()
+                        .next()
+            ) {
+                is DomainValueResult.Created -> LayerInsertion.Accepted(next.value, frame.id, below + 1)
                 is DomainValueResult.Rejected -> LayerInsertion.Refused(RejectionReason.LayerIdOverflow)
             }
         }

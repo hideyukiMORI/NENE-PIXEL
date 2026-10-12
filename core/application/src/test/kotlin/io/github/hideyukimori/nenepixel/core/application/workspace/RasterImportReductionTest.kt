@@ -114,7 +114,11 @@ internal class RasterImportReductionTest {
     ): WorkspaceReductionResult = reducer.reduce(state, action, admission)
 
     private fun pending(): PendingRasterImport =
-        PendingRasterImport.planned(raster(RED_PIXEL, BLACK_PIXEL), canvas(2, 1), defaultDefinition)
+        io.github.hideyukimori.nenepixel.core.application.workspace.importing.RasterImportTestValues.planned(
+            raster(RED_PIXEL, BLACK_PIXEL),
+            canvas(2, 1),
+            defaultDefinition,
+        )
 
     private fun raster(vararg packed: Int): ImportRaster =
         when (val result = ImportRaster.create(packed.size, 1, packed)) {

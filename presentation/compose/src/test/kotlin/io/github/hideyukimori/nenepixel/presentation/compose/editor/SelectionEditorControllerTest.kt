@@ -11,6 +11,8 @@ import io.github.hideyukimori.nenepixel.core.domain.selection.PixelTransferMode
 import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestValues.cellAt
 import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestValues.fixture
 import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestValues.position
+import io.github.hideyukimori.nenepixel.presentation.compose.editor.SingleFrameTestValues.layerOf
+import io.github.hideyukimori.nenepixel.presentation.compose.editor.SingleFrameTestValues.layersOf
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertInstanceOf
@@ -32,7 +34,9 @@ internal class SelectionEditorControllerTest {
         val before = controller.documentState
         assertInstanceOf(
             WorkspaceReductionResult.Reduced::class.java,
-            controller.callbacks.selection.onBegin(before.layers.single().id),
+            controller.callbacks.selection.onBegin(
+                layerOf(before).id,
+            ),
         )
         drag(controller, point(0, 0), point(0, 0))
         controller.pointerDown(surface, point(0, 0))
@@ -54,16 +58,12 @@ internal class SelectionEditorControllerTest {
         assertEquals(PixelCell.Empty, cellAt(applied.document, position(0, 0)))
         assertEquals(cellAt(before, position(0, 0)), cellAt(applied.document, position(2, 1)))
         assertEquals(
-            before.layers,
-            controller.callbacks
-                .onUndo()
-                .document.layers,
+            layersOf(before),
+            layersOf(controller.callbacks.onUndo().document),
         )
         assertEquals(
-            applied.document.layers,
-            controller.callbacks
-                .onRedo()
-                .document.layers,
+            layersOf(applied.document),
+            layersOf(controller.callbacks.onRedo().document),
         )
     }
 
@@ -71,7 +71,13 @@ internal class SelectionEditorControllerTest {
     fun `cancel restores old draft even while drawing new rectangle then a fresh drag can finish`() {
         val controller = fixture().controller
         val before = controller.documentState
-        controller.callbacks.selection.onBegin(before.layers.single().id)
+        controller.callbacks.selection.onBegin(
+            before.frames
+                .single()
+                .layers
+                .single()
+                .id,
+        )
         drag(controller, point(0, 0), point(1, 0))
         drag(controller, point(0, 0), point(0, 1))
         val previous = requireNotNull(controller.renderState.selectionSession).previewTransfer
@@ -99,7 +105,9 @@ internal class SelectionEditorControllerTest {
     fun `mode change keeps geometry and the same pencil intent cancels the entire session`() {
         val controller = fixture().controller
         controller.callbacks.selection.onBegin(
-            controller.documentState.layers
+            controller.documentState.frames
+                .single()
+                .layers
                 .single()
                 .id,
         )
@@ -120,7 +128,9 @@ internal class SelectionEditorControllerTest {
     fun `second pointer restores in flight drag while retaining released selection`() {
         val controller = fixture().controller
         controller.callbacks.selection.onBegin(
-            controller.documentState.layers
+            controller.documentState.frames
+                .single()
+                .layers
                 .single()
                 .id,
         )

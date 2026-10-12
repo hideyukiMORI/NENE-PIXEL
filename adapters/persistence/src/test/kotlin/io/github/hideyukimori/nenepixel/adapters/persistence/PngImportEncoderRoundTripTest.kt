@@ -19,7 +19,7 @@ import org.junit.jupiter.api.Test
 internal class PngImportEncoderRoundTripTest {
     @Test
     fun `minimal export decodes to its one pixel`() {
-        val bytes = PngEncoder.encode(PersistenceTestValues.minimalDocument).copyBytes()
+        val bytes = PngEncoderTestValues.encodeSingleFrame(PersistenceTestValues.minimalDocument).copyBytes()
         assertDecoded(bytes, 1, 1, intArrayOf(0x11223344))
     }
 
@@ -27,7 +27,7 @@ internal class PngImportEncoderRoundTripTest {
     fun `rectangle export keeps hidden RGB and low alpha exactly`() {
         val colors =
             intArrayOf(0x10203000, 0xabcdef01.toInt(), 0x1122337f, 0xdeadbefe.toInt(), 0x010203ff, 0)
-        val bytes = PngEncoder.encode(rectangle(colors)).copyBytes()
+        val bytes = PngEncoderTestValues.encodeSingleFrame(rectangle(colors)).copyBytes()
         assertDecoded(
             bytes,
             3,

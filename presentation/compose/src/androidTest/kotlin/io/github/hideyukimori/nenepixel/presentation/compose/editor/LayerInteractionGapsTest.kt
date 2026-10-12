@@ -93,7 +93,9 @@ internal class LayerInteractionGapsTest {
         input().assertDoesNotExist()
         assertEquals(
             SEA,
-            controller.renderState.document.layers
+            controller.renderState.document.frames
+                .single()
+                .layers
                 .single()
                 .name.value,
         )

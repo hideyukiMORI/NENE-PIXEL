@@ -5,15 +5,31 @@ import io.github.hideyukimori.nenepixel.core.domain.layer.Layer
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerVisibility
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteEntry
 
-internal object ProjectFormatV3Encoder {
+internal object HistoricalProjectFormatV3Encoder {
     private const val HEX_RADIX: Int = 16
     private const val HEX_PAIR_LENGTH: Int = 2
 
-    fun encode(document: DocumentState): ProjectFormatBytes = createCarrier(encodeBytes(document))
+    fun encode(document: DocumentState): ProjectFormatBytes {
+        require(document.frames.size == 1) { "Historical fixture encoder admits one frame only" }
+        require(
+            document.frames.single().id ==
+                io.github.hideyukimori.nenepixel.core.domain.frame.FrameId
+                    .first(),
+        )
+        require(
+            document.frames.single().duration ==
+                io.github.hideyukimori.nenepixel.core.domain.frame.FrameDuration.default,
+        )
+        return createCarrier(encodeBytes(document))
+    }
 
     private fun encodeBytes(document: DocumentState): ByteArray {
         val entries = document.definition.palette.entries()
-        val names = document.layers.map { layer -> layer.name.value.encodeToByteArray() }
+        val names =
+            document.frames
+                .single()
+                .layers
+                .map { layer -> layer.name.value.encodeToByteArray() }
         val pixelCount = document.size.pixelCount.toInt()
         val layerCountOffset = ProjectFormatV3Layout.layerCountOffset(entries.size)
         val firstLayerOffset = layerCountOffset + ProjectFormatV3Layout.LAYER_COUNT_BYTE_COUNT
@@ -24,9 +40,13 @@ internal object ProjectFormatV3Encoder {
         val encoded = ByteArray(byteCount)
         writeHeader(encoded, document, entries.size)
         writePalette(encoded, entries)
-        encoded[layerCountOffset] = document.layers.size.toByte()
+        encoded[layerCountOffset] =
+            document.frames
+                .single()
+                .layers.size
+                .toByte()
         var offset = firstLayerOffset
-        document.layers.forEachIndexed { layerIndex, layer ->
+        document.frames.single().layers.forEachIndexed { layerIndex, layer ->
             offset = writeLayer(encoded, offset, layer, names[layerIndex])
         }
         val checksumOffset = byteCount - Int.SIZE_BYTES

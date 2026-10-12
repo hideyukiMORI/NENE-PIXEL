@@ -55,7 +55,12 @@ internal class PngImportNewWorkDialogTest {
         composeRule.waitUntil(TIMEOUT_MILLIS) {
             composeRule.onAllNodesWithTag(DISCARD_CONTINUE_TAG).fetchSemanticsNodes().isNotEmpty()
         }
-        assertEquals(2, controller.renderState.document.layers.size)
+        assertEquals(
+            2,
+            controller.renderState.document.frames
+                .single()
+                .layers.size,
+        )
         composeRule.onNodeWithTag(DISCARD_CONTINUE_TAG).performClick()
         awaitNewWork(controller)
     }
@@ -120,7 +125,12 @@ internal class PngImportNewWorkDialogTest {
             listOf(PixelColor.fromPackedRgba8888(RED), PixelColor.fromPackedRgba8888(BLUE)),
             state.palette.entries().map { entry -> entry.color },
         )
-        assertEquals(1, state.document.layers.size)
+        assertEquals(
+            1,
+            state.document.frames
+                .single()
+                .layers.size,
+        )
         assertNull(state.pendingImport)
     }
 

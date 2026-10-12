@@ -2,16 +2,46 @@ package io.github.hideyukimori.nenepixel.core.projectformat
 
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 
-internal object ProjectFormatV2Encoder {
+internal object HistoricalProjectFormatV2Encoder {
     private const val HEX_RADIX: Int = 16
     private const val HIGH_NIBBLE_SHIFT: Int = 4
 
-    fun encode(document: DocumentState): ProjectFormatBytes = createCarrier(encodeBytes(document))
+    fun encode(document: DocumentState): ProjectFormatBytes {
+        require(document.frames.size == 1) { "Historical fixture encoder admits one frame only" }
+        require(
+            document.frames.single().id ==
+                io.github.hideyukimori.nenepixel.core.domain.frame.FrameId
+                    .first(),
+        )
+        require(
+            document.frames.single().duration ==
+                io.github.hideyukimori.nenepixel.core.domain.frame.FrameDuration.default,
+        )
+        return createCarrier(encodeBytes(document))
+    }
 
     private fun encodeBytes(document: DocumentState): ByteArray {
+        val layer =
+            document.frames
+                .single()
+                .layers
+                .single()
+        require(
+            layer.name.value.isEmpty() &&
+                layer.visibility == io.github.hideyukimori.nenepixel.core.domain.layer.LayerVisibility.Visible,
+        )
+        require(
+            layer.snapshot.copyCoverage().withIndex().all { (byte, bits) ->
+                val remaining = document.size.pixelCount.toInt() - byte * Byte.SIZE_BITS
+                val expected = if (remaining >= Byte.SIZE_BITS) 0xff else (1 shl remaining) - 1
+                bits.toInt() and 0xff == expected
+            },
+        ) { "Historical v2 fixture requires fully covered cells" }
         val entries = document.definition.palette.entries()
         val indices =
-            document.layers
+            document.frames
+                .single()
+                .layers
                 .single()
                 .snapshot
                 .copyPackedIndices()

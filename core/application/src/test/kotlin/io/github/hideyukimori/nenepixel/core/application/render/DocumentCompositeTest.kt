@@ -28,8 +28,10 @@ internal class DocumentCompositeTest {
     @Test
     fun `render matches the pixel engine composite for visible hidden and empty cells`() {
         val document = document()
-        val image = DocumentComposite.render(document)
-        val expected = raster(compositeLayers(document.size, document.layers, document.definition))
+        val image =
+            io.github.hideyukimori.nenepixel.core.application.render.SingleFrameRenderTestValues
+                .image(document)
+        val expected = raster(compositeLayers(document.size, document.frames.single().layers, document.definition))
         assertEquals(document.size, image.size)
         assertArrayEquals(expected, image.copyPackedRgba8888())
         // Pixel 0: 0xa0c0e080 over 0x204060ff; pixel 1: bottom only; pixel 2: Empty in every visible layer.
@@ -38,14 +40,20 @@ internal class DocumentCompositeTest {
 
     @Test
     fun `image hands out defensive copies`() {
-        val image = DocumentComposite.render(document())
+        val image =
+            io.github.hideyukimori.nenepixel.core.application.render.SingleFrameRenderTestValues.image(
+                document(),
+            )
         image.copyPackedRgba8888().fill(1)
         assertArrayEquals(intArrayOf(0x6080a0ff, 0x204060ff, 0), image.copyPackedRgba8888())
     }
 
     @Test
     fun `map transforms every pixel once in row-major order`() {
-        val image = DocumentComposite.render(document())
+        val image =
+            io.github.hideyukimori.nenepixel.core.application.render.SingleFrameRenderTestValues.image(
+                document(),
+            )
         val seen = mutableListOf<Int>()
         val mapped = image.mapPackedRgba8888 { packed -> packed.also(seen::add) xor MASK }
         assertEquals(listOf(0x6080a0ff, 0x204060ff, 0), seen)
@@ -54,7 +62,10 @@ internal class DocumentCompositeTest {
 
     @Test
     fun `mapped arrays are defensive`() {
-        val image = DocumentComposite.render(document())
+        val image =
+            io.github.hideyukimori.nenepixel.core.application.render.SingleFrameRenderTestValues.image(
+                document(),
+            )
         image.mapPackedRgba8888 { it }.fill(1)
         assertArrayEquals(intArrayOf(0x6080a0ff, 0x204060ff, 0), image.mapPackedRgba8888 { it })
         assertArrayEquals(intArrayOf(0x6080a0ff, 0x204060ff, 0), image.copyPackedRgba8888())
@@ -64,8 +75,8 @@ internal class DocumentCompositeTest {
     fun `draft definition recolors the document layers`() {
         val document = document()
         val draft = definition(0x000000ff, 0xffffff00.toInt(), 0x123456ff)
-        val result = DocumentComposite.render(document, draft)
-        val expected = raster(compositeLayers(document.size, document.layers, draft))
+        val result = DocumentComposite.render(document, document.frames.single().id, draft)
+        val expected = raster(compositeLayers(document.size, document.frames.single().layers, draft))
         val rendered = result as DocumentCompositeRenderResult.Rendered
         assertArrayEquals(expected, rendered.image.copyPackedRgba8888())
         assertArrayEquals(intArrayOf(0x000000ff, 0x000000ff, 0), expected)
@@ -74,7 +85,10 @@ internal class DocumentCompositeTest {
     @Test
     fun `draft definition without a used index is reported as outside the palette`() {
         val draft = definition(0x000000ff, 0xffffffff.toInt())
-        assertEquals(DocumentCompositeRenderResult.IndexOutsidePalette, DocumentComposite.render(document(), draft))
+        assertEquals(
+            DocumentCompositeRenderResult.IndexOutsidePalette,
+            DocumentComposite.render(document(), document().frames.single().id, draft),
+        )
     }
 
     private fun document(): DocumentState {
@@ -86,7 +100,7 @@ internal class DocumentCompositeTest {
             )
         val definition = definition(0x204060ff, 0xa0c0e080.toInt(), 0xff0000ff.toInt())
         val id = value(DocumentId.create("0".repeat(32)))
-        return value(DocumentState.createLayered(id, value(Revision.create(0)), definition, layers))
+        return value(DocumentState.createSingleFrame(id, value(Revision.create(0)), definition, layers))
     }
 
     private fun layer(

@@ -2,12 +2,28 @@ package io.github.hideyukimori.nenepixel.core.application.workspace
 
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteDraftRejection
 import io.github.hideyukimori.nenepixel.core.application.workspace.selection.SelectionRejection
+import io.github.hideyukimori.nenepixel.core.domain.frame.FrameId
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 
 public sealed interface WorkspaceActionRejection {
+    public data object NoPendingRasterImport : WorkspaceActionRejection
+
+    public data class RasterImportFormUnavailable internal constructor(
+        public val mode: io.github.hideyukimori.nenepixel.core.application.workspace.importing.LayerImportMode,
+    ) : WorkspaceActionRejection
+
+    public data class FrameNotFound internal constructor(
+        public val frameId: FrameId,
+    ) : WorkspaceActionRejection
+
+    public data class LayerNotInActiveFrame internal constructor(
+        public val layerId: LayerId,
+        public val frameId: FrameId,
+    ) : WorkspaceActionRejection
+
     public data class SelectionRejected internal constructor(
         public val reason: SelectionRejection,
     ) : WorkspaceActionRejection

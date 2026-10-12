@@ -93,7 +93,11 @@ internal class RuntimeSwitchImportedWorkTest {
     }
 
     private fun pending(raster: ImportRaster): PendingRasterImport =
-        PendingRasterImport.planned(raster, canvas(4, 4), defaultDefinition)
+        io.github.hideyukimori.nenepixel.core.application.workspace.importing.RasterImportTestValues.planned(
+            raster,
+            canvas(4, 4),
+            defaultDefinition,
+        )
 
     private fun wideRaster(): ImportRaster =
         when (val result = ImportRaster.create(WIDE, 1, IntArray(WIDE) { OPAQUE_RED })) {

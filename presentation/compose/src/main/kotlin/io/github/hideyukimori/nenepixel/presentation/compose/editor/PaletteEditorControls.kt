@@ -49,11 +49,12 @@ import io.github.hideyukimori.nenepixel.presentation.compose.R
  */
 @Composable
 internal fun PaletteEditorControls(
-    session: PaletteEditSession,
-    notice: PaletteEditorNotice?,
+    view: PaletteEditorView,
     callbacks: EditorPaletteCallbacks,
     json: PaletteJsonActions,
 ) {
+    val session = view.session
+    val notice = view.notice
     val selectedState = rememberSaveable { mutableIntStateOf(0) }
     val choosingState = rememberSaveable { mutableStateOf(false) }
     val choice = remember(selectedState, choosingState) { PaletteEditorChoice(selectedState, choosingState) }
@@ -61,6 +62,7 @@ internal fun PaletteEditorControls(
     val actions = PaletteEditorActions(selection, choice, callbacks)
     val content = PaletteEditorContent(session, selection, actions, callbacks)
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        PaletteFrameDropdown(view.frames, !session.isColorEditActive)
         Column(
             Modifier.weight(1f).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(8.dp),

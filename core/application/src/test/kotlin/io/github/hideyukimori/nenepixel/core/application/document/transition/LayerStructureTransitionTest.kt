@@ -27,10 +27,19 @@ internal class LayerStructureTransitionTest {
 
         val next = roundTrip(original, changeSet)
 
-        assertEquals(listOf(1, 4, 2, 3), next.layers.map { it.id.value })
-        assertEquals(added, next.layers[1])
-        assertEquals(12L, changeSet.structure.retainedByteCount)
-        assertEquals(TRANSITION_BYTES + 12L, changeSet.retainedByteCount)
+        assertEquals(
+            listOf(1, 4, 2, 3),
+            next.frames
+                .single()
+                .layers
+                .map { it.id.value },
+        )
+        assertEquals(added, next.frames.single().layers[1])
+        assertEquals(
+            12L,
+            (changeSet.structure as DocumentStructureTransition.LayerChanged).transition.retainedByteCount,
+        )
+        assertEquals(TRANSITION_BYTES + 4L + 12L, changeSet.retainedByteCount)
         assertEquals(0, changeSet.retainedChangeCount)
         assertFullCanvasInvalidation(changeSet)
     }
@@ -38,15 +47,21 @@ internal class LayerStructureTransitionTest {
     @Test
     fun `deleted layer is removed from its before position and the inverse restores it`() {
         val original = threeLayerState()
-        val deleted = original.layers[1]
+        val deleted = original.frames.single().layers[1]
         val changeSet = structural(original, LayerStructureTransition.Deleted(deleted, 1))
 
         val next = roundTrip(original, changeSet)
 
-        assertEquals(listOf(1, 3), next.layers.map { it.id.value })
+        assertEquals(
+            listOf(1, 3),
+            next.frames
+                .single()
+                .layers
+                .map { it.id.value },
+        )
         // 2 pixels + ceil(2 / 8) coverage byte + "middle" (6 UTF-8 bytes).
-        assertEquals(9L, changeSet.structure.retainedByteCount)
-        assertEquals(TRANSITION_BYTES + 9L, changeSet.retainedByteCount)
+        assertEquals(9L, (changeSet.structure as DocumentStructureTransition.LayerChanged).transition.retainedByteCount)
+        assertEquals(TRANSITION_BYTES + 4L + 9L, changeSet.retainedByteCount)
         assertFullCanvasInvalidation(changeSet)
     }
 
@@ -61,9 +76,18 @@ internal class LayerStructureTransitionTest {
 
         val next = roundTrip(original, changeSet)
 
-        assertEquals(layerName("線画"), next.layers[1].name)
-        assertEquals(6L + 6L, changeSet.structure.retainedByteCount)
-        assertEquals(TRANSITION_BYTES + 12L, changeSet.retainedByteCount)
+        assertEquals(
+            layerName("線画"),
+            next.frames
+                .single()
+                .layers[1]
+                .name,
+        )
+        assertEquals(
+            6L + 6L,
+            (changeSet.structure as DocumentStructureTransition.LayerChanged).transition.retainedByteCount,
+        )
+        assertEquals(TRANSITION_BYTES + 4L + 12L, changeSet.retainedByteCount)
         assertFullCanvasInvalidation(changeSet)
     }
 
@@ -74,9 +98,15 @@ internal class LayerStructureTransitionTest {
 
         val next = roundTrip(original, changeSet)
 
-        assertEquals(listOf(2, 3, 1), next.layers.map { it.id.value })
-        assertEquals(0L, changeSet.structure.retainedByteCount)
-        assertEquals(TRANSITION_BYTES, changeSet.retainedByteCount)
+        assertEquals(
+            listOf(2, 3, 1),
+            next.frames
+                .single()
+                .layers
+                .map { it.id.value },
+        )
+        assertEquals(0L, (changeSet.structure as DocumentStructureTransition.LayerChanged).transition.retainedByteCount)
+        assertEquals(TRANSITION_BYTES + 4L, changeSet.retainedByteCount)
         assertFullCanvasInvalidation(changeSet)
     }
 
@@ -91,9 +121,15 @@ internal class LayerStructureTransitionTest {
 
         val next = roundTrip(original, changeSet)
 
-        assertEquals(LayerVisibility.Hidden, next.layers[2].visibility)
-        assertEquals(0L, changeSet.structure.retainedByteCount)
-        assertEquals(TRANSITION_BYTES, changeSet.retainedByteCount)
+        assertEquals(
+            LayerVisibility.Hidden,
+            next.frames
+                .single()
+                .layers[2]
+                .visibility,
+        )
+        assertEquals(0L, (changeSet.structure as DocumentStructureTransition.LayerChanged).transition.retainedByteCount)
+        assertEquals(TRANSITION_BYTES + 4L, changeSet.retainedByteCount)
         assertFullCanvasInvalidation(changeSet)
     }
 
@@ -129,7 +165,10 @@ internal class LayerStructureTransitionTest {
 
         val inverse = changeSet.inverse()
 
-        assertEquals(LayerStructureTransition.Moved(layerId(1), 2, 0), inverse.structure)
+        assertEquals(
+            LayerStructureTransition.Moved(layerId(1), 2, 0),
+            (inverse.structure as DocumentStructureTransition.LayerChanged).transition,
+        )
         assertEquals(changeSet.afterRevision, inverse.beforeRevision)
         assertEquals(changeSet.beforeRevision, inverse.afterRevision)
         assertEquals(changeSet, inverse.inverse())
@@ -161,7 +200,7 @@ internal class LayerStructureTransitionTest {
         val original = threeLayerState()
         val changeSet = ChangeSet.create(original, original.revision, PaletteTransition.Unchanged, emptyList())
 
-        assertEquals(LayerStructureTransition.None, changeSet.structure)
+        assertEquals(DocumentStructureTransition.None, changeSet.structure)
         assertEquals(TRANSITION_BYTES, changeSet.retainedByteCount)
     }
 

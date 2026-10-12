@@ -1,5 +1,6 @@
 package io.github.hideyukimori.nenepixel.core.application.workspace
 
+import io.github.hideyukimori.nenepixel.core.domain.frame.FrameId
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 
@@ -8,17 +9,24 @@ import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
  * never saved (ADR 0030).
  */
 public data class EditTarget private constructor(
+    public val frameId: FrameId,
     public val layerId: LayerId,
     public val paletteIndex: PaletteIndex,
 ) {
-    public fun withLayer(layerId: LayerId): EditTarget = EditTarget(layerId, paletteIndex)
+    public fun withLayer(layerId: LayerId): EditTarget = EditTarget(frameId, layerId, paletteIndex)
 
-    public fun withPaletteIndex(paletteIndex: PaletteIndex): EditTarget = EditTarget(layerId, paletteIndex)
+    public fun withFrameLayer(
+        frameId: FrameId,
+        layerId: LayerId,
+    ): EditTarget = EditTarget(frameId, layerId, paletteIndex)
+
+    public fun withPaletteIndex(paletteIndex: PaletteIndex): EditTarget = EditTarget(frameId, layerId, paletteIndex)
 
     public companion object {
         public fun create(
+            frameId: FrameId,
             layerId: LayerId,
             paletteIndex: PaletteIndex,
-        ): EditTarget = EditTarget(layerId, paletteIndex)
+        ): EditTarget = EditTarget(frameId, layerId, paletteIndex)
     }
 }

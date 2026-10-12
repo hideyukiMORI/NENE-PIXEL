@@ -22,15 +22,15 @@ public class ChangeSet private constructor(
     internal val layerChanges: List<LayerChange>
         get() = layers.layerChanges
 
-    /** Applied after [layerChanges]; [LayerStructureTransition.None] when the layer list keeps its shape. */
-    internal val structure: LayerStructureTransition
+    /** Applied after [layerChanges]; [DocumentStructureTransition.None] when the layer list keeps its shape. */
+    internal val structure: DocumentStructureTransition
         get() = layers.structure
 
     public val renderInvalidation: PixelRegion
         get() {
             val only = layerChanges.singleOrNull()?.changes
             val narrow =
-                paletteTransition is PaletteTransition.Unchanged && structure is LayerStructureTransition.None
+                paletteTransition is PaletteTransition.Unchanged && structure is DocumentStructureTransition.None
             return if (narrow && only is LayerIndexChanges.Sparse) {
                 only.patch.affectedRegion
             } else {
@@ -81,7 +81,7 @@ public class ChangeSet private constructor(
     private data class Layers(
         val canvas: CanvasSize,
         val layerChanges: List<LayerChange>,
-        val structure: LayerStructureTransition,
+        val structure: DocumentStructureTransition,
     )
 
     public companion object {
@@ -103,7 +103,7 @@ public class ChangeSet private constructor(
                 source.revision,
                 afterRevision,
                 paletteTransition,
-                Layers(source.size, owned, LayerStructureTransition.None),
+                Layers(source.size, owned, DocumentStructureTransition.None),
             )
         }
 
@@ -111,7 +111,7 @@ public class ChangeSet private constructor(
         internal fun createStructural(
             source: DocumentState,
             afterRevision: Revision,
-            structure: LayerStructureTransition,
+            structure: DocumentStructureTransition,
         ): ChangeSet =
             ChangeSet(
                 source.revision,
@@ -125,7 +125,7 @@ public class ChangeSet private constructor(
             source: DocumentState,
             afterRevision: Revision,
             paletteTransition: PaletteTransition,
-            added: LayerStructureTransition.Added,
+            added: DocumentStructureTransition.LayerChanged,
         ): ChangeSet =
             ChangeSet(
                 source.revision,

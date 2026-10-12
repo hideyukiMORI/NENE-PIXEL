@@ -114,14 +114,13 @@ It does not own UI state, serialization annotations, database entities, Android 
 work buffers. Its private snapshot, stroke and legacy-source arrays are immutable by construction
 and never escape. LegacyRgbaSource is not accepted by editable runtime or command owners.
 
-ADR 0041 accepts a prospective atomic frame cutover. At that cutover, the sole `DocumentState`
+ADR 0041 / #216 implements the atomic frame cutover. The sole `DocumentState`
 representation owns an ordered nonempty list of `Frame` values and one shared palette. Each frame
 owns a stable document-unique `FrameId`, a validated 10–60,000 ms `FrameDuration` and its ordered
 nonempty layers. `LayerId` remains globally unique; every snapshot shares the document canvas and
 palette. Frames and total layer records are each bounded by 16, counting logical records even when
 snapshots are shared. No document-level editable layer alias or independent frame pixel owner
-remains. Until the consuming implementation, current v3/runtime ownership stays unchanged; this
-accepted target adds no unused frame or playback API.
+remains. Playback requires its separate consuming decision and adds no unused API here.
 
 ### `:core:pixel-engine`
 
@@ -184,7 +183,7 @@ future-owner preparation use an injected dispatcher outside the runtime lock whi
 existing physical-operation lease. `PersistencePorts` groups project/recovery/PNG ports for the
 workflow factory; the app injects that group and the worker dispatcher. No second workflow is added.
 
-At ADR 0041's cutover, application owns the atomic workspace `EditTarget` (FrameId, LayerId and
+Under ADR 0041, application owns the atomic workspace `EditTarget` (FrameId, LayerId and
 palette slot), frame commands in the existing gateway/history and the hierarchical structural
 transition. Reconciliation, global layer-record capacity and global ID admission remain in the
 same runtime lock. Rendering/cache projections take explicit frame identity and retain at most
@@ -214,15 +213,15 @@ It maps to/from typed domain documents and uninstalled legacy sources. Domain ty
 values defensively own bytes that are immutable after construction and expose no mutable storage.
 The module performs no I/O and is never a dependency of `:core:application` or presentation.
 ADR 0025 refines ADR 0015's boundary to one `ProjectFormatBytes` carrier, one closed
-`ProjectFormatResult` and `ProjectFormatCodec`. ADR 0030 makes v3 the current write format from
-DocumentState and reads v1/v2/v3 through DocumentImportSource: v1 retains the Legacy conversion,
-while v2 becomes one fully covered layer in Current. Exact original-v1 encoding remains available
-only from LegacyRgbaSource. Version implementations are internal. The common carrier uses the v3
-maximum-plus-one probe; each decoder separately enforces its version-specific maximum. Structural
+`ProjectFormatResult` and `ProjectFormatCodec`. ADR 0041 makes v4 the current write format from
+DocumentState and reads v1/v2/v3/v4 through DocumentImportSource: v1 retains the Legacy conversion,
+while v2 becomes one fully covered layer in the default frame of Current. Exact original-v1 encoding
+remains available only from LegacyRgbaSource. Version implementations are internal. The common
+carrier uses the v4 maximum-plus-one probe; each decoder separately enforces its version-specific maximum. Structural
 length and checksum admission precede raster mapping; layer ID/name/coverage/palette validation
 then completes the exact typed document admission.
 
-At the atomic cutover accepted in ADR 0041, write-current becomes v4 through the same codec and
+The atomic cutover in ADR 0041 / #216 writes v4 through the same codec and
 carrier; [Project Format v4](PROJECT_FORMAT_V4.md) is its exact byte authority. The maximum file
 is 1,183,006 bytes and the probe is 1,183,007. The v4 structure reader admits frame/duration/global-ID
 and aggregate 16-layer-record bounds, exact length and CRC before pixel snapshot allocation.
@@ -286,11 +285,11 @@ advance a document checkpoint. The Android adapter owns typed
 SAF result contracts, fresh-document Save As, read-back verification, maximum-plus-one bounded stream
 reads, and failure normalization before invoking the no-I/O codec. App-private recovery uses the one
 serialized framework `AtomicFile` record and conditional Retired writer fixed by ADR 0016/0024.
-The existing filename is retained; inspection accepts matching envelope/project versions 1, 2 and
-3. New Candidate and Retired writes use envelope 3 under ADR 0030. Inspection never rewrites a
+The existing filename is retained; inspection accepts matching envelope/project versions 1, 2, 3 and
+4. New Candidate and Retired writes use envelope 4 under ADR 0041. Inspection never rewrites a
 source or decides whether to reduce it.
 
-ADR 0041 prospectively switches the same project transport and recovery writer to v4/envelope 4
+ADR 0041 / #216 switches the same project transport and recovery writer to v4/envelope 4
 with the runtime hierarchy. Recovery retains its existing filename, generation, 23-byte Retired
 record, checksum, ordered `AtomicFile` publication and verified read-back. Envelope 4 contains
 exactly project 4; all older exact version pairings remain readable. Candidate bounds become

@@ -24,7 +24,7 @@ internal class LayerCommandTest {
         val after = applyUndoRedo(gateway, add(gateway, above = 1))
 
         assertEquals(listOf(1, 4, 2, 3), ids(after))
-        val added = after.layers[1]
+        val added = after.frames.single().layers[1]
         assertEquals(LayerName.empty, added.name)
         assertEquals(LayerVisibility.Visible, added.visibility)
         assertEquals(PixelSnapshot.createEmpty(smallCanvas), added.snapshot)
@@ -56,7 +56,13 @@ internal class LayerCommandTest {
 
         val after = applyUndoRedo(gateway, command)
 
-        assertEquals(layerName("線画"), after.layers[1].name)
+        assertEquals(
+            layerName("線画"),
+            after.frames
+                .single()
+                .layers[1]
+                .name,
+        )
         assertEquals(listOf(1, 2), ids(after))
     }
 
@@ -76,7 +82,19 @@ internal class LayerCommandTest {
 
         val after = applyUndoRedo(gateway, command)
 
-        assertEquals(LayerVisibility.Hidden, after.layers[0].visibility)
-        assertEquals(LayerVisibility.Visible, after.layers[1].visibility)
+        assertEquals(
+            LayerVisibility.Hidden,
+            after.frames
+                .single()
+                .layers[0]
+                .visibility,
+        )
+        assertEquals(
+            LayerVisibility.Visible,
+            after.frames
+                .single()
+                .layers[1]
+                .visibility,
+        )
     }
 }

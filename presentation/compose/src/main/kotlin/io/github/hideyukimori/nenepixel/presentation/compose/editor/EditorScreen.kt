@@ -259,7 +259,15 @@ private fun PanelContent(
 
         EditorPanel.PaletteEditor -> {
             state.paletteEditSession?.let { session ->
-                PaletteEditorControls(session, state.paletteNotice, inputs.callbacks.palette, json)
+                PaletteEditorControls(
+                    PaletteEditorView(
+                        session,
+                        state.paletteNotice,
+                        PaletteFrameChoice(framePanelModel(state), inputs.callbacks.frames),
+                    ),
+                    inputs.callbacks.palette,
+                    json,
+                )
             }
         }
 
@@ -269,7 +277,7 @@ private fun PanelContent(
 
         EditorPanel.File -> {
             Column(Modifier.verticalScroll(rememberScrollState())) {
-                PersistenceControls(inputs.storage.operation, state.document, inputs.storage.callbacks, dismiss)
+                PersistenceControls(inputs.storage.operation, state.picture, inputs.storage.callbacks, dismiss)
                 Text(
                     stringResource(inputs.storage.operation.statusResource(inputs.storage.autosave)),
                     style = MaterialTheme.typography.bodySmall,

@@ -53,8 +53,19 @@ internal class LayerIndexChangesTest {
         val original = state(fullCanvas)
         val dense =
             LayerIndexChanges.select(
-                original.layers.single().snapshot,
-                redPatch(original.layers.single().snapshot, 24_577),
+                original.frames
+                    .single()
+                    .layers
+                    .single()
+                    .snapshot,
+                redPatch(
+                    original.frames
+                        .single()
+                        .layers
+                        .single()
+                        .snapshot,
+                    24_577,
+                ),
             )
         val changeSet = denseChangeSet(original, dense)
 
@@ -72,7 +83,18 @@ internal class LayerIndexChangesTest {
     fun `dense change whose before snapshot differs is rejected as layer snapshot mismatch`() {
         val current = state(canvas(2, 1))
         val other = snapshot(canvas(2, 1), indices = listOf(redIndex, blackIndex))
-        val changeSet = denseChangeSet(current, LayerIndexChanges.Dense(other, current.layers.single().snapshot))
+        val changeSet =
+            denseChangeSet(
+                current,
+                LayerIndexChanges.Dense(
+                    other,
+                    current.frames
+                        .single()
+                        .layers
+                        .single()
+                        .snapshot,
+                ),
+            )
 
         assertEquals(
             RejectionReason.LayerSnapshotMismatch(LayerId.first()),
@@ -84,7 +106,17 @@ internal class LayerIndexChangesTest {
     fun `change for a layer id absent from the document is rejected as layer not found`() {
         val current = state(canvas(1, 1))
         val missing = LayerId.create(2).requiredValue()
-        val sparse = LayerIndexChanges.Sparse(redPatch(current.layers.single().snapshot, 1))
+        val sparse =
+            LayerIndexChanges.Sparse(
+                redPatch(
+                    current.frames
+                        .single()
+                        .layers
+                        .single()
+                        .snapshot,
+                    1,
+                ),
+            )
         val changeSet =
             ChangeSet.create(current, revision(1L), PaletteTransition.Unchanged, listOf(LayerChange(missing, sparse)))
 

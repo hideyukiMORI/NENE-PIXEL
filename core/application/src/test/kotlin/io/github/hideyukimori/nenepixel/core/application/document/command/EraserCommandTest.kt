@@ -13,6 +13,8 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.App
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.redIndex
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.state
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.stroke
+import io.github.hideyukimori.nenepixel.core.application.document.transition.assertSingleFrameCell
+import io.github.hideyukimori.nenepixel.core.application.document.transition.singleFrameSnapshot
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.document.Revision
 import io.github.hideyukimori.nenepixel.core.domain.drawing.Stroke
@@ -34,15 +36,15 @@ internal class EraserCommandTest {
         applied(gateway.execute(command(gateway, eraserStroke(initial.size, listOf(position(0, 0), position(1, 0))))))
         val erased = gateway.runtimeState.documentState
 
-        assertEquals(PixelCell.Empty, cellAt(erased.layers.single().snapshot, position(0, 0)))
-        assertEquals(PixelCell.Empty, cellAt(erased.layers.single().snapshot, position(1, 0)))
-        assertEquals(PixelCell.Covered(redIndex), cellAt(erased.layers.single().snapshot, position(2, 0)))
+        assertSingleFrameCell(erased, position(0, 0), PixelCell.Empty)
+        assertSingleFrameCell(erased, position(1, 0), PixelCell.Empty)
+        assertSingleFrameCell(erased, position(2, 0), PixelCell.Covered(redIndex))
 
         applied(gateway.execute(UndoCommand.create(erased.id, erased.revision)))
         val restored = gateway.runtimeState.documentState
 
-        assertEquals(PixelCell.Covered(redIndex), cellAt(restored.layers.single().snapshot, position(0, 0)))
-        assertEquals(PixelCell.Covered(greenIndex), cellAt(restored.layers.single().snapshot, position(1, 0)))
+        assertSingleFrameCell(restored, position(0, 0), PixelCell.Covered(redIndex))
+        assertSingleFrameCell(restored, position(1, 0), PixelCell.Covered(greenIndex))
         assertEquals(initial, restored)
     }
 
@@ -69,15 +71,7 @@ internal class EraserCommandTest {
         )
         applied(gateway.execute(command(gateway, eraserStroke(initial.size, listOf(position(0, 0))))))
 
-        assertEquals(
-            PixelCell.Empty,
-            cellAt(
-                gateway.runtimeState.documentState.layers
-                    .single()
-                    .snapshot,
-                position(0, 0),
-            ),
-        )
+        assertSingleFrameCell(gateway.runtimeState.documentState, position(0, 0), PixelCell.Empty)
     }
 
     private fun emptyState(): DocumentState =

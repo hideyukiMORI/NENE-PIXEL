@@ -59,7 +59,7 @@ internal fun PixelCanvas(
         drawPixels(
             geometry.destination,
             previews.render(current, committed)
-                ?: committed.render(current.document, current.definition, current.paletteEditSession),
+                ?: committed.render(current.picture),
             committed.paint,
         )
         drawGrid(geometry)

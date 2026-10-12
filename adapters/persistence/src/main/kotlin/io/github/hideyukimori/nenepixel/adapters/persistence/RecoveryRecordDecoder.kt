@@ -84,7 +84,7 @@ internal object RecoveryRecordDecoder {
                 RecoveryRejection.CORRUPT
             }
 
-            version !in RecoveryRecordLayout.V1_VERSION..RecoveryRecordLayout.V3_VERSION -> {
+            version !in RecoveryRecordLayout.V1_VERSION..RecoveryRecordLayout.V4_VERSION -> {
                 RecoveryRejection.UNSUPPORTED_VERSION
             }
 
@@ -98,6 +98,22 @@ internal object RecoveryRecordDecoder {
         bytes: ByteArray,
         version: Int,
         generation: RecoveryGeneration,
+    ): RecoveryDecodeResult {
+        // The envelope's length and CRC have already admitted this fixed nested prefix.
+        val offset = RecoveryRecordLayout.PAYLOAD_OFFSET + NESTED_VERSION_OFFSET
+        val nestedVersion =
+            (RecoveryRecordBigEndian.unsignedByte(bytes[offset]) shl 8) or
+                RecoveryRecordBigEndian.unsignedByte(bytes[offset + 1])
+        return if (nestedVersion != version) {
+            RecoveryDecodeResult.Rejected(RecoveryRejection.CORRUPT)
+        } else {
+            decodeMatchingCandidate(bytes, generation)
+        }
+    }
+
+    private fun decodeMatchingCandidate(
+        bytes: ByteArray,
+        generation: RecoveryGeneration,
     ): RecoveryDecodeResult =
         when (val carrier = ProjectFormatBytes.create(RecoveryRecordLayout.payload(bytes))) {
             is ProjectFormatResult.Rejected -> {
@@ -105,44 +121,17 @@ internal object RecoveryRecordDecoder {
             }
 
             is ProjectFormatResult.Accepted -> {
-                decodeCandidateDocument(carrier.value, version, generation)
-            }
-        }
+                when (val decoded = ProjectFormatCodec.decode(carrier.value)) {
+                    is ProjectFormatResult.Accepted -> {
+                        RecoveryDecodeResult.Accepted(RecoveryRecord.Candidate(generation, decoded.value))
+                    }
 
-    private fun decodeCandidateDocument(
-        payload: ProjectFormatBytes,
-        envelopeVersion: Int,
-        generation: RecoveryGeneration,
-    ): RecoveryDecodeResult =
-        if (payload.byteCount < NESTED_VERSION_END) {
-            RecoveryDecodeResult.Rejected(RecoveryRejection.CORRUPT)
-        } else {
-            decodeVersionedCandidate(payload, envelopeVersion, generation)
-        }
-
-    private fun decodeVersionedCandidate(
-        payload: ProjectFormatBytes,
-        envelopeVersion: Int,
-        generation: RecoveryGeneration,
-    ): RecoveryDecodeResult {
-        val nested = payload.copyBytes()
-        val nestedVersion =
-            (RecoveryRecordBigEndian.unsignedByte(nested[NESTED_VERSION_OFFSET]) shl 8) or
-                RecoveryRecordBigEndian.unsignedByte(nested[NESTED_VERSION_OFFSET + 1])
-        return if (nestedVersion != envelopeVersion) {
-            RecoveryDecodeResult.Rejected(RecoveryRejection.CORRUPT)
-        } else {
-            when (val decoded = ProjectFormatCodec.decode(payload)) {
-                is ProjectFormatResult.Accepted -> {
-                    RecoveryDecodeResult.Accepted(RecoveryRecord.Candidate(generation, decoded.value))
-                }
-
-                is ProjectFormatResult.Rejected -> {
-                    RecoveryDecodeResult.Rejected(mapProjectRejection(decoded.rejection))
+                    is ProjectFormatResult.Rejected -> {
+                        RecoveryDecodeResult.Rejected(mapProjectRejection(decoded.rejection))
+                    }
                 }
             }
         }
-    }
 
     private fun mapProjectRejection(rejection: ProjectFormatRejection): RecoveryRejection =
         when (rejection) {
@@ -159,6 +148,11 @@ internal object RecoveryRecordDecoder {
             is ProjectFormatRejection.InvalidPaletteEntryCount,
             is ProjectFormatRejection.DefaultIndexOutsidePalette,
             is ProjectFormatRejection.PixelIndexOutsidePalette,
+            is ProjectFormatRejection.InvalidFrameCount,
+            is ProjectFormatRejection.InvalidFrameId,
+            is ProjectFormatRejection.DuplicateFrameId,
+            is ProjectFormatRejection.InvalidFrameDuration,
+            is ProjectFormatRejection.InvalidTotalLayerCount,
             is ProjectFormatRejection.InvalidLayerCount,
             is ProjectFormatRejection.InvalidLayerId,
             is ProjectFormatRejection.DuplicateLayerId,
@@ -169,5 +163,4 @@ internal object RecoveryRecordDecoder {
         }
 
     private const val NESTED_VERSION_OFFSET: Int = 8
-    private const val NESTED_VERSION_END: Int = 10
 }

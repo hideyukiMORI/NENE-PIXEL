@@ -21,6 +21,7 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
 import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceAction
+import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.geometry.DocumentPoint
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.pixel.PixelCell
@@ -75,9 +76,9 @@ internal class SelectionTransformScreenTest {
         assertEquals(preview, SelectionScreenFixture.samples(rule, controller))
         assertCells(controller, listOf(null, 1, 1, 0, 0, null))
         rule.onNodeWithTag("editor_undo").performClick()
-        assertEquals(before.layers, controller.documentState.layers)
+        assertLayers(before, controller)
         rule.onNodeWithTag("editor_redo").performClick()
-        assertEquals(applied.layers, controller.documentState.layers)
+        assertLayers(applied, controller)
     }
 
     @Test
@@ -133,7 +134,15 @@ internal class SelectionTransformScreenTest {
         assertNull(controller.renderState.selectionSession)
         // The blank transformed rectangle is a genuine command no-op, but the Apply intent still closes its draft.
         assertSame(before, controller.documentState)
-        rule.runOnIdle { controller.callbacks.selection.onBegin(before.layers.single().id) }
+        rule.runOnIdle {
+            controller.callbacks.selection.onBegin(
+                before.frames
+                    .single()
+                    .layers
+                    .single()
+                    .id,
+            )
+        }
         rule.onNodeWithTag(CANCEL_TAG).assertIsDisplayed().performTouchInput { click(center) }
         assertNull(controller.renderState.selectionSession)
         assertSame(before, controller.documentState)
@@ -143,7 +152,9 @@ internal class SelectionTransformScreenTest {
     private fun showShortEditor(): EditorController {
         val controller = PresentationTestValues.fixture(PresentationTestValues.canvas(8, 6)).controller
         controller.callbacks.selection.onBegin(
-            controller.documentState.layers
+            controller.documentState.frames
+                .single()
+                .layers
                 .single()
                 .id,
         )
@@ -163,7 +174,9 @@ internal class SelectionTransformScreenTest {
     private fun begin(controller: EditorController) {
         LayerMenuFixture.choose(
             rule,
-            controller.documentState.layers
+            controller.documentState.frames
+                .single()
+                .layers
                 .single()
                 .id,
             SELECT_TAG,
@@ -200,12 +213,26 @@ internal class SelectionTransformScreenTest {
     ): Offset = SelectionScreenFixture.offset(this, rule, controller, pixel)
 
     /** Independent 2 by 3 destination oracle: Empty/G, G/R, R/Empty. */
+    private fun assertLayers(
+        expected: DocumentState,
+        controller: EditorController,
+    ) {
+        assertEquals(
+            expected.frames.single().layers,
+            controller.documentState.frames
+                .single()
+                .layers,
+        )
+    }
+
     private fun assertCells(
         controller: EditorController,
         expected: List<Int?>,
     ) {
         val snapshot =
-            controller.documentState.layers
+            controller.documentState.frames
+                .single()
+                .layers
                 .single()
                 .snapshot
         expected.forEachIndexed { index, slot ->

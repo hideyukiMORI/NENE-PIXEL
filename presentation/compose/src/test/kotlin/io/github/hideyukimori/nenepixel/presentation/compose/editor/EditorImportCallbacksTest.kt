@@ -1,5 +1,6 @@
 package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
+import io.github.hideyukimori.nenepixel.core.application.document.command.RejectionReason
 import io.github.hideyukimori.nenepixel.core.application.persistence.EditorPersistenceWorkflow
 import io.github.hideyukimori.nenepixel.core.application.persistence.ExpectedRecoveryLineage
 import io.github.hideyukimori.nenepixel.core.application.persistence.LegacySourceCopyOutcome
@@ -23,6 +24,7 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRec
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRetirementOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.ReferenceImageOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.ReferenceImagePort
+import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceActionRejection
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.document.LegacyRgbaSource
 import io.github.hideyukimori.nenepixel.core.domain.importing.ImportRaster
@@ -31,6 +33,7 @@ import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestVal
 import io.github.hideyukimori.nenepixel.presentation.compose.requiredValue
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertSame
@@ -48,7 +51,12 @@ internal class EditorImportCallbacksTest {
 
         val appended = rasterImport.onAppend()
 
-        assertEquals(2, appended.document.layers.size)
+        assertEquals(
+            2,
+            appended.document.frames
+                .single()
+                .layers.size,
+        )
         assertEquals(PALETTE_SIZE + 1, appended.palette.entryCount)
         assertNull(appended.pendingImport)
         assertNull(fixture.runtime.state.workspaceState.pendingImport)
@@ -63,7 +71,12 @@ internal class EditorImportCallbacksTest {
 
         val converted = rasterImport.onConvert()
 
-        assertEquals(2, converted.document.layers.size)
+        assertEquals(
+            2,
+            converted.document.frames
+                .single()
+                .layers.size,
+        )
         assertEquals(fixture.initialDocument.definition, converted.definition)
         assertNull(converted.pendingImport)
         assertNull(fixture.runtime.state.workspaceState.pendingImport)
@@ -82,7 +95,7 @@ internal class EditorImportCallbacksTest {
     }
 
     @Test
-    fun `appending without a pending import changes nothing`() {
+    fun `appending without a pending import keeps the document and exposes its refusal`() {
         val fixture = PresentationTestValues.fixture()
         val before = fixture.controller.renderState
         val rasterImport = fixture.controller.callbacks.rasterImport
@@ -90,11 +103,13 @@ internal class EditorImportCallbacksTest {
         val after = rasterImport.onAppend()
 
         assertSame(fixture.initialDocument, after.document)
-        assertEquals(before, after)
+        assertEquals(before.document, after.document)
+        val notice = assertInstanceOf(FrameEditorNotice.Rejected::class.java, after.importNotice)
+        assertEquals(WorkspaceActionRejection.NoPendingRasterImport, notice.rejection)
     }
 
     @Test
-    fun `appending at sixteen layers is refused, clears the pending import and shows a notice`() {
+    fun `appending at sixteen layers is refused, retains the pending import and shows a notice`() {
         val fixture = PresentationTestValues.fixture()
         val layers = fixture.controller.callbacks.layers
         repeat(MAX_LAYERS - 1) { layers.onAdd() }
@@ -106,9 +121,10 @@ internal class EditorImportCallbacksTest {
         val refused = rasterImport.onAppend()
 
         assertSame(full, refused.document)
-        assertNull(refused.pendingImport)
-        assertNull(fixture.runtime.state.workspaceState.pendingImport)
-        assertEquals(LayerNotice.Kind.Failed, refused.layerNotice?.kind)
+        assertNotNull(refused.pendingImport)
+        assertNotNull(fixture.runtime.state.workspaceState.pendingImport)
+        val notice = assertInstanceOf(FrameEditorNotice.CommandRejected::class.java, refused.importNotice)
+        assertEquals(RejectionReason.LayerLimitReached, notice.reason)
     }
 
     private fun pickedFixture(): EditorFixture {

@@ -114,7 +114,13 @@ internal class PaletteDraftCompositeTest {
 
         assertSame(
             PaletteDraftCompositeResult.SourceMismatch,
-            PaletteDraftComposite.render(runtime.state.documentState, session),
+            PaletteDraftComposite.render(
+                runtime.state.documentState,
+                runtime.state.documentState.frames
+                    .single()
+                    .id,
+                session,
+            ),
         )
     }
 
@@ -135,7 +141,10 @@ internal class PaletteDraftCompositeTest {
     @Test
     fun `the fixture has two layers empty cells and translucent overlaps`() {
         val runtime = drawnRuntime()
-        val layers = runtime.state.documentState.layers
+        val layers =
+            runtime.state.documentState.frames
+                .single()
+                .layers
         val cells = 0 until WIDTH * HEIGHT
         val coveredBy = cells.map { cell -> layers.count { cellOf(it, cell) is PixelCell.Covered } }
         val overlaps = cells.filter { coveredBy[it] == layers.size }

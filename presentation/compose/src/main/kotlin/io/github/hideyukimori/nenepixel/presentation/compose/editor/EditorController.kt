@@ -52,6 +52,7 @@ public class EditorController private constructor(
             underlay = EditorUnderlayCallbacks(runtime, adapter, ::publish),
             rasterImport = EditorImportCallbacks(runtime, adapter, ::publish),
             selection = EditorSelectionCallbacks(runtime, adapter, ::publish),
+            frames = EditorFrameCallbacks(runtime, adapter, ::publish),
         )
 
     public fun synchronizeWithRuntime() {

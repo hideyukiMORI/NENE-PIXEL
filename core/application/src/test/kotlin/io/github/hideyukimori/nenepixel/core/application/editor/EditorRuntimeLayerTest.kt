@@ -249,6 +249,8 @@ internal class EditorRuntimeLayerTest {
     private fun active(runtime: EditorRuntime): LayerId = runtime.state.workspaceState.activeLayerId
 
     private fun ids(runtime: EditorRuntime): List<Int> =
-        runtime.state.documentState.layers
+        runtime.state.documentState.frames
+            .single()
+            .layers
             .map { it.id.value }
 }

@@ -41,21 +41,11 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.underlay.Refe
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 
 /**
- * The layer chip, or the open layer panel in the same corner, over the work area (#144 UI spec "Layout", U3r).
- * The corner is always the physical top left; the control edge only lowers the panel's height limit.
- *
- * It reads only the row list, the active layer, the control edge, the layer notice and the reference underlay
- * through one `derivedStateOf`; a stroke in progress or a committed stroke leaves those structurally equal, so
- * neither the chip nor the panel recomposes. Open or closed is local, saveable Compose state (ADR 0020), not
- * workspace state. Back closes the panel, and closing returns focus to the chip. The overlay takes no pointer
- * itself: only the chip, the panel and a shown notice do. The panel rows and the add row send their changes
- * through the layer route of [editorCallbacks], passed on as the same instance inside one remembered
- * [LayerRowActions]. A row's rename opens the rename dialog (U7) for that layer; the target is plain `remember`
- * state, and the dialog is composed only while it is open. The layer notice (U6) shows at the bottom centre
- * whether the panel is open or not; its undo goes through [editorCallbacks] like the dock's. After the last row,
- * inside the rows' scroll, sits the underlay row (#170), which sends its changes through the underlay route of
- * [editorCallbacks] and calls [onPickUnderlay] to choose or replace the image; its "move and scale" closes the
- * panel like the panel's own close (#171).
+ * The physical top-left layer chip opens Layers; its heading opens the secondary Frames pane.
+ * Snapshot-free row metadata stays structurally equal across strokes. Pane, row More and dialogs
+ * are local presentation mechanics; every frame/layer mutation uses the callbacks' runtime route.
+ * Back closes a child popup/dialog first, then Frames returns to Layers, then Layers returns focus
+ * to the chip. The bounded panel surfaces consume pointers above the shared canvas route.
  */
 @Composable
 internal fun LayerOverlay(
@@ -64,43 +54,111 @@ internal fun LayerOverlay(
     onPickUnderlay: () -> Unit,
 ) {
     val inputs by rememberOverlayInputs(state)
-    val callbacks = editorCallbacks.layers
-    var open by rememberSaveable { mutableStateOf(false) }
+    val pane = rememberSaveable { mutableStateOf<LayerPane?>(null) }
     var returnFocus by remember { mutableStateOf(false) }
     val chipFocus = remember { FocusRequester() }
     val renameTarget = remember { mutableStateOf<LayerId?>(null) }
-    val onAdd = remember<() -> Unit>(callbacks) { { callbacks.onAdd() } }
     val close = {
-        open = false
+        pane.value = null
         returnFocus = true
     }
+    val presentation = LayerOverlayPresentation(pane, chipFocus, close)
     val actions = rememberLayerRowActions(editorCallbacks, renameTarget, close)
-    BackHandler(enabled = open, onBack = close)
+    BackHandler(enabled = pane.value != null, onBack = presentation::back)
     LaunchedEffect(returnFocus) {
         if (returnFocus) {
             chipFocus.requestFocus()
             returnFocus = false
         }
     }
+    LayerOverlaySurface(inputs, presentation, LayerPaneActions(editorCallbacks, actions, onPickUnderlay))
+    LayerRenameHost(renameTarget, inputs.layers.rows.rows, editorCallbacks.layers)
+}
+
+/** The surface owns only local pane/focus mechanics; editor frame/layer choice remains projected. */
+@Composable
+private fun LayerOverlaySurface(
+    inputs: LayerOverlayInputs,
+    presentation: LayerOverlayPresentation,
+    actions: LayerPaneActions,
+) {
     val density = LocalDensity.current
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val corner = LayerGeometry.CORNER
-        if (!open) {
-            val chip = Modifier.align(corner).padding(LayerGeometry.CHIP_MARGINS).focusRequester(chipFocus)
-            LayerChip(inputs.active, onClick = { open = true }, modifier = chip)
+        if (presentation.pane.value == null) {
+            val chip =
+                Modifier
+                    .align(corner)
+                    .padding(LayerGeometry.CHIP_MARGINS)
+                    .focusRequester(presentation.chipFocus)
+            LayerChip(inputs.layers.active, onClick = { presentation.pane.value = LayerPane.Layers }, modifier = chip)
         }
-        AnimatedVisibility(open, Modifier.align(corner), panelEnter(density), PANEL_EXIT) {
-            LayerPanel(inputs.rows.size, close, Modifier.panelBounds(maxWidth, maxHeight, inputs.edge)) {
-                LayerPanelRows(inputs.rows, inputs.activeLayerId, actions) {
-                    LayerPanelUnderlayRow(inputs.underlay, editorCallbacks.underlay, onPickUnderlay, close)
-                }
-                LayerPanelAddRow(inputs.rows.size, onAdd)
+        AnimatedVisibility(presentation.pane.value != null, Modifier.align(corner), panelEnter(density), PANEL_EXIT) {
+            LayerOverlayPane(inputs, presentation, actions, LayerPaneBounds(maxWidth, maxHeight, inputs.edge))
+        }
+        LayerNoticeHost(
+            inputs.layers.notice,
+            actions.callbacks,
+            Modifier.align(Alignment.BottomCenter).noticeBounds(),
+        )
+    }
+}
+
+@Composable
+private fun LayerOverlayPane(
+    inputs: LayerOverlayInputs,
+    presentation: LayerOverlayPresentation,
+    actions: LayerPaneActions,
+    bounds: LayerPaneBounds,
+) {
+    if (presentation.pane.value == LayerPane.Frames) {
+        FramePanel(
+            inputs.frames,
+            frameActions(actions.callbacks.frames, presentation),
+            bounds.modifier(LayerPane.Frames),
+        )
+    } else {
+        val rows = inputs.layers.rows
+        val heading =
+            LayerPanelHeadingModel(
+                rows.rows.size,
+                inputs.frames.rows.indexOfFirst {
+                    it.id == inputs.frames.active
+                } + 1,
+                inputs.frames.rows.size,
+            )
+        LayerPanel(
+            heading,
+            LayerPanelNavigation(presentation.close) { presentation.pane.value = LayerPane.Frames },
+            bounds.modifier(LayerPane.Layers),
+        ) {
+            LayerPanelRows(rows, actions.rows) {
+                LayerPanelUnderlayRow(
+                    inputs.layers.underlay,
+                    actions.callbacks.underlay,
+                    actions.pickUnderlay,
+                    presentation.close,
+                )
+            }
+            LayerPanelAddRow(rows.totalLayerCount) { actions.callbacks.layers.onAdd() }
+        }
+    }
+}
+
+private fun frameActions(
+    callbacks: EditorFrameCallbacks,
+    presentation: LayerOverlayPresentation,
+): FramePanelActions =
+    FramePanelActions(callbacks, { id ->
+        when (callbacks.onSelect(id)) {
+            is WorkspaceReductionResult.Reduced, is WorkspaceReductionResult.Unchanged -> {
+                presentation.pane.value = LayerPane.Layers
+            }
+
+            is WorkspaceReductionResult.Rejected, is WorkspaceReductionResult.CommitPrepared -> {
             }
         }
-        LayerNoticeHost(inputs.notice, editorCallbacks, Modifier.align(Alignment.BottomCenter).noticeBounds())
-    }
-    LayerRenameHost(renameTarget, inputs.rows, callbacks)
-}
+    }, presentation::back)
 
 /** Row actions retain the row identity; only a successful canonical selection start closes the panel. */
 @Composable
@@ -122,16 +180,6 @@ private fun rememberLayerRowActions(
         )
     }
 
-/** The panel margin, the width cap for a work area [workWidth] wide, and the height limit (#144 "パネル"). */
-private fun Modifier.panelBounds(
-    workWidth: Dp,
-    workHeight: Dp,
-    edge: EditorControlEdge,
-): Modifier =
-    padding(LayerGeometry.PANEL_MARGIN)
-        .width(min(LayerGeometry.PANEL_WIDTH, (workWidth - LayerGeometry.PANEL_MARGIN * 2).coerceAtLeast(0.dp)))
-        .heightIn(max = LayerGeometry.panelMaxHeight(workHeight, edge))
-
 /** The overlay's inputs, read from [state] through one `derivedStateOf`. */
 @Composable
 private fun rememberOverlayInputs(state: State<EditorRenderState>): State<LayerOverlayInputs> =
@@ -139,11 +187,17 @@ private fun rememberOverlayInputs(state: State<EditorRenderState>): State<LayerO
         derivedStateOf {
             val render = state.value
             LayerOverlayInputs(
-                layerRowsOf(render.document),
-                render.activeLayerId,
+                LayerPaneModel(
+                    LayerPanelRowsModel(
+                        layerRowsOf(render.document, render.activeFrameId),
+                        render.activeLayerId,
+                        render.document.totalLayerCount,
+                    ),
+                    render.layerNotice,
+                    render.underlay,
+                ),
+                framePanelModel(render),
                 render.appearance.controlEdge,
-                render.layerNotice,
-                render.underlay,
             )
         }
     }
@@ -171,14 +225,47 @@ private const val PANEL_EXIT_MILLIS: Int = 100
  * snapshot and a stroke leaves the notice and the underlay as they were.
  */
 private data class LayerOverlayInputs(
-    val rows: List<LayerRowModel>,
-    val activeLayerId: LayerId,
+    val layers: LayerPaneModel,
+    val frames: FramePanelModel,
     val edge: EditorControlEdge,
+)
+
+private data class LayerPaneModel(
+    val rows: LayerPanelRowsModel,
     val notice: LayerNotice?,
     val underlay: ReferenceUnderlay?,
 ) {
-    val active: LayerRowModel
-        get() =
-            rows.firstOrNull { row -> row.id == activeLayerId }
-                ?: error("Active layer ${activeLayerId.value} is not among rows ${rows.map { row -> row.id.value }}")
+    val active: LayerRowModel get() = requireNotNull(rows.rows.firstOrNull { it.id == rows.active })
+}
+
+private enum class LayerPane { Layers, Frames }
+
+private class LayerOverlayPresentation(
+    val pane: MutableState<LayerPane?>,
+    val chipFocus: FocusRequester,
+    val close: () -> Unit,
+) {
+    fun back() {
+        if (pane.value == LayerPane.Frames) pane.value = LayerPane.Layers else close()
+    }
+}
+
+private class LayerPaneActions(
+    val callbacks: EditorCallbacks,
+    val rows: LayerRowActions,
+    val pickUnderlay: () -> Unit,
+)
+
+private class LayerPaneBounds(
+    val width: Dp,
+    val height: Dp,
+    val edge: EditorControlEdge,
+) {
+    fun modifier(pane: LayerPane): Modifier {
+        val maximum = if (pane == LayerPane.Frames) LayerGeometry.NOTICE_MAX_WIDTH else LayerGeometry.PANEL_WIDTH
+        return Modifier
+            .padding(LayerGeometry.PANEL_MARGIN)
+            .width(min(maximum, (width - LayerGeometry.PANEL_MARGIN * 2).coerceAtLeast(0.dp)))
+            .heightIn(max = LayerGeometry.panelMaxHeight(height, edge))
+    }
 }

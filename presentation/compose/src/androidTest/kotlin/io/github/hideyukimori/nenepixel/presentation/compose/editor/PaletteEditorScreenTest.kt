@@ -118,7 +118,9 @@ internal class PaletteEditorScreenTest {
         setEditorContent(controller)
         val before = controller.renderState.definition
         val snapshot =
-            controller.renderState.document.layers
+            controller.renderState.document.frames
+                .single()
+                .layers
                 .single()
                 .snapshot
         openPaletteEditor()
@@ -131,7 +133,9 @@ internal class PaletteEditorScreenTest {
         assertEquals(before, controller.renderState.definition)
         assertEquals(
             snapshot,
-            controller.renderState.document.layers
+            controller.renderState.document.frames
+                .single()
+                .layers
                 .single()
                 .snapshot,
         )

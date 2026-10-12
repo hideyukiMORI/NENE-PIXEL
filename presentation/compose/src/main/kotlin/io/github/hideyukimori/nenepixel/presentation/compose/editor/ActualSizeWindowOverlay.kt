@@ -52,17 +52,15 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import io.github.hideyukimori.nenepixel.core.application.workspace.ActualSizeWindow
 import io.github.hideyukimori.nenepixel.core.application.workspace.WindowAnchor
-import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteEditSession
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
-import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.presentation.compose.R
 import kotlin.math.roundToInt
 
 /**
  * The committed document drawn over the canvas at an exact device-pixel multiple (ADR 0026).
  *
- * It subscribes only to the committed document, palette definition, palette edit session and window
+ * It subscribes only to the chosen frame, committed document, palette draft and window
  * state, so a stroke in progress never redraws it and a palette draft change redraws it once. A
  * handle band and a scale chip make the two gestures visible (amendment 2026-09-22, #126): a drag
  * on either band or on the content moves the window, and a tap on the chip or on the window body
@@ -78,9 +76,7 @@ internal fun ActualSizeWindowOverlay(
         derivedStateOf {
             val current = state.value
             ActualSizeWindowInputs(
-                current.document,
-                current.definition,
-                current.paletteEditSession,
+                current.picture,
                 current.actualSizeWindow,
             )
         }
@@ -161,7 +157,7 @@ private fun ActualSizeWindowContent(
             drawTransparencyBackdrop(backdrop, content)
             drawIntoCanvas { canvas ->
                 canvas.nativeCanvas.drawBitmap(
-                    committed.render(inputs.document, inputs.definition, inputs.session),
+                    committed.render(inputs.picture),
                     geometry.source,
                     content,
                     committed.paint,
@@ -327,19 +323,17 @@ private fun Modifier.exactSize(
  * the same bitmap; the window state is compared by value.
  */
 private class ActualSizeWindowInputs(
-    val document: DocumentState,
-    val definition: PaletteDefinition,
-    val session: PaletteEditSession?,
+    val picture: FrameImageInputs,
     val window: ActualSizeWindow,
 ) {
+    val document: DocumentState get() = picture.document
+
     override fun equals(other: Any?): Boolean =
         other is ActualSizeWindowInputs &&
-            document === other.document &&
-            definition === other.definition &&
-            session === other.session &&
+            picture == other.picture &&
             window == other.window
 
-    override fun hashCode(): Int = System.identityHashCode(document) * HASH_MULTIPLIER + window.hashCode()
+    override fun hashCode(): Int = picture.hashCode() * HASH_MULTIPLIER + window.hashCode()
 }
 
 /** The fixed device-pixel bands that surround the content: they carry the window's affordances. */

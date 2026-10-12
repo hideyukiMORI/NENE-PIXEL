@@ -56,8 +56,8 @@ private fun reconcileDocumentLayer(
     action: ReconcileDocumentLayer,
     document: DocumentState,
 ): WorkspaceReductionResult =
-    if (document.layers.none { it.id == action.layerId }) {
-        error("Document transition produced an invalid active layer: ${action.layerId}")
-    } else {
-        WorkspaceReductionResult.Reduced(state.withEditTarget(state.editTarget.withLayer(action.layerId)))
-    }
+    document.frameContainingLayer(action.layerId)?.let { frame ->
+        WorkspaceReductionResult.Reduced(
+            state.withEditTarget(state.editTarget.withFrameLayer(frame.id, action.layerId)),
+        )
+    } ?: error("Document transition produced an invalid active layer: ${action.layerId}")

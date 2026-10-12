@@ -1,8 +1,6 @@
 package io.github.hideyukimori.nenepixel.core.application.workspace.importing
 
-import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.importing.ImportRaster
-import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.pixelengine.importing.LayerImportResult
 import io.github.hideyukimori.nenepixel.core.pixelengine.importing.NewWorkImportResult
 import io.github.hideyukimori.nenepixel.core.pixelengine.importing.RasterImportPlanner
@@ -15,27 +13,44 @@ import io.github.hideyukimori.nenepixel.core.pixelengine.importing.RasterImportP
  */
 public class PendingRasterImport internal constructor(
     public val facts: RasterImportFacts,
-    public val appending: RasterImportOption,
-    public val converting: RasterImportOption,
-    public val newWork: NewWorkImportOption,
+    public val target: LayerImportTarget,
+    private val forms: RasterImportForms,
 ) {
+    public val appending: RasterImportOption get() = forms.appending
+    public val converting: RasterImportOption get() = forms.converting
+    public val newWork: NewWorkImportOption get() = forms.newWork
+
     override fun toString(): String = "PendingRasterImport(facts=$facts)"
 
     public companion object {
         /**
-         * Plans the three forms once: the layer forms against the installed document's [canvas] and palette
-         * [definition], and the new work from the raster alone.
+         * Plans layer forms against the pick-begin [target]'s captured canvas and palette.
+         * The new-work form depends on the raster alone.
          */
         internal fun planned(
             raster: ImportRaster,
-            canvas: CanvasSize,
-            definition: PaletteDefinition,
+            target: LayerImportTarget,
         ): PendingRasterImport =
             PendingRasterImport(
                 RasterImportFacts(raster.width, raster.height, RasterImportPlanner.colorCount(raster)),
-                option(RasterImportPlanner.appending(raster, canvas, definition)),
-                option(RasterImportPlanner.converting(raster, canvas, definition)),
-                option(RasterImportPlanner.newWork(raster)),
+                target,
+                RasterImportForms(
+                    option(
+                        RasterImportPlanner.appending(
+                            raster,
+                            target.admission.document.size,
+                            target.admission.document.definition,
+                        ),
+                    ),
+                    option(
+                        RasterImportPlanner.converting(
+                            raster,
+                            target.admission.document.size,
+                            target.admission.document.definition,
+                        ),
+                    ),
+                    option(RasterImportPlanner.newWork(raster)),
+                ),
             )
 
         private fun option(result: LayerImportResult): RasterImportOption =

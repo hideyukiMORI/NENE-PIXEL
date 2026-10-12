@@ -12,6 +12,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.App
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ApplicationTestValues.state
 import io.github.hideyukimori.nenepixel.core.application.document.transition.LayerIndexChanges
 import io.github.hideyukimori.nenepixel.core.application.document.transition.PaletteTransition
+import io.github.hideyukimori.nenepixel.core.application.document.transition.singleFrameSnapshot
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelRegion
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
@@ -47,8 +48,20 @@ internal class TransferPixelsCommandTest {
         assertEquals(44L, change.retainedByteCount)
         assertEquals(44L, gateway.runtimeState.retainedHistoryByteCount)
         assertEquals(canvas(2, 1), change.renderInvalidation.size)
-        assertEquals(PixelCell.Empty, cellAt(moved.layers.single().snapshot, position(0, 0)))
-        assertEquals(PixelCell.Covered(redIndex), cellAt(moved.layers.single().snapshot, position(1, 0)))
+        assertEquals(
+            PixelCell.Empty,
+            cellAt(
+                moved.singleFrameSnapshot(),
+                position(0, 0),
+            ),
+        )
+        assertEquals(
+            PixelCell.Covered(redIndex),
+            cellAt(
+                moved.singleFrameSnapshot(),
+                position(1, 0),
+            ),
+        )
         applied(gateway.execute(UndoCommand.create(moved.id, moved.revision)))
         assertEquals(initial, gateway.runtimeState.documentState)
         applied(gateway.execute(RedoCommand.create(initial.id, initial.revision)))

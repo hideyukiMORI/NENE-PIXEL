@@ -21,7 +21,10 @@ internal class AndroidPngExportAdapterTest {
         runBlocking {
             val content = MemoryProjectContent()
             val adapter = adapter(content)
-            assertEquals(PngExportOutcome.Exported, adapter.export(PersistenceTestValues.maximumDocument()))
+            assertEquals(
+                PngExportOutcome.Exported,
+                adapter.export(PngExportCaptureFixture.capture(PersistenceTestValues.maximumDocument())),
+            )
             assertTrue(content.inputClosed)
             assertTrue(content.outputClosed)
             assertEquals(0, content.deleteCalls)
@@ -46,7 +49,7 @@ internal class AndroidPngExportAdapterTest {
                 PngExportOutcome.Cancelled,
                 AndroidPngExportAdapter
                     .create(content, picker, dispatchers.inline)
-                    .export(PersistenceTestValues.minimalDocument),
+                    .export(PngExportCaptureFixture.capture(PersistenceTestValues.minimalDocument)),
             )
             assertEquals(0, content.openOutputCalls)
         }
@@ -58,7 +61,7 @@ internal class AndroidPngExportAdapterTest {
             content.deleteResult = 0
             assertEquals(
                 PngExportOutcome.Failed(ProjectStorageFailure.ReadBackMismatch, PartialOutputCleanup.DELETE_FAILED),
-                adapter(content).export(PersistenceTestValues.minimalDocument),
+                adapter(content).export(PngExportCaptureFixture.capture(PersistenceTestValues.minimalDocument)),
             )
             assertEquals(1, content.deleteCalls)
         }
@@ -80,7 +83,7 @@ internal class AndroidPngExportAdapterTest {
                     ProjectStorageFailure.IoFailure(ProjectTransportPhase.DESTINATION_WRITE),
                     PartialOutputCleanup.DELETED,
                 ),
-                adapter(content).export(PersistenceTestValues.minimalDocument),
+                adapter(content).export(PngExportCaptureFixture.capture(PersistenceTestValues.minimalDocument)),
             )
             assertEquals(1, content.deleteCalls)
         }
@@ -90,11 +93,31 @@ internal class AndroidPngExportAdapterTest {
         val output = CancellingOutputStream()
         val content = MemoryProjectContent(behavior = ProjectContentBehavior(outputFactory = { output }))
         assertThrows(CancellationException::class.java) {
-            runBlocking { adapter(content).export(PersistenceTestValues.minimalDocument) }
+            runBlocking {
+                adapter(
+                    content,
+                ).export(PngExportCaptureFixture.capture(PersistenceTestValues.minimalDocument))
+            }
         }
         assertTrue(output.closed)
         assertEquals(1, content.deleteCalls)
     }
+
+    @Test
+    fun `PNG adapter exports only the frame captured by the real runtime`() =
+        runBlocking {
+            val document = PersistenceTestValues.twoFramesDocument()
+            val captures = document.frames.map { PngExportCaptureFixture.capture(document, it.id) }
+            val images =
+                captures.map { capture ->
+                    val content = MemoryProjectContent()
+                    assertEquals(capture.frame.id, capture.frameId)
+                    assertEquals(PngExportOutcome.Exported, adapter(content).export(capture))
+                    checkNotNull(javax.imageio.ImageIO.read(java.io.ByteArrayInputStream(content.storedBytes())))
+                }
+            assertEquals(0x44112233, images[0].getRGB(0, 0))
+            assertEquals(0, images[1].getRGB(0, 0))
+        }
 
     private fun adapter(content: ProjectContentAccess) =
         AndroidPngExportAdapter.create(

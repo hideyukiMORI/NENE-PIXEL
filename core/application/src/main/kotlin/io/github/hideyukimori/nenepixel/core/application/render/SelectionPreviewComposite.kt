@@ -1,6 +1,7 @@
 package io.github.hideyukimori.nenepixel.core.application.render
 
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
+import io.github.hideyukimori.nenepixel.core.domain.frame.FrameId
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelRegion
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.selection.PixelTransfer
@@ -20,6 +21,7 @@ public class SelectionPreviewComposite private constructor(
         /** Prepares one admitted visible-layer rectangle; discard on source document/layer/rectangle change. */
         public fun prepare(
             document: DocumentState,
+            frameId: FrameId,
             layerId: LayerId,
             source: PixelRegion,
         ): SelectionPreviewComposite =
@@ -27,7 +29,9 @@ public class SelectionPreviewComposite private constructor(
                 val result =
                     preparePixelTransferComposite(
                         document.size,
-                        document.layers,
+                        requireNotNull(document.frameById(frameId)).layers.also { layers ->
+                            require(layers.any { it.id == layerId }) { "Selection target is outside its preview frame" }
+                        },
                         document.definition,
                         PixelTransferCompositeTarget(layerId, source),
                     )

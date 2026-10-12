@@ -18,9 +18,9 @@ internal class ImportLayerCommandRetentionTest {
 
         applied(gateway.execute(import(gateway, above = 1, addingPlan())))
 
-        // 32 transition bytes + 2 index bytes + 1 coverage byte + 0 name bytes
+        // 32 transition bytes + 4 owner FrameId bytes + 2 index bytes + 1 coverage byte + 0 name bytes
         // + palette 4 x (3 + 4) colour bytes + 8 default bytes.
-        assertRetention(gateway, bytes = 71L)
+        assertRetention(gateway, bytes = 75L)
     }
 
     @Test
@@ -29,8 +29,9 @@ internal class ImportLayerCommandRetentionTest {
 
         applied(gateway.execute(import(gateway, above = 1, convertingPlan())))
 
-        // 32 transition bytes + 2 index bytes + 1 coverage byte + 0 name bytes; the palette is unchanged.
-        assertRetention(gateway, bytes = 35L)
+        // 32 transition bytes + 4 owner FrameId bytes + 2 index bytes + 1 coverage byte
+        // + 0 name bytes; the palette is unchanged.
+        assertRetention(gateway, bytes = 39L)
     }
 
     @Test

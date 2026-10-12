@@ -25,7 +25,7 @@ public class WorkspaceReducer private constructor() {
             is WorkspaceAction.PaletteSessionAction -> reducePaletteSession(state, action)
             is WorkspaceAction.QuickSelectAction -> reduceQuickSelect(state, action, source)
             is DocumentReconciliation -> reconcileDocument(state, action, source.document)
-            is WorkspaceAction.LayerAction -> reduceLayer(state, action, source.document)
+            is WorkspaceAction.EditTargetAction -> reduceEditTarget(state, action, source.document)
             is WorkspaceAction.ReferenceUnderlayAction -> reduceReferenceUnderlay(state, action)
             is WorkspaceAction.RasterImportAction -> reduceRasterImport(state, action)
             is WorkspaceAction.SelectionAction -> reduceSelection(state, action)

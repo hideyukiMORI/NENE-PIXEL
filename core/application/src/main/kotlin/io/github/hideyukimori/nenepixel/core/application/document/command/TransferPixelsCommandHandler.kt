@@ -21,7 +21,7 @@ internal class TransferPixelsCommandHandler {
         command: TransferPixelsCommand,
     ): DocumentTransitionResult {
         val layer =
-            currentState.layers.firstOrNull { it.id == command.layerId }
+            currentState.frameContainingLayer(command.layerId)?.layers?.firstOrNull { it.id == command.layerId }
                 ?: return rejected(RejectionReason.LayerNotFound(command.layerId))
         return when (layer.visibility) {
             LayerVisibility.Hidden -> rejected(RejectionReason.LayerHidden(layer.id))

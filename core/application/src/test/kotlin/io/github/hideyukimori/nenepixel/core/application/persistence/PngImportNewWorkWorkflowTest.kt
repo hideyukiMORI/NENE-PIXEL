@@ -176,11 +176,23 @@ internal fun assertOpenedFrom(
     val raster = importRaster()
     assertNotEquals(previousId, document.id)
     assertEquals(Revision.initial(), document.revision)
-    assertEquals(1, document.layers.size)
+    assertEquals(
+        1,
+        document.frames
+            .single()
+            .layers.size,
+    )
     assertEquals(raster.width, document.size.width.value)
     assertEquals(raster.height, document.size.height.value)
     assertEquals(plan.definition, document.definition)
-    assertEquals(plan.snapshot, document.layers.single().snapshot)
+    assertEquals(
+        plan.snapshot,
+        document.frames
+            .single()
+            .layers
+            .single()
+            .snapshot,
+    )
     assertEquals(DocumentDirtyState.Dirty, state.dirtyState)
     assertFalse(state.historyAvailability.canUndo)
     assertFalse(state.historyAvailability.canRedo)
@@ -189,7 +201,9 @@ internal fun assertOpenedFrom(
 }
 
 private fun onlySnapshot(fixture: Fixture): PixelSnapshot =
-    fixture.runtime.state.documentState.layers
+    fixture.runtime.state.documentState.frames
+        .single()
+        .layers
         .single()
         .snapshot
 
@@ -202,7 +216,11 @@ internal fun setPendingNewWork(fixture: Fixture): NewWorkImportPlan {
 }
 
 private fun pending(raster: ImportRaster): PendingRasterImport =
-    PendingRasterImport.planned(raster, canvas(4, 4), defaultDefinition)
+    io.github.hideyukimori.nenepixel.core.application.workspace.importing.RasterImportTestValues.planned(
+        raster,
+        canvas(4, 4),
+        defaultDefinition,
+    )
 
 private fun underlay(): ReferenceUnderlay = ReferenceUnderlay.placed(referenceImage(8, 4), canvas(4, 4))
 

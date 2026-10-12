@@ -191,7 +191,7 @@ internal class SelectionPreviewBitmapTest {
 
         fun committedPixels(): IntArray {
             val document = runtime.state.documentState
-            return committed.render(document, document.definition, null).pixels()
+            return committed.render(document, document.frames.single().id, document.definition, null).pixels()
         }
     }
 

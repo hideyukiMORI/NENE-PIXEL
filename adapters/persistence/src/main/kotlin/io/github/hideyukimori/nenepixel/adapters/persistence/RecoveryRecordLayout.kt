@@ -8,7 +8,8 @@ internal object RecoveryRecordLayout {
     const val V1_VERSION: Int = 1
     const val V2_VERSION: Int = 2
     const val V3_VERSION: Int = 3
-    const val WRITE_VERSION: Int = V3_VERSION
+    const val V4_VERSION: Int = 4
+    const val WRITE_VERSION: Int = V4_VERSION
     const val VERSION_OFFSET: Int = 8
     const val STATE_OFFSET: Int = 10
     const val GENERATION_OFFSET: Int = 11
@@ -22,7 +23,9 @@ internal object RecoveryRecordLayout {
     const val V2_MAX_CANDIDATE_BYTE_COUNT: Int = 66_628
     const val V3_MIN_CANDIDATE_BYTE_COUNT: Int = 85
     const val V3_MAX_CANDIDATE_BYTE_COUNT: Int = 1_182_885
-    const val MAX_RECORD_BYTE_COUNT: Int = V3_MAX_CANDIDATE_BYTE_COUNT
+    const val V4_MIN_CANDIDATE_BYTE_COUNT: Int = 94
+    const val V4_MAX_CANDIDATE_BYTE_COUNT: Int = 1_183_029
+    const val MAX_RECORD_BYTE_COUNT: Int = V4_MAX_CANDIDATE_BYTE_COUNT
     const val MAX_PROBE_BYTE_COUNT: Int = MAX_RECORD_BYTE_COUNT + 1
     const val CANDIDATE_STATE: Int = 1
     const val RETIRED_STATE: Int = 2
@@ -35,7 +38,7 @@ internal object RecoveryRecordLayout {
     ): ByteArray {
         val bytes = ByteArray(PAYLOAD_OFFSET + payload.size + CHECKSUM_BYTE_COUNT)
         MAGIC.copyInto(bytes)
-        require(version in V1_VERSION..V3_VERSION)
+        require(version in V1_VERSION..V4_VERSION)
         RecoveryRecordBigEndian.writeUnsignedShort(bytes, VERSION_OFFSET, version)
         bytes[STATE_OFFSET] = state.toByte()
         RecoveryRecordBigEndian.writeLong(bytes, GENERATION_OFFSET, generation.value)

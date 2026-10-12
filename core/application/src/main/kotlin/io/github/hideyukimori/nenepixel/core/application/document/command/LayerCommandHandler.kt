@@ -1,10 +1,12 @@
 package io.github.hideyukimori.nenepixel.core.application.document.command
 
 import io.github.hideyukimori.nenepixel.core.application.document.transition.ChangeSet
+import io.github.hideyukimori.nenepixel.core.application.document.transition.DocumentStructureTransition
 import io.github.hideyukimori.nenepixel.core.application.document.transition.DocumentTransition
 import io.github.hideyukimori.nenepixel.core.application.document.transition.DocumentTransitionResult
 import io.github.hideyukimori.nenepixel.core.application.document.transition.LayerStructureTransition
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
+import io.github.hideyukimori.nenepixel.core.domain.frame.Frame
 import io.github.hideyukimori.nenepixel.core.domain.layer.Layer
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerName
@@ -17,30 +19,43 @@ internal class LayerCommandHandler {
     fun execute(
         currentState: DocumentState,
         command: LayerCommand,
-    ): DocumentTransitionResult =
-        when (val plan = plan(currentState, command)) {
-            is LayerCommandPlan.Accepted -> transition(currentState, plan.structure)
-            is LayerCommandPlan.Refused -> DocumentTransitionResult.Rejected(plan.reason)
+    ): DocumentTransitionResult {
+        val frame =
+            currentState.frameContainingLayer(command.targetLayerId)
+                ?: return DocumentTransitionResult.Rejected(RejectionReason.LayerNotFound(command.targetLayerId))
+        return when (val plan = plan(currentState, frame, command)) {
+            is LayerCommandPlan.Accepted -> {
+                transition(
+                    currentState,
+                    DocumentStructureTransition.LayerChanged(frame.id, plan.structure),
+                )
+            }
+
+            is LayerCommandPlan.Refused -> {
+                DocumentTransitionResult.Rejected(plan.reason)
+            }
         }
+    }
 
     private fun plan(
         state: DocumentState,
+        frame: Frame,
         command: LayerCommand,
     ): LayerCommandPlan =
         when (command) {
             is AddLayerCommand -> planAdd(state, command.aboveLayerId)
-            is DuplicateLayerCommand -> planDuplicate(state.layers, command.layerId)
-            is DeleteLayerCommand -> planDelete(state.layers, command.layerId)
-            is RenameLayerCommand -> planRename(state.layers, command)
-            is MoveLayerCommand -> planMove(state.layers, command)
-            is SetLayerVisibilityCommand -> planVisibility(state.layers, command)
+            is DuplicateLayerCommand -> planDuplicate(state, frame, command.layerId)
+            is DeleteLayerCommand -> planDelete(frame.layers, command.layerId)
+            is RenameLayerCommand -> planRename(frame.layers, command)
+            is MoveLayerCommand -> planMove(frame.layers, command)
+            is SetLayerVisibilityCommand -> planVisibility(frame.layers, command)
         }
 
     private fun planAdd(
         state: DocumentState,
         aboveLayerId: LayerId,
     ): LayerCommandPlan =
-        when (val insertion = planLayerInsertion(state.layers, aboveLayerId)) {
+        when (val insertion = planLayerInsertion(state, aboveLayerId)) {
             is LayerInsertion.Accepted -> {
                 val snapshot = PixelSnapshot.createEmpty(state.size)
                 val layer = Layer.create(insertion.id, LayerName.empty, LayerVisibility.Visible, snapshot)
@@ -65,12 +80,13 @@ internal class LayerCommandHandler {
     }
 
     private fun planDuplicate(
-        layers: List<Layer>,
+        state: DocumentState,
+        frame: Frame,
         layerId: LayerId,
     ): LayerCommandPlan =
-        when (val insertion = planLayerInsertion(layers, layerId)) {
+        when (val insertion = planLayerInsertion(state, layerId)) {
             is LayerInsertion.Accepted -> {
-                val source = layers[insertion.position - 1]
+                val source = frame.layers[insertion.position - 1]
                 val layer = Layer.create(insertion.id, source.name, source.visibility, source.snapshot)
                 LayerCommandPlan.Accepted(LayerStructureTransition.Added(layer, insertion.position))
             }
@@ -140,7 +156,7 @@ internal class LayerCommandHandler {
 
     private fun transition(
         currentState: DocumentState,
-        structure: LayerStructureTransition,
+        structure: DocumentStructureTransition,
     ): DocumentTransitionResult =
         when (val next = currentState.revision.advance()) {
             is DomainValueResult.Created -> {

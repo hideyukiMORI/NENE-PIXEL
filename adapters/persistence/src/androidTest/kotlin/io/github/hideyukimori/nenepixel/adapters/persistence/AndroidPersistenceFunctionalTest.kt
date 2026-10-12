@@ -140,18 +140,12 @@ public class AndroidPersistenceFunctionalTest {
                 assertEquals(
                     PngExportOutcome.Exported,
                     adapter.export(
-                        created(DocumentState.createSingleLayer(source.id, source.revision, definition, snapshot)),
+                        NativePngExportFixture.capture(
+                            created(DocumentState.createSingleLayer(source.id, source.revision, definition, snapshot)),
+                        ),
                     ),
                 )
-                val options = BitmapFactory.Options().apply { inPremultiplied = false }
-                val decoded = checkNotNull(BitmapFactory.decodeFile(output.absolutePath, options))
-                try {
-                    assertEquals(1, decoded.width)
-                    assertEquals(1, decoded.height)
-                    assertEquals(0x01112233, decoded.getPixel(0, 0))
-                } finally {
-                    decoded.recycle()
-                }
+                assertUnpremultipliedPng(output)
             } finally {
                 output.delete()
                 directory.delete()
@@ -220,6 +214,18 @@ public class AndroidPersistenceFunctionalTest {
                 directory.delete()
             }
         }
+
+    private fun assertUnpremultipliedPng(output: File) {
+        val options = BitmapFactory.Options().apply { inPremultiplied = false }
+        val decoded = checkNotNull(BitmapFactory.decodeFile(output.absolutePath, options))
+        try {
+            assertEquals(1, decoded.width)
+            assertEquals(1, decoded.height)
+            assertEquals(0x01112233, decoded.getPixel(0, 0))
+        } finally {
+            decoded.recycle()
+        }
+    }
 
     private fun assertLegacyLoaded(
         source: LegacyRgbaSource,
