@@ -28,6 +28,7 @@ public class WorkspaceReducer private constructor() {
             is WorkspaceAction.LayerAction -> reduceLayer(state, action, source.document)
             is WorkspaceAction.ReferenceUnderlayAction -> reduceReferenceUnderlay(state, action)
             is WorkspaceAction.RasterImportAction -> reduceRasterImport(state, action)
+            is WorkspaceAction.SelectionAction -> reduceSelection(state, action)
         }
 
     private fun selectPaletteEntry(
@@ -47,7 +48,9 @@ public class WorkspaceReducer private constructor() {
         state: WorkspaceState,
         action: WorkspaceAction.SetViewport,
     ): WorkspaceReductionResult =
-        if (action.viewport == state.viewport && state.preview == null) {
+        if (action.viewport == state.viewport && state.preview == null &&
+            state.selectionSession?.geometry?.pointer == null
+        ) {
             unchanged(state, WorkspaceNoChangeReason.ViewportAlreadySet)
         } else {
             WorkspaceReductionResult.Reduced(state.withViewport(action.viewport))
@@ -68,11 +71,16 @@ private fun selectTool(
     state: WorkspaceState,
     action: WorkspaceAction.SelectTool,
 ): WorkspaceReductionResult =
-    if (action.tool == state.activeTool && state.quickSelection.eyedropper == EyedropperState.Idle) {
+    if (action.tool == state.activeTool && state.quickSelection.eyedropper == EyedropperState.Idle &&
+        state.selectionSession == null
+    ) {
         WorkspaceReductionResult.Unchanged(state, WorkspaceNoChangeReason.ActiveToolAlreadySelected)
     } else {
         WorkspaceReductionResult.Reduced(
-            state.withActiveTool(action.tool).withQuickSelection(state.quickSelection.idle()),
+            state
+                .withActiveTool(action.tool)
+                .withQuickSelection(state.quickSelection.idle())
+                .withSelectionSession(null),
         )
     }
 
@@ -80,7 +88,7 @@ private fun setAppearance(
     state: WorkspaceState,
     appearance: EditorAppearance,
 ): WorkspaceReductionResult =
-    if (state.appearance == appearance && state.preview == null) {
+    if (state.appearance == appearance && state.preview == null && state.selectionSession?.geometry?.pointer == null) {
         WorkspaceReductionResult.Unchanged(state, WorkspaceNoChangeReason.AppearanceAlreadySet)
     } else {
         WorkspaceReductionResult.Reduced(state.withAppearance(appearance))

@@ -18,6 +18,7 @@ Examples:
 - `ApplyPixelPatchCommand`
 - `AddLayerCommand`
 - `DuplicateLayerCommand`
+- `TransferPixelsCommand`
 - `DeleteLayerCommand`
 - `RenameLayerCommand`
 - `MoveLayerCommand`
@@ -30,6 +31,12 @@ Examples:
 exact copy of a named layer directly above it (ADR 0030 / #208). The new ID follows the sole insertion
 policy. One Added transition supplies ordinary history, selection reconciliation, invalidation and
 autosave; UI never copies pixels or issues a sequence of add/draw commands to duplicate a layer.
+
+`TransferPixelsCommand` applies one validated `PixelTransfer` to a visible target layer (ADR 0039 /
+#211). Move and Copy read the same immutable starting rectangle, including `Empty` and covered
+alpha-zero cells; destination cells take precedence where rectangles overlap. The one engine
+planner produces an ordinary patch and the existing sparse/dense layer change supplies history,
+invalidation and autosave. No clipboard document, stroke sequence or alternate inverse exists.
 
 ### Workspace actions
 
@@ -47,9 +54,20 @@ Examples:
 - `SelectLayer`
 - `SetReferenceUnderlay`
 - `ClearReferenceUnderlay`
+- `BeginSelectionPointer` / `UpdateSelectionPointer` / `FinishSelectionPointer`
+- `CancelSelectionPointer` / `CancelSelectionSession`
+- `SetSelectionMode`
 
 If an editor fact must survive project save/load or participate in undo, it belongs to `DocumentState`.
 Other editor/session facts belong to `WorkspaceState`. A fact must never exist authoritatively in both.
+ADR 0039 adds `SelectionSession`: admission and geometry only, with no pixel-copy owner. Its
+operation boundary begins atomically with the existing `SelectLayer` action and applies exactly
+one `TransferPixelsCommand`. Pointer-up retains the draft; pointer cancel restores only the
+unfinished drag, whereas session cancel discards the whole draft. A successful command, including
+internal commands and Undo/Redo, cancels the draft through shared runtime reconciliation. Palette
+edit, pending PNG import and competing pointer modes cancel it through their canonical reducers.
+Ordinary save/export/autosave still capture only committed truth, and the existing final-Switching
+exclusion remains unchanged. A selection draft does not introduce a blanket storage lease lock.
 Platform-wide app language is the separate `AppPreferences` boundary of ADR 0021; it has no
 document command and never changes project or workspace truth. Its request cancels preview through
 the existing workspace action before applying the setting.

@@ -15,29 +15,18 @@ private const val U8_MASK: Int = 0xff
  */
 public class StrokeComposite internal constructor(
     public val size: CanvasSize,
-    private val palette: IntArray,
-    private val surfaces: Array<PixelSurface?>,
+    palette: IntArray,
+    surfaces: Array<PixelSurface?>,
     target: StrokeTarget,
 ) {
     private val pixelCount: Int = size.pixelCount.toInt()
     private val targetCovered: Boolean = target.covered
     private val targetRgba: Int = palette[target.packedIndex.toInt() and U8_MASK]
+    private val composite = TargetLayerComposite(palette, surfaces)
 
     /** Packed RGBA8888 at the row-major [pixel]; `(0, 0, 0, 0)` when nothing contributes. */
     public fun packedRgba8888At(pixel: Int): Int {
         require(pixel in 0 until pixelCount) { "Pixel $pixel is outside 0 until $pixelCount" }
-        var rgba = 0
-        var contributed = false
-        for (layer in surfaces.indices) {
-            val surface = surfaces[layer]
-            val covered = if (surface == null) targetCovered else surface.isCoveredAt(pixel)
-            if (covered) {
-                val source =
-                    if (surface == null) targetRgba else palette[surface.packedIndexAt(pixel).toInt() and U8_MASK]
-                rgba = contributeOver(contributed, rgba, source)
-                contributed = true
-            }
-        }
-        return rgba
+        return composite.at(pixel, targetCovered, targetRgba)
     }
 }

@@ -14,8 +14,30 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
+import io.github.hideyukimori.nenepixel.core.domain.selection.PixelTransferMode
 
 public sealed interface WorkspaceAction {
+    /** Geometry-only selection interaction; Apply is a runtime command operation (ADR 0039). */
+    public sealed interface SelectionAction : WorkspaceAction
+
+    public data class BeginSelectionPointer(
+        public val position: PixelPosition,
+    ) : SelectionAction
+
+    public data class UpdateSelectionPointer(
+        public val point: DocumentPoint,
+    ) : SelectionAction
+
+    public data object FinishSelectionPointer : SelectionAction
+
+    public data object CancelSelectionPointer : SelectionAction
+
+    public data class SetSelectionMode(
+        public val mode: PixelTransferMode,
+    ) : SelectionAction
+
+    public data object CancelSelectionSession : SelectionAction
+
     public data class SetAppearance(
         public val appearance: EditorAppearance,
     ) : WorkspaceAction
@@ -174,6 +196,8 @@ internal fun WorkspaceAction.isAllowedDuringPaletteSession(): Boolean =
         WorkspaceAction.DisarmEyedropper,
         is WorkspaceAction.ReferenceUnderlayAction,
         WorkspaceAction.ClearPendingRasterImport,
+        WorkspaceAction.CancelSelectionSession,
+        WorkspaceAction.CancelSelectionPointer,
         -> true
 
         is WorkspaceAction.SelectTool,
@@ -186,5 +210,10 @@ internal fun WorkspaceAction.isAllowedDuringPaletteSession(): Boolean =
         is WorkspaceAction.PickPaletteEntryAt,
         is WorkspaceAction.LayerAction,
         is WorkspaceAction.SetPendingRasterImport,
+        is WorkspaceAction.BeginSelectionPointer,
+        is WorkspaceAction.UpdateSelectionPointer,
+        WorkspaceAction.FinishSelectionPointer,
+        is WorkspaceAction.SetSelectionMode,
+        is BeginSelectionSession,
         -> false
     }

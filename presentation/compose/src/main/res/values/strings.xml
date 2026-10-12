@@ -314,4 +314,14 @@
     <string name="underlay_more">More underlay actions</string>
     <string name="underlay_opacity">Underlay opacity</string>
     <string name="underlay_opacity_state">%1$d%%</string>
+    <string name="selection_title">Select area</string>
+    <string name="selection_waiting">Drag on the canvas to select an area</string>
+    <string name="selection_size">Area: %1$d × %2$d</string>
+    <string name="selection_move">Move</string>
+    <string name="selection_copy">Copy</string>
+    <string name="selection_apply">Apply</string>
+    <string name="selection_cancel">Cancel</string>
+    <string name="selection_empty_replacement">Replaces the whole area, including empty pixels</string>
+    <string name="selection_rejected">The area could not be applied</string>
+    <string name="selection_busy">Wait until the document switch finishes</string>
 </resources>

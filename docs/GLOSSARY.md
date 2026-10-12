@@ -30,7 +30,7 @@ One concept has one canonical name. New synonyms in code are prohibited. Add or 
 | `QuickSelection` | Workspace-owned recent painted slots (at most 8, most recent first), eyedropper state and open `QuickSelectMenu` | saved preference, colour history by RGBA, Compose menu state |
 | `QuickSelectItem` | Closed menu item vocabulary: `PaletteSlot(index)` or `Eyedropper`; later tool or zoom items add a case with their consuming feature | menu string id, palette-specific pointer phase |
 | eyedropper | One-shot armed workspace state whose next canvas pointer down reads the exact palette slot at that pixel through `PickPaletteEntryAt` | DrawingTool, RGBA colour sampling, composited or reference-image sampling |
-| `CanvasPointerIntent` | Derived closed `Draw` / `PickPaletteEntry` / `AdjustUnderlay` meaning of the next canvas pointer down, read by presentation to translate input | DrawingTool, pointer phase |
+| `CanvasPointerIntent` | Derived closed drawing, exact-slot picking, underlay adjustment or rectangular selection meaning of the next canvas pointer down, read by presentation to translate input | DrawingTool, pointer phase |
 | `WindowAnchor` | Normalized 0..1 top-left placement of a floating window inside the free space of the editor work area, on physical left/right and top/bottom axes | pixel offset, drag state, ViewportCenter |
 | `EditorRuntime` | Application owner of the current CommandGateway, WorkspaceState, clean checkpoint, persistence coordination, and derived projections | view model, controller, session |
 | `NewDocumentRequest` | Validated canvas request created once from raw width and height text before allocation | width/height integers, form state |
@@ -85,6 +85,10 @@ One concept has one canonical name. New synonyms in code are prohibited. Add or 
 | `Layer` | An ordered document element with a LayerId, name, visibility and one PixelSnapshot; 1 through 16 per document, bottom first (ADR 0030) | plane, sheet |
 | `LayerId` | Positive document-unique layer identity independent of order and name; new = current maximum + 1 | layer index, layer position |
 | `DuplicateLayerCommand` | Source-admitted command inserting a new layer directly above a named source, preserving its name, visibility and exact immutable pixels as one ordinary Added transition (ADR 0030 / #208) | UI copy loop, imported layer, merged layer |
+| `PixelTransfer` | Validated canvas, source PixelRegion, destination PixelPosition and Move/Copy mode for exact same-layer rectangular replacement, including Empty (ADR 0039) | clipboard pixels, raw offset, blended image |
+| `PixelTransferMode` | Closed Move or Copy meaning of a rectangular transfer | Boolean copy flag, drawing tool |
+| `TransferPixelsCommand` | Source-admitted command applying one PixelTransfer through an ordinary pixel patch and layer change | sequence of paint commands, direct UI pixel copy |
+| `SelectionSession` | Workspace-owned captured admission, target layer, rectangle/destination geometry, mode and pointer phase before Apply; owns no pixel payload | saved selection, clipboard document, Compose-local draft |
 | `EditTarget` | Workspace-owned active layer and active palette slot targeted by drawing, erasing and the eyedropper; never saved | current layer state, brush target |
 | `Empty` | A pixel cell with no palette index; always fully transparent and never remapped | transparent index, erase color |
 | `Composite` | The derived visible RGBA image of visible layers under ADR 0030's one integer source-over rule; never document truth | flattened layer, merged image |

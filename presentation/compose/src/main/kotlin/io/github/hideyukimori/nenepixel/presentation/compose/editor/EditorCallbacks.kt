@@ -26,6 +26,7 @@ public class EditorCallbacks internal constructor(
     internal val layers: EditorLayerCallbacks,
     internal val underlay: EditorUnderlayCallbacks,
     internal val rasterImport: EditorImportCallbacks,
+    internal val selection: EditorSelectionCallbacks,
 ) {
     internal val viewport: EditorViewportCallbacks = EditorViewportCallbacks(viewportStarted, viewportTransformed)
 

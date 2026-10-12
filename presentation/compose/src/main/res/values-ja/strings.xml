@@ -306,4 +306,14 @@
     <string name="palette_picker_less_value">明度を下げる</string>
     <string name="palette_notice_color_edit_active">現在の色の操作を終えてから実行してください</string>
     <string name="palette_notice_no_color_edit">色の操作は開始されていません</string>
+    <string name="selection_title">範囲を選択</string>
+    <string name="selection_waiting">キャンバスをドラッグして範囲を選択</string>
+    <string name="selection_size">選択範囲：%1$d × %2$d</string>
+    <string name="selection_move">移動</string>
+    <string name="selection_copy">コピー</string>
+    <string name="selection_apply">適用</string>
+    <string name="selection_cancel">取消</string>
+    <string name="selection_empty_replacement">空白を含めて置き換えます</string>
+    <string name="selection_rejected">範囲を適用できませんでした</string>
+    <string name="selection_busy">作品の切り替えが終わるまでお待ちください</string>
 </resources>

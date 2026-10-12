@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -35,6 +36,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
 import io.github.hideyukimori.nenepixel.core.application.workspace.EditorControlEdge
+import io.github.hideyukimori.nenepixel.core.application.workspace.WorkspaceReductionResult
 import io.github.hideyukimori.nenepixel.core.application.workspace.underlay.ReferenceUnderlay
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 
@@ -67,12 +69,12 @@ internal fun LayerOverlay(
     var returnFocus by remember { mutableStateOf(false) }
     val chipFocus = remember { FocusRequester() }
     val renameTarget = remember { mutableStateOf<LayerId?>(null) }
-    val actions = remember(callbacks) { LayerRowActions(callbacks, onRename = { id -> renameTarget.value = id }) }
     val onAdd = remember<() -> Unit>(callbacks) { { callbacks.onAdd() } }
     val close = {
         open = false
         returnFocus = true
     }
+    val actions = rememberLayerRowActions(editorCallbacks, renameTarget, close)
     BackHandler(enabled = open, onBack = close)
     LaunchedEffect(returnFocus) {
         if (returnFocus) {
@@ -99,6 +101,26 @@ internal fun LayerOverlay(
     }
     LayerRenameHost(renameTarget, inputs.rows, callbacks)
 }
+
+/** Row actions retain the row identity; only a successful canonical selection start closes the panel. */
+@Composable
+private fun rememberLayerRowActions(
+    callbacks: EditorCallbacks,
+    renameTarget: MutableState<LayerId?>,
+    close: () -> Unit,
+): LayerRowActions =
+    remember(callbacks.layers, callbacks.selection, renameTarget) {
+        LayerRowActions(
+            callbacks.layers,
+            onRename = { id -> renameTarget.value = id },
+            onSelectArea = { id ->
+                when (callbacks.selection.onBegin(id)) {
+                    is WorkspaceReductionResult.Reduced, is WorkspaceReductionResult.Unchanged -> close()
+                    is WorkspaceReductionResult.Rejected, is WorkspaceReductionResult.CommitPrepared -> Unit
+                }
+            },
+        )
+    }
 
 /** The panel margin, the width cap for a work area [workWidth] wide, and the height limit (#144 "パネル"). */
 private fun Modifier.panelBounds(

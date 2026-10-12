@@ -60,6 +60,9 @@ private fun LayerRowMenuItems(
     LayerMenuItem(R.string.layer_duplicate, DUPLICATE_TAG, enabled = entry.canDuplicate) {
         choose { callbacks.onDuplicate(id) }
     }
+    LayerMenuItem(R.string.selection_title, SELECT_AREA_TAG, enabled = !entry.hidden) {
+        choose { actions.onSelectArea(id) }
+    }
     LayerMenuItem(R.string.layer_move_up, MOVE_UP_TAG, enabled = !entry.frontMost) {
         choose { callbacks.onMove(id, entry.moveUpPosition) }
     }
@@ -87,6 +90,7 @@ private fun LayerMenuItem(
 private const val MORE_TAG: String = "editor_layer_more_"
 private const val RENAME_TAG: String = "editor_layer_rename"
 private const val DUPLICATE_TAG: String = "editor_layer_duplicate"
+private const val SELECT_AREA_TAG: String = "editor_layer_select_area"
 private const val MOVE_UP_TAG: String = "editor_layer_move_up"
 private const val MOVE_DOWN_TAG: String = "editor_layer_move_down"
 private const val DELETE_TAG: String = "editor_layer_delete"

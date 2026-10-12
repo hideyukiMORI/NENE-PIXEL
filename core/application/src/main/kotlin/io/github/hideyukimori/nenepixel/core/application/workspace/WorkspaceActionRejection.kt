@@ -1,12 +1,17 @@
 package io.github.hideyukimori.nenepixel.core.application.workspace
 
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteDraftRejection
+import io.github.hideyukimori.nenepixel.core.application.workspace.selection.SelectionRejection
 import io.github.hideyukimori.nenepixel.core.domain.geometry.CanvasSize
 import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 
 public sealed interface WorkspaceActionRejection {
+    public data class SelectionRejected internal constructor(
+        public val reason: SelectionRejection,
+    ) : WorkspaceActionRejection
+
     public data object PersistenceBusy : WorkspaceActionRejection
 
     /** A palette draft is open; drawing and tool changes wait until it closes (ADR 0022). */

@@ -1,6 +1,8 @@
 package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
+import io.github.hideyukimori.nenepixel.core.application.render.SelectionPreviewImage
 import io.github.hideyukimori.nenepixel.core.application.workspace.ToolGesture
+import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelRegion
 
 /**
  * Canvas-sized ARGB raster of the committed picture with the running gesture's positions replaced
@@ -24,6 +26,7 @@ internal class PreviewRaster(
     private var paintedBottom: Int = EMPTY_END
     private var changedTop: Int = EMPTY_START
     private var changedBottom: Int = EMPTY_END
+    private val selection = SelectionPreviewRaster(width, base, buffer)
 
     init {
         require(width > 0 && height > 0) { "Preview raster requires a positive size: ${width}x$height" }
@@ -37,6 +40,7 @@ internal class PreviewRaster(
         source(base)
         base.copyInto(buffer)
         forgetPainted()
+        selection.forget()
         markChangedRows(0, height - 1)
     }
 
@@ -50,6 +54,18 @@ internal class PreviewRaster(
         }
         markChangedRows(paintedTop, paintedBottom)
         forgetPainted()
+    }
+
+    /** Selection restores bounded old rectangles and writes the canonical affected-position projection. */
+    fun paintSelection(image: SelectionPreviewImage) {
+        clear()
+        selection.clear()
+        selection.paint(image)
+    }
+
+    /** Selection rectangle transfer does not expand distant rectangles into a whole-row bounding span. */
+    fun transferChangedRegions(target: (IntArray, PixelRegion) -> Unit) {
+        selection.transfer(target)
     }
 
     /** Replaces the previous preview with every position of [gesture] written in its colour from [colors]. */
