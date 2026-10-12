@@ -26,7 +26,6 @@ import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerVisibility
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
-import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 
@@ -127,12 +126,13 @@ internal class EditorRuntimeLayerTest {
     }
 
     @Test
-    fun `a gesture is cancelled when its layer becomes hidden or is deleted`() {
+    fun `successful layer commands cancel the previous gesture before reconciliation`() {
         val runtime = runtimeWithLayers(2)
         begin(runtime)
 
         setVisibility(runtime, 1, LayerVisibility.Hidden)
-        assertNotNull(runtime.state.workspaceState.preview)
+        assertNull(runtime.state.workspaceState.preview)
+        begin(runtime)
         setVisibility(runtime, 2, LayerVisibility.Hidden)
         assertNull(runtime.state.workspaceState.preview)
 
