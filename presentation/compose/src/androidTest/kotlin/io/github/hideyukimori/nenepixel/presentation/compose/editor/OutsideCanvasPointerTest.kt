@@ -102,6 +102,14 @@ internal class OutsideCanvasPointerTest {
             assertNull(controller.renderState.preview)
             assertFalse(controller.renderState.canUndo)
         }
+        rule.onNodeWithTag(CANVAS_TAG).performTouchInput {
+            down(pixelOffset(3, 2))
+            up()
+        }
+        rule.runOnIdle {
+            assertCells(setOf(3 to 2))
+            assertEquals(1L, controller.documentState.revision.value)
+        }
     }
 
     @Test
