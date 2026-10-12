@@ -7,7 +7,7 @@ This document records the editor surface as implemented today and how each contr
 records current state and the move candidates that state exposes; it adds no rule.
 
 The frame interface below implements ADR 0041 in Issue #216 alongside the frame hierarchy and v4
-storage. Playback remains a separate implementation in #217.
+storage. ADR 0042 / #217 adds preview controls inside that same secondary Frames surface.
 
 Evidence is the Compose editor source under `presentation/compose/src/main/kotlin/.../presentation/compose/editor/`.
 Each row names the file it was read from. `Primary?` means the control satisfies both conditions of the
@@ -76,6 +76,7 @@ from Frames to Layers, then closes Layers and restores chip focus.
 | secondary: frame panel | Chronological frame rows with ordinal and duration | no | `FramePanelRows.kt`, `FrameRow.kt`; 1–16 rows, stable FrameId keys and localized ordinal/ms labels; choosing a row selects its frame through the canonical workspace action and returns to that frame's layer panel |
 | secondary: frame-row More | Duplicate, Move earlier/later, Duration and Delete | no | `FrameRowMenu.kt`; row-ID targets; positions, last-frame protection, frame count and document-wide layer capacity govern availability; each change uses one document command |
 | secondary: frame-panel fixed footer | Add blank frame | no | `FramePanel.kt`; adds after the named frame with default 100 ms and one Empty layer; the add control stays reachable outside scrolling rows |
+| secondary: frame panel | Play/Stop, Loop/Once and displayed-frame ordinal | no | ADR0042; preview begins at the chosen editing frame, keeps editing focus, and shows the same picture in canvas/actual-size; one-frame works disclose why Play is disabled; Stop remains reachable at short height |
 | secondary: frame panel and layer panel | Document-wide layer capacity and reason | no | `DocumentLayerCapacity.kt`; at most 16 total records, including shared snapshots; explains why a 16-layer work cannot add a frame. Frame duplicate needs room for all source layers; layer Add/Duplicate use the same capacity |
 | secondary: duration dialog | Integer-ms field, Confirm and Cancel | no | `FrameDurationDialog.kt`; validated 10–60,000 ms; explicit confirmation submits one command, identical duration is a no-op, and Cancel/Back submits no command |
 | secondary: palette editor | Preview-frame dropdown above the scrolling slot/editor body | no | `PaletteFrameDropdown.kt`; shown for multiple frames; the same SelectFrame action stays inside the palette dialog and retains its shared draft/timeline; no frame commands or separate preview-frame owner |
@@ -85,14 +86,22 @@ actions, with a fixed blank-add footer. Localized labels, unit/error/disabled re
 descriptions and focus on the chosen stable row are implemented in all
 existing app languages. Ordinal is display text, never identity; there is no saved frame name.
 All frames share the document palette. Layer rows and visibility apply to the chosen frame;
-capacity applies to the complete document. Informational copy describes frame editing and keeps
-playback listed as unavailable. Rows do not create thumbnails. `PngImportDialog.kt` shows the captured
+capacity applies to the complete document. Informational copy describes frame editing and Loop/Once
+preview; animated export remains unavailable. Rows do not create thumbnails. `PngImportDialog.kt` shows the captured
 target ordinal beside layer forms when the picked-from work has multiple frames.
 The palette dropdown uses the existing menu mechanics and a compact 48dp row before the weighted
 scroll body, preserving the fixed draft Undo/Redo and Apply/Cancel footer. Its popup-open state is
 local presentation mechanics; selected FrameId remains canonical workspace state. Canvas and
 actual-size follow that chosen frame with the same palette draft preview, excluding stroke and
 selection drafts from actual-size as before.
+
+During playback, first Back stops and stays on Frames; later Back follows Frames→Layers→chip.
+Explicit pane close/back, row choice and More/duration entry stop before leaving or opening.
+Opening another editing/file surface likewise stops; hiding Frames never leaves preview running.
+The first canvas gesture stops and is consumed until every pointer is up, then a fresh gesture
+edits or zooms. Actual-size window controls remain available. ON_STOP and composition disposal stop
+without automatic resume. There is no extra permanent or transient work-area stop control, timeline,
+FPS override, scrubber or thumbnail cache. All controls/reasons use existing EN/JA/zh-Hans resources.
 
 ## Move candidates
 

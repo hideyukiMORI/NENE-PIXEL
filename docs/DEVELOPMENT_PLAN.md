@@ -87,7 +87,8 @@ ADR 0032 / #169 adds the reference underlay (P4-06), which the owner placed befo
 ADR 0033 / #176 adds PNG import (P4-07), requested by the owner on 2026-10-01.
 ADR 0034 / #172 decides the underlay memory (P4-06c).
 ADR 0041 / #215 accepts bounded frames and v4/envelope 4; #216 implements the atomic hierarchy,
-storage and frame-editing interface. Playback remains the separate consuming decision in #217.
+storage and frame-editing interface. ADR 0042 / #217 consumes it for workspace-only Loop/Once preview
+with one lifecycle adapter, bounded explicit-sample timing and separate edit/display focus.
 
 | ID | Work package | Depends on | Required evidence |
 | --- | --- | --- | --- |
@@ -114,7 +115,7 @@ storage and frame-editing interface. Playback remains the separate consuming dec
 | P4-10 | Flip and quarter-turn the selected rectangle (#213) | P4-09 | ADR 0040; eight exact composed orientations, non-square bounds and inverse mapping, existing transfer/preview/history path, retained Apply/Cancel and localized temporary controls; focused equivalence and source-derived #145 workload registration |
 | P4-11 | Accept bounded frames and project v4 design (#215) | P4-10 | ADR 0041 and exact v4/envelope 4 contract; global 16-record capacity, shared palette, frame/layer focus, captured PNG targets and atomic consuming plan; documentation validation |
 | P4-11a | Atomically implement frame editing and v4/envelope 4 (#216) | P4-11 | Every domain/command/history/workspace/render/import/export/storage/UI consumer together; exact migration, structural byte accounting, focus/cancellation and cache lifetime; focused host/native evidence and source-derived #145 workload registration |
-| P4-11b | Accept and implement deterministic playback (#217) | P4-11a | Clock/interaction decision first; one workspace session and lifecycle clock, explicit monotonic samples and saved duration/order, bounded scheduling, no tick history/autosave; focused correctness evidence |
+| P4-11b | Accept and implement deterministic playback (#217) | P4-11a | ADR 0042; Loop/Once, one workspace session and lifecycle clock, bounded explicit-sample scheduling and stale cleanup, unchanged edit/document/history/autosave, same-frame cache reuse and isolated UI/background evidence; #145 cost/workload registration |
 
 Preparation keeps the sole M3 editable path. P4-02 changes every live consumer together, with no
 parallel editable RGBA document or provisional indexed-to-v1 writer. P4-05a likewise moves every
@@ -125,8 +126,8 @@ cross-layer/external clipboard, delete, arbitrary angles and scaling remain sepa
 refinements. #145 performance collection remains at the owner-directed M5 exit. Layer merge remains
 separate; saved layer opacity needs a future version/ADR, and v4 contains frames only. P4-11a removes the former
 document-level layer list and changes every current writer/consumer together, with no provisional
-unsavable frames or active-frame alias. P4-11b decides playback separately and adds no unused API
-to frame editing. Existing v3 performance fixtures retain their identities; a new v4 publication
+unsavable frames or active-frame alias. P4-11b consumes the separate ADR0042 playback decision with
+no unused API or saved-data change. Existing v3 performance fixtures retain their identities; a new v4 publication
 workload is registered separately with #145, without feature-level collection. Tiles/maps
 requirements remain recorded in ADR 0022 without unused APIs. Palette generation from an image and
 dithering stay undecided (ADR 0033). Underlay rotation, numeric placement

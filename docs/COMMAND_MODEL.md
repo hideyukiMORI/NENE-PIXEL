@@ -59,6 +59,7 @@ Examples:
 - `SetActualSizeWindow`
 - `SelectLayer`
 - `SelectFrame`
+- `StartPlayback` / `StopPlayback` / `StopPlaybackIfCurrent` / `SetPlaybackMode`
 - `SetReferenceUnderlay`
 - `ClearReferenceUnderlay`
 - `BeginSelectionPointer` / `UpdateSelectionPointer` / `FinishSelectionPointer`
@@ -181,10 +182,38 @@ creates one default frame through its existing current-context confirmation/fina
 Save/autosave/recovery capture the whole committed hierarchy; frame choice has no dirty/autosave
 effect. The existing persistence exclusions and source-preservation contract remain unchanged.
 
-V4/envelope 4 writes switch with every live consumer, preserving exact old readers. Playback has
-its own later clock/interaction decision: one workspace session consumes explicit monotonic
-platform samples and saved duration/order; ticks never enter history/autosave. No playback API,
-saved opacity or animated export is added by frame editing.
+V4/envelope 4 writes switch with every live consumer, preserving exact old readers. Saved opacity
+and animated export remain separate decisions; preview does not extend that format.
+
+## Preview playback (ADR 0042)
+
+[ADR 0042](adr/0042-workspace-preview-playback.md) / #217 defines one workspace session and
+Loop/Once mode. Start needs at least two frames and no palette draft, pending import or final
+Switching. It begins at the editing frame and cancels unfinished drawing, selection and competing
+pointer modes. Pulses never select an editing frame or change document/revision/history/checkpoint,
+autosave or underlay memory. Stop restores the editing picture by projection. Mode alone carries
+across runtime owner replacement; neither active session nor timing survives.
+
+Start/Stop/mode controls use WorkspaceAction. The single locked
+EditorRuntime.advancePlayback(token, nanos) issues an internal sample action through the same
+reducer. A fresh opaque token admits samples and asynchronous disposal. Signed monotonic delta,
+half-open intervals and bounded relative arithmetic resolve delayed samples in at most 16 steps.
+Continue returns a positive current-interval wait; Once ends at the final saved interval boundary.
+A stale token changes nothing. A clock discontinuity rejects its sample unchanged, then performs
+StopIfCurrent in the same transaction and returns a distinct stopped fault.
+
+Successful document commands/Undo/Redo and final Switching stop centrally. Successful incompatible
+workspace transitions stop in the common reducer, including internal palette/selection/import
+entries. Rejected and truly Unchanged actions preserve state. Raw drawing/selection/viewport
+continuations while playing reject; an explicit UI editing intent can Stop before its separate
+operation. Stop/StopIfCurrent cleanup remains admitted during busy/draft states and is Unchanged
+when idle/stale. UI canvas Down stops and ignores the whole gesture through all fingers up.
+
+The Frames pane owns the sole platform driver and visible controls. Its stable lifecycle observer
+stops the current session synchronously on ON_STOP; old token disposal stops only that token.
+Background, pane exit and composition disposal never resume automatically. The adapter admits UI
+Start and samples only while the lifecycle is at least STARTED, checking again after suspension.
+Ordinary all-frame save/autosave and existing begin-time edit-frame PNG captures keep their meaning.
 
 ## New-document runtime boundary
 

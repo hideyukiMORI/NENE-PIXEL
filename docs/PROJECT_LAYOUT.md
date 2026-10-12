@@ -191,8 +191,13 @@ the active frame's disposable preparation. Save/recovery/autosave captures remai
 and exact-position; frame choice is workspace state and never creates an autosave capture. PNG
 export takes one immutable document-plus-FrameId capture admitted inside that lock. PNG layer
 import retains its admitted target FrameId and insertion-anchor LayerId; later focus does not
-retarget it. Application still knows no codec bytes or storage APIs. Playback waits for its own
-clock/interaction decision and introduces no independent current-frame owner here.
+retarget it. Application still knows no codec bytes or storage APIs. ADR 0042 places PlaybackState,
+its opaque token, bounded timing plan and visible PlaybackView in application/workspace/playback.
+EditorRuntime serializes explicit samples through the common reducer. Presentation's sole adapter
+supplies lifecycle-admitted frame-clock samples and returned interval waits; it owns no timeline.
+The displayed FrameId differs from the unchanged edit target only while playing. Canvas and
+actual-size use the same frame-aware inputs and bounded active preparation; no all-frame cache,
+pixel copy or full composite is added to a same-frame pulse. No playback state enters storage.
 
 It does not know Compose, Android, SQL, files, project-format bytes/codecs, JSON libraries, storage
 URIs, or automation protocols. It may use platform-neutral coroutines for suspend ports, its read-only
