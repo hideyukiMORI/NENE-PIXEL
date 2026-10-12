@@ -14,7 +14,6 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
-import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -148,7 +147,7 @@ internal class PaletteDraftScreenTest {
     }
 
     private fun editorNode(identity: String): SemanticsNodeInteraction =
-        composeRule.onNodeWithTag(identity).performScrollTo()
+        PaletteEditorTestNavigation.node(composeRule, identity)
 
     private companion object {
         const val WIDTH: Int = 3

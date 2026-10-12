@@ -91,6 +91,9 @@ public class EditorRuntime private constructor(
                     owners.workspaceState,
                     WorkspaceActionRejection.PersistenceBusy,
                 )
+            } else if (action is WorkspaceAction.BeginPaletteColorEdit && coordination.activeOperation != null) {
+                // Keep continuous edits and palette JSON physical leases mutually exclusive (ADR 0022 / #168).
+                WorkspaceReductionResult.Rejected(owners.workspaceState, WorkspaceActionRejection.PersistenceBusy)
             } else if (owners.workspaceState.paletteEditSession != null && !action.isAllowedDuringPaletteSession()) {
                 WorkspaceReductionResult.Rejected(
                     owners.workspaceState,

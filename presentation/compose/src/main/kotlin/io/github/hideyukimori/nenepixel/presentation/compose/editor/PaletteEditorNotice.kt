@@ -94,6 +94,10 @@ private fun PaletteDraftRejection.noticeResource(): Int =
 
         PaletteDraftRejection.ImportPending -> R.string.palette_notice_import_pending
 
+        PaletteDraftRejection.ColorEditActive -> R.string.palette_notice_color_edit_active
+
+        PaletteDraftRejection.NoColorEdit -> R.string.palette_notice_no_color_edit
+
         is PaletteDraftRejection.UnresolvedImportSources -> R.string.palette_notice_unresolved_import
     }
 

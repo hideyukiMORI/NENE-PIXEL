@@ -6,8 +6,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -21,10 +24,13 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -38,9 +44,8 @@ import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteEntry
 import io.github.hideyukimori.nenepixel.presentation.compose.R
 
 /**
- * The palette editor panel (design ruling 6): draft slots, the RGBA editor for the selected slot, slot operations and
- * the draft history, Apply and Cancel, the palette JSON buttons and the latest notice. Every change goes through
- * [EditorPaletteCallbacks]; a pending import disables editing until its mapping section (S6b) confirms or cancels it.
+ * Issue #168: one scrolling body and bounded real slot grid; history/Apply/Cancel remain reachable in the footer.
+ * Slot and JSON operations are secondary. Only the runtime owns colours and draft history.
  */
 @Composable
 internal fun PaletteEditorControls(
@@ -54,30 +59,71 @@ internal fun PaletteEditorControls(
     val choice = remember(selectedState, choosingState) { PaletteEditorChoice(selectedState, choosingState) }
     val selection = PaletteEditorSelection.of(session, choice.selected)
     val actions = PaletteEditorActions(selection, choice, callbacks)
-    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        PaletteEditorSlots(selection, Modifier.weight(1f), actions::slotTapped)
+    val content = PaletteEditorContent(session, selection, actions, callbacks)
+    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Column(
-            modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+            Modifier.weight(1f).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            session.pendingImport?.let { PaletteImportSection(session.draft, it, callbacks) }
-            if (choice.choosingReplacement) {
-                Text(
-                    stringResource(R.string.palette_editor_replacement),
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.editorDescription(R.string.palette_editor_replacement),
-                )
+            PaletteEditorSlots(selection, Modifier.height(120.dp)) {
+                if (session.isColorEditActive) callbacks.colorEdit.cancel()
+                actions.slotTapped(it)
             }
-            PaletteColorEditor(selection.selectedEntry.color, selection.editable, actions::setColor)
-            PaletteEditorSlotActions(selection, actions)
-            PaletteEditorSessionActions(session, callbacks)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                PaletteEditorButton(R.string.export_palette_json, json.idle, onClick = json::export)
-                PaletteEditorButton(R.string.import_palette_json, json.idle, onClick = json::import)
-            }
+            PaletteEditorBody(content, json)
+            if (choice.choosingReplacement) PaletteReplacementPrompt()
             notice?.let { PaletteEditorNoticeText(it) }
         }
+        PaletteEditorSessionActions(session, callbacks)
     }
+}
+
+private data class PaletteEditorContent(
+    val session: PaletteEditSession,
+    val selection: PaletteEditorSelection,
+    val actions: PaletteEditorActions,
+    val callbacks: EditorPaletteCallbacks,
+)
+
+@Composable
+private fun PaletteEditorBody(
+    content: PaletteEditorContent,
+    json: PaletteJsonActions,
+) {
+    val session = content.session
+    val selection = content.selection
+    var operationsExpanded by remember { mutableStateOf(false) }
+    session.pendingImport?.let { PaletteImportSection(session.draft, it, content.callbacks) }
+    key(selection.selected) {
+        val model =
+            PaletteColorEditorModel(
+                selection.selectedEntry.color,
+                session.pendingImport == null && json.idle,
+                selection.editable,
+                session.isColorEditActive,
+            )
+        PaletteColorEditor(model, PaletteColorEditCallbacks(selection.selectedEntry.index, content.callbacks))
+    }
+    PaletteEditorDisclosure(R.string.palette_editor_operations, operationsExpanded) {
+        operationsExpanded =
+            !operationsExpanded
+    }
+    if (operationsExpanded) {
+        PaletteEditorSlotActions(selection, content.actions)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            val enabled = json.idle && selection.editable
+            PaletteEditorButton(R.string.export_palette_json, enabled, onClick = json::export)
+            PaletteEditorButton(R.string.import_palette_json, enabled, onClick = json::import)
+        }
+    }
+}
+
+@Composable
+private fun PaletteReplacementPrompt() {
+    Text(
+        stringResource(R.string.palette_editor_replacement),
+        style = MaterialTheme.typography.bodySmall,
+        modifier = Modifier.editorDescription(R.string.palette_editor_replacement),
+    )
 }
 
 @Composable
@@ -93,9 +139,14 @@ private fun PaletteEditorSlots(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         itemsIndexed(selection.entries, key = { _, entry -> entry.index.value }) { position, entry ->
-            PaletteEditorSlot(entry, position == selection.selected, entry.index == selection.defaultIndex) {
-                tap(position)
-            }
+            PaletteEditorSlot(
+                entry,
+                PaletteSlotAppearance(
+                    position == selection.selected,
+                    entry.index == selection.defaultIndex,
+                ),
+                tap,
+            )
         }
     }
 }
@@ -103,27 +154,33 @@ private fun PaletteEditorSlots(
 @Composable
 private fun PaletteEditorSlot(
     entry: PaletteEntry,
-    selected: Boolean,
-    isDefault: Boolean,
-    onClick: () -> Unit,
+    appearance: PaletteSlotAppearance,
+    tap: (Int) -> Unit,
 ) {
     val number = entry.index.value + 1
-    val borderColor = if (selected) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.outline
+    val borderColor =
+        if (appearance.selected) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.outline
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier =
             Modifier
                 .size(56.dp)
-                .selectable(selected, role = Role.Button, onClick = onClick)
+                .selectable(appearance.selected, role = Role.Button, onClick = { tap(entry.index.value) })
                 .editorDescription(
                     R.string.palette_editor_slot,
                     number,
                     identity = "editor_palette_editor_slot_$number",
-                ).border(if (selected) 3.dp else 1.dp, borderColor, RoundedCornerShape(4.dp))
+                ).border(if (appearance.selected) 3.dp else 1.dp, borderColor, RoundedCornerShape(4.dp))
                 .padding(4.dp),
     ) {
-        Box(Modifier.fillMaxWidth().weight(1f).background(entry.color.toComposeColor())) {
-            if (isDefault) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .paletteCheckerboard()
+                .background(entry.color.toComposeColor()),
+        ) {
+            if (appearance.isDefault) {
                 Text(
                     "★",
                     color = Color.White,
@@ -135,6 +192,11 @@ private fun PaletteEditorSlot(
         Text(stringResource(R.string.entry_number, number), style = MaterialTheme.typography.labelSmall)
     }
 }
+
+private data class PaletteSlotAppearance(
+    val selected: Boolean,
+    val isDefault: Boolean,
+)
 
 @Composable
 private fun PaletteEditorSlotActions(
@@ -159,12 +221,37 @@ private fun PaletteEditorSessionActions(
     session: PaletteEditSession,
     callbacks: EditorPaletteCallbacks,
 ) {
-    val editable = session.pendingImport == null
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        PaletteEditorButton(R.string.palette_editor_undo, editable && session.canUndoDraft) { callbacks.onUndo() }
-        PaletteEditorButton(R.string.palette_editor_redo, editable && session.canRedoDraft) { callbacks.onRedo() }
-        PaletteEditorButton(R.string.palette_editor_apply, editable) { callbacks.onApply() }
-        PaletteEditorButton(R.string.palette_editor_cancel) { callbacks.onCancel() }
+    val editable = session.pendingImport == null && !session.isColorEditActive
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            PaletteFooterButton(R.string.palette_editor_undo, editable && session.canUndoDraft, Modifier.weight(1f)) {
+                callbacks.onUndo()
+            }
+            PaletteFooterButton(R.string.palette_editor_redo, editable && session.canRedoDraft, Modifier.weight(1f)) {
+                callbacks.onRedo()
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            PaletteFooterButton(R.string.palette_editor_apply, editable, Modifier.weight(1f)) { callbacks.onApply() }
+            PaletteFooterButton(R.string.palette_editor_cancel, true, Modifier.weight(1f)) { callbacks.onCancel() }
+        }
+    }
+}
+
+@Composable
+private fun PaletteFooterButton(
+    label: Int,
+    enabled: Boolean,
+    modifier: Modifier,
+    click: () -> Unit,
+) {
+    Button(
+        onClick = click,
+        enabled = enabled,
+        colors = editorButtonColors(),
+        modifier = modifier.heightIn(min = 48.dp).editorDescription(label),
+    ) {
+        Text(stringResource(label))
     }
 }
 
@@ -204,7 +291,7 @@ internal fun PaletteEditorButton(
 ) {
     Button(
         colors = editorButtonColors(),
-        modifier = Modifier.editorDescription(label, identity = identity),
+        modifier = Modifier.heightIn(min = 48.dp).editorDescription(label, identity = identity),
         enabled = enabled,
         onClick = onClick,
     ) {

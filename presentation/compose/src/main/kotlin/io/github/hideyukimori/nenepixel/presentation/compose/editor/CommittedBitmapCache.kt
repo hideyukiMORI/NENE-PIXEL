@@ -2,11 +2,8 @@ package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
 import android.graphics.Bitmap
 import android.graphics.Paint
-import io.github.hideyukimori.nenepixel.core.application.render.DocumentComposite
 import io.github.hideyukimori.nenepixel.core.application.render.DocumentCompositeImage
-import io.github.hideyukimori.nenepixel.core.application.render.DocumentCompositeRenderResult
-import io.github.hideyukimori.nenepixel.core.application.render.PaletteDraftComposite
-import io.github.hideyukimori.nenepixel.core.application.render.PaletteDraftCompositeResult
+import io.github.hideyukimori.nenepixel.core.application.render.PaletteDraftCompositeCache
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteEditSession
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
@@ -26,26 +23,24 @@ internal class CommittedBitmapCache {
             isFilterBitmap = false
         }
 
-    private var source: DocumentState? = null
-    private var sourceDefinition: PaletteDefinition? = null
-    private var sourceSession: PaletteEditSession? = null
+    private val composite = PaletteDraftCompositeCache()
+    private var sourceImage: DocumentCompositeImage? = null
     private var rendered: Bitmap? = null
     private var renderedArgb: IntArray? = null
 
     /**
      * The committed picture with its alpha, or the draft's picture while [session] is open; rebuilt
-     * only when the document, definition or session reference changes.
+     * when the derived image changes. Draft gesture/history metadata reuses the same bitmap.
      */
     fun render(
         document: DocumentState,
         definition: PaletteDefinition,
         session: PaletteEditSession?,
     ): Bitmap {
-        if (source !== document || sourceDefinition !== definition || sourceSession !== session) {
-            source = document
-            sourceDefinition = definition
-            sourceSession = session
-            val argb = composite(document, definition, session).toStraightArgb()
+        val image = composite.render(document, definition, session)
+        if (sourceImage !== image) {
+            sourceImage = image
+            val argb = image.toStraightArgb()
             renderedArgb = argb
             val size = document.size
             rendered = Bitmap.createBitmap(argb, size.width.value, size.height.value, Bitmap.Config.ARGB_8888)
@@ -59,30 +54,4 @@ internal class CommittedBitmapCache {
         require(target.size == argb.size) { "Target holds ${target.size} pixels, the rendering ${argb.size}" }
         System.arraycopy(argb, 0, target, 0, argb.size)
     }
-
-    private fun composite(
-        document: DocumentState,
-        definition: PaletteDefinition,
-        session: PaletteEditSession?,
-    ): DocumentCompositeImage =
-        session?.let { draftComposite(document, it) } ?: committedComposite(document, definition)
-
-    /** The draft's picture, or `null` when the document's palette is not the one the session started from. */
-    private fun draftComposite(
-        document: DocumentState,
-        session: PaletteEditSession,
-    ): DocumentCompositeImage? =
-        when (val result = PaletteDraftComposite.render(document, session)) {
-            is PaletteDraftCompositeResult.Rendered -> result.image
-            PaletteDraftCompositeResult.SourceMismatch -> null
-        }
-
-    private fun committedComposite(
-        document: DocumentState,
-        definition: PaletteDefinition,
-    ): DocumentCompositeImage =
-        when (val result = DocumentComposite.render(document, definition)) {
-            is DocumentCompositeRenderResult.Rendered -> result.image
-            DocumentCompositeRenderResult.IndexOutsidePalette -> error("Rendered index is outside the palette")
-        }
 }

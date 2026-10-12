@@ -290,4 +290,19 @@
     <string name="underlay_more">底图的更多操作</string>
     <string name="underlay_opacity">底图不透明度</string>
     <string name="underlay_opacity_state">%1$d%%</string>
+    <string name="palette_editor_numeric">精确输入数值</string>
+    <string name="palette_editor_operations">色槽和调色板文件</string>
+    <string name="palette_editor_expanded">已展开</string>
+    <string name="palette_editor_collapsed">已折叠</string>
+    <string name="palette_picker_sv">饱和度和亮度</string>
+    <string name="palette_picker_sv_value">饱和度 %1$d%%，亮度 %2$d%%</string>
+    <string name="palette_picker_hue">色相</string>
+    <string name="palette_picker_opacity">不透明度</string>
+    <string name="palette_picker_percent">%1$d%%</string>
+    <string name="palette_picker_more_saturation">提高饱和度</string>
+    <string name="palette_picker_less_saturation">降低饱和度</string>
+    <string name="palette_picker_more_value">提高亮度</string>
+    <string name="palette_picker_less_value">降低亮度</string>
+    <string name="palette_notice_color_edit_active">请先完成当前颜色操作</string>
+    <string name="palette_notice_no_color_edit">尚未开始颜色操作</string>
 </resources>

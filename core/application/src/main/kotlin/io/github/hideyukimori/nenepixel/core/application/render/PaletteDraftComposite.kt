@@ -31,7 +31,7 @@ public object PaletteDraftComposite {
         }
 
     /** The origin-sized table: entry `i` is the draft colour at `composedRemap().destinationAt(i)`. */
-    private fun colorTable(session: PaletteEditSession): PaletteDefinition {
+    internal fun colorTable(session: PaletteEditSession): PaletteDefinition {
         val remap = session.composedRemap()
         val colors =
             session.origin.palette

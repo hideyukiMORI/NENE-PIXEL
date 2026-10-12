@@ -6,7 +6,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteDraftOperation
 import io.github.hideyukimori.nenepixel.core.application.workspace.palette.PaletteEditSession
-import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteEntry
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteLimits
@@ -42,7 +41,7 @@ internal class PaletteEditorSelection private constructor(
                 entries,
                 selected.coerceIn(0, entries.lastIndex),
                 session.draft.defaultIndex,
-                session.pendingImport == null,
+                session.pendingImport == null && !session.isColorEditActive,
             )
         }
     }
@@ -75,10 +74,6 @@ internal class PaletteEditorActions(
             val shifted = if (position > selection.selected) position - 1 else position
             edit(removed) { choice.selected = shifted }
         }
-    }
-
-    fun setColor(color: PixelColor) {
-        edit(PaletteDraftOperation.SetSlotColor(selection.selectedEntry.index, color)) {}
     }
 
     fun setDefault() {

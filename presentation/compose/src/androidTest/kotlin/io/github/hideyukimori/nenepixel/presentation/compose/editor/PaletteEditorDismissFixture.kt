@@ -55,7 +55,7 @@ internal object PaletteEditorDismissFixture {
         controller: EditorController,
     ): PaletteDefinition {
         composeRule.onNodeWithTag("editor_palette_editor_slot_2").performScrollTo().performClick()
-        composeRule.onNodeWithTag(MOVE_DOWN_TAG).performScrollTo().performClick()
+        PaletteEditorTestNavigation.node(composeRule, MOVE_DOWN_TAG).performClick()
         composeRule.waitForIdle()
         val edited = requireNotNull(controller.renderState.paletteEditSession) { "No palette edit session" }.draft
         assertNotEquals(controller.renderState.definition, edited)

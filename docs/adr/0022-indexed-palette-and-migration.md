@@ -4,7 +4,7 @@
 - Date: 2026-09-12
 - Issue: #101
 - Affected rules: ARC-001/004/005/007/008/009/011/012, CMD-001/002/005–010/012,
-  KOT-001–008/013/016–020, QLT-006–009/011–016
+  KOT-001–008/013/016–020, QLT-006–009/011–016/019
 
 ## Layered refinement (2026-09-28, #140)
 
@@ -108,9 +108,10 @@ The display shows that preview (amended 2026-09-30, Issue #148). While a session
 and the actual-size window draw the Composite of the unchanged document in which every original
 palette index takes the colour of the draft entry that the session's composed mapping leads to, so
 the picture equals the Composite of the document an Apply would produce. `:core:application` computes
-it, because the mapping stays inside the session. The presentation passes the session and keys its
-bitmap by the document and session references, so one change of the session (a draft edit, its undo
-or redo, or a step of a pending import) rebuilds the bitmap once and no frame does. A pending
+it, because the mapping stays inside the session. The presentation passes the session; the effective
+origin-sized colour table and document identity determine whether the picture changes. Merely
+beginning or finishing a colour gesture, or changing pending-import metadata, does not rebuild an
+unchanged picture. The continuous-colour amendment below defines reuse during a drag. A pending
 import is shown only after it is confirmed into the draft. When the document's palette is not the
 palette the session started from, the display falls back to the document's own palette. The
 palette editor panel stays modal, but it does not darken the work area: while that panel is open,
@@ -143,6 +144,77 @@ guards. Oldest-first eviction, redo truncation and reject-before-commit follow A
 entry may never become committed but un-undoable. Candidate limits require the cutover Issue's
 prospectively accepted latency/retained-memory evidence before shipping; this design supplies no
 new performance verdict or inherited measurement permission.
+
+### Continuous colour editing (2026-10-12, #168)
+
+The design seat adopts the existing proposal under hide's delegation of design decisions: a
+saturation/value plane, hue bar, opacity bar and always-visible exact HEX input. RGBA channel
+inputs remain available in an expandable numeric section. These controls stay inside the existing
+modal palette panel, with the real variable-size slot grid and all slot/JSON operations preserved.
+The primary draft Undo/Redo and Apply/Cancel actions remain reachable without scrolling through
+advanced operations. Existing Compose drawing/input primitives suffice; no dependency is added.
+
+`PaletteEditSession` remains the sole RGBA draft owner. `WorkspaceAction.BeginPaletteColorEdit`
+captures one valid slot and its starting draft; `UpdatePaletteColorEdit` changes only that slot's
+preview through the existing draft planner, without appending history. `FinishPaletteColorEdit`
+appends one ordinary bounded draft entry from start to final colour, truncating redo only when the
+final colour differs. Returning to the starting colour is a no-op and preserves redo. Cancellation
+restores the starting draft and unchanged timeline. One active edit is bounded to one starting
+definition and slot; it retains no pointer-event history. Invalid begin/update requests are typed
+rejections and leave the session unchanged.
+
+Other draft edits, import actions, draft Undo/Redo and Apply reject while a colour edit is active.
+The UI disables those operations during the gesture. Pointer cancellation and control disposal
+cancel the active colour edit; selecting another slot first cancels it. Closing the whole palette
+panel drops the whole session through its existing cancellation route. Pointer-up publishes the
+final value before finishing. Accessibility single-step changes use the same begin/update/finish
+route. Existing numeric Done submissions remain one ordinary draft edit.
+
+The runtime lock also admits colour-edit begin only when no physical persistence operation is
+active, returning the existing persistence-busy rejection otherwise. Palette JSON import/export
+begin likewise returns its existing busy result while a colour edit is active, before acquiring a
+lease. This prevents a late import completion from losing its staged palette against an active
+edit, and prevents exporting a transient drag colour. Existing drawing and other file-operation
+semantics remain unchanged; no second operation coordinator is introduced.
+
+HSV is presentation-derived, never a second colour model in workspace or document state. The
+presentation may remember the undefined hue for grey and undefined saturation for black as control
+mechanics, keyed to the selected slot/session. While the canonical colour edit is active, it retains
+the chosen continuous HSV coordinates instead of deriving them again from each quantized RGB echo;
+otherwise a saturation/value drag would drift in hue. Numeric input is never round-tripped through HSV;
+changing opacity preserves exact RGB, including hidden RGB at alpha zero. All controls read the
+same current draft colour. Localized labels and at least 48dp operation targets follow ADR 0020.
+
+Continuous previews reuse a prepared, disposable pixel-engine palette composite for the unchanged
+document and its visible layer snapshots. Preparation validates through the existing composite
+boundary and builds bounded slot-to-covered-position dependencies. A colour-table change evaluates
+only positions depending on changed original slots, bottom to top through the existing
+`contributeOver`/`blendOver` arithmetic. Empty cells, hidden layers, duplicate colours and alpha-zero
+contributions retain the canonical Composite semantics; dependency selection must be conservative
+when alpha changes. Mapping changes are resolved by the application into the same origin-sized
+table. No second blending formula or Compose-owned pixel algorithm is introduced.
+
+Preparation is limited to a compatible active palette session. Ordinary committed drawing keeps
+its existing Composite path and must not build palette dependencies after each stroke. Identical
+document/definition/session references return the cached image before reconstructing the colour
+table or remap; an unchanged display frame therefore adds no palette-history traversal. Closing
+the palette session releases its prepared workspace.
+
+Prepared pixel workspaces and mutable arrays stay private to pixel-engine. Application exposes the
+derived image through the existing rendering boundary, and canvas/actual-size share one bitmap
+cache. Reuse is invalidated on document/layer identity changes or incompatible palette input.
+Equal effective colour tables reuse the image and bitmap even when session/history identity changes.
+Preparation copies layers once and performs bounded dependency/composite scans; updates compare at
+most 256 entries and recomposite affected positions only. Immutable result publication and Android
+bitmap conversion may still copy the canvas-sized result; those remaining costs must be reported,
+without claiming a measured speedup.
+The final implementation must remove avoidable per-update layer copies and full layer scans.
+
+Focused verification covers grouped history/no-op/redo/cancellation, rejected interleaving, exact
+numeric/HSV synchronization, canonical composite equivalence across layered transparency and remaps,
+and deterministic reuse/dependency bounds. Relevant Compose functional checks run after the feature
+is assembled. Register continuous recolouring at the supported canvas/layer limits with #145;
+performance collection and Profile generation remain at the phase gate under QLT-019.
 
 ### V1 preservation and v2 admission
 
