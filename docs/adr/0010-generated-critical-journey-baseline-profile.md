@@ -76,16 +76,27 @@ the initial-fit, centered projection that the editor applies to a new document (
 `initial-fit-centered-v1` geometry as the frame collector): the canvas node describes the whole
 work surface, and the document occupies the largest centered rectangle of its aspect ratio inside
 it (Issue #151; dividing the surface itself by the document size taps the margin). Each iteration
-is stopped inside the autosave window, so the next launch can offer the recovery record of the
-previous iteration; the producer declines that offer through the visible discard control before it
-waits for the clean state, and never clears application data. It then performs the Pencil mutation, verifies the dirty state, performs Undo, and verifies the clean state.
+may leave a recovery record for the next launch; the producer declines an observed offer through
+the visible discard control before it waits for the clean state, and never clears application data.
+It then performs the Pencil mutation, verifies the dirty state, performs Undo, and verifies the
+clean state. The clean label describes the document checkpoint, not autosave completion.
 Those actions exercise the one production UI-to-command path. Fixed screen coordinates and direct
 state access are prohibited.
 
+The pinned Benchmark 1.5.0 collector does not guarantee that the application stops inside the
+autosave window. After the UI block returns, its partial-compilation path flushes ART profiles before
+killing the application; `MacrobenchmarkScope.killProcessAndFlushArtProfiles` first waits 5,000 ms
+in the foreground. Autosave can run during this interval. Issue #190 verified this in the published
+source, the pinned binary and the retained logcat timestamps. This corrects the earlier lifecycle
+description; it does not change the journey, add a wait, assert a publication result or establish the
+cause of a profile mismatch.
+
 The Baseline Profile producer's canonical journey uses UiAutomator's duration overload for Undo
-with a fixed 100 ms pointer-down interval. This is the selected fixed input condition for this
+and for the recovery discard control with the same fixed 100 ms pointer-down interval (amended
+2026-10-08, Issue #190: a shorter discard press let the ripple's delayed reset path into one of two
+otherwise identical generations). This is the selected fixed input condition for this
 collection workload and tests a bounded variability-reduction hypothesis. It does not guarantee a
-rendered frame or establish the cause of earlier rule drift. The Undo action and its dirty-to-clean
+rendered frame or establish the cause of earlier rule drift. The Undo and discard actions and their
 accessibility postconditions remain unchanged. This duration does not change product-wide Undo
 input or the Issue #54 measurement harness.
 
@@ -99,8 +110,14 @@ project-owned Baseline Profile source after migration. The hand-written `baselin
 removed in the same focused change; retaining manual and generated rule paths together is
 prohibited.
 
-Two isolated generation invocations on the declared physical device must produce identical
-canonical profile content before the artifact is accepted. Canonical profile content is UTF-8
+One fresh, valid producer invocation on the declared physical device is the accepted artifact
+(amended 2026-10-12, Issue #190, owner's decision; before that date two invocations had to be
+byte-identical). The documented command still runs two invocations and compares them: a matched pair
+writes the acceptance manifest, and a mismatched pair is recorded as information about run-to-run
+variation while the first valid invocation is adopted by the documented adoption step below. A
+profile is an optimization hint; a small rule difference between runs, which the retained Issue #190
+evidence traces to autosave timing inside the collector's flush window, is not a defect of the
+artifact and is no longer a reason to withhold it. Canonical profile content is UTF-8
 without a byte-order mark, joins rules with LF and no terminal separator, retains the producer's
 deterministic rule order, and preserves every complete rule including its `H`, `S`, and `P` flags.
 CRLF and LF encodings of the same ordered rules have one canonical hash; a changed rule, flag,
@@ -153,6 +170,63 @@ the acceptance manifest; a matched pair manifest alone is not an acceptance resu
 The producer enables strict internal stability. This makes failure to converge within the
 producer's bounded iterations fatal, but does not replace the two-invocation comparison and does not
 claim that internal convergence prevents process-to-process rule variation.
+In the pinned 1.5.0 implementation, stability compares complete raw rule-line sets, including
+flags, over consecutive iterations; it is not a method-name-only comparison. Compiled state is reset
+for the first iteration, while later iterations retain accumulated profiles. Final output is sorted
+after the library's supported-format filtering. The public result exposes final profile files, not
+per-iteration profiles. Neither internal stability nor the UI clean label supplies an autosave
+publication barrier or evidence that two independent generations followed identical intermediate
+paths. Any additional diagnostic observer requires its own prospective identity and bounded plan;
+its result cannot substitute for the unchanged acceptance comparison.
+
+### Issue #190 diagnostic preparation (2026-10-12)
+
+The retained mismatch lacks runtime and scheduler event sequences. Prepare one intrusive diagnostic
+patch for a separate lab worktree at an exact source revision. The patch instruments the existing
+producer and canonical runtime/publication/scheduler boundaries; it neither copies the journey nor
+creates a second document path. It is a diagnostic artifact under `docs/quality`, not shipping
+source, a new module, or a permanent application API. Applying it requires exact input identity and
+records patch and resulting file hashes. Its marker and diagnostic source prevent the canonical
+generation wrapper from accepting it, including after an accidental commit of the patched tree.
+
+Events distinguish projection assignment/change, scheduler observations, actual publication and UI
+input/postconditions. A single bounded app-side recorder maps opaque equality tokens to process-local
+ordinals. No document, pixel, history-position value, content URI or user text is logged. The producer
+and app carry an explicit diagnostic session/iteration and use the same Android elapsed-realtime
+clock domain; process identity and per-process sequence remain explicit. Overflow, missing records
+or ambiguous correspondence are invalid diagnostic evidence. Instrumentation changes timing and
+allocation, so these records cannot establish ordinary-product performance or Profile acceptance.
+
+The [diagnostic preparation contract](../quality/PROFILE_DIAGNOSTIC_PREPARATION.md) defines the host
+slice and its checks. This amendment authorizes preparation and host verification only. Collection
+remains deferred; no APK install, device operation, Profile generation, new run allowance or private
+data restoration is authorized by it. A later plan must bind the executable collector, exact
+artifacts, observer identity, finite budget, stopping conditions and restoration admission before
+execution. Public collector results still do not expose per-iteration raw profiles.
+
+The host continuation adds one strict JSONL analyzer and a prospective single-invocation diagnostic
+plan to that contract. It explicitly selects conclusions limited to positively observed events:
+even a structurally valid contiguous prefix has unproven logcat tail completeness. Missing
+publication therefore remains unknown. Schema, process identity and observed pairing failures
+invalidate analysis without exposing arbitrary log payloads. This resolves the interpretation
+policy, not the collection hold, executable live admission, original-data restoration admission or
+Profile acceptance. No observer source, journey, accepted artifact or generation allowance changes.
+
+### Issue #190 closure by single-invocation adoption (2026-10-12)
+
+The owner decided on 2026-10-12 not to run the prepared diagnostic on the device and to adopt the
+first valid invocation of the third generation (`issue-190-20261009-1954`, invocation 1, 17,801
+rules, canonical SHA-256 `088ebdc684d0fa48a5a77023e402ba513f50c4d575f5479af5054c72021232fc`) as the
+canonical profile. The adoption step is: copy the invocation's canonical bytes (UTF-8, LF, no
+terminal separator, from the retained `source-profile.txt` through `Get-CanonicalProfileRecord`)
+into the tracked generated profile, write its canonical SHA-256 into the tracked hash file, and run
+`validateBaselineProfile`. The acceptance record is the invocation manifest (`valid`, fresh producer
+output, exact APK hashes) plus the adoption entry in the M2 frame follow-up; no acceptance manifest
+of the pair schema exists for an adopted mismatch, and the pair manifest stays `mismatch` as
+information. The diagnostic kit, analyzer and legacy-session executor remain host tooling; the
+observer patch was never applied to a shipping tree and no live diagnostic ran. The 9-signature
+difference is recorded as known run-to-run variation, not resolved. Profile acceptance is separate
+from performance evidence: the Issue #145 collection is deferred to the M5 exit by the same decision.
 
 The canonical local `check` verifies that the manual file is absent, exactly one generated text
 profile exists, it is non-empty canonical UTF-8, and its recorded canonical SHA-256 matches.
