@@ -161,37 +161,33 @@ public class ViewportTransform private constructor(
                     surface.heightPixels.toDouble() / DIVISOR - effectiveCenter.y * scale,
                 )
             val gridCellDp = scale / surface.pixelsPerDp
-            if (!derivedTransformIsSafe(canvas, fit, scale, halfVisible, effectiveCenter, origin, gridCellDp)) {
+            val projection =
+                DerivedViewportProjection(
+                    TransformGeometry(fit, scale, origin, gridVisibility(gridCellDp)),
+                    halfVisible,
+                    effectiveCenter,
+                    gridCellDp,
+                )
+            if (!derivedTransformIsSafe(canvas, projection)) {
                 return viewportRejected(ViewportValueRejection.UnsafeDerivedTransform)
             }
-            return createValidated(canvas, surface, viewport.zoom, fit, scale, effectiveCenter, origin, gridCellDp)
+            return createValidated(canvas, surface, viewport.zoom, projection)
         }
 
         private fun createValidated(
             canvas: CanvasSize,
             surface: ViewportSurface,
             zoom: ViewportZoom,
-            fit: Double,
-            scale: Double,
-            effectiveCenter: AxisPair,
-            origin: AxisPair,
-            gridCellDp: Double,
+            projection: DerivedViewportProjection,
         ): ViewportValueResult<ViewportTransform> =
-            when (val center = ViewportCenter.create(effectiveCenter.x, effectiveCenter.y)) {
+            when (val center = ViewportCenter.create(projection.effectiveCenter.x, projection.effectiveCenter.y)) {
                 is ViewportValueResult.Created -> {
-                    val geometry =
-                        TransformGeometry(
-                            fit,
-                            scale,
-                            origin,
-                            gridVisibility(gridCellDp),
-                        )
                     viewportCreated(
                         ViewportTransform(
                             canvas,
                             surface,
                             ViewportState.create(zoom, center.value),
-                            geometry,
+                            projection.geometry,
                         ),
                     )
                 }
@@ -226,27 +222,22 @@ public class ViewportTransform private constructor(
 
         private fun derivedTransformIsSafe(
             canvas: CanvasSize,
-            fit: Double,
-            scale: Double,
-            halfVisible: AxisPair,
-            effectiveCenter: AxisPair,
-            origin: AxisPair,
-            gridCellDp: Double,
+            projection: DerivedViewportProjection,
         ): Boolean =
             ViewportNumbers.areFinite(
-                fit,
-                scale,
-                halfVisible.x,
-                halfVisible.y,
-                effectiveCenter.x,
-                effectiveCenter.y,
-                origin.x,
-                origin.y,
-                gridCellDp,
+                projection.geometry.fit,
+                projection.geometry.cellScale,
+                projection.halfVisible.x,
+                projection.halfVisible.y,
+                projection.effectiveCenter.x,
+                projection.effectiveCenter.y,
+                projection.geometry.origin.x,
+                projection.geometry.origin.y,
+                projection.gridCellDp,
             ) &&
-                scale > 0.0 &&
-                axisEdgesAreStrict(origin.x, scale, canvas.width.value) &&
-                axisEdgesAreStrict(origin.y, scale, canvas.height.value)
+                projection.geometry.cellScale > 0.0 &&
+                axisEdgesAreStrict(projection.geometry.origin.x, projection.geometry.cellScale, canvas.width.value) &&
+                axisEdgesAreStrict(projection.geometry.origin.y, projection.geometry.cellScale, canvas.height.value)
 
         private fun axisEdgesAreStrict(
             origin: Double,
@@ -283,6 +274,13 @@ private data class TransformGeometry(
     val cellScale: Double,
     val origin: AxisPair,
     val gridVisibility: ViewportGridVisibility,
+)
+
+private class DerivedViewportProjection(
+    val geometry: TransformGeometry,
+    val halfVisible: AxisPair,
+    val effectiveCenter: AxisPair,
+    val gridCellDp: Double,
 )
 
 private data class GestureMeasure(

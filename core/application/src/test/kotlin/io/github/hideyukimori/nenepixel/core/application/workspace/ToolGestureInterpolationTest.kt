@@ -10,6 +10,7 @@ import io.github.hideyukimori.nenepixel.core.domain.geometry.PixelPosition
 import io.github.hideyukimori.nenepixel.core.domain.geometry.toDocumentPoint
 import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import kotlin.math.abs
@@ -49,16 +50,21 @@ internal class ToolGestureInterpolationTest {
         val canvas = canvas(6, 3)
         val started =
             ToolGesture.begin(
-                canvas,
+                ToolGestureAdmission(
+                    canvas,
+                    StrokeEffect.Paint(redIndex),
+                    LayerId.first(),
+                    admission(canvas),
+                ),
                 position(0, 0),
-                StrokeEffect.Paint(redIndex),
-                LayerId.first(),
-                admission(canvas),
             )
         val outward = extended(started, position(5, 2))
         val returned = extended(outward, position(0, 0))
         val positions = returned.positions()
 
+        assertSame(started.capture, outward.capture)
+        assertSame(started.capture, returned.capture)
+        assertSame(started.admission, returned.admission)
         assertEquals(11, returned.positionCount)
         assertEquals(position(0, 0), positions.first())
         assertEquals(position(5, 2), positions[5])
@@ -71,7 +77,16 @@ internal class ToolGestureInterpolationTest {
         start: PixelPosition,
         end: PixelPosition,
     ): List<PixelPosition> {
-        val gesture = ToolGesture.begin(canvas, start, StrokeEffect.Paint(redIndex), LayerId.first(), admission(canvas))
+        val gesture =
+            ToolGesture.begin(
+                ToolGestureAdmission(
+                    canvas,
+                    StrokeEffect.Paint(redIndex),
+                    LayerId.first(),
+                    admission(canvas),
+                ),
+                start,
+            )
         return if (start == end) gesture.positions() else extended(gesture, end).positions()
     }
 

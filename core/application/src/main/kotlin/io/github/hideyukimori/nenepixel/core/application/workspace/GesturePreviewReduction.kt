@@ -64,14 +64,8 @@ private fun beginGesturePreview(
         }
 
         else -> {
-            val preview =
-                ToolGesture.begin(
-                    action.canvas,
-                    action.position,
-                    state.strokeEffect(),
-                    state.activeLayerId,
-                    source,
-                )
+            val capture = ToolGestureAdmission(action.canvas, state.strokeEffect(), state.activeLayerId, source)
+            val preview = ToolGesture.begin(capture, action.position)
             WorkspaceReductionResult.Reduced(state.withPreview(preview))
         }
     }

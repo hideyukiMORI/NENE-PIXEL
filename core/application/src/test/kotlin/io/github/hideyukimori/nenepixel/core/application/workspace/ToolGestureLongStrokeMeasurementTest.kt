@@ -90,7 +90,16 @@ internal class ToolGestureLongStrokeMeasurementTest {
         effect: StrokeEffect,
         expectedPositionCount: Int,
     ): LongStrokeWorkload {
-        var gesture = ToolGesture.begin(canvas, endpoints.first(), effect, LayerId.first(), admission)
+        var gesture =
+            ToolGesture.begin(
+                ToolGestureAdmission(
+                    canvas,
+                    effect,
+                    LayerId.first(),
+                    admission,
+                ),
+                endpoints.first(),
+            )
         endpoints.drop(1).forEach { endpoint ->
             gesture =
                 when (val result = gesture.extend(endpoint.toDocumentPoint())) {

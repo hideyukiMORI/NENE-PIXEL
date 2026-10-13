@@ -23,18 +23,22 @@ import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
  * [create] remains the canonical initial factory. These reductions copy validated values only.
  */
 public class WorkspaceState internal constructor(
-    public val editTarget: EditTarget,
-    public val activeTool: DrawingTool,
-    public val viewport: ViewportState,
+    internal val editing: WorkspaceEditing,
     public val preview: ToolGesture?,
-    public val appearance: EditorAppearance,
-    public val actualSizeWindow: ActualSizeWindow,
-    public val paletteEditSession: PaletteEditSession?,
-    public val quickSelection: QuickSelection,
-    public val underlay: ReferenceUnderlay?,
-    public val pendingImport: PendingRasterImport?,
-    internal val previewSessions: WorkspacePreviewSessions,
+    internal val view: WorkspaceView,
+    internal val sessions: WorkspaceSessions,
 ) {
+    public val editTarget: EditTarget get() = editing.editTarget
+    public val activeTool: DrawingTool get() = editing.activeTool
+    public val viewport: ViewportState get() = view.viewport
+    public val appearance: EditorAppearance get() = view.appearance
+    public val actualSizeWindow: ActualSizeWindow get() = view.actualSizeWindow
+    public val underlay: ReferenceUnderlay? get() = view.underlay
+    public val paletteEditSession: PaletteEditSession? get() = sessions.paletteEditSession
+    public val pendingImport: PendingRasterImport? get() = sessions.pendingImport
+    public val quickSelection: QuickSelection get() = sessions.quickSelection
+    internal val previewSessions: WorkspacePreviewSessions get() = sessions.previewSessions
+
     public val selectionSession: SelectionSession? get() = previewSessions.selection
     public val playback: PlaybackState get() = previewSessions.playback
 
@@ -51,8 +55,9 @@ public class WorkspaceState internal constructor(
      * eyedropper stays armed), then picking exactly while the eyedropper is armed (ADR 0029), else drawing.
      */
     public val canvasPointerIntent: CanvasPointerIntent
-        get() =
-            when {
+        get() {
+            val underlay = underlay
+            return when {
                 underlay?.visibility == UnderlayVisibility.Shown &&
                     underlay.interaction == UnderlayInteraction.Adjusting -> CanvasPointerIntent.AdjustUnderlay
 
@@ -62,137 +67,91 @@ public class WorkspaceState internal constructor(
 
                 else -> CanvasPointerIntent.Draw
             }
+        }
 
     internal fun withEditTarget(editTarget: EditTarget): WorkspaceState =
         WorkspaceState(
-            editTarget,
-            activeTool,
-            viewport,
+            editing.copy(editTarget = editTarget),
             preview,
-            appearance,
-            actualSizeWindow,
-            paletteEditSession,
-            quickSelection,
-            underlay,
-            pendingImport,
-            previewSessions,
+            view,
+            sessions,
         )
 
     internal fun withActiveTool(activeTool: DrawingTool): WorkspaceState =
         WorkspaceState(
-            editTarget,
-            activeTool,
-            viewport,
+            editing.copy(activeTool = activeTool),
             preview,
-            appearance,
-            actualSizeWindow,
-            paletteEditSession,
-            quickSelection,
-            underlay,
-            pendingImport,
-            previewSessions,
+            view,
+            sessions,
         )
 
     /** Replaces the gesture preview; `null` ends it. */
     internal fun withPreview(preview: ToolGesture?): WorkspaceState =
         WorkspaceState(
-            editTarget,
-            activeTool,
-            viewport,
+            editing,
             preview,
-            appearance,
-            actualSizeWindow,
-            paletteEditSession,
-            quickSelection,
-            underlay,
-            pendingImport,
-            previewSessions,
+            view,
+            sessions,
         )
 
     internal fun withViewport(viewport: ViewportState): WorkspaceState =
         WorkspaceState(
-            editTarget,
-            activeTool,
-            viewport,
+            editing,
             null,
-            appearance,
-            actualSizeWindow,
-            paletteEditSession,
-            quickSelection,
-            underlay,
-            pendingImport,
-            previewSessions.copy(selection = selectionSession?.cancelPointer()),
+            view.copy(viewport = viewport),
+            sessions.withPreviews(previewSessions.copy(selection = selectionSession?.cancelPointer())),
         )
 
     internal fun withAppearance(appearance: EditorAppearance): WorkspaceState =
         WorkspaceState(
-            editTarget,
-            activeTool,
-            viewport,
+            editing,
             null,
-            appearance,
-            actualSizeWindow,
-            paletteEditSession,
-            quickSelection,
-            underlay,
-            pendingImport,
-            previewSessions.copy(selection = selectionSession?.cancelPointer()),
+            view.copy(appearance = appearance),
+            sessions.withPreviews(previewSessions.copy(selection = selectionSession?.cancelPointer())),
         )
 
     /** The actual-size window is non-modal: it never cancels an in-progress gesture (ADR 0026). */
     internal fun withActualSizeWindow(actualSizeWindow: ActualSizeWindow): WorkspaceState =
         WorkspaceState(
-            editTarget,
-            activeTool,
-            viewport,
+            editing,
             preview,
-            appearance,
-            actualSizeWindow,
-            paletteEditSession,
-            quickSelection,
-            underlay,
-            pendingImport,
-            previewSessions,
+            view.copy(actualSizeWindow = actualSizeWindow),
+            sessions,
         )
 
     /** The palette edit session is non-modal: opening or closing it never cancels an in-progress gesture (ADR 0022). */
-    internal fun withPaletteEditSession(paletteEditSession: PaletteEditSession?): WorkspaceState =
-        WorkspaceState(
-            editTarget,
-            activeTool,
-            viewport,
+    internal fun withPaletteEditSession(paletteEditSession: PaletteEditSession?): WorkspaceState {
+        val selection = if (paletteEditSession != null) null else selectionSession
+        return WorkspaceState(
+            editing,
             preview,
-            appearance,
-            actualSizeWindow,
-            paletteEditSession,
-            quickSelection,
-            underlay,
-            pendingImport,
-            previewSessions.copy(selection = if (paletteEditSession != null) null else selectionSession),
+            view,
+            sessions.copy(
+                paletteEditSession = paletteEditSession,
+                previewSessions = previewSessions.copy(selection = selection),
+            ),
         )
+    }
 
     /** Quick-select state never cancels an in-progress gesture (ADR 0029). */
     internal fun withQuickSelection(quickSelection: QuickSelection): WorkspaceState =
         WorkspaceState(
-            editTarget,
-            activeTool,
-            viewport,
+            editing,
             preview,
-            appearance,
-            actualSizeWindow,
-            paletteEditSession,
-            quickSelection,
-            underlay,
-            pendingImport,
-            previewSessions.copy(
-                selection =
-                    if (quickSelection.menu != null ||
-                        quickSelection.eyedropper == EyedropperState.Armed
-                    ) {
-                        null
-                    } else {
-                        selectionSession
-                    },
+            view,
+            sessions.copy(
+                quickSelection = quickSelection,
+                previewSessions =
+                    previewSessions.copy(
+                        selection =
+                            if (quickSelection.menu != null ||
+                                quickSelection.eyedropper == EyedropperState.Armed
+                            ) {
+                                null
+                            } else {
+                                selectionSession
+                            },
+                    ),
             ),
         )
 
@@ -241,17 +200,18 @@ public class WorkspaceState internal constructor(
 
         public fun create(canvas: CanvasSize): WorkspaceState =
             WorkspaceState(
-                EditTarget.create(FrameId.first(), LayerId.first(), PaletteIndex.first),
-                DrawingTool.Pencil,
-                ViewportState.initial(canvas),
+                WorkspaceEditing(
+                    EditTarget.create(FrameId.first(), LayerId.first(), PaletteIndex.first),
+                    DrawingTool.Pencil,
+                ),
                 null,
-                EditorAppearance.initial,
-                ActualSizeWindow.initial,
-                null,
-                QuickSelection.initial,
-                null,
-                null,
-                WorkspacePreviewSessions(null, PlaybackState.initial),
+                WorkspaceView(ViewportState.initial(canvas), EditorAppearance.initial, ActualSizeWindow.initial, null),
+                WorkspaceSessions(
+                    null,
+                    null,
+                    QuickSelection.initial,
+                    WorkspacePreviewSessions(null, PlaybackState.initial),
+                ),
             )
     }
 }

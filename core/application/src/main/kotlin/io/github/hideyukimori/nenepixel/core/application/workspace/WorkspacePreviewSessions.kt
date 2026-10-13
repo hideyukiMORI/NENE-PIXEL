@@ -11,15 +11,8 @@ internal data class WorkspacePreviewSessions(
 
 internal fun WorkspaceState.withPlayback(playback: PlaybackState): WorkspaceState =
     WorkspaceState(
-        editTarget,
-        activeTool,
-        viewport,
+        editing,
         preview,
-        appearance,
-        actualSizeWindow,
-        paletteEditSession,
-        quickSelection,
-        underlay,
-        pendingImport,
-        previewSessions.copy(playback = playback),
+        view,
+        sessions.withPreviews(previewSessions.copy(playback = playback)),
     )

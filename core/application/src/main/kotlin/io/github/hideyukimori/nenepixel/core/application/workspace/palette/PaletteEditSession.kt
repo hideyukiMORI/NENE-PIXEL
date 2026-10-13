@@ -23,15 +23,19 @@ import io.github.hideyukimori.nenepixel.core.pixelengine.palette.PaletteRemapPla
  * are rejected until it is confirmed (one draft entry) or cancelled.
  */
 public class PaletteEditSession private constructor(
-    internal val base: RuntimeSourceToken,
-    internal val origin: PaletteDefinition,
-    internal val evicted: PaletteRemap,
-    public val draft: PaletteDefinition,
-    internal val timeline: List<PaletteDraftEntry>,
-    internal val cursor: Int,
-    public val pendingImport: PendingPaletteImport?,
-    internal val colorEdit: PaletteColorEdit? = null,
+    private val source: PaletteDraftSource,
+    private val history: PaletteDraftHistory,
+    private val previewState: PaletteDraftPreview,
 ) {
+    internal val base: RuntimeSourceToken get() = source.base
+    internal val origin: PaletteDefinition get() = source.origin
+    internal val evicted: PaletteRemap get() = history.evicted
+    public val draft: PaletteDefinition get() = previewState.draft
+    internal val timeline: List<PaletteDraftEntry> get() = history.timeline
+    internal val cursor: Int get() = history.cursor
+    public val pendingImport: PendingPaletteImport? get() = previewState.pendingImport
+    internal val colorEdit: PaletteColorEdit? get() = previewState.colorEdit
+
     /** True while one slot has a preview-only continuous colour edit. */
     public val isColorEditActive: Boolean
         get() = colorEdit != null
@@ -62,7 +66,11 @@ public class PaletteEditSession private constructor(
             draftRejected(PaletteDraftRejection.ImportPending)
         } else if (cursor > 0) {
             PaletteDraftTransition.Changed(
-                PaletteEditSession(base, origin, evicted, timeline[cursor - 1].before, timeline, cursor - 1, null),
+                PaletteEditSession(
+                    source,
+                    history.copy(cursor = cursor - 1),
+                    PaletteDraftPreview(timeline[cursor - 1].before, null, null),
+                ),
             )
         } else {
             draftRejected(PaletteDraftRejection.NoUndoAvailable)
@@ -76,7 +84,11 @@ public class PaletteEditSession private constructor(
             draftRejected(PaletteDraftRejection.ImportPending)
         } else if (cursor < timeline.size) {
             PaletteDraftTransition.Changed(
-                PaletteEditSession(base, origin, evicted, timeline[cursor].after, timeline, cursor + 1, null),
+                PaletteEditSession(
+                    source,
+                    history.copy(cursor = cursor + 1),
+                    PaletteDraftPreview(timeline[cursor].after, null, null),
+                ),
             )
         } else {
             draftRejected(PaletteDraftRejection.NoRedoAvailable)
@@ -119,7 +131,11 @@ public class PaletteEditSession private constructor(
             } else {
                 evicted
             }
-        return PaletteEditSession(base, origin, folded, after, retained, retained.size, null)
+        return PaletteEditSession(
+            source,
+            PaletteDraftHistory(folded, retained, retained.size),
+            PaletteDraftPreview(after, null, null),
+        )
     }
 
     /** Replaces ephemeral preview fields together, sharing history; import and colour previews are exclusive. */
@@ -129,7 +145,7 @@ public class PaletteEditSession private constructor(
         edit: PaletteColorEdit? = null,
     ): PaletteEditSession {
         check(pending == null || edit == null) { "Import and colour previews cannot coexist" }
-        return PaletteEditSession(base, origin, evicted, preview, timeline, cursor, pending, edit)
+        return PaletteEditSession(source, history, PaletteDraftPreview(preview, pending, edit))
     }
 
     override fun equals(other: Any?): Boolean =
@@ -163,7 +179,11 @@ public class PaletteEditSession private constructor(
             definition: PaletteDefinition,
         ): PaletteEditSession {
             val identity = remapOf(definition, definition, definition.palette.entries().map { it.index })
-            return PaletteEditSession(base, definition, identity, definition, emptyList(), 0, null)
+            return PaletteEditSession(
+                PaletteDraftSource(base, definition),
+                PaletteDraftHistory(identity, emptyList(), 0),
+                PaletteDraftPreview(definition, null, null),
+            )
         }
 
         private fun evictedEntryCount(candidates: List<PaletteDraftEntry>): Int {
@@ -212,6 +232,23 @@ public class PaletteEditSession private constructor(
             }
     }
 }
+
+private class PaletteDraftSource(
+    val base: RuntimeSourceToken,
+    val origin: PaletteDefinition,
+)
+
+private data class PaletteDraftHistory(
+    val evicted: PaletteRemap,
+    val timeline: List<PaletteDraftEntry>,
+    val cursor: Int,
+)
+
+private class PaletteDraftPreview(
+    val draft: PaletteDefinition,
+    val pendingImport: PendingPaletteImport?,
+    val colorEdit: PaletteColorEdit?,
+)
 
 /** Stages `definition` as the pending import, replacing any earlier one; mode `ByNumber`, no assignments. */
 internal fun PaletteEditSession.stageImport(definition: PaletteDefinition): PaletteDraftTransition =

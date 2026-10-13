@@ -9,17 +9,10 @@ import io.github.hideyukimori.nenepixel.core.application.workspace.selection.Sel
 /** Selection copies are geometry-only and retain every unrelated validated workspace owner. */
 internal fun WorkspaceState.withSelectionSession(session: SelectionSession?): WorkspaceState =
     WorkspaceState(
-        editTarget,
-        activeTool,
-        viewport,
+        editing,
         preview,
-        appearance,
-        actualSizeWindow,
-        paletteEditSession,
-        quickSelection,
-        underlay,
-        pendingImport,
-        previewSessions.copy(selection = session),
+        view,
+        sessions.withPreviews(previewSessions.copy(selection = session)),
     )
 
 /** The sole workspace reduction for rectangle/destination input (ADR 0039). */

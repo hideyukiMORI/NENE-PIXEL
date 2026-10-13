@@ -287,10 +287,13 @@ public class EditorRuntime private constructor(
             return SwitchContext(
                 source = owners.sourceToken(coordination.runtimeGeneration),
                 dirty = owners.isDirty(),
-                newDocumentOwners = { request -> RuntimeOwners.create(request.canvas, definition, documentIdSource) },
-                loadedOwners = { document -> RuntimeOwners.create(document) },
-                derivedOwners = { preview -> RuntimeOwners.createDerived(preview, documentIdSource) },
-                importedOwners = { plan -> RuntimeOwners.createImported(plan, documentIdSource) },
+                ownerFactories =
+                    SwitchOwnerFactories(
+                        newDocument = { request -> RuntimeOwners.create(request.canvas, definition, documentIdSource) },
+                        loaded = { document -> RuntimeOwners.create(document) },
+                        derived = { preview -> RuntimeOwners.createDerived(preview, documentIdSource) },
+                        imported = { plan -> RuntimeOwners.createImported(plan, documentIdSource) },
+                    ),
             )
         }
     }

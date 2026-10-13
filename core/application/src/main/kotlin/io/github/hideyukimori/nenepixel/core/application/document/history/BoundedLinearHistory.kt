@@ -53,12 +53,12 @@ internal class BoundedLinearHistory private constructor(
         }
 
     fun moveBackward(): BoundedLinearHistory {
-        check(undoEntry != null) { "History cannot move backward without an undo entry." }
+        checkNotNull(undoEntry) { "History cannot move backward without an undo entry." }
         return BoundedLinearHistory(entries, cursor - 1, lineage, retainedPayload)
     }
 
     fun moveForward(): BoundedLinearHistory {
-        check(redoEntry != null) { "History cannot move forward without a redo entry." }
+        checkNotNull(redoEntry) { "History cannot move forward without a redo entry." }
         return BoundedLinearHistory(entries, cursor + 1, lineage, retainedPayload)
     }
 

@@ -56,17 +56,16 @@ public class UnderlayPlacement private constructor(
          * overlap with the document, or its whole extent when it is thinner than one pixel.
          */
         internal fun create(
-            left: Double,
-            top: Double,
-            scale: Double,
-            image: ReferenceImage,
-            canvas: CanvasSize,
+            requested: RequestedUnderlayPlacement,
+            source: UnderlaySource,
         ): UnderlayPlacement {
+            val image = source.image
+            val canvas = source.canvas
             val fitted = fitted(image, canvas)
-            val clampedScale = clampedScale(scale, fitted.scale, image, canvas)
+            val clampedScale = clampedScale(requested.scale, fitted.scale, image, canvas)
             return UnderlayPlacement(
-                left = clampedOffset(left, fitted.left, image.width * clampedScale, canvas.width.value),
-                top = clampedOffset(top, fitted.top, image.height * clampedScale, canvas.height.value),
+                left = clampedOffset(requested.left, fitted.left, image.width * clampedScale, canvas.width.value),
+                top = clampedOffset(requested.top, fitted.top, image.height * clampedScale, canvas.height.value),
                 scale = clampedScale,
             )
         }

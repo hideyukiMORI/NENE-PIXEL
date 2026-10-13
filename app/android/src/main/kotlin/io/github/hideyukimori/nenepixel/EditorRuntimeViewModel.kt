@@ -18,10 +18,14 @@ import io.github.hideyukimori.nenepixel.adapters.persistence.AndroidUnderlayMemo
 import io.github.hideyukimori.nenepixel.core.application.editor.EditorRuntime
 import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveProjection
 import io.github.hideyukimori.nenepixel.core.application.persistence.EditorPersistenceWorkflow
+import io.github.hideyukimori.nenepixel.core.application.persistence.PalettePersistencePorts
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceCancellationResult
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationHandle
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationProjection
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistencePorts
+import io.github.hideyukimori.nenepixel.core.application.persistence.PngPersistencePorts
+import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectPersistencePorts
+import io.github.hideyukimori.nenepixel.core.application.persistence.UnderlayPersistencePorts
 import io.github.hideyukimori.nenepixel.presentation.compose.editor.EditorController
 import io.github.hideyukimori.nenepixel.presentation.compose.editor.EditorPersistenceCallbacks
 import io.github.hideyukimori.nenepixel.presentation.compose.editor.FileExchangeCallbacks
@@ -164,21 +168,23 @@ internal class EditorRuntimeViewModel private constructor(
                     AtomicFile(File(application.noBackupFilesDir, RECOVERY_FILE_NAME)),
                     ioDispatcher,
                 )
-            val persistence =
-                EditorPersistenceWorkflow.create(
-                    runtime,
-                    PersistencePorts(
-                        projectStorage,
-                        recoveryRecord,
+            val ports =
+                PersistencePorts(
+                    ProjectPersistencePorts(projectStorage, recoveryRecord),
+                    PngPersistencePorts(
                         AndroidPngExportAdapter.create(application.contentResolver, pickerBroker, ioDispatcher),
+                        AndroidPngImportAdapter.create(application.contentResolver, pickerBroker, ioDispatcher),
+                    ),
+                    PalettePersistencePorts(
                         AndroidPaletteJsonExportAdapter.create(application.contentResolver, pickerBroker, ioDispatcher),
                         AndroidPaletteJsonImportAdapter.create(application.contentResolver, pickerBroker, ioDispatcher),
+                    ),
+                    UnderlayPersistencePorts(
                         AndroidReferenceImageAdapter.create(application.contentResolver, pickerBroker, ioDispatcher),
-                        AndroidPngImportAdapter.create(application.contentResolver, pickerBroker, ioDispatcher),
                         AndroidUnderlayMemoryAdapter.create(application.noBackupFilesDir, underlayMemoryDispatcher),
                     ),
-                    Dispatchers.Default,
                 )
+            val persistence = EditorPersistenceWorkflow.create(runtime, ports, Dispatchers.Default)
             return EditorRuntimeViewModel(runtime, controller, pickerBroker, persistence)
         }
 

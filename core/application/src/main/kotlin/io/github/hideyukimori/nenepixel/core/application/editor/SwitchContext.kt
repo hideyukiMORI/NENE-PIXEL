@@ -7,8 +7,10 @@ import io.github.hideyukimori.nenepixel.core.pixelengine.importing.LegacyReducti
 internal data class SwitchContext(
     val source: RuntimeSourceToken,
     val dirty: Boolean,
-    val newDocumentOwners: (NewDocumentRequest) -> RuntimeOwners,
-    val loadedOwners: (DocumentState) -> RuntimeOwners,
-    val derivedOwners: (LegacyReductionPreview) -> RuntimeOwners,
-    val importedOwners: (NewWorkImportPlan) -> RuntimeOwners,
-)
+    val ownerFactories: SwitchOwnerFactories,
+) {
+    val newDocumentOwners: (NewDocumentRequest) -> RuntimeOwners get() = ownerFactories.newDocument
+    val loadedOwners: (DocumentState) -> RuntimeOwners get() = ownerFactories.loaded
+    val derivedOwners: (LegacyReductionPreview) -> RuntimeOwners get() = ownerFactories.derived
+    val importedOwners: (NewWorkImportPlan) -> RuntimeOwners get() = ownerFactories.imported
+}

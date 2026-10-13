@@ -9,6 +9,7 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.PaletteJson
 import io.github.hideyukimori.nenepixel.core.application.persistence.PaletteJsonExportPort
 import io.github.hideyukimori.nenepixel.core.application.persistence.PaletteJsonImportOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.PaletteJsonImportPort
+import io.github.hideyukimori.nenepixel.core.application.persistence.PalettePersistencePorts
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceLastOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistencePorts
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceRequestResult
@@ -17,7 +18,9 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.PngExportOu
 import io.github.hideyukimori.nenepixel.core.application.persistence.PngExportPort
 import io.github.hideyukimori.nenepixel.core.application.persistence.PngImportOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.PngImportPort
+import io.github.hideyukimori.nenepixel.core.application.persistence.PngPersistencePorts
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectLoadOutcome
+import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectPersistencePorts
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectSaveOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectStoragePort
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryGeneration
@@ -31,6 +34,7 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.ReferenceIm
 import io.github.hideyukimori.nenepixel.core.application.persistence.ReferenceImagePort
 import io.github.hideyukimori.nenepixel.core.application.persistence.UnderlayMemoryOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.UnderlayMemoryPort
+import io.github.hideyukimori.nenepixel.core.application.persistence.UnderlayPersistencePorts
 import io.github.hideyukimori.nenepixel.core.application.persistence.UnderlayRecollection
 import io.github.hideyukimori.nenepixel.core.application.workspace.underlay.RememberedUnderlay
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentId
@@ -78,14 +82,22 @@ private class NativePngEnvironment(
     UnderlayMemoryPort {
     fun ports(exporter: PngExportPort): PersistencePorts =
         PersistencePorts(
-            this,
-            this,
-            exporter,
-            PaletteJsonExportPort { PaletteJsonExportOutcome.Cancelled },
-            PaletteJsonImportPort { PaletteJsonImportOutcome.Cancelled },
-            ReferenceImagePort { ReferenceImageOutcome.Cancelled },
-            PngImportPort { PngImportOutcome.Cancelled },
-            this,
+            ProjectPersistencePorts(
+                this,
+                this,
+            ),
+            PngPersistencePorts(
+                exporter,
+                PngImportPort { PngImportOutcome.Cancelled },
+            ),
+            PalettePersistencePorts(
+                PaletteJsonExportPort { PaletteJsonExportOutcome.Cancelled },
+                PaletteJsonImportPort { PaletteJsonImportOutcome.Cancelled },
+            ),
+            UnderlayPersistencePorts(
+                ReferenceImagePort { ReferenceImageOutcome.Cancelled },
+                this,
+            ),
         )
 
     override suspend fun load(): ProjectLoadOutcome = ProjectLoadOutcome.Loaded(DocumentImportSource.Current(document))

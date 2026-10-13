@@ -11,6 +11,7 @@ import io.github.hideyukimori.nenepixel.core.application.document.transition.App
 import io.github.hideyukimori.nenepixel.core.application.document.transition.LayerStructureTestValues.layerId
 import io.github.hideyukimori.nenepixel.core.application.document.transition.LayerStructureTestValues.value
 import io.github.hideyukimori.nenepixel.core.application.workspace.ToolGesture
+import io.github.hideyukimori.nenepixel.core.application.workspace.ToolGestureAdmission
 import io.github.hideyukimori.nenepixel.core.application.workspace.ToolGestureExtensionResult
 import io.github.hideyukimori.nenepixel.core.domain.color.PixelColor
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
@@ -109,11 +110,13 @@ internal class StrokePreviewCompositeTest {
     ): ToolGesture =
         stroke.positions.drop(1).fold(
             ToolGesture.begin(
-                scene.canvas,
+                ToolGestureAdmission(
+                    scene.canvas,
+                    stroke.effect,
+                    layerId(stroke.target),
+                    scene.gateway.captureSource(),
+                ),
                 stroke.positions.first(),
-                stroke.effect,
-                layerId(stroke.target),
-                scene.gateway.captureSource(),
             ),
         ) { gesture, next ->
             (gesture.extend(next.toDocumentPoint()) as ToolGestureExtensionResult.Extended).gesture
