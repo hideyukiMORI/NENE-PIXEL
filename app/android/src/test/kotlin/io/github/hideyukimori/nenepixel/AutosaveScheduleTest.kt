@@ -8,14 +8,18 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveSta
 import io.github.hideyukimori.nenepixel.core.application.persistence.EditorPersistenceWorkflow
 import io.github.hideyukimori.nenepixel.core.application.persistence.ExpectedRecoveryLineage
 import io.github.hideyukimori.nenepixel.core.application.persistence.LegacySourceCopyOutcome
+import io.github.hideyukimori.nenepixel.core.application.persistence.PalettePersistencePorts
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistencePorts
+import io.github.hideyukimori.nenepixel.core.application.persistence.PngPersistencePorts
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectLoadOutcome
+import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectPersistencePorts
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectSaveOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectStoragePort
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryInspection
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryPublicationOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRecordPort
 import io.github.hideyukimori.nenepixel.core.application.persistence.RecoveryRetirementOutcome
+import io.github.hideyukimori.nenepixel.core.application.persistence.UnderlayPersistencePorts
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.document.LegacyRgbaSource
 import io.github.hideyukimori.nenepixel.core.domain.drawing.Stroke
@@ -313,42 +317,50 @@ private class AutosaveStateTokens {
         EditorPersistenceWorkflow.create(
             runtime,
             PersistencePorts(
-                object : ProjectStoragePort {
-                    override suspend fun save(document: DocumentState): ProjectSaveOutcome =
-                        ProjectSaveOutcome.Cancelled
+                ProjectPersistencePorts(
+                    object : ProjectStoragePort {
+                        override suspend fun save(document: DocumentState): ProjectSaveOutcome =
+                            ProjectSaveOutcome.Cancelled
 
-                    override suspend fun load(): ProjectLoadOutcome = ProjectLoadOutcome.Cancelled
+                        override suspend fun load(): ProjectLoadOutcome = ProjectLoadOutcome.Cancelled
 
-                    override suspend fun copyLegacySource(source: LegacyRgbaSource): LegacySourceCopyOutcome =
-                        LegacySourceCopyOutcome.Cancelled
-                },
-                object : RecoveryRecordPort {
-                    override suspend fun inspect(): RecoveryInspection = RecoveryInspection.Missing
+                        override suspend fun copyLegacySource(source: LegacyRgbaSource): LegacySourceCopyOutcome =
+                            LegacySourceCopyOutcome.Cancelled
+                    },
+                    object : RecoveryRecordPort {
+                        override suspend fun inspect(): RecoveryInspection = RecoveryInspection.Missing
 
-                    override suspend fun retire(expected: ExpectedRecoveryLineage): RecoveryRetirementOutcome =
-                        RecoveryRetirementOutcome.GenerationExhausted
+                        override suspend fun retire(expected: ExpectedRecoveryLineage): RecoveryRetirementOutcome =
+                            RecoveryRetirementOutcome.GenerationExhausted
 
-                    override suspend fun publishCandidate(
-                        expected: ExpectedRecoveryLineage,
-                        document: DocumentState,
-                    ): RecoveryPublicationOutcome = RecoveryPublicationOutcome.GenerationExhausted
-                },
-                io.github.hideyukimori.nenepixel.core.application.persistence.PngExportPort {
-                    io.github.hideyukimori.nenepixel.core.application.persistence.PngExportOutcome.Cancelled
-                },
-                io.github.hideyukimori.nenepixel.core.application.persistence.PaletteJsonExportPort {
-                    io.github.hideyukimori.nenepixel.core.application.persistence.PaletteJsonExportOutcome.Cancelled
-                },
-                io.github.hideyukimori.nenepixel.core.application.persistence.PaletteJsonImportPort {
-                    io.github.hideyukimori.nenepixel.core.application.persistence.PaletteJsonImportOutcome.Cancelled
-                },
-                io.github.hideyukimori.nenepixel.core.application.persistence.ReferenceImagePort {
-                    io.github.hideyukimori.nenepixel.core.application.persistence.ReferenceImageOutcome.Cancelled
-                },
-                io.github.hideyukimori.nenepixel.core.application.persistence.PngImportPort {
-                    io.github.hideyukimori.nenepixel.core.application.persistence.PngImportOutcome.Cancelled
-                },
-                EmptyUnderlayMemoryPort,
+                        override suspend fun publishCandidate(
+                            expected: ExpectedRecoveryLineage,
+                            document: DocumentState,
+                        ): RecoveryPublicationOutcome = RecoveryPublicationOutcome.GenerationExhausted
+                    },
+                ),
+                PngPersistencePorts(
+                    io.github.hideyukimori.nenepixel.core.application.persistence.PngExportPort {
+                        io.github.hideyukimori.nenepixel.core.application.persistence.PngExportOutcome.Cancelled
+                    },
+                    io.github.hideyukimori.nenepixel.core.application.persistence.PngImportPort {
+                        io.github.hideyukimori.nenepixel.core.application.persistence.PngImportOutcome.Cancelled
+                    },
+                ),
+                PalettePersistencePorts(
+                    io.github.hideyukimori.nenepixel.core.application.persistence.PaletteJsonExportPort {
+                        io.github.hideyukimori.nenepixel.core.application.persistence.PaletteJsonExportOutcome.Cancelled
+                    },
+                    io.github.hideyukimori.nenepixel.core.application.persistence.PaletteJsonImportPort {
+                        io.github.hideyukimori.nenepixel.core.application.persistence.PaletteJsonImportOutcome.Cancelled
+                    },
+                ),
+                UnderlayPersistencePorts(
+                    io.github.hideyukimori.nenepixel.core.application.persistence.ReferenceImagePort {
+                        io.github.hideyukimori.nenepixel.core.application.persistence.ReferenceImageOutcome.Cancelled
+                    },
+                    EmptyUnderlayMemoryPort,
+                ),
             ),
             dispatchers.inline,
         )

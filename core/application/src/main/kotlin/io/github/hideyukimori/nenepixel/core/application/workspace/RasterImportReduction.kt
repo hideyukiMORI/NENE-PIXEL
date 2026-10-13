@@ -19,17 +19,13 @@ internal fun reduceRasterImport(
  */
 internal fun WorkspaceState.withPendingImport(pending: PendingRasterImport?): WorkspaceState =
     WorkspaceState(
-        editTarget,
-        activeTool,
-        viewport,
+        editing,
         preview,
-        appearance,
-        actualSizeWindow,
-        paletteEditSession,
-        quickSelection,
-        underlay,
-        pending,
-        previewSessions.copy(selection = if (pending != null) null else selectionSession),
+        view,
+        sessions.copy(
+            pendingImport = pending,
+            previewSessions = previewSessions.copy(selection = if (pending != null) null else selectionSession),
+        ),
     )
 
 private fun setPendingRasterImport(

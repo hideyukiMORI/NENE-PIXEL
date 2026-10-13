@@ -180,8 +180,12 @@ Owns behavior coordination:
 The retained import source, source-bound original-copy proof, destination epoch and at most one
 completed reduced preview extend the same persistence owner under ADR 0025. Heavy conversion and
 future-owner preparation use an injected dispatcher outside the runtime lock while retaining the
-existing physical-operation lease. `PersistencePorts` groups project/recovery/PNG ports for the
-workflow factory; the app injects that group and the worker dispatcher. No second workflow is added.
+existing physical-operation lease. Under ADR 0044, `PersistencePorts` groups four immutable
+capability bindings: project/recovery, PNG import/export, palette JSON import/export, and
+reference-image acquisition/underlay memory. The app injects those existing port instances and
+the worker dispatcher into the same workflow factory. Internal immutable construction groups
+preserve the existing runtime/workspace owners and captured gesture admission; no second workflow
+or mutation route is added.
 
 Under ADR 0041, application owns the atomic workspace `EditTarget` (FrameId, LayerId and
 palette slot), frame commands in the existing gateway/history and the hierarchical structural

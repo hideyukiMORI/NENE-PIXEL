@@ -69,14 +69,22 @@ internal class Fixture(
         EditorPersistenceWorkflow.create(
             runtime,
             PersistencePorts(
-                storage,
-                recovery,
-                exporter,
-                paletteExporter,
-                paletteImporter,
-                referenceImages,
-                pngImports,
-                underlayMemory,
+                ProjectPersistencePorts(
+                    storage,
+                    recovery,
+                ),
+                PngPersistencePorts(
+                    exporter,
+                    pngImports,
+                ),
+                PalettePersistencePorts(
+                    paletteExporter,
+                    paletteImporter,
+                ),
+                UnderlayPersistencePorts(
+                    referenceImages,
+                    underlayMemory,
+                ),
             ),
             dispatchers.inline,
         )

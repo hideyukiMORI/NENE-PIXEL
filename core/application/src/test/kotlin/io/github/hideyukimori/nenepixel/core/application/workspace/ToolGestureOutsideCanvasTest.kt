@@ -116,11 +116,13 @@ internal class ToolGestureOutsideCanvasTest {
     private fun begin(start: PixelPosition): ToolGesture {
         val canvas = canvas(4, 4)
         return ToolGesture.begin(
-            canvas,
+            ToolGestureAdmission(
+                canvas,
+                StrokeEffect.Paint(redIndex),
+                LayerId.first(),
+                CommandGateway.create(state(canvas)).captureSource(),
+            ),
             start,
-            StrokeEffect.Paint(redIndex),
-            LayerId.first(),
-            CommandGateway.create(state(canvas)).captureSource(),
         )
     }
 

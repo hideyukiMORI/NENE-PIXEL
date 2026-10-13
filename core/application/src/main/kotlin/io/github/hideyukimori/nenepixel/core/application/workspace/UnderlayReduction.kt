@@ -15,29 +15,24 @@ internal fun reduceReferenceUnderlay(
 
 /**
  * The underlay is non-modal: replacing it keeps every other field, the gesture preview included (ADR 0032).
- * Besides `WorkspaceState.create`, only this and `withPendingImport` call the internal [WorkspaceState] constructor.
+ * Validated copies retain the unchanged editing focus and other sessions.
  */
 internal fun WorkspaceState.withUnderlay(underlay: ReferenceUnderlay?): WorkspaceState =
     WorkspaceState(
-        editTarget,
-        activeTool,
-        viewport,
+        editing,
         preview,
-        appearance,
-        actualSizeWindow,
-        paletteEditSession,
-        quickSelection,
-        underlay,
-        pendingImport,
-        previewSessions.copy(
-            selection =
-                if (underlay?.interaction ==
-                    UnderlayInteraction.Adjusting
-                ) {
-                    null
-                } else {
-                    selectionSession
-                },
+        view.copy(underlay = underlay),
+        sessions.withPreviews(
+            previewSessions.copy(
+                selection =
+                    if (underlay?.interaction ==
+                        UnderlayInteraction.Adjusting
+                    ) {
+                        null
+                    } else {
+                        selectionSession
+                    },
+            ),
         ),
     )
 

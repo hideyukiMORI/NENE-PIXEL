@@ -16,13 +16,15 @@ import kotlin.math.abs
 import kotlin.math.max
 
 public class ToolGesture private constructor(
-    public val canvas: CanvasSize,
+    internal val capture: ToolGestureAdmission,
     private val path: GesturePath,
-    public val effect: StrokeEffect,
-    /** The layer captured with [effect] at gesture start; later selection changes never retarget it (ADR 0030). */
-    public val layerId: LayerId,
-    internal val admission: CommandSourceAdmission,
 ) {
+    public val canvas: CanvasSize get() = capture.canvas
+    public val effect: StrokeEffect get() = capture.effect
+
+    /** The layer captured with [effect] at gesture start; later selection changes never retarget it (ADR 0030). */
+    public val layerId: LayerId get() = capture.layerId
+    internal val admission: CommandSourceAdmission get() = capture.admission
     private val latestSample: GestureSample get() = path.latestSample
     private val sampleCount: Int get() = path.sampleCount
     private val sampleHash: Int get() = path.sampleHash
@@ -52,7 +54,7 @@ public class ToolGesture private constructor(
         } else {
             ToolGestureExtensionResult.Extended(
                 ToolGesture(
-                    canvas = canvas,
+                    capture = capture,
                     path =
                         GesturePath(
                             latestSample = GestureSample(position, latestSample),
@@ -60,9 +62,6 @@ public class ToolGesture private constructor(
                             sampleHash = sampleHash * HASH_MULTIPLIER + position.hashCode(),
                             positionCount = attemptedCount.toInt(),
                         ),
-                    effect = effect,
-                    layerId = layerId,
-                    admission = admission,
                 ),
             )
         }
@@ -123,18 +122,12 @@ public class ToolGesture private constructor(
         private const val HASH_MULTIPLIER: Int = 31
 
         fun begin(
-            canvas: CanvasSize,
+            capture: ToolGestureAdmission,
             position: PixelPosition,
-            effect: StrokeEffect,
-            layerId: LayerId,
-            admission: CommandSourceAdmission,
         ): ToolGesture =
             ToolGesture(
-                canvas = canvas,
+                capture = capture,
                 path = GesturePath(GestureSample(position.toDocumentPoint(), null), 1, position.hashCode(), 1),
-                effect = effect,
-                layerId = layerId,
-                admission = admission,
             )
     }
 }

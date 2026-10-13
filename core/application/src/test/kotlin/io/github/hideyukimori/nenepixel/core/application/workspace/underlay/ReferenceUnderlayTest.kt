@@ -35,7 +35,10 @@ internal class ReferenceUnderlayTest {
     fun `withPlacement clamps against its own image and canvas, and fitted restores the fit`() {
         val moved = ReferenceUnderlay.placed(image, canvas).withPlacement(-1000.0, 10.0, 1000.0)
 
-        assertEquals(UnderlayPlacement.create(-1000.0, 10.0, 1000.0, image, canvas), moved.placement)
+        assertEquals(
+            UnderlayPlacement.create(RequestedUnderlayPlacement(-1000.0, 10.0, 1000.0), UnderlaySource(image, canvas)),
+            moved.placement,
+        )
         assertEquals(20.48, moved.placement.scale, EPSILON)
         assertEquals(UnderlayPlacement.fitted(image, canvas), moved.fitted().placement)
     }

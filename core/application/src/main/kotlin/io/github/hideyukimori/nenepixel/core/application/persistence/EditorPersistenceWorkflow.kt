@@ -8,10 +8,7 @@ import kotlinx.coroutines.flow.StateFlow
 public class EditorPersistenceWorkflow private constructor(
     private val runtime: EditorRuntime,
     private val flows: PersistenceFlows,
-    private val pngExport: PersistencePngExportFlow,
-    paletteJsonFlow: PersistencePaletteJsonFlow,
-    referenceImageFlow: PersistenceReferenceImageFlow,
-    pngImportFlow: PersistencePngImportFlow,
+    private val interchange: PersistenceInterchangeFlows,
     public val underlayMemory: UnderlayMemoryWorkflow,
 ) {
     public val operation: StateFlow<PersistenceOperationProjection>
@@ -22,17 +19,17 @@ public class EditorPersistenceWorkflow private constructor(
 
     public val legacyImport: LegacyImportWorkflow = LegacyImportWorkflow(flows.switch, flows.recovery)
 
-    public val paletteJson: PaletteJsonWorkflow = PaletteJsonWorkflow(paletteJsonFlow)
+    public val paletteJson: PaletteJsonWorkflow = PaletteJsonWorkflow(interchange.palette)
 
-    public val referenceImage: ReferenceImageWorkflow = ReferenceImageWorkflow(referenceImageFlow)
+    public val referenceImage: ReferenceImageWorkflow = ReferenceImageWorkflow(interchange.referenceImage)
 
-    public val pngImport: PngImportWorkflow = PngImportWorkflow(pngImportFlow, flows.switch)
+    public val pngImport: PngImportWorkflow = PngImportWorkflow(interchange.pngImport, flows.switch)
 
     public suspend fun initializeRecovery(): RecoveryInitializationResult = flows.save.initializeRecovery()
 
     public suspend fun saveAs(): PersistenceRequestResult = flows.save.saveAs()
 
-    public suspend fun exportPng(): PersistenceRequestResult = pngExport.exportPng()
+    public suspend fun exportPng(): PersistenceRequestResult = interchange.pngExport.exportPng()
 
     public suspend fun load(): PersistenceRequestResult = flows.switch.load()
 
@@ -76,25 +73,34 @@ public class EditorPersistenceWorkflow private constructor(
                     autosave,
                     PersistenceRecoveryFlow(runtime.recoveryOperations, ports.recoveryRecord),
                 ),
-                PersistencePngExportFlow(runtime.pngExportOperations, ports.pngExport, autosave),
-                PersistencePaletteJsonFlow(
-                    runtime.paletteJsonOperations,
-                    ports.paletteJsonExport,
-                    ports.paletteJsonImport,
-                    autosave,
-                ),
-                PersistenceReferenceImageFlow(runtime.referenceImageOperations, ports.referenceImage, autosave),
-                PersistencePngImportFlow(
-                    runtime.pngImportOperations,
-                    ports.pngImport,
-                    autosave,
-                    conversionDispatcher,
+                PersistenceInterchangeFlows(
+                    PersistencePngExportFlow(runtime.pngExportOperations, ports.pngExport, autosave),
+                    PersistencePaletteJsonFlow(
+                        runtime.paletteJsonOperations,
+                        ports.paletteJsonExport,
+                        ports.paletteJsonImport,
+                        autosave,
+                    ),
+                    PersistenceReferenceImageFlow(runtime.referenceImageOperations, ports.referenceImage, autosave),
+                    PersistencePngImportFlow(
+                        runtime.pngImportOperations,
+                        ports.pngImport,
+                        autosave,
+                        conversionDispatcher,
+                    ),
                 ),
                 UnderlayMemoryWorkflow(runtime.underlayMemoryOperations, ports.underlayMemory, runtime.underlayMemory),
             )
         }
     }
 }
+
+private class PersistenceInterchangeFlows(
+    val pngExport: PersistencePngExportFlow,
+    val palette: PersistencePaletteJsonFlow,
+    val referenceImage: PersistenceReferenceImageFlow,
+    val pngImport: PersistencePngImportFlow,
+)
 
 internal class PersistenceFlows(
     val save: PersistenceSaveFlow,
