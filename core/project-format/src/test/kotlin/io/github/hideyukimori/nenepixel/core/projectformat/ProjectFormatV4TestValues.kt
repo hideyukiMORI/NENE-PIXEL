@@ -27,10 +27,15 @@ internal object ProjectFormatV4TestValues {
                 7,
                 "A",
                 LayerVisibility.Visible,
-                size,
-                listOf(0, null, 2, 1, null, 0),
+                ProjectFormatV3TestValues.snapshot(size, listOf(0, null, 2, 1, null, 0)),
             )
-        val top = ProjectFormatV3TestValues.layer(9, "", LayerVisibility.Hidden, size, listOf(0, 1, 2, 2, 1, 0))
+        val top =
+            ProjectFormatV3TestValues.layer(
+                9,
+                "",
+                LayerVisibility.Hidden,
+                ProjectFormatV3TestValues.snapshot(size, listOf(0, 1, 2, 2, 1, 0)),
+            )
         val frames =
             listOf(
                 value(Frame.create(value(FrameId.create(4)), FrameDuration.default, listOf(bottom))),
