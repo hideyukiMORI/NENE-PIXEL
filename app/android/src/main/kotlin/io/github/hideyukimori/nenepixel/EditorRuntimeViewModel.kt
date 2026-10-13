@@ -26,7 +26,9 @@ import io.github.hideyukimori.nenepixel.presentation.compose.editor.EditorContro
 import io.github.hideyukimori.nenepixel.presentation.compose.editor.EditorPersistenceCallbacks
 import io.github.hideyukimori.nenepixel.presentation.compose.editor.FileExchangeCallbacks
 import io.github.hideyukimori.nenepixel.presentation.compose.editor.LegacyConversionCallbacks
+import io.github.hideyukimori.nenepixel.presentation.compose.editor.PaletteExchangeCallbacks
 import io.github.hideyukimori.nenepixel.presentation.compose.editor.PersistenceDecisionCallbacks
+import io.github.hideyukimori.nenepixel.presentation.compose.editor.PngExchangeCallbacks
 import io.github.hideyukimori.nenepixel.presentation.compose.editor.ProjectFileCallbacks
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.StateFlow
@@ -52,12 +54,18 @@ internal class EditorRuntimeViewModel private constructor(
             ProjectFileCallbacks(
                 exchange =
                     FileExchangeCallbacks(
-                        exportPng = { launchOperation(persistence::exportPng) },
-                        exportPaletteJson = { launchOperation { persistence.paletteJson.export() } },
-                        importPaletteJson = { launchOperation { persistence.paletteJson.import() } },
+                        png =
+                            PngExchangeCallbacks(
+                                exportPng = { launchOperation(persistence::exportPng) },
+                                importPng = { launchOperation { persistence.pngImport.pick() } },
+                                openAsNewWork = { launchOperation { persistence.pngImport.openAsNewWork() } },
+                            ),
+                        palette =
+                            PaletteExchangeCallbacks(
+                                exportJson = { launchOperation { persistence.paletteJson.export() } },
+                                importJson = { launchOperation { persistence.paletteJson.import() } },
+                            ),
                         pickReferenceImage = { launchOperation { persistence.referenceImage.pick() } },
-                        importPng = { launchOperation { persistence.pngImport.pick() } },
-                        openPngAsNewWork = { launchOperation { persistence.pngImport.openAsNewWork() } },
                     ),
                 saveAs = { launchOperation(persistence::saveAs) },
                 load = { launchOperation(persistence::load) },

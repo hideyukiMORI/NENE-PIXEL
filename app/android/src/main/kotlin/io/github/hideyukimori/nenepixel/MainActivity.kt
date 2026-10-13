@@ -15,6 +15,9 @@ import io.github.hideyukimori.nenepixel.adapters.persistence.DocumentOpenRequest
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectStorageFailure
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectTransportPhase
 import io.github.hideyukimori.nenepixel.core.application.workspace.EditorTheme
+import io.github.hideyukimori.nenepixel.presentation.compose.editor.EditorControls
+import io.github.hideyukimori.nenepixel.presentation.compose.editor.EditorPersistenceControls
+import io.github.hideyukimori.nenepixel.presentation.compose.editor.EditorSettingsInputs
 import io.github.hideyukimori.nenepixel.presentation.compose.editor.NenePixelEditor
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -44,6 +47,10 @@ public class MainActivity : ComponentActivity() {
         val version = AppVersionSource.create(this).read()
         applySystemBarTheme(model.controller.renderState.appearance.theme)
         val language = languageModel.controller.controls
+        val editor = EditorControls(model.controller.renderStates, model.controller.callbacks)
+        val persistence =
+            EditorPersistenceControls(model.persistenceOperations, model.autosaveStates, model.persistenceCallbacks)
+        val settings = EditorSettingsInputs(language, version)
         setContent {
             LaunchedEffect(model) {
                 model.controller.renderStates.map { it.appearance.theme }.distinctUntilChanged().collect(
@@ -56,13 +63,9 @@ public class MainActivity : ComponentActivity() {
             }
             LocalizedAppLanguage(language) {
                 NenePixelEditor(
-                    renderStates = model.controller.renderStates,
-                    persistenceOperations = model.persistenceOperations,
-                    autosaveStates = model.autosaveStates,
-                    callbacks = model.controller.callbacks,
-                    persistenceCallbacks = model.persistenceCallbacks,
-                    language = language,
-                    version = version,
+                    editor = editor,
+                    persistence = persistence,
+                    settings = settings,
                 )
             }
         }

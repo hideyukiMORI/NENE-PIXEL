@@ -91,7 +91,9 @@ private fun PaletteImportTargets(
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         pending.target.palette.entries().forEach { entry ->
             val number = entry.index.value + 1
-            ImportSwatch(entry.color, number, false, "editor_palette_editor_import_slot_$number") {
+            ImportSwatch(
+                ImportSwatchProjection(entry.color, number, false, "editor_palette_editor_import_slot_$number"),
+            ) {
                 assign(entry.index)
             }
         }
@@ -109,7 +111,7 @@ private fun PaletteImportSources(
         sources.forEach { source ->
             val number = source.value + 1
             val identity = "editor_palette_editor_assign_$number"
-            ImportSwatch(draft.colorAt(source), number, source.value == picked, identity) {
+            ImportSwatch(ImportSwatchProjection(draft.colorAt(source), number, source.value == picked, identity)) {
                 picked = if (picked == source.value) NO_SOURCE else source.value
             }
         }
@@ -130,12 +132,13 @@ private fun PaletteImportModes(
 
 @Composable
 private fun ImportSwatch(
-    color: PixelColor,
-    number: Int,
-    selected: Boolean,
-    identity: String,
+    swatch: ImportSwatchProjection,
     onClick: () -> Unit,
 ) {
+    val color = swatch.color
+    val number = swatch.number
+    val selected = swatch.selected
+    val identity = swatch.identity
     val borderColor = if (selected) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.outline
     Column(
         modifier =
@@ -150,6 +153,13 @@ private fun ImportSwatch(
         Text(stringResource(R.string.entry_number, number), style = MaterialTheme.typography.labelSmall)
     }
 }
+
+private data class ImportSwatchProjection(
+    val color: PixelColor,
+    val number: Int,
+    val selected: Boolean,
+    val identity: String,
+)
 
 private fun PaletteDefinition.colorAt(index: PaletteIndex): PixelColor =
     palette.entries().first { it.index == index }.color

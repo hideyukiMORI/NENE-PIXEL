@@ -44,23 +44,25 @@ internal fun TestNenePixelEditor(
         underlayMemory?.attach(requester)
         onDispose { underlayMemory?.detach(requester) }
     }
-    NenePixelEditor(
-        renderStates = controller.renderStates,
-        persistenceOperations = persistence.workflow.operation,
-        autosaveStates = persistence.workflow.autosave,
-        callbacks = controller.callbacks,
-        persistenceCallbacks = persistence.callbacks,
-        language =
-            remember {
-                AppLanguageControls(
-                    MutableStateFlow(AppLanguageSettings(AppLanguage.System, AppLanguageStatus.Ready)),
-                    {},
-                    {},
-                )
-            },
-        version = AppVersionDisplay.Available("0.1.0", 1L),
-        modifier = modifier,
-    )
+    val language =
+        remember {
+            AppLanguageControls(
+                MutableStateFlow(AppLanguageSettings(AppLanguage.System, AppLanguageStatus.Ready)),
+                {},
+                {},
+            )
+        }
+    val editor = remember(controller) { EditorControls(controller.renderStates, controller.callbacks) }
+    val storage =
+        remember(persistence) {
+            EditorPersistenceControls(
+                persistence.workflow.operation,
+                persistence.workflow.autosave,
+                persistence.callbacks,
+            )
+        }
+    val settings = remember(language) { EditorSettingsInputs(language, AppVersionDisplay.Available("0.1.0", 1L)) }
+    NenePixelEditor(editor, storage, settings, modifier)
 }
 
 /** Owns the same composition scope and effective port keys as the editor fixture. */
@@ -136,12 +138,18 @@ private class TestPersistenceHost(
             ProjectFileCallbacks(
                 exchange =
                     FileExchangeCallbacks(
-                        exportPng = {},
-                        exportPaletteJson = { complete { workflow.paletteJson.export() } },
-                        importPaletteJson = { complete { workflow.paletteJson.import() } },
+                        png =
+                            PngExchangeCallbacks(
+                                exportPng = {},
+                                importPng = { complete { workflow.pngImport.pick() } },
+                                openAsNewWork = { complete { workflow.pngImport.openAsNewWork() } },
+                            ),
+                        palette =
+                            PaletteExchangeCallbacks(
+                                exportJson = { complete { workflow.paletteJson.export() } },
+                                importJson = { complete { workflow.paletteJson.import() } },
+                            ),
                         pickReferenceImage = { complete { workflow.referenceImage.pick() } },
-                        importPng = { complete { workflow.pngImport.pick() } },
-                        openPngAsNewWork = { complete { workflow.pngImport.openAsNewWork() } },
                     ),
                 saveAs = { complete { workflow.saveAs() } },
                 load = { complete { workflow.load() } },

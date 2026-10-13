@@ -4,37 +4,25 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveProjection
-import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationProjection
-import kotlinx.coroutines.flow.StateFlow
 
 @Composable
 public fun NenePixelEditor(
-    renderStates: StateFlow<EditorRenderState>,
-    persistenceOperations: StateFlow<PersistenceOperationProjection>,
-    autosaveStates: StateFlow<AutosaveProjection>,
-    callbacks: EditorCallbacks,
-    persistenceCallbacks: EditorPersistenceCallbacks,
-    language: AppLanguageControls,
-    version: AppVersionDisplay,
+    editor: EditorControls,
+    persistence: EditorPersistenceControls,
+    settings: EditorSettingsInputs,
     modifier: Modifier = Modifier,
 ) {
-    val renderState = renderStates.collectAsState()
-    val persistenceOperation = persistenceOperations.collectAsState()
-    val autosave = autosaveStates.collectAsState()
-    val languageSettings = language.settings.collectAsState()
-    val settings = remember(language, version) { EditorSettingsInputs(language, version) }
+    val renderState = editor.renderStates.collectAsState()
+    val persistenceOperation = persistence.operations.collectAsState()
+    val autosave = persistence.autosave.collectAsState()
+    val languageSettings = settings.language.settings.collectAsState()
+    val storage =
+        remember(persistenceOperation.value, autosave.value, persistence.callbacks) {
+            EditorStorageInputs(persistenceOperation.value, autosave.value, persistence.callbacks)
+        }
     if (languageSettings.value.status == AppLanguageStatus.Loading) {
         LanguageLoadingScreen()
     } else {
-        EditorScreen(
-            renderState = renderState,
-            persistenceOperation = persistenceOperation.value,
-            autosave = autosave.value,
-            callbacks = callbacks,
-            persistenceCallbacks = persistenceCallbacks,
-            modifier = modifier,
-            settings = settings,
-        )
+        EditorScreen(EditorScreenInputs(renderState, editor.callbacks, storage, settings), modifier)
     }
 }

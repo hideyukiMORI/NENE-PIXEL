@@ -18,8 +18,7 @@ internal enum class PointerDirective {
 }
 
 internal data class PointerFrameFacts(
-    val pressedIds: Set<Long>,
-    val releasedIds: Set<Long> = emptySet(),
+    val contacts: PointerContacts,
     val trackedDrawingId: Long? = null,
     val surfaceChanged: Boolean = false,
     val sameTransformMembership: Boolean = false,
@@ -37,24 +36,24 @@ internal fun classifyPointerFrame(
 
 private fun classifyDrawing(facts: PointerFrameFacts): PointerDirective =
     when {
-        facts.pressedIds.size > POINTER_TRANSFORM_COUNT -> PointerDirective.Suppress
-        facts.pressedIds.size == POINTER_TRANSFORM_COUNT -> PointerDirective.CancelDrawAndBeginTransform
+        facts.contacts.pressedIds.size > POINTER_TRANSFORM_COUNT -> PointerDirective.Suppress
+        facts.contacts.pressedIds.size == POINTER_TRANSFORM_COUNT -> PointerDirective.CancelDrawAndBeginTransform
         facts.surfaceChanged -> PointerDirective.Suppress
-        facts.trackedDrawingId in facts.releasedIds -> PointerDirective.EndDraw
-        facts.trackedDrawingId in facts.pressedIds -> PointerDirective.Draw
+        facts.trackedDrawingId in facts.contacts.releasedIds -> PointerDirective.EndDraw
+        facts.trackedDrawingId in facts.contacts.pressedIds -> PointerDirective.Draw
         else -> PointerDirective.Suppress
     }
 
 private fun classifyTransforming(facts: PointerFrameFacts): PointerDirective =
     when {
-        facts.pressedIds.isEmpty() -> PointerDirective.Finish
-        facts.pressedIds.size > POINTER_TRANSFORM_COUNT -> PointerDirective.Suppress
-        facts.pressedIds.size < POINTER_TRANSFORM_COUNT -> PointerDirective.Wait
+        facts.contacts.pressedIds.isEmpty() -> PointerDirective.Finish
+        facts.contacts.pressedIds.size > POINTER_TRANSFORM_COUNT -> PointerDirective.Suppress
+        facts.contacts.pressedIds.size < POINTER_TRANSFORM_COUNT -> PointerDirective.Wait
         facts.sameTransformMembership && !facts.surfaceChanged -> PointerDirective.ApplyTransform
         else -> PointerDirective.RebaseTransform
     }
 
 private fun classifySuppressed(facts: PointerFrameFacts): PointerDirective =
-    if (facts.pressedIds.isEmpty()) PointerDirective.Finish else PointerDirective.Wait
+    if (facts.contacts.pressedIds.isEmpty()) PointerDirective.Finish else PointerDirective.Wait
 
 private const val POINTER_TRANSFORM_COUNT: Int = 2

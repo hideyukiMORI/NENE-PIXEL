@@ -22,9 +22,9 @@ internal class QuickSelectSemanticsTest {
 
         assertEquals("editor_quick_select_slot_12", QuickSelectSemantics.itemTag(slot))
         assertEquals("editor_quick_select_eyedropper", QuickSelectSemantics.itemTag(QuickSelectItem.Eyedropper))
-        assertEquals(QuickSelectLabel(R.string.quick_select_slot, listOf(12)), QuickSelectSemantics.itemLabel(slot))
+        assertEquals(QuickSelectLabel(R.string.quick_select_slot, 12), QuickSelectSemantics.itemLabel(slot))
         assertEquals(
-            QuickSelectLabel(R.string.quick_select_eyedropper, emptyList()),
+            QuickSelectLabel(R.string.quick_select_eyedropper, null),
             QuickSelectSemantics.itemLabel(QuickSelectItem.Eyedropper),
         )
     }
@@ -32,11 +32,11 @@ internal class QuickSelectSemanticsTest {
     @Test
     fun `the control state names the active slot until the eyedropper is armed`() {
         assertEquals(
-            QuickSelectLabel(R.string.quick_select_state_slot, listOf(3)),
+            QuickSelectLabel(R.string.quick_select_state_slot, 3),
             QuickSelectSemantics.controlState(EyedropperState.Idle, paletteIndex(2)),
         )
         assertEquals(
-            QuickSelectLabel(R.string.quick_select_state_eyedropper, emptyList()),
+            QuickSelectLabel(R.string.quick_select_state_eyedropper, null),
             QuickSelectSemantics.controlState(EyedropperState.Armed, paletteIndex(2)),
         )
     }

@@ -18,9 +18,7 @@ import kotlin.math.sin
  * the outer ring. A ring larger than [maxRadius] only shrinks its radius; angles never change.
  */
 internal data class QuickSelectFanLayout(
-    val singleRingRadius: Float,
-    val innerRingRadius: Float,
-    val outerRingRadius: Float,
+    val radii: QuickSelectRingRadii,
     val itemHitRadius: Float,
     val controlHitRadius: Float,
     val maxRadius: Float,
@@ -37,10 +35,10 @@ internal data class QuickSelectFanLayout(
     ): List<QuickSelectFanPoint> {
         require(count in 1..MAX_ITEMS) { "The fan holds 1 to $MAX_ITEMS items." }
         return if (count <= SINGLE_RING_CAPACITY) {
-            ring(control, count, singleRingRadius, edge)
+            ring(control, count, radii.single, edge)
         } else {
-            ring(control, SINGLE_RING_CAPACITY, innerRingRadius, edge) +
-                ring(control, count - SINGLE_RING_CAPACITY, outerRingRadius, edge)
+            ring(control, SINGLE_RING_CAPACITY, radii.inner, edge) +
+                ring(control, count - SINGLE_RING_CAPACITY, radii.outer, edge)
         }
     }
 

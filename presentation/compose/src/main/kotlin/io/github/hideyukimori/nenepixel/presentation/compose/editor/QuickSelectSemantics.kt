@@ -32,11 +32,11 @@ internal object QuickSelectSemantics {
     fun itemLabel(item: QuickSelectItem): QuickSelectLabel =
         when (item) {
             is QuickSelectItem.PaletteSlot -> {
-                QuickSelectLabel(R.string.quick_select_slot, listOf(slotNumber(item.index)))
+                QuickSelectLabel(R.string.quick_select_slot, slotNumber(item.index))
             }
 
             QuickSelectItem.Eyedropper -> {
-                QuickSelectLabel(R.string.quick_select_eyedropper, emptyList())
+                QuickSelectLabel(R.string.quick_select_eyedropper, null)
             }
         }
 
@@ -46,8 +46,8 @@ internal object QuickSelectSemantics {
         active: PaletteIndex,
     ): QuickSelectLabel =
         when (eyedropper) {
-            EyedropperState.Armed -> QuickSelectLabel(R.string.quick_select_state_eyedropper, emptyList())
-            EyedropperState.Idle -> QuickSelectLabel(R.string.quick_select_state_slot, listOf(slotNumber(active)))
+            EyedropperState.Armed -> QuickSelectLabel(R.string.quick_select_state_eyedropper, null)
+            EyedropperState.Idle -> QuickSelectLabel(R.string.quick_select_state_slot, slotNumber(active))
         }
 
     /** The slot the control shows: the highlighted slot during a drag preview, otherwise [active]. */
@@ -61,11 +61,11 @@ internal object QuickSelectSemantics {
         (selection.menu?.highlighted as? QuickSelectItem.PaletteSlot)?.let { slotNumber(it.index) }
 }
 
-/** A localized string resource and its integer format arguments. */
+/** A localized string resource and its optional slot-number format argument. */
 internal data class QuickSelectLabel(
     val resource: Int,
-    val arguments: List<Int>,
+    val number: Int?,
 ) {
     @Composable
-    fun text(): String = stringResource(resource, *arguments.toTypedArray())
+    fun text(): String = if (number == null) stringResource(resource) else stringResource(resource, number)
 }

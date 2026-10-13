@@ -379,11 +379,14 @@ private fun PointerEvent.facts(
     sameTransformMembership: Boolean = false,
 ): PointerFrameFacts =
     PointerFrameFacts(
-        pressedIds = pressedChanges().mapTo(mutableSetOf()) { change -> change.id.value },
-        releasedIds =
-            changes
-                .filter(PointerInputChange::changedToUpIgnoreConsumed)
-                .mapTo(mutableSetOf()) { change -> change.id.value },
+        contacts =
+            PointerContacts(
+                pressedIds = pressedChanges().mapTo(mutableSetOf()) { change -> change.id.value },
+                releasedIds =
+                    changes
+                        .filter(PointerInputChange::changedToUpIgnoreConsumed)
+                        .mapTo(mutableSetOf()) { change -> change.id.value },
+            ),
         trackedDrawingId = trackedDrawingId?.value,
         surfaceChanged = surfaceChanged,
         sameTransformMembership = sameTransformMembership,
