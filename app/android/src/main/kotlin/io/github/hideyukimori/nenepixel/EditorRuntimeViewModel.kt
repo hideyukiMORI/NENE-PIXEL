@@ -168,41 +168,23 @@ internal class EditorRuntimeViewModel private constructor(
                     AtomicFile(File(application.noBackupFilesDir, RECOVERY_FILE_NAME)),
                     ioDispatcher,
                 )
-            val persistence =
-                EditorPersistenceWorkflow.create(
-                    runtime,
-                    PersistencePorts(
-                        ProjectPersistencePorts(
-                            projectStorage,
-                            recoveryRecord,
-                        ),
-                        PngPersistencePorts(
-                            AndroidPngExportAdapter.create(application.contentResolver, pickerBroker, ioDispatcher),
-                            AndroidPngImportAdapter.create(application.contentResolver, pickerBroker, ioDispatcher),
-                        ),
-                        PalettePersistencePorts(
-                            AndroidPaletteJsonExportAdapter.create(
-                                application.contentResolver,
-                                pickerBroker,
-                                ioDispatcher,
-                            ),
-                            AndroidPaletteJsonImportAdapter.create(
-                                application.contentResolver,
-                                pickerBroker,
-                                ioDispatcher,
-                            ),
-                        ),
-                        UnderlayPersistencePorts(
-                            AndroidReferenceImageAdapter.create(
-                                application.contentResolver,
-                                pickerBroker,
-                                ioDispatcher,
-                            ),
-                            AndroidUnderlayMemoryAdapter.create(application.noBackupFilesDir, underlayMemoryDispatcher),
-                        ),
+            val ports =
+                PersistencePorts(
+                    ProjectPersistencePorts(projectStorage, recoveryRecord),
+                    PngPersistencePorts(
+                        AndroidPngExportAdapter.create(application.contentResolver, pickerBroker, ioDispatcher),
+                        AndroidPngImportAdapter.create(application.contentResolver, pickerBroker, ioDispatcher),
                     ),
-                    Dispatchers.Default,
+                    PalettePersistencePorts(
+                        AndroidPaletteJsonExportAdapter.create(application.contentResolver, pickerBroker, ioDispatcher),
+                        AndroidPaletteJsonImportAdapter.create(application.contentResolver, pickerBroker, ioDispatcher),
+                    ),
+                    UnderlayPersistencePorts(
+                        AndroidReferenceImageAdapter.create(application.contentResolver, pickerBroker, ioDispatcher),
+                        AndroidUnderlayMemoryAdapter.create(application.noBackupFilesDir, underlayMemoryDispatcher),
+                    ),
                 )
+            val persistence = EditorPersistenceWorkflow.create(runtime, ports, Dispatchers.Default)
             return EditorRuntimeViewModel(runtime, controller, pickerBroker, persistence)
         }
 
