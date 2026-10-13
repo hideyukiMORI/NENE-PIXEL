@@ -92,9 +92,7 @@ internal class QuickSelectFanLayoutTest {
 
     private fun layout(maxRadius: Double = 1_000.0 * DENSITY): QuickSelectFanLayout =
         QuickSelectFanLayout(
-            singleRingRadius = SINGLE.toFloat(),
-            innerRingRadius = INNER.toFloat(),
-            outerRingRadius = OUTER.toFloat(),
+            radii = QuickSelectRingRadii(SINGLE.toFloat(), INNER.toFloat(), OUTER.toFloat()),
             itemHitRadius = (28.0 * DENSITY).toFloat(),
             controlHitRadius = (28.0 * DENSITY).toFloat(),
             maxRadius = maxRadius.toFloat(),

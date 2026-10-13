@@ -17,5 +17,11 @@ internal fun Modifier.editorDescription(
 ): Modifier {
     val description = stringResource(resource, *arguments)
     val tag = identity ?: ("editor_" + LocalResources.current.getResourceEntryName(resource))
-    return testTag(tag).semantics { contentDescription = description }
+    return editorTextDescription(description, tag)
 }
+
+/** Already-localized text uses the same description and stable tag attachment as resource labels. */
+internal fun Modifier.editorTextDescription(
+    description: String,
+    identity: String,
+): Modifier = testTag(identity).semantics { contentDescription = description }

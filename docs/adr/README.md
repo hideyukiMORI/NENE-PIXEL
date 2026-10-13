@@ -81,3 +81,4 @@ An ADR must include:
 | [0040](0040-orthogonal-selection-transforms.md) | accepted | Eight composed exact orientations extend the existing selection transfer with flips and quarter turns; bounded oriented placement, one patch/preview/history path and no schema change |
 | [0041](0041-bounded-frames-and-project-v4.md) | accepted | Ordered frames sharing one palette and at most 16 total layer records; one command/history path, captured frame targets, atomic v4/envelope4 cutover and separate playback delivery |
 | [0042](0042-workspace-preview-playback.md) | accepted | One workspace Loop/Once session with explicit monotonic samples, bounded catch-up, separate edit/display focus and one lifecycle-aware preview adapter |
+| [0043](0043-cohesive-editor-presentation-inputs.md) | accepted | One editor composition entry with explicit editor, persistence and settings capabilities; cohesive file callbacks and eager bounded render projection |

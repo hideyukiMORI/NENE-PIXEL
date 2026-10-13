@@ -267,6 +267,12 @@ offer replaces the status-row content while an unadopted Candidate exists and em
 decline requests through the same persistence callbacks. It contains no persistence calls or
 document transition logic.
 
+ADR 0043 supplies the one `NenePixelEditor` entry with immutable editor, persistence and settings
+capability bindings from the app root. File exchange groups PNG and palette callbacks without
+adding an operation route. Render state eagerly extracts its existing visible values from the
+runtime snapshot and notice source; neither source is retained, and playback timing internals
+remain outside the projection. These inputs do not create another state or lifecycle owner.
+
 ### `:adapters:persistence`
 
 Implements application ports for project storage, recovery, and PNG export (ADR 0019), and the

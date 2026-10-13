@@ -14,10 +14,12 @@ import io.github.hideyukimori.nenepixel.presentation.compose.R
 internal data class LayerNotice(
     val kind: Kind,
     val serial: Int,
-    val documentId: DocumentId,
-    val revision: Revision,
+    val source: LayerNoticeSource,
     val target: LayerId?,
 ) {
+    val documentId: DocumentId get() = source.documentId
+    val revision: Revision get() = source.revision
+
     /**
      * Whether the notice still describes [document] with [activeLayerId] active: a deletion or a hidden target only
      * until the next revision (and a hidden target only while it stays active), a refusal until the document changes.

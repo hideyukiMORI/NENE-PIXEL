@@ -54,12 +54,18 @@ internal class NewDocumentEditorControllerTest {
             ProjectFileCallbacks(
                 exchange =
                     FileExchangeCallbacks(
-                        exportPng = {},
-                        exportPaletteJson = {},
-                        importPaletteJson = {},
+                        png =
+                            PngExchangeCallbacks(
+                                exportPng = {},
+                                importPng = {},
+                                openAsNewWork = {},
+                            ),
+                        palette =
+                            PaletteExchangeCallbacks(
+                                exportJson = {},
+                                importJson = {},
+                            ),
                         pickReferenceImage = {},
-                        importPng = {},
-                        openPngAsNewWork = {},
                     ),
                 saveAs = {},
                 load = {},

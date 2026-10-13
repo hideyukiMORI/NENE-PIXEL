@@ -75,8 +75,7 @@ internal class PointerArbitrationTest {
         ClassifiedFacts(
             PointerInteractionMode.Drawing,
             PointerFrameFacts(
-                pressedIds = pressedIds,
-                releasedIds = releasedIds,
+                contacts = PointerContacts(pressedIds, releasedIds),
                 trackedDrawingId = FIRST_POINTER,
             ),
         )
@@ -89,7 +88,7 @@ internal class PointerArbitrationTest {
         ClassifiedFacts(
             PointerInteractionMode.Transforming,
             PointerFrameFacts(
-                pressedIds = pressedIds,
+                contacts = PointerContacts(pressedIds),
                 sameTransformMembership = sameTransformMembership,
                 surfaceChanged = surfaceChanged,
             ),
@@ -98,7 +97,7 @@ internal class PointerArbitrationTest {
     private fun suppressedFacts(pressedIds: Set<Long>): ClassifiedFacts =
         ClassifiedFacts(
             PointerInteractionMode.Suppressed,
-            PointerFrameFacts(pressedIds = pressedIds),
+            PointerFrameFacts(PointerContacts(pressedIds)),
         )
 
     private fun ClassifiedFacts.classified(): PointerDirective = classifyPointerFrame(mode, facts)

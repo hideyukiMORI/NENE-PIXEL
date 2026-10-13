@@ -54,9 +54,12 @@ internal data class QuickSelectGeometry(
                 val maxRadius = (minOf(area.width, area.height) - margin - size).coerceAtLeast(1)
                 val layout =
                     QuickSelectFanLayout(
-                        singleRingRadius = SINGLE_RING_RADIUS.toPx(),
-                        innerRingRadius = INNER_RING_RADIUS.toPx(),
-                        outerRingRadius = OUTER_RING_RADIUS.toPx(),
+                        radii =
+                            QuickSelectRingRadii(
+                                SINGLE_RING_RADIUS.toPx(),
+                                INNER_RING_RADIUS.toPx(),
+                                OUTER_RING_RADIUS.toPx(),
+                            ),
                         itemHitRadius = HIT_RADIUS.toPx(),
                         controlHitRadius = HIT_RADIUS.toPx(),
                         maxRadius = maxRadius.toFloat(),

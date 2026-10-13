@@ -15,10 +15,13 @@ public class ProjectFileCallbacks(
  * opened as a new work (ADR 0033).
  */
 public class FileExchangeCallbacks(
-    internal val exportPng: () -> Unit,
-    internal val exportPaletteJson: () -> Unit,
-    internal val importPaletteJson: () -> Unit,
+    png: PngExchangeCallbacks,
+    palette: PaletteExchangeCallbacks,
     internal val pickReferenceImage: () -> Unit,
-    internal val importPng: () -> Unit,
-    internal val openPngAsNewWork: () -> Unit,
-)
+) {
+    internal val exportPng: () -> Unit = png.exportPng
+    internal val importPng: () -> Unit = png.importPng
+    internal val openPngAsNewWork: () -> Unit = png.openAsNewWork
+    internal val exportPaletteJson: () -> Unit = palette.exportJson
+    internal val importPaletteJson: () -> Unit = palette.importJson
+}

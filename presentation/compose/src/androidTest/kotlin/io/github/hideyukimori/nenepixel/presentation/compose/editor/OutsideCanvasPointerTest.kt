@@ -135,7 +135,6 @@ internal class OutsideCanvasPointerTest {
         rule.setContent {
             PixelCanvas(
                 renderState = controller.renderStates.collectAsState(),
-                canvasSize = controller.renderState.document.size,
                 callbacks = controller.callbacks,
                 committed = CommittedBitmapCache(),
                 modifier = Modifier.size(SURFACE_DP.dp),

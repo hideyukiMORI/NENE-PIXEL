@@ -26,34 +26,7 @@ public class EditorController private constructor(
 
     public val renderStates: StateFlow<EditorRenderState> = mutableRenderState.asStateFlow()
 
-    public val callbacks: EditorCallbacks =
-        EditorCallbacks(
-            pointerDown = ::pointerDown,
-            pointerMove = ::pointerMove,
-            pointerEnd = ::pointerEnd,
-            pointerCancel = ::pointerCancel,
-            viewportStarted = ::viewportStarted,
-            viewportTransformed = ::viewportTransformed,
-            undo = { publish(adapter.undo()) },
-            redo = { publish(adapter.redo()) },
-            selectTool = { tool -> editingAction(WorkspaceAction.SelectTool(tool)) },
-            selectPaletteEntry = { index ->
-                editingAction(WorkspaceAction.SelectPaletteEntry(index))
-            },
-            setAppearance = { appearance ->
-                publish(adapter.reduce(WorkspaceAction.SetAppearance(appearance)).renderState)
-            },
-            setActualSizeWindow = { window ->
-                publish(adapter.reduce(WorkspaceAction.SetActualSizeWindow(window)).renderState)
-            },
-            palette = EditorPaletteCallbacks(runtime, adapter, ::publish),
-            quickSelect = EditorQuickSelectCallbacks(adapter, ::publish),
-            layers = EditorLayerCallbacks(runtime, adapter, ::publish),
-            underlay = EditorUnderlayCallbacks(runtime, adapter, ::publish),
-            rasterImport = EditorImportCallbacks(runtime, adapter, ::publish),
-            selection = EditorSelectionCallbacks(runtime, adapter, ::publish),
-            frames = EditorFrameCallbacks(runtime, adapter, ::publish),
-        )
+    public val callbacks: EditorCallbacks = EditorCallbacks(this, adapter)
 
     public fun synchronizeWithRuntime() {
         publish(adapter.renderState)
@@ -65,7 +38,7 @@ public class EditorController private constructor(
     internal val workspaceState: WorkspaceState
         get() = runtime.state.workspaceState
 
-    private fun editingAction(action: WorkspaceAction): EditorRenderState {
+    internal fun editingAction(action: WorkspaceAction): EditorRenderState {
         adapter.stopPlayback()
         return publish(adapter.reduce(action).renderState)
     }
@@ -215,7 +188,7 @@ public class EditorController private constructor(
         return acknowledgement
     }
 
-    private fun publish(state: EditorRenderState): EditorRenderState {
+    internal fun publish(state: EditorRenderState): EditorRenderState {
         mutableRenderState.value = state
         return state
     }

@@ -28,8 +28,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.unit.dp
-import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveProjection
-import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationProjection
 import io.github.hideyukimori.nenepixel.core.application.workspace.EditorAppearance
 import io.github.hideyukimori.nenepixel.core.application.workspace.EditorControlEdge
 import io.github.hideyukimori.nenepixel.core.application.workspace.EditorLayout
@@ -39,14 +37,12 @@ import io.github.hideyukimori.nenepixel.presentation.compose.R
 
 @Composable
 internal fun EditorScreen(
-    renderState: State<EditorRenderState>,
-    persistenceOperation: PersistenceOperationProjection,
-    autosave: AutosaveProjection,
-    callbacks: EditorCallbacks,
-    persistenceCallbacks: EditorPersistenceCallbacks,
+    inputs: EditorScreenInputs,
     modifier: Modifier,
-    settings: EditorSettingsInputs,
 ) {
+    val renderState = inputs.state
+    val callbacks = inputs.callbacks
+    val storage = inputs.storage
     val appearance by remember(renderState) { derivedStateOf { renderState.value.appearance } }
     var panel by rememberSaveable { mutableStateOf<EditorPanel?>(null) }
     val openPanel: (EditorPanel) -> Unit = {
@@ -54,13 +50,9 @@ internal fun EditorScreen(
         callbacks.onPointerCancel()
         panel = it
     }
-    val storage =
-        remember(persistenceOperation, autosave, persistenceCallbacks) {
-            EditorStorageInputs(persistenceOperation, autosave, persistenceCallbacks)
-        }
     val workArea =
-        remember(openPanel, persistenceCallbacks) {
-            EditorWorkAreaActions(openPanel, persistenceCallbacks, callbacks.playback)
+        remember(openPanel, storage.callbacks) {
+            EditorWorkAreaActions(openPanel, storage.callbacks, callbacks.playback)
         }
     MaterialTheme(colorScheme = appearance.theme.colorScheme(), typography = localizedTypography()) {
         Surface(
@@ -79,7 +71,7 @@ internal fun EditorScreen(
             }
             EditorPanelLayer(
                 panel?.let { EditorPanelPlacement(it, appearance.controlEdge) },
-                EditorPanelInputs(renderState, callbacks, storage, settings),
+                inputs,
                 openPanel,
             ) { panel = it }
             EditorFileDialogs(renderState, callbacks, storage)
@@ -176,8 +168,7 @@ private fun EditorCanvas(
     committed: CommittedBitmapCache,
     pickUnderlay: () -> Unit,
 ) {
-    val size by remember(state) { derivedStateOf { state.value.document.size } }
-    PixelCanvas(state, size, callbacks, committed, Modifier.fillMaxSize())
+    PixelCanvas(state, callbacks, committed, Modifier.fillMaxSize())
     ActualSizeWindowOverlay(state, committed, callbacks)
     SelectionBar(state, callbacks.selection)
     UnderlayAdjustBar(state, callbacks.underlay)
@@ -204,7 +195,7 @@ private fun EditorStatus(
 @Composable
 private fun EditorPanelLayer(
     placement: EditorPanelPlacement?,
-    inputs: EditorPanelInputs,
+    inputs: EditorScreenInputs,
     openPanel: (EditorPanel) -> Unit,
     show: (EditorPanel?) -> Unit,
 ) {
@@ -243,7 +234,7 @@ private fun PaletteEditSession.hasDraftChanges(definition: PaletteDefinition): B
 @Composable
 private fun PanelContent(
     panel: EditorPanel,
-    inputs: EditorPanelInputs,
+    inputs: EditorScreenInputs,
     openPanel: (EditorPanel) -> Unit,
     dismiss: () -> Unit,
 ) {
@@ -299,13 +290,6 @@ private fun FollowPaletteEditSession(
         if (panel == EditorPanel.Palette && importing) show(EditorPanel.PaletteEditor)
     }
 }
-
-private data class EditorPanelInputs(
-    val state: State<EditorRenderState>,
-    val callbacks: EditorCallbacks,
-    val storage: EditorStorageInputs,
-    val settings: EditorSettingsInputs,
-)
 
 /** What the work area hands on besides the render state: opening the palette, and choosing the underlay (#170). */
 private class EditorWorkAreaActions(

@@ -80,6 +80,6 @@ internal class LayerNoticeSlot {
         target: LayerId?,
     ): LayerNotice {
         lastSerial += 1
-        return LayerNotice(kind, lastSerial, document.id, document.revision, target)
+        return LayerNotice(kind, lastSerial, LayerNoticeSource(document.id, document.revision), target)
     }
 }

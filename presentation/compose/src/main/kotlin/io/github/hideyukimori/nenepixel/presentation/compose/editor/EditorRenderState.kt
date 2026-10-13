@@ -1,6 +1,7 @@
 package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
 import io.github.hideyukimori.nenepixel.core.application.editor.DocumentDirtyState
+import io.github.hideyukimori.nenepixel.core.application.editor.EditorRuntimeState
 import io.github.hideyukimori.nenepixel.core.application.workspace.ActualSizeWindow
 import io.github.hideyukimori.nenepixel.core.application.workspace.EditorAppearance
 import io.github.hideyukimori.nenepixel.core.application.workspace.ToolGesture
@@ -21,30 +22,34 @@ import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteIndex
 import io.github.hideyukimori.nenepixel.core.domain.validation.DomainValueResult
 
 public class EditorRenderState internal constructor(
-    public val document: DocumentState,
-    public val definition: PaletteDefinition,
-    public val activePaletteIndex: PaletteIndex,
-    public val activeTool: DrawingTool,
-    public val preview: ToolGesture?,
-    public val viewport: ViewportState,
-    public val canUndo: Boolean,
-    public val canRedo: Boolean,
-    public val dirtyState: DocumentDirtyState,
-    public val appearance: EditorAppearance,
-    public val actualSizeWindow: ActualSizeWindow,
-    public val paletteEditSession: PaletteEditSession?,
-    public val paletteNotice: PaletteEditorNotice?,
-    public val quickSelection: QuickSelection,
-    internal val activeLayerId: LayerId,
-    internal val layerNotice: LayerNotice?,
-    internal val underlay: ReferenceUnderlay?,
-    internal val pendingImport: PendingRasterImport?,
-    internal val selectionSession: SelectionSession?,
-    internal val selectionNotice: SelectionEditorNotice?,
-    internal val frames: EditorFrameProjection,
-    internal val frameNotice: FrameEditorNotice?,
-    internal val importNotice: FrameEditorNotice?,
+    state: EditorRuntimeState,
+    notices: EditorRuntimeAdapter,
 ) {
+    public val document: DocumentState = state.documentState
+    public val definition: PaletteDefinition = state.documentState.definition
+    public val activePaletteIndex: PaletteIndex = state.workspaceState.activePaletteIndex
+    public val activeTool: DrawingTool = state.workspaceState.activeTool
+    public val preview: ToolGesture? = state.workspaceState.preview
+    public val viewport: ViewportState = state.workspaceState.viewport
+    public val canUndo: Boolean = state.historyAvailability.canUndo
+    public val canRedo: Boolean = state.historyAvailability.canRedo
+    public val dirtyState: DocumentDirtyState = state.dirtyState
+    public val appearance: EditorAppearance = state.workspaceState.appearance
+    public val actualSizeWindow: ActualSizeWindow = state.workspaceState.actualSizeWindow
+    public val paletteEditSession: PaletteEditSession? = state.workspaceState.paletteEditSession
+    public val paletteNotice: PaletteEditorNotice? = notices.paletteNotice
+    public val quickSelection: QuickSelection = state.workspaceState.quickSelection
+    internal val activeLayerId: LayerId = state.workspaceState.activeLayerId
+    internal val layerNotice: LayerNotice? = notices.layerNotices.validFor(document, activeLayerId)
+    internal val underlay: ReferenceUnderlay? = state.workspaceState.underlay
+    internal val pendingImport: PendingRasterImport? = state.workspaceState.pendingImport
+    internal val selectionSession: SelectionSession? = state.workspaceState.selectionSession
+    internal val selectionNotice: SelectionEditorNotice? = notices.selectionNotice.takeIf { selectionSession != null }
+    internal val frames: EditorFrameProjection =
+        EditorFrameProjection(state.workspaceState.activeFrameId, state.workspaceState.playback.view)
+    internal val frameNotice: FrameEditorNotice? = notices.frameNotice
+    internal val importNotice: FrameEditorNotice? =
+        notices.importNotice.takeIf { notices.importNoticeSource === pendingImport }
     internal val activeFrameId: FrameId get() = frames.editingFrameId
     internal val displayedFrameId: FrameId get() = frames.displayedFrameId
     internal val playback get() = frames.playback
@@ -66,7 +71,7 @@ public class EditorRenderState internal constructor(
     override fun hashCode(): Int =
         fields().fold(INITIAL_HASH) { hash, value -> hash * HASH_MULTIPLIER + (value?.hashCode() ?: 0) }
 
-    /** Every constructor value, in declaration order; equality and hashing compare exactly these. */
+    /** Every eager projected value, in original declaration order; equality and hashing compare exactly these. */
     private fun fields(): List<Any?> =
         listOf(
             document,

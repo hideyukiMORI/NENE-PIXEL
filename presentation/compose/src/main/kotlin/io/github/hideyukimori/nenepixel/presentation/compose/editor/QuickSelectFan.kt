@@ -97,9 +97,8 @@ private fun QuickSelectFanItem(
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
-            }.editorDescription(
-                label.resource,
-                *label.arguments.toTypedArray(),
+            }.editorTextDescription(
+                label.text(),
                 identity = QuickSelectSemantics.itemTag(item),
             ).background(scheme.surface, CircleShape)
             .border(

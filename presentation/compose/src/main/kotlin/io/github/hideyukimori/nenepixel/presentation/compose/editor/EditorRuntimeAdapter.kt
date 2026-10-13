@@ -114,34 +114,7 @@ internal class EditorRuntimeAdapter(
         return runtime.execute(command)
     }
 
-    private fun createRenderState(): EditorRenderState {
-        val state = runtime.state
-        return EditorRenderState(
-            document = state.documentState,
-            definition = state.documentState.definition,
-            activePaletteIndex = state.workspaceState.activePaletteIndex,
-            activeTool = state.workspaceState.activeTool,
-            preview = state.workspaceState.preview,
-            viewport = state.workspaceState.viewport,
-            canUndo = state.historyAvailability.canUndo,
-            canRedo = state.historyAvailability.canRedo,
-            dirtyState = state.dirtyState,
-            appearance = state.workspaceState.appearance,
-            actualSizeWindow = state.workspaceState.actualSizeWindow,
-            paletteEditSession = state.workspaceState.paletteEditSession,
-            paletteNotice = paletteNotice,
-            quickSelection = state.workspaceState.quickSelection,
-            activeLayerId = state.workspaceState.activeLayerId,
-            layerNotice = layerNotices.validFor(state.documentState, state.workspaceState.activeLayerId),
-            underlay = state.workspaceState.underlay,
-            pendingImport = state.workspaceState.pendingImport,
-            selectionSession = state.workspaceState.selectionSession,
-            selectionNotice = selectionNotice.takeIf { state.workspaceState.selectionSession != null },
-            frames = EditorFrameProjection(state.workspaceState.activeFrameId, state.workspaceState.playback.view),
-            frameNotice = frameNotice,
-            importNotice = importNotice.takeIf { importNoticeSource === state.workspaceState.pendingImport },
-        )
-    }
+    private fun createRenderState(): EditorRenderState = EditorRenderState(runtime.state, this)
 
     private fun unexpectedExtensionResult(): Nothing =
         error("ExtendGesturePreview unexpectedly prepared a document commit.")

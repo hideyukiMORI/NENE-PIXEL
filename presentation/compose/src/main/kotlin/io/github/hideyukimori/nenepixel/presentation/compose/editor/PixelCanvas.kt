@@ -6,6 +6,8 @@ import android.graphics.RectF
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -29,11 +31,11 @@ import io.github.hideyukimori.nenepixel.presentation.compose.input.viewportPoint
 @Composable
 internal fun PixelCanvas(
     renderState: State<EditorRenderState>,
-    canvasSize: CanvasSize,
     callbacks: EditorCallbacks,
     committed: CommittedBitmapCache,
     modifier: Modifier,
 ) {
+    val canvasSize by remember(renderState) { derivedStateOf { renderState.value.document.size } }
     val geometries = remember { CanvasGeometryCache() }
     val previews = remember { PreviewBitmapCache() }
     val backdrop = remember { TransparencyBackdrop() }
