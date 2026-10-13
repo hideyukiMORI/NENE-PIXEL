@@ -29,8 +29,18 @@ internal object ProjectFormatV3TestValues {
             colors = intArrayOf(0x11223344, 0xff0000ff.toInt()),
             layers =
                 listOf(
-                    layer(1, "A", LayerVisibility.Visible, ProjectFormatTestValues.canvas(3, 1), listOf(0, null, 1)),
-                    layer(5, "é", LayerVisibility.Hidden, ProjectFormatTestValues.canvas(3, 1), listOf(null, 1, null)),
+                    layer(
+                        1,
+                        "A",
+                        LayerVisibility.Visible,
+                        snapshot(ProjectFormatTestValues.canvas(3, 1), listOf(0, null, 1)),
+                    ),
+                    layer(
+                        5,
+                        "é",
+                        LayerVisibility.Hidden,
+                        snapshot(ProjectFormatTestValues.canvas(3, 1), listOf(null, 1, null)),
+                    ),
                 ),
         )
 
@@ -52,7 +62,7 @@ internal object ProjectFormatV3TestValues {
             }
         val visibility = if (layerIndex % 3 == 0) LayerVisibility.Hidden else LayerVisibility.Visible
         val id = if (layerIndex == 15) Int.MAX_VALUE else layerIndex + 1
-        return layer(id, longestName, visibility, size, cells)
+        return layer(id, longestName, visibility, snapshot(size, cells))
     }
 
     fun document(
@@ -74,14 +84,24 @@ internal object ProjectFormatV3TestValues {
         )
     }
 
-    /** Builds a layer from cells written as palette slots, with `null` for `Empty`. */
     fun layer(
         id: Int,
         name: String,
         visibility: LayerVisibility,
+        snapshot: PixelSnapshot,
+    ): Layer =
+        Layer.create(
+            created(LayerId.create(id)),
+            created(LayerName.create(name)),
+            visibility,
+            snapshot,
+        )
+
+    /** Builds a snapshot from cells written as palette slots, with `null` for `Empty`. */
+    fun snapshot(
         size: CanvasSize,
         cells: List<Int?>,
-    ): Layer {
+    ): PixelSnapshot {
         val indices = ByteArray(cells.size) { pixel -> (cells[pixel] ?: 0).toByte() }
         val coverage = ByteArray((cells.size + 7) / 8)
         cells.forEachIndexed { pixel, cell ->
@@ -89,12 +109,7 @@ internal object ProjectFormatV3TestValues {
                 coverage[pixel / 8] = (coverage[pixel / 8].toInt() or (1 shl (pixel % 8))).toByte()
             }
         }
-        return Layer.create(
-            created(LayerId.create(id)),
-            created(LayerName.create(name)),
-            visibility,
-            created(PixelSnapshot.createPackedCells(size, indices, coverage)),
-        )
+        return created(PixelSnapshot.createPackedCells(size, indices, coverage))
     }
 
     /** Rewrites the trailing CRC32 so that a mutation reaches the check under test. */

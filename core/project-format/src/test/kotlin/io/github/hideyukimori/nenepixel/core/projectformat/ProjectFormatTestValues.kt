@@ -22,44 +22,51 @@ internal object ProjectFormatTestValues {
     val minimalDocument: DocumentState =
         indexedDocument(
             id = MINIMAL_ID,
-            size = canvas(1, 1),
             revision = 0L,
-            colors = intArrayOf(0x00000000, 0xff0000ff.toInt()),
-            indices = byteArrayOf(1),
+            definition = paletteDefinition(intArrayOf(0x00000000, 0xff0000ff.toInt())),
+            snapshot = indexedSnapshot(canvas(1, 1), byteArrayOf(1)),
         )
 
     val rectangularDocument: DocumentState =
         indexedDocument(
             id = RECTANGULAR_ID,
-            size = canvas(3, 2),
             revision = Long.MAX_VALUE,
-            colors =
-                intArrayOf(
-                    0x11223300,
-                    0xff0000ff.toInt(),
-                    0xff0000ff.toInt(),
+            definition =
+                paletteDefinition(
+                    intArrayOf(
+                        0x11223300,
+                        0xff0000ff.toInt(),
+                        0xff0000ff.toInt(),
+                    ),
                 ),
-            indices = byteArrayOf(0, 1, 2, 2, 1, 0),
+            snapshot = indexedSnapshot(canvas(3, 2), byteArrayOf(0, 1, 2, 2, 1, 0)),
         )
 
     val v2MinimalDocument: DocumentState =
-        indexedDocument(V2_GOLDEN_ID, canvas(1, 1), 0L, intArrayOf(0x00000000, 0xff0000ff.toInt()), byteArrayOf(1))
+        indexedDocument(
+            id = V2_GOLDEN_ID,
+            revision = 0L,
+            definition = paletteDefinition(intArrayOf(0x00000000, 0xff0000ff.toInt())),
+            snapshot = indexedSnapshot(canvas(1, 1), byteArrayOf(1)),
+        )
 
     val v2RectangularDocument: DocumentState =
         indexedDocument(
-            V2_GOLDEN_ID,
-            canvas(3, 2),
-            0L,
-            intArrayOf(0x11223300, 0xff0000ff.toInt(), 0xff0000ff.toInt()),
-            byteArrayOf(0, 1, 2, 2, 1, 0),
-            defaultIndex = 2,
+            id = V2_GOLDEN_ID,
+            revision = 0L,
+            definition =
+                paletteDefinition(
+                    intArrayOf(0x11223300, 0xff0000ff.toInt(), 0xff0000ff.toInt()),
+                    defaultIndex = 2,
+                ),
+            snapshot = indexedSnapshot(canvas(3, 2), byteArrayOf(0, 1, 2, 2, 1, 0)),
         )
 
     fun maximumDocument(): DocumentState {
         val size = canvas(256, 256)
         val colors = IntArray(256) { index -> deterministicPixel(index) }
         val indices = ByteArray(size.pixelCount.toInt()) { index -> (index and 0xff).toByte() }
-        return indexedDocument(MINIMAL_ID, size, Long.MAX_VALUE, colors, indices)
+        return indexedDocument(MINIMAL_ID, Long.MAX_VALUE, paletteDefinition(colors), indexedSnapshot(size, indices))
     }
 
     fun minimalLegacySource(): LegacyRgbaSource = legacySource(MINIMAL_ID, canvas(1, 1), 0L, intArrayOf(0x11223344))
@@ -98,20 +105,28 @@ internal object ProjectFormatTestValues {
 
     private fun indexedDocument(
         id: String,
-        size: CanvasSize,
         revision: Long,
-        colors: IntArray,
-        indices: ByteArray,
-        defaultIndex: Int = 0,
+        definition: PaletteDefinition,
+        snapshot: PixelSnapshot,
     ): DocumentState {
         val documentId = created(DocumentId.create(id))
-        val palette = created(Palette.create(colors.map(PixelColor::fromPackedRgba8888)))
-        val definition = created(PaletteDefinition.create(palette, created(PaletteIndex.create(defaultIndex))))
-        val snapshot = created(PixelSnapshot.createPackedIndices(size, indices))
         return created(
             DocumentState.createSingleLayer(documentId, created(Revision.create(revision)), definition, snapshot),
         )
     }
+
+    private fun paletteDefinition(
+        colors: IntArray,
+        defaultIndex: Int = 0,
+    ): PaletteDefinition {
+        val palette = created(Palette.create(colors.map(PixelColor::fromPackedRgba8888)))
+        return created(PaletteDefinition.create(palette, created(PaletteIndex.create(defaultIndex))))
+    }
+
+    private fun indexedSnapshot(
+        size: CanvasSize,
+        indices: ByteArray,
+    ): PixelSnapshot = created(PixelSnapshot.createPackedIndices(size, indices))
 
     private fun legacySource(
         id: String,
