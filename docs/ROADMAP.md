@@ -43,6 +43,10 @@ M4 with indexed palette contracts and a staged preparation / atomic runtime-stor
 Exact original preservation is mandatory; a v1 source with more than 256 distinct RGBA colors is
 an explicit read-only conversion candidate, never silently reduced or marked clean after recovery.
 
+The [M4 exit proof](quality/M4_EXIT_PROOF.md) records the accepted structured-editing slice,
+evidence limits and formal closure order. It carries #145's unresolved consolidated performance
+acceptance into the owner-directed M5 exit; it does not accept a beta artifact or open Gate D.
+
 ### Gate D — External automation may begin
 
 Requires a stable command catalog, typed authorization decisions, change preview/approval, deterministic serialization, and an ADR choosing the transport. OpenAPI is selected only if that transport is HTTP.
