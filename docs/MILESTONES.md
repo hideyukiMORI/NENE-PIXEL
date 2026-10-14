@@ -144,6 +144,19 @@ Expand the proven durable document model for structured pixel-art work.
 - layer/frame operations remain deterministic and bounded
 - animation preview never becomes a second timing authority for document data
 
+### Accepted scope and exit evidence
+
+The [M4 exit proof](quality/M4_EXIT_PROOF.md), #226 / P4-12, maps these four criteria to their
+original accepted source and functional evidence, including the inherited M3 raw-evidence loss.
+Its closure order requires final PR CI, integration and live milestone read-back before M4 is
+declared complete. Candidate deliverables are not additional exit criteria: saved layer
+opacity/merge, onion skin, animated/sprite-sheet export and further selection/import refinements
+remain separate future decisions, outside mandatory M5 beta hardening.
+
+The owner placed the consolidated #145 performance gate at M5 exit on 2026-10-12. Its historical
+failure and uncollected current workloads remain unresolved; M4 functional acceptance does not
+pass or waive that gate. The same Issue is P5-03 in the current plan (historical P4-05d).
+
 ## M5 — Android Beta
 
 ### Purpose
@@ -165,6 +178,16 @@ Harden the app for sustained real-world use.
 - supported device/API matrix is documented and tested
 - performance budgets pass on the named minimum profile (drawing latency: `docs/quality/M2_FRAME_FOLLOW_UP.md`, "M5 drawing-latency budget — fixed 2026-09-23")
 - release artifact is built only from a tagged, checked `main` commit
+
+### Entry and execution
+
+M5 starts from the integrated [M4 exit proof](quality/M4_EXIT_PROOF.md) and the focused
+[M5 work packages](DEVELOPMENT_PLAN.md#m5-work-packages). P5-00 first defines the supported matrix
+and concrete evidence gaps. Existing feature tests are reused at their original identities when
+equivalent; they do not by themselves accept the complete beta matrix. Startup/battery planning
+and #145 collection share the final M5 phase boundary, with protocol/harness/artifact agreement
+before samples. P5-07 reviews every exit criterion and the tagged artifact; opening or closing a
+preparation Issue does not independently complete M5 or open M6.
 
 ## M6 — Automation Boundary
 

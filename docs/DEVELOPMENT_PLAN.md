@@ -102,7 +102,7 @@ with one lifecycle adapter, bounded explicit-sample timing and separate edit/dis
 | P4-05a | Cut over document/engine/history/rendering/storage to layered documents with `Empty` cells and v3 (#142) | P4-05 | Every consumer at once; composite golden vectors and single-layer byte equality with v2 export; v3/envelope 3 golden, round-trip and rejection tests; history accounting; per-commit cost statement, with the single-layer latency workloads registered with P4-05d (QLT-019) |
 | P4-05b | Add the five layer commands, active-layer selection and hidden-layer rules (#143) | P4-05a | Command/undo/reconcile contracts, typed rejections, `NoVisibleLayer` export |
 | P4-05c | Add the opening layer panel (#144) | P4-05b | UI spec first; localized tablet and accessibility verification |
-| P4-05d | Gate of the layer phase (QLT-019): accept the 16-layer worst case and the registered single-layer and underlay workloads in one collection (#145) | P4-05a, P4-05b, P4-05c, P4-06a, P4-06b, P4-06c | Protocol fixed before collection; M5 drawing latency for the single-layer, 16-layer and alpha-128 underlay workloads, retained memory, autosave/save write time, full-remap history bytes |
+| P4-05d | Historical identifier of the same #145 performance gate, now P5-03 at the owner-directed M5 exit | P4-05a, P4-05b, P4-05c, P4-06a, P4-06b, P4-06c; current P5-03 admission | Existing protocol, registered workloads and historical failures retained; no second Issue, current performance PASS or feature-level collection |
 | P4-06 | Accept the reference underlay contract (#169) | P4-05c | Accepted ADR 0032, updated governing documents and focused Issues |
 | P4-06a | Choose an image and show it beneath the layers, with visibility, opacity and removal (#170) | P4-06 | Value/action contracts, bounded decode and typed rejection tests, pixel tests of the draw order, localized panel row; per-frame cost statement and the underlay workload registered with P4-05d (QLT-019) |
 | P4-06b | Add the underlay adjust mode: move, scale, fit to picture (#171) | P4-06a | Adjust arithmetic and clamp tests, mode entry/exit and document/viewport neutrality tests, localized adjust bar; cost statement |
@@ -116,6 +116,7 @@ with one lifecycle adapter, bounded explicit-sample timing and separate edit/dis
 | P4-11 | Accept bounded frames and project v4 design (#215) | P4-10 | ADR 0041 and exact v4/envelope 4 contract; global 16-record capacity, shared palette, frame/layer focus, captured PNG targets and atomic consuming plan; documentation validation |
 | P4-11a | Atomically implement frame editing and v4/envelope 4 (#216) | P4-11 | Every domain/command/history/workspace/render/import/export/storage/UI consumer together; exact migration, structural byte accounting, focus/cancellation and cache lifetime; focused host/native evidence and source-derived #145 workload registration |
 | P4-11b | Accept and implement deterministic playback (#217) | P4-11a | ADR 0042; Loop/Once, one workspace session and lifecycle clock, bounded explicit-sample scheduling and stale cleanup, unchanged edit/document/history/autosave, same-frame cache reuse and isolated UI/background evidence; #145 cost/workload registration |
+| P4-12 | Accept M4 exit evidence and define M5 entry (#226) | P4-11b, integrated #219/#221/#222 | Four-condition proof with original provenance and lost-evidence limits; candidate-scope disposition, #145 M5 placement, focused beta Issues, final required CI and live milestone read-back |
 
 Preparation keeps the sole M3 editable path. P4-02 changes every live consumer together, with no
 parallel editable RGBA document or provisional indexed-to-v1 writer. P4-05a likewise moves every
@@ -133,9 +134,44 @@ requirements remain recorded in ADR 0022 without unused APIs. Palette generation
 dithering stay undecided (ADR 0033). Underlay rotation, numeric placement
 and colour sampling from the underlay are not planned.
 
+## M5 work packages
+
+Entry is P4-12's integrated [M4 exit proof](quality/M4_EXIT_PROOF.md), not the closure of a feature
+Issue alone. M5 Issues define the concrete work; this table defines dependencies and required
+evidence without another live status checklist. P5-00 does not change minSdk26 or targetSdk37 by
+recording them. A supported-platform change still requires its accepted ADR.
+
+| ID | Work package | Depends on | Required evidence |
+| --- | --- | --- | --- |
+| P5-00 | Accept the supported beta device/API and evidence matrix (#228) | P4-12 | Named supported versus tested configurations, minimum physical profile, bounded locale/screen/input/storage coverage, existing-result reuse and concrete gaps; focused execution order |
+| P5-01 | Accept accessibility, keyboard and stylus behavior (#229) | P5-00 | Reachable/localized controls, focus and disabled-state meaning, large text/short surfaces, canonical gesture/cancel behavior, affected device evidence and explicit unsupported behavior |
+| P5-02 | Accept lifecycle, recovery and destructive-action data integrity (#230) | P5-00 | Whole-v4 save/recovery and old-source preservation, rotation/background/process/low-memory boundaries, asynchronous capture/cancellation, clear loss/confirmation limits and preserved user data |
+| P5-03 | Accept the consolidated drawing/memory/large-document/save gate (#145, historical P4-05d) | P5-00; collection after relevant P5-01/P5-02 fixes and P5-06 candidate preparation | Reconciled current protocol/fixture/harness, fixed candidate/Profile/role artifacts, registered workloads and preservation; valid named-minimum-profile verdicts with historical FAIL/invalid records |
+| P5-04 | Accept startup, long-session and battery evidence in the final M5 phase (#231) | P5-00; collection after relevant functional fixes and P5-06 candidate preparation | Prospectively fixed metrics, populations, budgets, observers and stopping rules; coordinated bounded collection with P5-03, immutable raw evidence and verdicts |
+| P5-05 | Accept privacy and external-file data-handling disclosure (#232) | P5-00 | Source/configuration data-flow review, private recovery/underlay/backup/provider boundaries, truthful localized privacy/retention limits and focused resolution of discrepancies |
+| P5-06 | Prepare signing, versioning and reproducible beta artifact procedure (#233) | P5-00 | One accepted release-role path, secrets outside Git/logs, key custody and version/update policy, changelog/checklist and tagged-checked-main artifact/provenance procedure; eligible measurement candidate inputs |
+| P5-07 | Review all M5 exit evidence and accept the tagged beta artifact (#234) | P5-00 through P5-06 | Criterion-to-original-evidence ledger, no open critical data-loss/replay defect, accepted matrix and performance budgets, reproducible tagged checked-main artifact, actual CI/Issue/milestone read-back |
+
+P5-01/P5-02/P5-05/P5-06 may proceed after the matrix decision when scopes are independent.
+P5-03 and P5-04 coordinate one final phase; neither requires the other Issue to be closed before
+its lane can run. Protocol preparation may precede the final candidate, but collection waits for
+relevant functional fixes, candidate/build policy and current preservation admission. Workloads
+must be reconciled prospectively with the existing gate, not appended to an old executable recipe
+after collection starts. Existing budgets and the historical #142 `PERFORMANCE_FAIL` stay intact.
+
+P5-06 prepares the release path; P5-07 produces/verifies the actual distributable beta only from
+a tagged, checked main commit. A measurement-role APK or untagged preparation build is not that
+artifact. Post-collection source changes follow affected-input equivalence/invalidation under
+QLT-012; a later tag or prose edit alone does not require recollection. Neither package introduces
+Play Store production launch or distribution beyond the accepted release scope.
+
+Deferred M4 opacity/merge, onion skin, animation export, extended selection and quantization are
+outside this hardening milestone. They need later focused product decisions, not implicit promises
+in the beta matrix. No M6 transport work is decomposed here.
+
 ## Later work packages
 
-Remaining M4 work and M5 through M6 are decomposed only when their entry gate is near. Creating
+M6 and later product refinements are decomposed only when their entry gate is near. Creating
 detailed Issues earlier would imply requirements that the preceding product has not yet tested.
 
 The next-milestone planning Issue must:
@@ -145,7 +181,7 @@ The next-milestone planning Issue must:
 - update `MILESTONES.md` when accepted scope changed
 - keep later milestones at outcome level
 
-## Immediate execution order
+## Historical M2 entry order
 
 After M1 completion:
 
