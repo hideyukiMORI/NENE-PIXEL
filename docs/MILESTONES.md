@@ -182,8 +182,9 @@ Harden the app for sustained real-world use.
 ### Entry and execution
 
 M5 starts from the integrated [M4 exit proof](quality/M4_EXIT_PROOF.md) and the focused
-[M5 work packages](DEVELOPMENT_PLAN.md#m5-work-packages). P5-00 first defines the supported matrix
-and concrete evidence gaps. Existing feature tests are reused at their original identities when
+[M5 work packages](DEVELOPMENT_PLAN.md#m5-work-packages). P5-00 defines the
+[beta acceptance matrix](BETA_ACCEPTANCE_MATRIX.md): unchanged platform support, named required
+qualification lanes, concrete evidence gaps and their owners. Existing feature tests are reused at their original identities when
 equivalent; they do not by themselves accept the complete beta matrix. Startup/battery planning
 and #145 collection share the final M5 phase boundary, with protocol/harness/artifact agreement
 before samples. P5-07 reviews every exit criterion and the tagged artifact; opening or closing a
