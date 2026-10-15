@@ -259,5 +259,7 @@ recovery flow, or retired by the existing conditional Retired path.
 - Issue: #87
 - Builds on: ADR 0014 project-format, storage, and recovery
 - Builds on: ADR 0016 Android project persistence and retirement
+- Clarified by: [ADR 0045](0045-android-termination-and-publication.md) Android termination,
+  cancellation and verified-publication boundaries, with prospective #230 fault cases
 - Supersedes: none
 - Superseded by: none
