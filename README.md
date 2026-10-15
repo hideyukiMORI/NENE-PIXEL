@@ -5,10 +5,12 @@ It runs on Android 8.0 (API 26) or later and keeps editing and project storage o
 
 ## Status
 
-As of **2026-10-12**, M0 through M3 have documented technical acceptance and M4 development is
-under way. The current implementation includes indexed palettes, multiple frames and layers,
+As of **2026-10-15**, M0 through M4 have documented technical acceptance. M5 Android Beta
+qualification is planned in the [beta acceptance matrix](docs/BETA_ACCEPTANCE_MATRIX.md).
+The current implementation includes indexed palettes, multiple frames and layers,
 selection transforms, Loop/Once preview playback, PNG import and remembered reference underlays.
-M4 is **not yet accepted**; remaining capability decisions and exit evidence are tracked by Issues.
+The [M4 exit proof](docs/quality/M4_EXIT_PROOF.md) records its accepted scope and evidence limits;
+M5 and the distributable beta are **not yet accepted**. Current work is tracked by Issues.
 The worst-case performance gate remains in [#145](https://github.com/hideyukiMORI/NENE-PIXEL/issues/145),
 with collection scheduled at the owner-directed M5 exit.
 
@@ -93,6 +95,7 @@ Read these documents in order:
 12. [MVP Scope](docs/MVP_SCOPE.md)
 13. [Development Plan](docs/DEVELOPMENT_PLAN.md)
 14. [API Strategy](docs/API_STRATEGY.md)
+15. [Android Beta Acceptance Matrix](docs/BETA_ACCEPTANCE_MATRIX.md)
 
 Architecture decisions live in [`docs/adr/`](docs/adr/README.md). Temporary and narrowly scoped rule exceptions live in [`docs/waivers/`](docs/waivers/README.md).
 

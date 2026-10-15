@@ -141,6 +141,11 @@ Issue alone. M5 Issues define the concrete work; this table defines dependencies
 evidence without another live status checklist. P5-00 does not change minSdk26 or targetSdk37 by
 recording them. A supported-platform change still requires its accepted ADR.
 
+The [beta acceptance matrix](BETA_ACCEPTANCE_MATRIX.md) is P5-00's canonical criterion/environment
+map. It distinguishes support, planned qualification and tested evidence, and assigns API37,
+physical-input and other missing coverage to the packages below. Its acceptance is planning only;
+it does not mark the matrix tested or authorize final-phase collection.
+
 | ID | Work package | Depends on | Required evidence |
 | --- | --- | --- | --- |
 | P5-00 | Accept the supported beta device/API and evidence matrix (#228) | P4-12 | Named supported versus tested configurations, minimum physical profile, bounded locale/screen/input/storage coverage, existing-result reuse and concrete gaps; focused execution order |
