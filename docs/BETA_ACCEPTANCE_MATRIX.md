@@ -113,6 +113,9 @@ Beta disclosure and #230/#232 acceptance retain these existing boundaries:
   be lost; neither a force-stop test nor atomic app-private publication promises hardware
   power-loss durability for every external provider. Palette draft recovery/cancellation and
   stale or pending import policy remain as accepted.
+  [ADR 0045](adr/0045-android-termination-and-publication.md) maps Back/recents, process death,
+  cancellation and storage failure to the existing publication path and the unaccepted #230
+  integration fault cases; a returned lifecycle callback is not proof of completed publication.
 - Underlay memory is device-local and separate from project/recovery/export; Save As may retain
   the same DocumentId and its remembered underlay. Appearance is session state, while app language
   uses the API-selected preference backing. #232 must explain actual backup/removal behavior.
