@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="preparing_operation">操作を準備しています</string>
     <string name="app_title">NENE-PIXEL</string>
     <string name="canvas_dimensions">%1$d × %2$d</string>
     <string name="canvas_description">幅%1$d、高さ%2$dピクセルのキャンバス</string>

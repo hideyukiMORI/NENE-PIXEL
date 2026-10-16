@@ -9,4 +9,5 @@ public class EditorPersistenceControls(
     internal val operations: StateFlow<PersistenceOperationProjection>,
     internal val autosave: StateFlow<AutosaveProjection>,
     internal val callbacks: EditorPersistenceCallbacks,
+    internal val availability: StateFlow<EditorOperationAvailability>,
 )

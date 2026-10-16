@@ -2,10 +2,12 @@ package io.github.hideyukimori.nenepixel.presentation.compose.editor
 
 import io.github.hideyukimori.nenepixel.core.application.document.command.ApplyStrokeCommand
 import io.github.hideyukimori.nenepixel.core.application.document.command.CommandResult
+import io.github.hideyukimori.nenepixel.core.application.editor.NewDocumentRequest
 import io.github.hideyukimori.nenepixel.core.application.persistence.EditorPersistenceWorkflow
 import io.github.hideyukimori.nenepixel.core.application.persistence.ExpectedRecoveryLineage
 import io.github.hideyukimori.nenepixel.core.application.persistence.LegacySourceCopyOutcome
 import io.github.hideyukimori.nenepixel.core.application.persistence.PalettePersistencePorts
+import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationPhase
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistencePorts
 import io.github.hideyukimori.nenepixel.core.application.persistence.PngPersistencePorts
 import io.github.hideyukimori.nenepixel.core.application.persistence.ProjectLoadOutcome
@@ -27,6 +29,7 @@ import io.github.hideyukimori.nenepixel.core.domain.document.DocumentImportSourc
 import io.github.hideyukimori.nenepixel.core.domain.document.DocumentState
 import io.github.hideyukimori.nenepixel.core.domain.document.LegacyRgbaSource
 import io.github.hideyukimori.nenepixel.core.domain.geometry.toDocumentPoint
+import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.presentation.compose.EditorFixture
 import io.github.hideyukimori.nenepixel.presentation.compose.PresentationTestValues
 import io.github.hideyukimori.nenepixel.presentation.compose.R
@@ -53,7 +56,12 @@ internal class RecoveryOfferStatusTest {
 
         val operation = workflow.operation.value
         assertTrue(operation.offersRecovery())
-        assertTrue(operation.recoveryOfferEnabled())
+        assertTrue(operation.recoveryOfferEnabled(EditorOperationAvailability.Available))
+        assertFalse(operation.recoveryOfferEnabled(EditorOperationAvailability.Busy))
+        assertEquals(
+            R.string.preparing_operation,
+            operation.statusResource(workflow.autosave.value, EditorOperationAvailability.Busy),
+        )
     }
 
     @Test
@@ -65,7 +73,14 @@ internal class RecoveryOfferStatusTest {
 
         val operation = workflow.operation.value
         assertFalse(operation.offersRecovery())
-        assertEquals(R.string.storage_ready, operation.statusResource(workflow.autosave.value))
+        assertEquals(
+            R.string.storage_ready,
+            operation.statusResource(workflow.autosave.value, EditorOperationAvailability.Available),
+        )
+        assertEquals(
+            R.string.preparing_operation,
+            operation.statusResource(workflow.autosave.value, EditorOperationAvailability.Busy),
+        )
     }
 
     @Test
@@ -79,8 +94,60 @@ internal class RecoveryOfferStatusTest {
 
         val operation = workflow.operation.value
         assertFalse(operation.offersRecovery())
-        assertEquals(R.string.autosave_failed, operation.statusResource(workflow.autosave.value))
+        assertEquals(
+            R.string.autosave_failed,
+            operation.statusResource(workflow.autosave.value, EditorOperationAvailability.Available),
+        )
     }
+
+    @Test
+    fun confirmationKeepsItsSpecificStatusWhileAContinuationOwnsAdmission() {
+        val fixture = PresentationTestValues.fixture()
+        val workflow = workflow(fixture, MissingRecoveryRecordPort())
+        runBlocking { workflow.initializeRecovery() }
+        commitStroke(fixture)
+        runBlocking { workflow.createNewDocument(NewDocumentRequest.create("2", "2")) }
+
+        val operation = workflow.operation.value
+        assertInstanceOf(PersistenceOperationPhase.NeedsConfirmation::class.java, operation.phase)
+        assertEquals(
+            R.string.waiting_confirmation,
+            operation.statusResource(workflow.autosave.value, EditorOperationAvailability.Busy),
+        )
+        assertFalse(operation.recoveryOfferEnabled(EditorOperationAvailability.Available))
+    }
+
+    @Test
+    fun retainedJobBlocksJsonExchangeWithoutBlockingIdlePaletteDraftEditing() {
+        val fixture = PresentationTestValues.fixture()
+        val workflow = workflow(fixture, MissingRecoveryRecordPort())
+        val callbacks = persistenceCallbacks(fixture.initialDocument.definition)
+        runBlocking { workflow.initializeRecovery() }
+        val busy = PaletteJsonActions(callbacks, workflow.operation.value, EditorOperationAvailability.Busy)
+        assertTrue(busy.idle)
+        assertFalse(busy.canExchange)
+        val available = PaletteJsonActions(callbacks, workflow.operation.value, EditorOperationAvailability.Available)
+        assertTrue(available.idle)
+        assertTrue(available.canExchange)
+        commitStroke(fixture)
+        runBlocking { workflow.createNewDocument(NewDocumentRequest.create("2", "2")) }
+        val confirming = PaletteJsonActions(callbacks, workflow.operation.value, EditorOperationAvailability.Available)
+        assertFalse(confirming.idle)
+        assertFalse(confirming.canExchange)
+    }
+
+    private fun persistenceCallbacks(definition: PaletteDefinition): EditorPersistenceCallbacks =
+        EditorPersistenceCallbacks.create(
+            ProjectFileCallbacks(
+                FileExchangeCallbacks(PngExchangeCallbacks({}, {}, {}), PaletteExchangeCallbacks({}, {}), {}),
+                {},
+                {},
+                {},
+            ),
+            PersistenceDecisionCallbacks({}, {}, {}, {}),
+            LegacyConversionCallbacks({}, { _, _ -> }, {}, {}),
+            LegacyPalettePresets(definition, definition, definition),
+        )
 
     private fun workflow(
         fixture: EditorFixture,

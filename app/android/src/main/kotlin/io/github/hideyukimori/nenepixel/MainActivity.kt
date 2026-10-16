@@ -49,7 +49,12 @@ public class MainActivity : ComponentActivity() {
         val language = languageModel.controller.controls
         val editor = EditorControls(model.controller.renderStates, model.controller.callbacks)
         val persistence =
-            EditorPersistenceControls(model.persistenceOperations, model.autosaveStates, model.persistenceCallbacks)
+            EditorPersistenceControls(
+                model.persistenceOperations,
+                model.autosaveStates,
+                model.persistenceCallbacks,
+                model.operationAvailability,
+            )
         val settings = EditorSettingsInputs(language, version)
         setContent {
             LaunchedEffect(model) {

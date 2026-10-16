@@ -43,4 +43,5 @@ internal fun PersistenceOperationProjection.offersRecovery(): Boolean =
     recoveryStatus is RecoveryStatus.UnadoptedCandidate || recoveryStatus is RecoveryStatus.UnadoptedLegacyCandidate
 
 /** Adoption and decline both need the operation lease, so the offer waits out any active operation. */
-internal fun PersistenceOperationProjection.recoveryOfferEnabled(): Boolean = phase is PersistenceOperationPhase.Idle
+internal fun PersistenceOperationProjection.recoveryOfferEnabled(availability: EditorOperationAvailability): Boolean =
+    phase is PersistenceOperationPhase.Idle && availability == EditorOperationAvailability.Available

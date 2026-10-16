@@ -15,10 +15,11 @@ public fun NenePixelEditor(
     val renderState = editor.renderStates.collectAsState()
     val persistenceOperation = persistence.operations.collectAsState()
     val autosave = persistence.autosave.collectAsState()
+    val availability = persistence.availability.collectAsState()
     val languageSettings = settings.language.settings.collectAsState()
     val storage =
-        remember(persistenceOperation.value, autosave.value, persistence.callbacks) {
-            EditorStorageInputs(persistenceOperation.value, autosave.value, persistence.callbacks)
+        remember(persistenceOperation.value, autosave.value, persistence.callbacks, availability.value) {
+            EditorStorageInputs(persistenceOperation.value, autosave.value, persistence.callbacks, availability.value)
         }
     if (languageSettings.value.status == AppLanguageStatus.Loading) {
         LanguageLoadingScreen()

@@ -30,13 +30,14 @@ import io.github.hideyukimori.nenepixel.presentation.compose.R
 
 @Composable
 internal fun PersistenceControls(
-    operation: PersistenceOperationProjection,
+    storage: EditorStorageInputs,
     picture: FrameImageInputs,
-    callbacks: EditorPersistenceCallbacks,
     submitted: () -> Unit,
 ) {
+    val operation = storage.operation
+    val callbacks = storage.callbacks
     val document = picture.document
-    val idle = operation.phase is PersistenceOperationPhase.Idle
+    val idle = storage.canStart
     val switchAvailable = idle && operation.recoveryStatus.isAvailableForDocumentSwitch()
     FlowRow(horizontalArrangement = Arrangement.spacedBy(PERSISTENCE_SPACING)) {
         EditorActionButton(R.string.save_as, idle && operation.recoveryStatus !is RecoveryStatus.Initializing) {
@@ -74,12 +75,13 @@ internal fun PersistenceControls(
 internal fun PersistenceConfirmation(
     operation: PersistenceOperationProjection,
     callbacks: EditorPersistenceCallbacks,
+    availability: EditorOperationAvailability,
 ) {
     (operation.phase as? PersistenceOperationPhase.NeedsConfirmation)?.let { phase ->
-        DiscardConfirmationDialog(phase.request, callbacks)
+        DiscardConfirmationDialog(phase.request, callbacks, availability)
     }
     (operation.phase as? PersistenceOperationPhase.NeedsLegacyConfirmation)?.let { phase ->
-        DiscardConfirmationDialog(phase.request, callbacks)
+        DiscardConfirmationDialog(phase.request, callbacks, availability)
     }
 }
 
@@ -87,6 +89,7 @@ internal fun PersistenceConfirmation(
 private fun DiscardConfirmationDialog(
     request: PersistenceConfirmationRequest,
     callbacks: EditorPersistenceCallbacks,
+    availability: EditorOperationAvailability,
 ) {
     AlertDialog(
         modifier = Modifier.semantics { testTagsAsResourceId = true },
@@ -95,6 +98,7 @@ private fun DiscardConfirmationDialog(
         text = { Text(stringResource(request.reason.confirmationResource())) },
         confirmButton = {
             Button(
+                enabled = availability == EditorOperationAvailability.Available,
                 colors = editorButtonColors(),
                 modifier =
                     Modifier.editorDescription(
@@ -151,18 +155,56 @@ internal fun DocumentState.hasVisibleLayer(frameId: FrameId): Boolean =
 internal fun RecoveryStatus.isAvailableForDocumentSwitch(): Boolean =
     this is RecoveryStatus.Clear || this is RecoveryStatus.UnadoptedCandidate
 
-internal fun PersistenceOperationProjection.statusResource(autosave: AutosaveProjection): Int =
+internal fun PersistenceOperationProjection.statusResource(
+    autosave: AutosaveProjection,
+    availability: EditorOperationAvailability,
+): Int =
     when (val current = phase) {
-        PersistenceOperationPhase.Initializing -> R.string.checking_recovery
-        PersistenceOperationPhase.Idle -> idleStatusResource(autosave)
-        is PersistenceOperationPhase.Exporting -> R.string.exporting_png
-        is PersistenceOperationPhase.Saving -> R.string.saving_project
-        is PersistenceOperationPhase.Loading -> R.string.loading_project
-        is PersistenceOperationPhase.NeedsConfirmation -> R.string.waiting_confirmation
-        is PersistenceOperationPhase.Switching -> R.string.switching_document
-        is PersistenceOperationPhase.Cancelling -> R.string.cancelling_operation
-        is PersistenceOperationPhase.Discarding -> R.string.discarding_recovery
-        is PersistenceOperationPhase.LegacyImport -> current.conversionStatusResource()
+        PersistenceOperationPhase.Initializing -> {
+            R.string.checking_recovery
+        }
+
+        PersistenceOperationPhase.Idle -> {
+            if (availability ==
+                EditorOperationAvailability.Busy
+            ) {
+                R.string.preparing_operation
+            } else {
+                idleStatusResource(autosave)
+            }
+        }
+
+        is PersistenceOperationPhase.Exporting -> {
+            R.string.exporting_png
+        }
+
+        is PersistenceOperationPhase.Saving -> {
+            R.string.saving_project
+        }
+
+        is PersistenceOperationPhase.Loading -> {
+            R.string.loading_project
+        }
+
+        is PersistenceOperationPhase.NeedsConfirmation -> {
+            R.string.waiting_confirmation
+        }
+
+        is PersistenceOperationPhase.Switching -> {
+            R.string.switching_document
+        }
+
+        is PersistenceOperationPhase.Cancelling -> {
+            R.string.cancelling_operation
+        }
+
+        is PersistenceOperationPhase.Discarding -> {
+            R.string.discarding_recovery
+        }
+
+        is PersistenceOperationPhase.LegacyImport -> {
+            current.conversionStatusResource()
+        }
     }
 
 private fun PersistenceOperationProjection.idleStatusResource(autosave: AutosaveProjection): Int =

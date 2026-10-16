@@ -57,12 +57,14 @@ internal fun TestNenePixelEditor(
             )
         }
     val editor = remember(controller) { EditorControls(controller.renderStates, controller.callbacks) }
+    val availability = remember { MutableStateFlow(EditorOperationAvailability.Available) }
     val storage =
-        remember(persistence) {
+        remember(persistence, availability) {
             EditorPersistenceControls(
                 persistence.workflow.operation,
                 persistence.workflow.autosave,
                 persistence.callbacks,
+                availability,
             )
         }
     val settings = remember(language) { EditorSettingsInputs(language, AppVersionDisplay.Available("0.1.0", 1L)) }

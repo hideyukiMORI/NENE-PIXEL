@@ -51,7 +51,7 @@ import io.github.hideyukimori.nenepixel.core.domain.layer.LayerId
 internal fun LayerOverlay(
     state: State<EditorRenderState>,
     editorCallbacks: EditorCallbacks,
-    onPickUnderlay: () -> Unit,
+    onPickUnderlay: EditorFileAction,
 ) {
     val inputs by rememberOverlayInputs(state)
     val pane = rememberSaveable { mutableStateOf<LayerPane?>(null) }
@@ -266,7 +266,7 @@ private class LayerOverlayPresentation(
 private class LayerPaneActions(
     val callbacks: EditorCallbacks,
     val rows: LayerRowActions,
-    val pickUnderlay: () -> Unit,
+    val pickUnderlay: EditorFileAction,
 )
 
 private class LayerPaneBounds(

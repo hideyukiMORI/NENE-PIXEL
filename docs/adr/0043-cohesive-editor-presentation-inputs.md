@@ -27,8 +27,9 @@ The single `NenePixelEditor` entry takes `EditorControls`, `EditorPersistenceCon
 bindings supplied by the existing app composition root:
 
 - `EditorControls`: the read-only render-state flow and existing `EditorCallbacks`.
-- `EditorPersistenceControls`: the read-only operation and autosave flows, and existing
-  `EditorPersistenceCallbacks`.
+- `EditorPersistenceControls`: the read-only operation and autosave flows, existing
+  `EditorPersistenceCallbacks`, and the retained app job's read-only availability projection
+  added by [ADR 0046](0046-visible-file-operation-admission.md).
 - `EditorSettingsInputs`: the existing app-language controls and app-version display.
 
 Each binding exposes only what the presentation implementation needs. They introduce no owner,

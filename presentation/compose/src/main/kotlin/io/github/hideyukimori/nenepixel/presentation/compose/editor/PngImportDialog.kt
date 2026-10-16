@@ -35,7 +35,7 @@ import io.github.hideyukimori.nenepixel.presentation.compose.R
 internal fun PngImportDialog(
     state: State<EditorRenderState>,
     callbacks: EditorImportCallbacks,
-    onOpenAsNewWork: () -> Unit,
+    onOpenAsNewWork: EditorFileAction,
 ) {
     val pending by remember(state) { derivedStateOf { state.value.pendingImport } }
     val layerCount by remember(state) { derivedStateOf { state.value.document.totalLayerCount } }
@@ -57,7 +57,7 @@ internal fun PngImportDialog(
 private fun PngImportContent(
     model: PngImportDialogModel,
     callbacks: EditorImportCallbacks,
-    onOpenAsNewWork: () -> Unit,
+    onOpenAsNewWork: EditorFileAction,
     notice: FrameEditorNotice?,
 ) {
     val facts = model.facts
@@ -79,7 +79,11 @@ private fun PngImportContent(
         notice?.let { Text(stringResource(it.resource()), color = MaterialTheme.colorScheme.error) }
         PngImportForm(R.string.png_import_append, model.append) { callbacks.onAppend() }
         PngImportForm(R.string.png_import_convert, model.convert) { callbacks.onConvert() }
-        PngImportForm(R.string.png_import_new_work, model.newWork) { onOpenAsNewWork() }
+        PngImportForm(
+            R.string.png_import_new_work,
+            model.newWork.copy(enabled = model.newWork.enabled && onOpenAsNewWork.enabled),
+            onOpenAsNewWork.request,
+        )
         TextButton(
             onClick = { callbacks.onCancel() },
             modifier = Modifier.heightIn(min = 48.dp).editorDescription(R.string.cancel, identity = CANCEL_TAG),

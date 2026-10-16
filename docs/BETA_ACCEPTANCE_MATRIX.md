@@ -117,7 +117,8 @@ Beta disclosure and #230/#232 acceptance retain these existing boundaries:
   cancellation and storage failure to the existing publication path and the unaccepted #230
   integration fault cases; a returned lifecycle callback is not proof of completed publication.
   The [M5 recovery fault coverage](quality/M5_RECOVERY_FAULT_COVERAGE.md) records #242's bounded
-  adapter/workflow host slice and the remaining scheduler, UI and native integration obligations.
+  adapter/workflow host slice, #244's actual-UI admission defect/correction, and the remaining
+  scheduler, physical storage and native lifecycle integration obligations.
 - Underlay memory is device-local and separate from project/recovery/export; Save As may retain
   the same DocumentId and its remembered underlay. Appearance is session state, while app language
   uses the API-selected preference backing. #232 must explain actual backup/removal behavior.
