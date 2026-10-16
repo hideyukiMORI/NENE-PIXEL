@@ -39,7 +39,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import java.io.File
 
-internal class EditorRuntimeViewModel private constructor(
+internal class EditorRuntimeViewModel internal constructor(
     val runtime: EditorRuntime,
     val controller: EditorController,
     val pickerBroker: ProjectPickerBroker,
@@ -53,6 +53,7 @@ internal class EditorRuntimeViewModel private constructor(
 
     val persistenceOperations: StateFlow<PersistenceOperationProjection> = persistence.operation
     val autosaveStates: StateFlow<AutosaveProjection> = persistence.autosave
+    val operationAvailability = operationWorker.availability
     val persistenceCallbacks: EditorPersistenceCallbacks =
         EditorPersistenceCallbacks.create(
             ProjectFileCallbacks(

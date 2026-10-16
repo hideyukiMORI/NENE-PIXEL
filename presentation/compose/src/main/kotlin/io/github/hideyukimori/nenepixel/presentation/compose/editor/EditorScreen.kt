@@ -50,9 +50,10 @@ internal fun EditorScreen(
         callbacks.onPointerCancel()
         panel = it
     }
+    val pickUnderlay = rememberUnderlayPick(storage, callbacks.playback)
     val workArea =
-        remember(openPanel, storage.callbacks) {
-            EditorWorkAreaActions(openPanel, storage.callbacks, callbacks.playback)
+        remember(openPanel, pickUnderlay) {
+            EditorWorkAreaActions(openPanel, pickUnderlay)
         }
     MaterialTheme(colorScheme = appearance.theme.colorScheme(), typography = localizedTypography()) {
         Surface(
@@ -166,7 +167,7 @@ private fun EditorCanvas(
     state: State<EditorRenderState>,
     callbacks: EditorCallbacks,
     committed: CommittedBitmapCache,
-    pickUnderlay: () -> Unit,
+    pickUnderlay: EditorFileAction,
 ) {
     PixelCanvas(state, callbacks, committed, Modifier.fillMaxSize())
     ActualSizeWindowOverlay(state, committed, callbacks)
@@ -183,7 +184,7 @@ private fun EditorStatus(
 ) {
     val dirty by remember(state) { derivedStateOf { state.value.dirtyState } }
     Box(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
-        DocumentStatusRow(dirty, storage.operation, storage.autosave, storage.callbacks)
+        DocumentStatusRow(dirty, storage)
     }
 }
 
@@ -239,11 +240,11 @@ private fun PanelContent(
     dismiss: () -> Unit,
 ) {
     val state = inputs.state.value
-    val json = PaletteJsonActions(inputs.storage.callbacks, inputs.storage.operation)
+    val json = PaletteJsonActions(inputs.storage.callbacks, inputs.storage.operation, inputs.storage.availability)
     when (panel) {
         EditorPanel.Palette -> {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                PaletteEditorButton(R.string.import_palette_json, json.idle, onClick = json::import)
+                PaletteEditorButton(R.string.import_palette_json, json.canExchange, onClick = json::import)
                 PaletteControls(state, inputs.callbacks, dismiss) { openPanel(EditorPanel.PaletteEditor) }
             }
         }
@@ -294,12 +295,7 @@ private fun FollowPaletteEditSession(
 /** What the work area hands on besides the render state: opening the palette, and choosing the underlay (#170). */
 private class EditorWorkAreaActions(
     openPanel: (EditorPanel) -> Unit,
-    persistenceCallbacks: EditorPersistenceCallbacks,
-    playback: EditorPlaybackCallbacks,
+    val pickUnderlay: EditorFileAction,
 ) {
     val openPalette: () -> Unit = { openPanel(EditorPanel.Palette) }
-    val pickUnderlay: () -> Unit = {
-        playback.onStop()
-        persistenceCallbacks.pickReferenceImage()
-    }
 }

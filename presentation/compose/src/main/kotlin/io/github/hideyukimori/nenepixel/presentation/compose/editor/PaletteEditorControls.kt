@@ -112,7 +112,7 @@ private fun PaletteEditorBody(
     if (operationsExpanded) {
         PaletteEditorSlotActions(selection, content.actions)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            val enabled = json.idle && selection.editable
+            val enabled = json.canExchange && selection.editable
             PaletteEditorButton(R.string.export_palette_json, enabled, onClick = json::export)
             PaletteEditorButton(R.string.import_palette_json, enabled, onClick = json::import)
         }
@@ -271,8 +271,10 @@ private fun PaletteEditorNoticeText(notice: PaletteEditorNotice) {
 internal class PaletteJsonActions(
     private val callbacks: EditorPersistenceCallbacks,
     operation: PersistenceOperationProjection,
+    availability: EditorOperationAvailability,
 ) {
     val idle: Boolean = operation.phase is PersistenceOperationPhase.Idle
+    val canExchange: Boolean = idle && availability == EditorOperationAvailability.Available
 
     fun export() {
         callbacks.onExportPaletteJson()

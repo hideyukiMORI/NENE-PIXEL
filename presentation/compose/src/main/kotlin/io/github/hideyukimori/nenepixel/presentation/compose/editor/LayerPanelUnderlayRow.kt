@@ -42,14 +42,15 @@ import kotlin.math.roundToInt
 internal fun LayerPanelUnderlayRow(
     underlay: ReferenceUnderlay?,
     callbacks: EditorUnderlayCallbacks,
-    onPick: () -> Unit,
+    onPick: EditorFileAction,
     onClosePanel: () -> Unit,
 ) {
     Column {
         HorizontalDivider(thickness = LayerGeometry.BORDER, color = MaterialTheme.colorScheme.outlineVariant)
         if (underlay == null) {
             TextButton(
-                onClick = onPick,
+                onClick = onPick.request,
+                enabled = onPick.enabled,
                 modifier =
                     Modifier
                         .fillMaxWidth()
@@ -73,7 +74,7 @@ internal fun LayerPanelUnderlayRow(
 private fun UnderlayHeading(
     underlay: ReferenceUnderlay,
     callbacks: EditorUnderlayCallbacks,
-    onPick: () -> Unit,
+    onPick: EditorFileAction,
     onClosePanel: () -> Unit,
 ) {
     val hidden = underlay.visibility == UnderlayVisibility.Hidden

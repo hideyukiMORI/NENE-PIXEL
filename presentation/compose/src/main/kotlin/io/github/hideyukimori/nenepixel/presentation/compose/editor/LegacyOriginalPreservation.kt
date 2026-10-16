@@ -31,7 +31,7 @@ internal fun LegacyOriginalPreservation(inputs: LegacyConversionInputs) {
         )
         OutlinedButton(
             onClick = { inputs.callbacks.conversion.copyOriginal(inputs.source.operation) },
-            enabled = inputs.ready,
+            enabled = inputs.canSubmit,
             modifier =
                 Modifier
                     .fillMaxWidth()
@@ -43,7 +43,7 @@ internal fun LegacyOriginalPreservation(inputs: LegacyConversionInputs) {
         if (inputs.source.origin == LegacyImportOrigin.RECOVERY) {
             TextButton(
                 onClick = { inputs.callbacks.conversion.declineRecovery(inputs.source.operation) },
-                enabled = inputs.ready && verified,
+                enabled = inputs.canSubmit && verified,
                 modifier =
                     Modifier
                         .fillMaxWidth()

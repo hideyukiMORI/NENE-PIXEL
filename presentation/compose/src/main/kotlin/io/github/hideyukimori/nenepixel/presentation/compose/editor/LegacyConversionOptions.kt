@@ -67,12 +67,12 @@ private fun LegacyPaletteChoice(
         Modifier
             .fillMaxWidth()
             .heightIn(min = 48.dp)
-            .selectable(selected = selected, enabled = inputs.ready, role = Role.RadioButton) {
+            .selectable(selected = selected, enabled = inputs.canSubmit, role = Role.RadioButton) {
                 inputs.callbacks.conversion.preview(inputs.source.operation, definition)
             }.editorDescription(label, definition.palette.entryCount, identity = choice.identity),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        RadioButton(selected = selected, onClick = null, enabled = inputs.ready)
+        RadioButton(selected = selected, onClick = null, enabled = inputs.canSubmit)
         Column(Modifier.padding(start = 8.dp)) {
             Text(stringResource(label, definition.palette.entryCount), style = MaterialTheme.typography.bodyMedium)
             LegacyPaletteSwatches(definition)

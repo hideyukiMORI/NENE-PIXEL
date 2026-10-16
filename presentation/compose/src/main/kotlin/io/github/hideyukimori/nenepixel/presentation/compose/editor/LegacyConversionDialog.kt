@@ -33,21 +33,20 @@ import androidx.compose.ui.window.DialogProperties
 import io.github.hideyukimori.nenepixel.core.application.persistence.LegacyImportProjection
 import io.github.hideyukimori.nenepixel.core.application.persistence.LegacyOriginalCopyStatus
 import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationPhase
-import io.github.hideyukimori.nenepixel.core.application.persistence.PersistenceOperationProjection
 import io.github.hideyukimori.nenepixel.core.domain.palette.PaletteDefinition
 import io.github.hideyukimori.nenepixel.presentation.compose.R
 
 @Composable
 internal fun LegacyConversionDialog(
-    operation: PersistenceOperationProjection,
+    storage: EditorStorageInputs,
     current: PaletteDefinition,
-    callbacks: EditorPersistenceCallbacks,
 ) {
+    val operation = storage.operation
     val phase = operation.phase
     if (phase is PersistenceOperationPhase.LegacyImport &&
         phase !is PersistenceOperationPhase.NeedsLegacyConfirmation
     ) {
-        val inputs = LegacyConversionInputs(phase.import, phase, current, callbacks)
+        val inputs = LegacyConversionInputs(phase, current, storage.callbacks, storage.availability)
         Dialog(
             onDismissRequest = { inputs.cancel() },
             properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = false),
@@ -125,7 +124,7 @@ private fun LegacyConversionFooter(
         Button(
             onClick = { reduction?.let { inputs.callbacks.conversion.accept(it.handle) } },
             enabled =
-                inputs.ready && reduction != null && acknowledged &&
+                inputs.canSubmit && reduction != null && acknowledged &&
                     inputs.source.originalCopy != LegacyOriginalCopyStatus.REQUIRED,
             modifier =
                 Modifier
@@ -137,12 +136,14 @@ private fun LegacyConversionFooter(
 }
 
 internal data class LegacyConversionInputs(
-    val source: LegacyImportProjection,
     val phase: PersistenceOperationPhase.LegacyImport,
     val current: PaletteDefinition,
     val callbacks: EditorPersistenceCallbacks,
+    val availability: EditorOperationAvailability,
 ) {
+    val source: LegacyImportProjection get() = phase.import
     val ready: Boolean get() = phase is PersistenceOperationPhase.LegacyConversionRequired
+    val canSubmit: Boolean get() = ready && availability == EditorOperationAvailability.Available
 
     fun cancel() {
         if (phase !is PersistenceOperationPhase.CancellingLegacyImport) callbacks.onCancel(source.operation)

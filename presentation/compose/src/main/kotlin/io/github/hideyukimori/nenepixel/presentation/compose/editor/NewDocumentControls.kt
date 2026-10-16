@@ -42,6 +42,7 @@ internal fun NewDocumentControls(
     if (state.dialogVisible) {
         NewDocumentDialog(
             state = state.dialogState,
+            enabled = enabled,
             callbacks =
                 NewDocumentDialogCallbacks(
                     onWidthChanged = { value -> state.widthInput = value },
@@ -69,6 +70,7 @@ private fun NewDocumentButton(
 private fun NewDocumentDialog(
     state: NewDocumentDialogState,
     callbacks: NewDocumentDialogCallbacks,
+    enabled: Boolean,
 ) {
     AlertDialog(
         modifier = Modifier.semantics { testTagsAsResourceId = true },
@@ -81,7 +83,7 @@ private fun NewDocumentDialog(
         },
         text = { NewDocumentFields(state, callbacks) },
         confirmButton = {
-            EditorActionButton(R.string.create, onClick = callbacks.onCreate)
+            EditorActionButton(R.string.create, enabled, onClick = callbacks.onCreate)
         },
         dismissButton = {
             TextButton(onClick = callbacks.onCancel, modifier = Modifier.editorDescription(R.string.cancel)) {

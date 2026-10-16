@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="preparing_operation">正在准备操作</string>
     <string name="app_title">NENE-PIXEL</string>
     <string name="canvas_dimensions">%1$d × %2$d</string>
     <string name="canvas_description">%1$d乘%2$d像素画布</string>

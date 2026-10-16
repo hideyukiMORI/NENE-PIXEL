@@ -22,13 +22,13 @@ import io.github.hideyukimori.nenepixel.presentation.compose.R
  * ADR 0032 "Adjust mode"), fit it to the picture again, and remove it. Open or closed is local Compose state;
  * choosing an item closes the menu first. "Move and scale" sets the adjusting underlay and then calls [onClosePanel]
  * so the layer panel no longer covers the picture; it is disabled while the underlay is hidden. Every other item is
- * always enabled.
+ * available except that replacing an image also follows file-operation admission (ADR 0046).
  */
 @Composable
 internal fun UnderlayRowMenu(
     underlay: ReferenceUnderlay,
     callbacks: EditorUnderlayCallbacks,
-    onPick: () -> Unit,
+    onPick: EditorFileAction,
     onClosePanel: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -41,7 +41,11 @@ internal fun UnderlayRowMenu(
                 expanded = false
                 action()
             }
-            UnderlayMenuItem(R.string.underlay_replace, REPLACE_TAG) { choose(onPick) }
+            UnderlayMenuItem(
+                R.string.underlay_replace,
+                REPLACE_TAG,
+                enabled = onPick.enabled,
+            ) { choose(onPick.request) }
             val shown = underlay.visibility == UnderlayVisibility.Shown
             UnderlayMenuItem(R.string.underlay_adjust, ADJUST_TAG, enabled = shown) {
                 choose {
