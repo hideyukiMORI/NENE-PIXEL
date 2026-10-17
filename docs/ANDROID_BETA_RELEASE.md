@@ -42,8 +42,8 @@ Before producing a final tagged beta, #234 records these readiness conditions:
 - Known limitations and release notes are fixed;
   [privacy/data handling](PRIVACY_AND_DATA_HANDLING.md) and adopted software license/credits
   plus third-party obligations are available. Licensing permission is not granted by this runbook.
-- The new-key custodian and authorized generation/safe signing provision, expected public
-  certificate fingerprint and reflection of the selected initial version in source are accepted.
+- The new-key custodian and authorized generation/safe signing provision and expected public
+  certificate fingerprint are accepted; the committed version matches the selected values.
 - The selected checked-main source/tree and tag, required CI/merge association, finite command
   plan, fresh lab evidence identity and final artifact checks are fixed before production.
 
@@ -57,8 +57,8 @@ Play Store production launch remains outside this scope.
 Read committed versionCode and versionName from app/android/build.gradle.kts and compare them
 with the APK manifest. They are the only build-version authority. The design owner selects
 versionCode 1, versionName 0.1.0-beta.1 and tag v0.1.0-beta.1 for the first external distribution.
-The build file still says versionName 0.1.0; a later focused source-version change and verification
-must reflect the selection before production. This slice changes no build value. Every later distributed
+The build file now reflects versionCode 1 and versionName 0.1.0-beta.1. This source reflection
+does not create a tag, build/sign an APK or authorize distribution. Every later distributed
 release increases versionCode. The final tag is `v<versionName>`, points exactly to the selected
 checked-main commit and is retained with that commit/tree. Do not synthesize versions from a
 timestamp, dirty git-describe, CI run number or local property.

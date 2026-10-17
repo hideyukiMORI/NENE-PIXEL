@@ -58,8 +58,8 @@ Follow the [Android beta release procedure](ANDROID_BETA_RELEASE.md) and
 [ADR 0047](adr/0047-beta-release-signing-provenance.md) for the existing optimized unsigned
 release, external signing, version/tag identity and final provenance checks. The procedure does
 not resolve new-key custody, public signer fingerprint or license terms. The selected first beta
-version still needs a later build-file change; the procedure alone authorizes no build, device
-operation, signing or distribution.
+version is reflected in the build file; the procedure alone authorizes no build, device operation,
+signing or distribution.
 
 ## Regenerate the Baseline Profile
 
