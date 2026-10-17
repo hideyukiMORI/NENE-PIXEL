@@ -5,6 +5,8 @@ import android.app.Application
 import android.os.Bundle
 import android.os.SystemClock
 import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveProjection
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.CopyOnWriteArrayList
 
 /** Main-thread callbacks only construct the one VM or append bounded in-memory observations. */
@@ -13,6 +15,7 @@ internal class RecoveryProcessCallbacks(
     private val observeBeforeStop: () -> RecoveryProcessStopObservation,
 ) : Application.ActivityLifecycleCallbacks {
     private val events = CopyOnWriteArrayList<String>()
+    private val postStopped = CompletableDeferred<Unit>()
     var attachmentCount = 0
         private set
     var taskId = -1
@@ -51,7 +54,11 @@ internal class RecoveryProcessCallbacks(
         record(activity, "pre-stopped")
     }
 
-    override fun onActivityPostStopped(activity: Activity) = record(activity, "post-stopped")
+    override fun onActivityPostStopped(activity: Activity) {
+        if (activity !is MainActivity) return
+        record(activity, "post-stopped")
+        postStopped.complete(Unit)
+    }
 
     override fun onActivitySaveInstanceState(
         activity: Activity,
@@ -62,8 +69,23 @@ internal class RecoveryProcessCallbacks(
 
     fun observations(): List<String> = events.toList()
 
+    suspend fun awaitStopped(deadline: Long) {
+        val remaining = deadline - SystemClock.elapsedRealtime()
+        check(remaining > 0L) { "Stop callback deadline elapsed; callbacks=${observations()}" }
+        // ActivityScenario observes Instrumentation's STOPPED before framework post-stop dispatch.
+        val received =
+            withTimeoutOrNull(remaining) {
+                postStopped.await()
+                true
+            }
+        check(received == true) { "Actual postStopped not received before deadline; callbacks=${observations()}" }
+        requireStopped()
+    }
+
     fun requireStopped() {
-        check(events.any { it.startsWith("post-stopped ") }) { "Actual onStop has not completed" }
+        check(events.any { it.startsWith("post-stopped ") }) {
+            "Actual onStop has not completed; callbacks=${observations()}"
+        }
     }
 
     private fun record(

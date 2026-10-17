@@ -45,6 +45,7 @@ internal class RecoveryProcessPreparationTest {
                     compose.onNodeWithTag("editor_canvas_2_1").assertExists()
                     val deadline = reachPhase(fixture, scenario)
                     scenario.moveToState(Lifecycle.State.CREATED)
+                    fixture.callbacks.awaitStopped(deadline)
                     fixture.assertPublicationHadNotStartedBeforeStop()
                     assertPhase(fixture)
                     val journal = RecoveryProcessJournal(admission)
