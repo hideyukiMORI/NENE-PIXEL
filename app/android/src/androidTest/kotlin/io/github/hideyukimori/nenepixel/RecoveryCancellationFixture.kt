@@ -175,8 +175,7 @@ internal class RecoveryCancellationFixture(
         assertEquals(pending.document, runtime.state.documentState)
         assertEquals(pending.token, workflow.autosave.value.pendingStateToken)
         assertEquals(first.token, workflow.autosave.value.publishedStateToken)
-        val outcome = workflow.autosave.value.lastOutcome as AutosaveLastOutcome.Published
-        assertEquals(2L, outcome.generation.value)
+        assertEquals(AutosaveLastOutcome.Deferred, workflow.autosave.value.lastOutcome)
         assertReleased()
         assertCandidate(first, 2L)
     }
