@@ -12,9 +12,10 @@ Main 9612c1371826fe1efb3fdd22c4693dcd18e595a1 has one accepted optimized shippin
 release under [ADR 0013](0013-optimized-shipping-release.md), but that output is unsigned.
 The optimized, profileable, debug-signed benchmarkRelease is a device proxy; the unoptimized
 nonMinifiedRelease is the Baseline Profile producer. Neither is the distributable beta.
-The app still declares versionCode 1 and versionName 0.1.0 in its build file. On 2026-10-17
+At that audited main, the app declared versionCode 1 and versionName 0.1.0. On 2026-10-17
 at 21:59 JST, hide confirmed that no release key exists and external APK distribution will be
-the first. The design owner selected the initial beta values below; the build file is unchanged.
+the first. The design owner selected the initial beta values below; the technical-procedure
+slice left the build file unchanged.
 
 Live #233 requires one signing/version/provenance procedure before #234 can verify a tagged
 checked-main beta. The repository defines no release signingConfig or signing-secret loader.
@@ -76,8 +77,8 @@ paid creative work/artwork sales and monetizing the application/code; this ADR g
 
 app/android/build.gradle.kts remains the only build-version authority. The selected first beta is
 versionCode 1, versionName 0.1.0-beta.1 and tag v0.1.0-beta.1, based on hide's first-distribution
-confirmation. A later focused source-version change and its verification must reflect that
-selection before artifact production; this documentation slice does not edit the build file.
+confirmation. The subsequent focused source-version slice reflects those values in the build
+file. Actual packaged version remains an artifact check; no tag or distribution is implied.
 Every subsequent distributed version increases versionCode. A final beta tag is `v<versionName>`
 and resolves exactly to the selected checked-main commit. No local property, CI number or
 timestamp silently overrides version. The application ID stays unchanged.
@@ -152,7 +153,7 @@ and exact license terms cannot be inferred from source inspection or silently ac
 ### Costs and risks
 
 - New-key custody/provisioning, the signer fingerprint and exact license terms remain unresolved.
-- The selected initial version still needs a later focused build-file change and verification.
+- The selected initial source version is reflected; actual packaged version still needs verification.
 - Secret-safe bounded signing execution and final artifact evidence are not implemented by prose.
 - Toolchain or payload changes may invalidate affected optimized-runtime/performance evidence.
 - Signing-key continuity matters for updates; a higher versionCode cannot repair a signer mismatch.
