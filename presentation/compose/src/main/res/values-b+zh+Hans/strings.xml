@@ -143,6 +143,14 @@
         <item quantity="other">%1$d种颜色 · 选择绘画颜色</item>
     </plurals>
     <string name="mvp_information">关于此版本</string>
+    <string name="mvp_privacy_title">隐私与通信</string>
+    <string name="mvp_privacy">可以离线编辑，没有账号、广告、使用分析或自动崩溃报告。应用不会将作品或参考底图发送给开发者。所选云端文件提供方或打开链接的浏览器，可能按照各自的规则联网。</string>
+    <string name="mvp_private_data_title">此设备上的数据</string>
+    <string name="mvp_private_data">恢复使用最后完成的自动保存。参考底图可能被单独复制并记住，不在项目或导出中；隐藏仍会保留，移除会请求删除。另存副本共享底图记忆，删除项目文件不会删除底图。清除应用数据或正常卸载会删除这些私有记录，清除缓存不会。应用设置为从Android备份和设备间传输中排除这些记录，请自行保存重要项目。写入中断或移除失败可能留下旧副本。语言单独保留，选择“系统”可清除应用的指定语言。</string>
+    <string name="mvp_external_data_title">应用外的文件</string>
+    <string name="mvp_external_data">通过Android文件选择器选择文件和保存位置。项目、PNG和调色板在清除应用数据或卸载后仍会保留，请通过文件提供方删除。其同步、备份、回收站和保留期限不由应用控制。输出清理失败可能留下新建的不完整文件。完整说明通过浏览器打开。</string>
+    <string name="mvp_privacy_details">阅读完整隐私与数据说明</string>
+    <string name="mvp_privacy_link_unavailable">没有浏览器可以打开链接。上方隐私摘要仍可离线查看。</string>
     <string name="close_information">关闭</string>
     <string name="mvp_scope_title">绘画范围</string>
     <string name="mvp_scope">可离线使用，最多16帧，所有帧共计最多16个图层。画布宽高各为%1$d～%2$d像素。颜色从作品的调色板中选择；可以编辑调色板，并以JSON导出或导入。可以将PNG作为新作品打开，或导入为新图层。可以循环播放或播放一次帧预览。</string>

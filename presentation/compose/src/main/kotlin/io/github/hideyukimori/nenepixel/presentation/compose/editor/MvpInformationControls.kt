@@ -14,6 +14,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
@@ -24,22 +25,28 @@ import io.github.hideyukimori.nenepixel.presentation.compose.R
 
 @Composable
 internal fun MvpInformationControls() {
+    val uriHandler = LocalUriHandler.current
     var visible by rememberSaveable { mutableStateOf(false) }
     TextButton(onClick = { visible = true }, modifier = Modifier.editorDescription(R.string.mvp_information)) {
         Text(stringResource(R.string.mvp_information))
     }
-    if (visible) MvpInformationDialog { visible = false }
+    if (visible) {
+        MvpInformationDialog(openPrivacy = { uriHandler.openUri(PRIVACY_STATEMENT_URL) }) { visible = false }
+    }
 }
 
 @Composable
-private fun MvpInformationDialog(dismiss: () -> Unit) {
+private fun MvpInformationDialog(
+    openPrivacy: () -> Unit,
+    dismiss: () -> Unit,
+) {
     AlertDialog(
         modifier = Modifier.semantics { testTagsAsResourceId = true },
         onDismissRequest = dismiss,
         title = {
             Text(stringResource(R.string.mvp_information), modifier = Modifier.testTag("editor_mvp_information_title"))
         },
-        text = { MvpInformationContent() },
+        text = { MvpInformationContent(openPrivacy) },
         confirmButton = {
             TextButton(onClick = dismiss, modifier = Modifier.editorDescription(R.string.close_information)) {
                 Text(stringResource(R.string.close_information))
@@ -49,7 +56,7 @@ private fun MvpInformationDialog(dismiss: () -> Unit) {
 }
 
 @Composable
-private fun MvpInformationContent() {
+private fun MvpInformationContent(openPrivacy: () -> Unit) {
     Column(
         modifier = Modifier.verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -66,8 +73,40 @@ private fun MvpInformationContent() {
         InformationSection(R.string.mvp_recovery_title, stringResource(R.string.mvp_recovery))
         InformationSection(R.string.mvp_png_title, stringResource(R.string.mvp_png))
         InformationSection(R.string.mvp_compatibility_title, stringResource(R.string.mvp_compatibility))
+        InformationSection(R.string.mvp_privacy_title, stringResource(R.string.mvp_privacy))
+        InformationSection(R.string.mvp_private_data_title, stringResource(R.string.mvp_private_data))
+        InformationSection(R.string.mvp_external_data_title, stringResource(R.string.mvp_external_data))
+        PrivacyStatementLink(openPrivacy)
     }
 }
+
+@Composable
+private fun PrivacyStatementLink(openPrivacy: () -> Unit) {
+    var linkUnavailable by rememberSaveable { mutableStateOf(false) }
+    TextButton(
+        onClick = {
+            linkUnavailable =
+                try {
+                    openPrivacy()
+                    false
+                } catch (_: IllegalArgumentException) {
+                    true
+                }
+        },
+        modifier = Modifier.editorDescription(R.string.mvp_privacy_details),
+    ) {
+        Text(stringResource(R.string.mvp_privacy_details))
+    }
+    if (linkUnavailable) {
+        Text(
+            stringResource(R.string.mvp_privacy_link_unavailable),
+            modifier = Modifier.editorDescription(R.string.mvp_privacy_link_unavailable),
+        )
+    }
+}
+
+private const val PRIVACY_STATEMENT_URL =
+    "https://github.com/hideyukiMORI/NENE-PIXEL/blob/main/docs/PRIVACY_AND_DATA_HANDLING.md"
 
 @Composable
 private fun InformationSection(
