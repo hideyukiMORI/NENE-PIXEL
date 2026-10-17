@@ -155,7 +155,10 @@ internal class RecoveryProcessFixture(
         model = ViewModelProvider(activity, factory)[EditorRuntimeViewModel::class.java]
     }
 
-    private suspend fun assertPublished(capture: RecoveryFaultCapture, expectedGeneration: Long) {
+    private suspend fun assertPublished(
+        capture: RecoveryFaultCapture,
+        expectedGeneration: Long,
+    ) {
         assertEquals(capture.token, workflow.autosave.value.publishedStateToken)
         assertNull(workflow.autosave.value.pendingStateToken)
         assertNull(workflow.autosave.value.publishingStateToken)
@@ -172,7 +175,10 @@ internal class RecoveryProcessFixture(
         )
     }
 
-    private fun capture(frame: Int, milliseconds: Int): RecoveryFaultCapture {
+    private fun capture(
+        frame: Int,
+        milliseconds: Int,
+    ): RecoveryFaultCapture {
         val duration =
             when (val value = FrameDuration.create(milliseconds)) {
                 is DomainValueResult.Created -> value.value
@@ -181,7 +187,8 @@ internal class RecoveryProcessFixture(
         val command =
             SetFrameDurationCommand.create(
                 runtime.captureSource(),
-                runtime.state.documentState.frames[frame].id,
+                runtime.state.documentState.frames[frame]
+                    .id,
                 duration,
             )
         assertTrue(runtime.execute(command) is CommandResult.Applied)

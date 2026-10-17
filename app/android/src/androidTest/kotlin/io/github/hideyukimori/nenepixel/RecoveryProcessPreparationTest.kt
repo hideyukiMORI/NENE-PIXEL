@@ -62,8 +62,14 @@ internal class RecoveryProcessPreparationTest {
         scenario: ActivityScenario<MainActivity>,
     ): Long =
         when (fixture.admission.case) {
-            RecoveryProcessCase.BeforePublication -> holdExport(fixture, scenario)
-            RecoveryProcessCase.DuringPublication -> holdWriter(fixture, scenario)
+            RecoveryProcessCase.BeforePublication -> {
+                holdExport(fixture, scenario)
+            }
+
+            RecoveryProcessCase.DuringPublication -> {
+                holdWriter(fixture, scenario)
+            }
+
             RecoveryProcessCase.VerifiedCompletion -> {
                 val deadline = SystemClock.elapsedRealtime() + RecoveryProcessAdmission.GATE_MILLIS
                 scenario.onActivity { fixture.captureSecond() }
@@ -78,7 +84,10 @@ internal class RecoveryProcessPreparationTest {
         compose.onNodeWithTag("editor_file").performClick()
         val deadline = SystemClock.elapsedRealtime() + RecoveryProcessAdmission.GATE_MILLIS
         compose.onNodeWithTag("editor_export_png").performClick()
-        withTimeout(RecoveryProcessAdmission.GATE_MILLIS) { fixture.ports.export.entered.await() }
+        withTimeout(RecoveryProcessAdmission.GATE_MILLIS) {
+            fixture.ports.export.entered
+                .await()
+        }
         scenario.onActivity { fixture.captureSecond() }
         return deadline
     }
@@ -96,16 +105,25 @@ internal class RecoveryProcessPreparationTest {
     private suspend fun assertPhase(fixture: RecoveryProcessFixture) {
         fixture.callbacks.requireStopped()
         when (fixture.admission.case) {
-            RecoveryProcessCase.BeforePublication -> fixture.assertBeforePublication()
+            RecoveryProcessCase.BeforePublication -> {
+                fixture.assertBeforePublication()
+            }
+
             RecoveryProcessCase.DuringPublication -> {
                 requireNotNull(writerGate).awaitEntered()
                 fixture.assertPartialWrite()
             }
-            RecoveryProcessCase.VerifiedCompletion -> fixture.awaitSecondPublished()
+
+            RecoveryProcessCase.VerifiedCompletion -> {
+                fixture.awaitSecondPublished()
+            }
         }
     }
 
-    private suspend fun awaitHostKill(journal: RecoveryProcessJournal, deadline: Long): Nothing {
+    private suspend fun awaitHostKill(
+        journal: RecoveryProcessJournal,
+        deadline: Long,
+    ): Nothing {
         val remaining = deadline - SystemClock.elapsedRealtime()
         try {
             check(remaining > 0L) { "Preparation missed the external kill window" }

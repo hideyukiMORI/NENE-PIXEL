@@ -20,7 +20,10 @@ internal class RecoveryProcessCallbacks(
     var beforeStop: RecoveryProcessStopObservation? = null
         private set
 
-    override fun onActivityPreCreated(activity: Activity, savedInstanceState: Bundle?) {
+    override fun onActivityPreCreated(
+        activity: Activity,
+        savedInstanceState: Bundle?,
+    ) {
         if (activity !is MainActivity) return
         check(attachmentCount == 0) { "Preparation must attach exactly one MainActivity" }
         attachmentCount += 1
@@ -28,7 +31,10 @@ internal class RecoveryProcessCallbacks(
         record(activity, "pre-created")
     }
 
-    override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = record(activity, "created")
+    override fun onActivityCreated(
+        activity: Activity,
+        savedInstanceState: Bundle?,
+    ) = record(activity, "created")
 
     override fun onActivityStarted(activity: Activity) = record(activity, "started")
 
@@ -47,8 +53,10 @@ internal class RecoveryProcessCallbacks(
 
     override fun onActivityPostStopped(activity: Activity) = record(activity, "post-stopped")
 
-    override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) =
-        record(activity, "save-instance-state")
+    override fun onActivitySaveInstanceState(
+        activity: Activity,
+        outState: Bundle,
+    ) = record(activity, "save-instance-state")
 
     override fun onActivityDestroyed(activity: Activity) = record(activity, "destroyed")
 
@@ -58,7 +66,10 @@ internal class RecoveryProcessCallbacks(
         check(events.any { it.startsWith("post-stopped ") }) { "Actual onStop has not completed" }
     }
 
-    private fun record(activity: Activity, event: String) {
+    private fun record(
+        activity: Activity,
+        event: String,
+    ) {
         if (activity !is MainActivity) return
         taskId = activity.taskId
         check(events.size < 32) { "Unexpected lifecycle loop" }

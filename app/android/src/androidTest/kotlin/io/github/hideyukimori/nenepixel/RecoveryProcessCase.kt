@@ -38,7 +38,8 @@ internal enum class RecoveryProcessCase(
         val command =
             SetFrameDurationCommand.create(
                 gateway.captureSource(),
-                gateway.runtimeState.documentState.frames[frame].id,
+                gateway.runtimeState.documentState.frames[frame]
+                    .id,
                 duration,
             )
         assertTrue(gateway.execute(command) is CommandResult.Applied)

@@ -1,5 +1,6 @@
 package io.github.hideyukimori.nenepixel
 
+import android.app.Instrumentation
 import android.os.Build
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
@@ -7,7 +8,7 @@ import java.io.File
 
 /** Arguments bind a host-admitted fresh userdata lane; they alone are not preservation admission. */
 internal class RecoveryProcessAdmission {
-    private val instrumentation = InstrumentationRegistry.getInstrumentation()
+    private val instrumentation: Instrumentation = InstrumentationRegistry.getInstrumentation()
     private val arguments = InstrumentationRegistry.getArguments()
     val context = instrumentation.targetContext
     val run = requireNotNull(arguments.getString("processDeathRun"))

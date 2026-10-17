@@ -196,7 +196,8 @@ binds the actual candidate, methods, APKs, environment, controller and original 
 Preparation emits a write-once phase-ready record with PID, task/callback/VM observations, capture
 projections, generations and physical-byte hashes. Every case records pre-stop write count 2,
 pending C2 and no publishing token; a prior quiet-timer admission is invalid for this selected
-lifecycle order. No explicit test flush replaces MainActivity.onStop. A conservative monotonic deadline starts before
+lifecycle order. No explicit test flush replaces MainActivity.onStop. The normal quiet timer remains
+active; this test does not isolate flush as the exclusive publication trigger. A conservative monotonic deadline starts before
 the existing ten-second gate. Main-thread lifecycle callbacks do no file I/O or blocking; the
 instrumentation thread preserves byte snapshots and the rendezvous record. If no host kill arrives,
 the preparation writes a timeout record and fails. No sleep establishes publication or termination.
@@ -255,9 +256,9 @@ compilation/packaging and formatting/static checks, and documentation validation
 split port/runtime completion, lost newer capture, incomplete rollback/rethrow and leaked or
 prematurely released publication ownership. For #251, select its three preparation boundaries and
 separate normal-factory recovery methods, new test-source compilation/packaging and static checks,
-and documentation validation. These detect incorrect lifecycle routing, premature or partial
-publication, wrong restart lineage/document, nonempty persisted history and factory bypass at the
-selected process-death boundaries. Unchanged #242/#244/#247/#249 tests are not rerun merely
+and documentation validation. These verify observed lifecycle order and the selected post-stop
+publication/recovery boundaries, including wrong restart lineage/document, partial publication,
+nonempty persisted history and factory bypass. Unchanged #242/#244/#247/#249 tests are not rerun merely
 to accept the new slice; compare their relevant inputs and retain original evidence identities.
 Documentation validation checks this coverage map and links.
 Preserve the exact inputs and logs outside disposable build directories; reuse unchanged passing

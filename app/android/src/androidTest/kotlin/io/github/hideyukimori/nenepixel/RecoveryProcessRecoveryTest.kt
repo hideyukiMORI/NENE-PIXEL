@@ -64,7 +64,10 @@ internal class RecoveryProcessRecoveryTest {
         assertEquals(DocumentImportSource.Current(admission.case.expectedDocument()), candidate.source)
     }
 
-    private fun assertAdopted(activity: MainActivity, admission: RecoveryProcessAdmission) {
+    private fun assertAdopted(
+        activity: MainActivity,
+        admission: RecoveryProcessAdmission,
+    ) {
         val model =
             ViewModelProvider(
                 activity,

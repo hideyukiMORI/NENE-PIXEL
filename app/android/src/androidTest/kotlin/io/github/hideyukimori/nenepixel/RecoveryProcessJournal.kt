@@ -18,7 +18,10 @@ import java.util.Locale
 internal class RecoveryProcessJournal(
     private val admission: RecoveryProcessAdmission,
 ) {
-    fun ready(fixture: RecoveryProcessFixture, deadline: Long) {
+    fun ready(
+        fixture: RecoveryProcessFixture,
+        deadline: Long,
+    ) {
         fixture.callbacks.requireStopped()
         check(fixture.callbacks.taskId > 0)
         val record = identity("nene-pixel-process-death-ready-v1")
@@ -26,8 +29,16 @@ internal class RecoveryProcessJournal(
         record.put("readyElapsedRealtimeMillis", SystemClock.elapsedRealtime())
         record.put("callbacks", JSONArray(fixture.callbacks.observations()))
         record.put("taskId", fixture.callbacks.taskId)
-        record.put("viewModelScopeActive", fixture.model.viewModelScope.coroutineContext[Job]?.isActive)
-        record.put("workerAvailability", fixture.model.operationAvailability.value.toString())
+        record.put(
+            "viewModelScopeActive",
+            fixture.model.viewModelScope.coroutineContext[Job]
+                ?.isActive,
+        )
+        record.put(
+            "workerAvailability",
+            fixture.model.operationAvailability.value
+                .toString(),
+        )
         recordPublication(record, fixture)
         record.put("c1Sha256", hash(File(admission.directory, "c1-record.bin")))
         record.put("baseSha256", preserve(fixture.file.baseFile, "ready-record.base") ?: JSONObject.NULL)
@@ -40,7 +51,10 @@ internal class RecoveryProcessJournal(
         )
     }
 
-    private fun recordPublication(record: JSONObject, fixture: RecoveryProcessFixture) {
+    private fun recordPublication(
+        record: JSONObject,
+        fixture: RecoveryProcessFixture,
+    ) {
         val preStop = requireNotNull(fixture.callbacks.beforeStop)
         record.put("preStopStartCalls", preStop.startCalls)
         record.put("preStopAutosave", preStop.autosave.toString())
@@ -52,7 +66,11 @@ internal class RecoveryProcessJournal(
         record.put("publishingIsC2", autosave.publishingStateToken == fixture.second.token)
         record.put("publishedIsC1", autosave.publishedStateToken == fixture.first.token)
         record.put("publishedIsC2", autosave.publishedStateToken == fixture.second.token)
-        record.put("operation", fixture.workflow.operation.value.toString())
+        record.put(
+            "operation",
+            fixture.workflow.operation.value
+                .toString(),
+        )
         record.put("startCalls", fixture.file.startCalls)
         record.put("finishCalls", fixture.file.finishCalls)
     }
@@ -94,7 +112,10 @@ internal class RecoveryProcessJournal(
             .put("originalGeneration", 2L)
             .put("expectedGeneration", admission.case.expectedGeneration)
 
-    private fun preserve(source: File, name: String): String? {
+    private fun preserve(
+        source: File,
+        name: String,
+    ): String? {
         if (!source.isFile) return null
         return hash(source.copyTo(File(admission.directory, name)))
     }
@@ -104,7 +125,10 @@ internal class RecoveryProcessJournal(
             "%02x".format(Locale.ROOT, it)
         }
 
-    private fun writeNew(name: String, record: JSONObject) {
+    private fun writeNew(
+        name: String,
+        record: JSONObject,
+    ) {
         val target = File(admission.directory, "$name.json")
         val pending = File(admission.directory, "$name.pending")
         check(!target.exists() && pending.createNewFile()) { "Journal destination already exists" }
