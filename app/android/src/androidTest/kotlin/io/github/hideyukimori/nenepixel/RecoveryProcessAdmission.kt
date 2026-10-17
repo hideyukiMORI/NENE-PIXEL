@@ -1,7 +1,9 @@
 package io.github.hideyukimori.nenepixel
 
 import android.app.Instrumentation
+import android.content.Context
 import android.os.Build
+import android.os.Bundle
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
 import java.io.File
@@ -9,8 +11,8 @@ import java.io.File
 /** Arguments bind a host-admitted fresh userdata lane; they alone are not preservation admission. */
 internal class RecoveryProcessAdmission {
     private val instrumentation: Instrumentation = InstrumentationRegistry.getInstrumentation()
-    private val arguments = InstrumentationRegistry.getArguments()
-    val context = instrumentation.targetContext
+    private val arguments: Bundle = InstrumentationRegistry.getArguments()
+    val context: Context = instrumentation.targetContext
     val run = requireNotNull(arguments.getString("processDeathRun"))
     val case = RecoveryProcessCase.entries.single { it.argument == arguments.getString("processDeathCase") }
     val directory = File(context.noBackupFilesDir, "issue-251-$run/${case.argument}")
