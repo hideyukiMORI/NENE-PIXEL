@@ -3,8 +3,9 @@
 Status: bounded host and native fault integration scopes; parent lifecycle acceptance remains open
 
 Issues: [#242](https://github.com/hideyukiMORI/NENE-PIXEL/issues/242),
-[#244](https://github.com/hideyukiMORI/NENE-PIXEL/issues/244) and
-[#247](https://github.com/hideyukiMORI/NENE-PIXEL/issues/247), slices of
+[#244](https://github.com/hideyukiMORI/NENE-PIXEL/issues/244),
+[#247](https://github.com/hideyukiMORI/NENE-PIXEL/issues/247) and
+[#249](https://github.com/hideyukiMORI/NENE-PIXEL/issues/249), slices of
 [#230](https://github.com/hideyukiMORI/NENE-PIXEL/issues/230).
 Contract: [ADR 0045](../adr/0045-android-termination-and-publication.md),
 [ADR 0046](../adr/0046-visible-file-operation-admission.md),
@@ -134,13 +135,48 @@ userdata, absent app/test packages and private paths before installation, plus p
 pre-launch storage. Preserve resulting file bytes and logs outside disposable build output before
 stopping and cleaning the task resources. Existing AVDs and the ordinary device are excluded.
 
+## Native publication cancellation — #249
+
+This slice connects the existing public recovery-adapter factory, real Android `AtomicFile`,
+writer/verifier, runtime and persistence workflow. It reuses #247's synthetic two-frame document,
+external ports and capture types without changing that slice's test helpers or five cases. The
+dedicated cancellation fixture uses its own admitted run directory and records every phase.
+The following cases describe the selected boundary; the Issue/PR supplies actual source, APK,
+environment, command and raw-result identities before any execution is accepted.
+
+The controlled stream delegates a nonempty proper prefix of the real writer's bytes to the
+Android temporary file, then signals a bounded gate. At that point the fixture preserves both
+the exact partial bytes and unchanged C1 base bytes. It does not call `inspect` or `openRead`
+while held: the adapter lock would wait and Android's read path can remove an unfinished file.
+No copied writer, public injection seam, reflection, friend path or dependency is introduced.
+
+| Case | Cancellation and expected observation |
+| --- | --- |
+| Caller cancellation during partial write | Start from verified C1/generation 2 and hold C2's real write. Verify C2's publishing token and a Deferred competing publication. Cancel its caller and commit distinct C3 through the canonical command path. Before gate release the cancelled caller is incomplete, C2 still owns publication, C3 is pending and a competing request cannot begin another write. Release and join: exact C2/generation 3 is recorded by both adapter and runtime, while current C3 remains pending. Publishing exact C3/generation 4 then proves renewed admission and lease release. The cancelled caller's return value is not the publication oracle. |
+| Port-raised cancellation after partial write | Hold and preserve the same partial-write boundary, then deliberately raise the marked `CancellationException` from the stream without cancelling its caller beforehand. The real writer performs rollback and the workflow releases its operation before rethrow. Assert the marked cancellation, one rollback, no finish, absent temporary file, exact C1 bytes/generation 2 and published identity, retained C2 and cleared publishing identity. Remove the injected fault; a fresh canonical request publishes exact C2/generation 3. |
+
+Both cases retain full-document, byte, generation and opaque-token oracles. Bounded phase signals
+and job completion establish ordering; a fixed sleep or Idle projection alone cannot prove it.
+Cleanup releases the gate and joins the owned job before closing its stream, including after an
+assertion fails. The explicit injected port exception tests cleanup/rethrow; it is not a claim
+about an ordinary storage failure, caller cancellation reaching the protected port, or OS kill.
+
+The execution plan admits fresh dedicated API35/en-US userdata and separate mutable AVD paths.
+Unchanged SDK/image assets can be reused with their original evidence and identity comparison.
+App/test package and private-path absence, stopped post-install inventories and installed APK
+identity precede instrumentation. The resulting files and immutable stage records use the same
+canonical stopped inventory/encoded archive path as #247. Any explicit test-package cleanup is
+recorded separately and cannot be relabelled as natural termination or lifecycle acceptance.
+These direct workflow cases do not add a screen cancellation action or a UI-state guarantee.
+
 ## Remaining parent acceptance
 
 TERM-CANCEL and TERM-IO-FAILURE remain bounded: #242 supplies adapter/workflow host fault cases,
-#244 supplies retained-job/UI admission, and #247 owns the five native adapter/scheduler/status
-cases above. Their actual accepted execution identities belong to the owning Issues/PRs. These
-scopes do not prove physical sync/rename faults, every locale/API boundary, cancellation through
-the native file adapter, or process-death durability. No public injection seam, reflection,
+#244 supplies retained-job/UI admission, #247 owns the five native adapter/scheduler/status
+cases above, and #249 owns the two selected native caller/port cancellation boundaries. Their
+actual accepted execution identities belong to the owning Issues/PRs. These scopes do not prove
+physical sync/rename faults, every cancellation phase or locale/API boundary, or process-death
+durability. No public injection seam, reflection,
 copied scheduler or dependency is added; visible admission remains ADR 0046's existing behavior.
 
 TERM-BACK, TERM-RECENTS, TERM-STOP-KILL, TERM-LOW-MEMORY and TERM-PICKER-CANCEL remain native
@@ -169,12 +205,16 @@ contracts, directly affected presentation conditions, API consumer compilation a
 native admission cases. For #247, select the five new native fault cases, affected test-source
 compilation/packaging and formatting/static checks, and documentation validation. This detects
 fault-mapping, exact-capture/lineage, scheduler suspension/resumption and status-display regressions
-at their combined boundary. Unchanged #242/#244 tests are not rerun merely to accept the new slice.
+at their combined boundary. For #249, select its two native cancellation cases, affected test-source
+compilation/packaging and formatting/static checks, and documentation validation. These detect
+split port/runtime completion, lost newer capture, incomplete rollback/rethrow and leaked or
+prematurely released publication ownership. Unchanged #242/#244/#247 tests are not rerun merely
+to accept the new slice; compare their relevant inputs and retain original evidence identities.
 Documentation validation checks this coverage map and links.
 Preserve the exact inputs and logs outside disposable build directories; reuse unchanged passing
 results through review and commit. Required final non-draft CI runs canonical `check` plus Android
 assembly without a duplicate local full run. QLT-011 through QLT-019 apply; active waivers: none.
-#242 and #247 change no production, schema, API, dependencies or runtime cost. #244 changes the public
+#242, #247 and #249 change no production, schema, API, dependencies or runtime cost. #244 changes the public
 presentation binding and visible admission, with two constant-size availability publications per
 retained job and no pixel scan/copy or per-preview-frame work. Its affected workload is registered
 with #145 for the existing M5-exit gate; no performance collection or Profile generation is part
