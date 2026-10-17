@@ -34,6 +34,7 @@ import io.github.hideyukimori.nenepixel.presentation.compose.editor.PaletteExcha
 import io.github.hideyukimori.nenepixel.presentation.compose.editor.PersistenceDecisionCallbacks
 import io.github.hideyukimori.nenepixel.presentation.compose.editor.PngExchangeCallbacks
 import io.github.hideyukimori.nenepixel.presentation.compose.editor.ProjectFileCallbacks
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -148,20 +149,28 @@ internal class EditorRuntimeViewModel internal constructor(
     }
 
     internal companion object {
-        fun factory(application: Application): ViewModelProvider.Factory =
+        fun factory(
+            application: Application,
+            ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+            conversionDispatcher: CoroutineDispatcher = Dispatchers.Default,
+        ): ViewModelProvider.Factory =
             viewModelFactory {
                 initializer {
-                    create(application)
+                    create(application, ioDispatcher, conversionDispatcher)
                 }
             }
 
-        private fun create(application: Application): EditorRuntimeViewModel {
+        private fun create(
+            application: Application,
+            ioDispatcherSource: CoroutineDispatcher,
+            conversionDispatcher: CoroutineDispatcher,
+        ): EditorRuntimeViewModel {
             val runtime = createEditorRuntime()
             val controller = EditorController.create(runtime)
             val pickerBroker = ProjectPickerBroker()
-            val ioDispatcher = Dispatchers.IO.limitedParallelism(1)
+            val ioDispatcher = ioDispatcherSource.limitedParallelism(1)
             // A separate serialized dispatcher: an underlay image write never queues in front of a save (ADR 0034).
-            val underlayMemoryDispatcher = Dispatchers.IO.limitedParallelism(1)
+            val underlayMemoryDispatcher = ioDispatcherSource.limitedParallelism(1)
             val projectStorage =
                 AndroidProjectStorageAdapter.create(application.contentResolver, pickerBroker, ioDispatcher)
             val recoveryRecord =
@@ -185,7 +194,7 @@ internal class EditorRuntimeViewModel internal constructor(
                         AndroidUnderlayMemoryAdapter.create(application.noBackupFilesDir, underlayMemoryDispatcher),
                     ),
                 )
-            val persistence = EditorPersistenceWorkflow.create(runtime, ports, Dispatchers.Default)
+            val persistence = EditorPersistenceWorkflow.create(runtime, ports, conversionDispatcher)
             return EditorRuntimeViewModel(runtime, controller, pickerBroker, persistence)
         }
 
