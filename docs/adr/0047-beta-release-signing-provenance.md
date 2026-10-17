@@ -22,10 +22,11 @@ checked-main beta. The repository defines no release signingConfig or signing-se
 The generic bounded native-command helper records arguments and complete output, so passing a
 keystore path or secret-bearing signer invocation through it would violate the custody boundary.
 
-The design owner accepts the technical procedure below. Actual key custody/provisioning, the
-expected public certificate fingerprint and exact software-license terms remain unresolved
-execution preconditions. This ADR does not accept those unresolved decisions or assert that an
-APK was built, signed, tagged, verified or distributed.
+At the initial technical-procedure decision, actual key custody/provisioning, the expected public
+certificate fingerprint and exact software-license terms remained unresolved execution
+preconditions. That decision did not accept those unresolved inputs or assert that an APK was
+built, signed, tagged, verified or distributed. The dated first-party adoption below records the
+later partial resolution.
 
 ## Decision
 
@@ -72,6 +73,24 @@ Missing new-key custody/provisioning, public fingerprint, adopted license/credit
 dependency/asset notices blocks final distributable-artifact production. It does not block
 merging this procedure. Owner-approved licensing must preserve the confirmed distinction between
 paid creative work/artwork sales and monetizing the application/code; this ADR grants no license.
+
+### First-party terms adoption — 2026-10-17
+
+Following hide's confirmed credit identity and application-linked donation restriction, the
+design owner adopts the first-party terms in root [LICENSE](../../LICENSE) and the software
+credit in [CREDITS](../../CREDITS.md). LICENSE is the sole authority for those terms; this ADR
+does not reproduce or extend them. Its scope is the licensor's held rights in the application
+and code, with accompanying first-party materials permitted as needed as part of their ordinary
+use, study, modification and free redistribution. It neither adds a standalone-material sales
+prohibition nor grants a blanket license for independent materials. Third-party parts retain
+their original grants and applicable notices.
+
+This adoption resolves only the first-party terms and software-credit decision. No additional
+external material was declared in hide's reply; this is not comprehensive rights clearance.
+Third-party and embedded/vendor provenance, readable in-app notice delivery and exact final
+optimized APK/native/resource coverage remain open, as do new-key custody/provisioning, backup
+and restore readiness, the accepted public signing certificate and final beta artifact gates.
+Repository terms and credits alone do not authorize or prove beta production or distribution.
 
 ### Version, tag and checked-main identity
 
@@ -152,7 +171,9 @@ and exact license terms cannot be inferred from source inspection or silently ac
 
 ### Costs and risks
 
-- New-key custody/provisioning, the signer fingerprint and exact license terms remain unresolved.
+- The original decision left new-key custody/provisioning, the signer fingerprint and exact
+  license terms unresolved. The dated first-party adoption resolves only its stated portion;
+  third-party notices, final payload and credential preconditions remain open.
 - The selected initial source version is reflected; actual packaged version still needs verification.
 - Secret-safe bounded signing execution and final artifact evidence are not implemented by prose.
 - Toolchain or payload changes may invalidate affected optimized-runtime/performance evidence.

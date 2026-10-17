@@ -53,6 +53,13 @@ and [Project Format v4](docs/PROJECT_FORMAT_V4.md). The
 [v1](docs/PROJECT_FORMAT_V1.md) and [v2](docs/PROJECT_FORMAT_V2.md) specifications remain references
 for those older formats.
 
+## License and credits
+
+The first-party application and code terms are in [LICENSE](LICENSE). See
+[credits](CREDITS.md) for the software credit. These are source-available terms with
+restrictions, not an OSI-approved open-source license. Third-party components and
+materials retain their original terms.
+
 ## Build
 
 Use the Gradle Wrapper with **JDK 21**, **Android SDK Platform 37** and **Build Tools 36.0.0**.
