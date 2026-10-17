@@ -165,6 +165,17 @@ The full scale-invariance contract requires surface dimensions, all pointer coor
 
 Grid visibility is derived and has no stored flag or preference. It is `Visible` when `cellScale / pixelsPerDp >= 8.0dp` and `Hidden` below that threshold. Equality is visible. Rendering consumes `ViewportGridVisibility` from the same `ViewportTransform` used for pixels and input.
 
+Contained grid cells use the forward mapping even when their bounds are outside the visible
+surface. With the same immutable `CanvasSize` used to create the admitted transform, every
+position `(x, 0)` for `0 <= x < width` and `(0, y)` for `0 <= y < height` maps to bounds;
+surface clipping belongs to drawing and inverse input admission, not to this forward query.
+Consequently, the current `PixelCanvas` grid loop cannot independently receive an unmapped cell
+after its transform and canvas extent were admitted. Unsafe derived arithmetic rejects the
+whole transform earlier; it is not a grid-only failure. This does not guarantee Android Path
+allocation or resource availability. The focused `ViewportTransformGridProjectionTest` added
+for #239 checks this contract across admitted dimension/zoom/center boundaries, finite density
+extremes and off-surface cells without duplicating the transform equations or changing rendering.
+
 ### Workspace reduction and pointer arbitration
 
 `WorkspaceAction.SetViewport(ViewportState)` is the sole viewport mutation route. The reducer atomically installs the viewport and removes an active gesture preview:
