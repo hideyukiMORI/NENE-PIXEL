@@ -4,8 +4,9 @@ Status: bounded host and native fault integration scopes; parent lifecycle accep
 
 Issues: [#242](https://github.com/hideyukiMORI/NENE-PIXEL/issues/242),
 [#244](https://github.com/hideyukiMORI/NENE-PIXEL/issues/244),
-[#247](https://github.com/hideyukiMORI/NENE-PIXEL/issues/247) and
-[#249](https://github.com/hideyukiMORI/NENE-PIXEL/issues/249), slices of
+[#247](https://github.com/hideyukiMORI/NENE-PIXEL/issues/247),
+[#249](https://github.com/hideyukiMORI/NENE-PIXEL/issues/249) and
+[#251](https://github.com/hideyukiMORI/NENE-PIXEL/issues/251), slices of
 [#230](https://github.com/hideyukiMORI/NENE-PIXEL/issues/230).
 Contract: [ADR 0045](../adr/0045-android-termination-and-publication.md),
 [ADR 0046](../adr/0046-visible-file-operation-admission.md),
@@ -169,6 +170,98 @@ canonical stopped inventory/encoded archive path as #247. Any explicit test-pack
 recorded separately and cannot be relabelled as natural termination or lifecycle acceptance.
 These direct workflow cases do not add a screen cancellation action or a UI-state guarantee.
 
+## Actual MainActivity stop and process-death — #251
+
+This slice selects three TERM-STOP-KILL boundaries on separately admitted fresh synthetic
+API35/en-US userdata. The new preparation places the existing internal ViewModel in the actual
+MainActivity's normal ViewModelStore from an Application pre-created callback. It checks that
+the Activity retrieves that same ViewModel/runtime/controller and renders the synthetic canvas.
+The actual MainActivity, retained worker, scheduler, workflow and Android recovery writer remain
+on their canonical paths. Recovery registers no placement callback and uses the production factory.
+No production seam, reflection, friend path, copied scheduler, dependency or shutdown writer is added.
+
+The existing two-frame/three-layer fixture is loaded canonically, creating Retired generation 1.
+A first-frame duration command of 110 ms produces verified C1/generation 2. A second-frame duration
+command of 260 ms produces distinct C2. Full-document equality includes identity, revision, both
+frames, all layers, palette and pixels. An independent oracle reconstructs the expected state
+through the real command gateway. These source descriptions are not execution PASS results; #251
+binds the actual candidate, methods, APKs, environment, controller and original logs before collection.
+
+| Phase | Controlled boundary and restart oracle |
+| --- | --- |
+| Before publication | The actual enabled PNG export action holds the canonical operation in its synthetic port before C2 is created. After ActivityScenario stops MainActivity, the post-stop callback, retained Busy/export lease, pending C2, absent publishing token, unchanged write count and exact C1 bytes are recorded. Exact-PID process-death injection must recover C1/generation 2; pending C2 has no survival claim. |
+| During physical publication | Arm the existing writer gate before the Activity transition. In the framework pre-stop callback, commit C2 and immediately observe it before the real MainActivity.onStop. Hold its scheduler-triggered real Android write after its first 16 bytes. Capture unchanged C1 and exact incomplete temporary bytes without adapter inspection. The selected exact-PID kill must recover C1/generation 2. The controlled prefix cannot be accepted as complete C2. |
+| Verified completion | In the framework pre-stop callback, commit C2 and immediately observe it before the real MainActivity.onStop. Observe runtime and adapter agreement on exact complete C2/generation 3 before the exact-PID kill. Normal-factory restart must offer and adopt exact C2. |
+
+Preparation emits a write-once phase-ready record with PID, task/callback/VM observations, capture
+projections, generations and physical-byte hashes. Every case records pre-stop write count 2,
+pending C2 and no publishing token; a prior quiet-timer admission is invalid for this selected
+lifecycle order. No explicit test flush replaces MainActivity.onStop. The normal quiet timer remains
+active; this test does not isolate flush as the exclusive publication trigger. A retains its export-held
+C2-before-transition path and observation-only pre-stop callback. B/C commit and observe C2 in one
+bounded nonsuspending pre-stop callback, avoiding quiet publication during the Activity transition;
+Main.immediate collectors may observe inline. Both B/C deadlines start before that transition.
+A conservative monotonic deadline starts before
+the existing ten-second gate. Main-thread lifecycle callbacks do no file I/O or blocking; the
+instrumentation thread preserves byte snapshots and the rendezvous record. If no host kill arrives,
+the preparation writes a timeout record and fails. No sleep establishes publication or termination.
+The killed instrumentation output and exit are retained as intentional raw termination, never as
+an ordinary passing test. Acceptance combines the reached phase, declared kill, PID absence,
+canonical stopped snapshot and a separate successful recovery invocation with a different PID.
+
+Each case uses a newly admitted factory userdata lane with absent packages/private paths before
+installation. In-test arguments or an empty guard directory alone cannot authorize ordinary data.
+The normal recovery filename is exclusive to that synthetic lane. Existing bounded native command,
+encoded transport and stopped inventory/archive helpers preserve the interrupted base/temporary
+files before normal recovery can remove the temporary file. Separate recovery binds the prior PID,
+case, fixture and generation, accepts the actual offer UI, and checks whole-document equality,
+Dirty state and empty persisted history. Back/recents, callback-free abrupt kill, API37, real picker
+cleanup and physical power-loss remain excluded. No result here alone accepts parent #230.
+
+### Accepted selected executions — 2026-10-17
+
+All three combined oracles passed on separate synthetic API35/en-US lanes using the actual
+MainActivity, a declared exact-PID SIGKILL and a different-PID normal-factory restart. The
+preparation instrumentation's process-crash output is retained as intentional termination,
+not counted as a passing test. Each separate recovery invocation passed one test and checked
+the entire expected document, Dirty state and empty history. Independent review found no P1/P2.
+These results establish the selected controlled phases, not exclusive flush causality or
+arbitrary OS/power-loss behavior.
+
+| Phase / lab-relative evidence root | Original source / test APK SHA-256 | Original PID → recovery PID; expected state | Kill-stage / recovery-stage record SHA-256 |
+| --- | --- | --- | --- |
+| Before publication: `evidence/issue-251-stopkill-a-20261017-v4/` | `fdc6f96b451e4ff4c17e7b4c99f4a1c1d60c8913` / `79b4dfbd275552927476c8cc555f4beca6483adb51fcec7064d1b498b9ba51a4` | 4839 → 5499; C1/gen2; one recovery PASS, 6.465 s | `21de81c185ee349cb7a5b790494c275180eed5205d9d71a6034c9d6e516d0413` / `de502bb9e3aaed809b85aeda9a0d266f559c5b3ea813dbc6909e1f93318b01dd` |
+| During physical publication: `evidence/issue-251-stopkill-b-20261017-v5/` | `ddbd9a40cd62fa038c37726c5d53cd50ef8d2f0b` / `446671187d09dc0b26aae89892c4ef311800a005c6acbe7418f60d45e9d4ed37` | 4240 → 4818; C1/gen2; one recovery PASS, 5.954 s | `d6a78912ca3bff195278d6c6d068876c5bc3d0bd277c21066173c6414ec67c8d` / `5ed6e7eb8d42ad386f7a6c477473c6db2c015589946793df677539882f2f0cd4` |
+| Verified completion: `evidence/issue-251-stopkill-c-20261017-v5/` | `ddbd9a40cd62fa038c37726c5d53cd50ef8d2f0b` / `446671187d09dc0b26aae89892c4ef311800a005c6acbe7418f60d45e9d4ed37` | 3849 → 4612; C2/gen3; one recovery PASS, 6.057 s | `aedfbbebff1b186dff6d8d5ea07bf55ccedd3bbf9f6b69320001a1b255551e13` / `4254f101042006198d8efffb4fff655d7310052857cd019abb6bc66be06d68a3` |
+
+Each root contains `kill-snapshot/result.json`, `recovery-snapshot/result.json`, original raw
+instrumentation, phase-ready bytes, clock/PID guards, and canonical before/after inventories
+and archives. All use the original main APK from `outputs/issue-251/implementation/check-2/apks/app.apk`,
+SHA-256 `a84e68ff793b5b3a406c52cefa2c8f00d2fe4b721071eeb0679ee14f2307baea`.
+The during-publication archive preserves the exact 16-byte `.new` with SHA-256
+`1b4ed0de6b4845a3679d44f25a31199b2b099abcd531813ab0eee916551df65f` before normal
+recovery removes it; its unchanged base is C1. The completion archive instead contains complete
+C2. Explicit synthetic test-helper stops occur only after target absence and remain separate
+from target termination and lifecycle acceptance.
+
+`outputs/issue-251/native-plan-6/` retains the exact commands, scripts and bound configs.
+The selected test-source ktlint, typed detekt, test-APK assembly and documentation validation
+passed in `outputs/issue-251/implementation/check-6/` (35 s; original Gradle log SHA-256
+`a3603a79b3fde48e1fb80ba1a043ffa69f834a03ba567cf1fa7a4ba17e7f5afa`).
+`a-source-path-reuse.json` there records the unchanged A path despite the later B/C setup change;
+its SHA-256 is `387d6d93407edf07ee58b49cdb79512761859b1d39cd57a41a0bb623873654a3`.
+A keeps its original execution identity. Integration of #232 adds About/privacy content and
+resources, but changes none of the seven native test files, Activity/runtime/recovery paths,
+existing recovery labels, build configuration or dependencies; About remains closed in these cases.
+The final acceptance prose likewise does not invalidate these selected native results.
+
+Original failures remain retained: source/format findings, controller empty-array conversion,
+the post-stop callback race, app-UID clock permission, and the incomplete prelaunch APK transfer.
+They were followed by declared, changed-input corrections, not unchanged retries. The separate
+host-I/O incident is #253; the supported emulator endpoint correction is #256. Neither incident's
+root cause is inferred from a later successful functional case. No broad local suite, performance
+collection, Profile regeneration, threshold relaxation or waiver was used for this slice.
+
 ## Remaining parent acceptance
 
 TERM-CANCEL and TERM-IO-FAILURE remain bounded: #242 supplies adapter/workflow host fault cases,
@@ -179,8 +272,9 @@ physical sync/rename faults, every cancellation phase or locale/API boundary, or
 durability. No public injection seam, reflection,
 copied scheduler or dependency is added; visible admission remains ADR 0046's existing behavior.
 
-TERM-BACK, TERM-RECENTS, TERM-STOP-KILL, TERM-LOW-MEMORY and TERM-PICKER-CANCEL remain native
-integration work under #230 and the [beta matrix](../BETA_ACCEPTANCE_MATRIX.md). Before native
+TERM-BACK, TERM-RECENTS, TERM-LOW-MEMORY and TERM-PICKER-CANCEL remain native integration work;
+#251 accepts only the selected TERM-STOP-KILL executions and combined oracles above.
+The other obligations remain under #230 and the [beta matrix](../BETA_ACCEPTANCE_MATRIX.md). Before new native
 execution, pin the candidate, exact fixture and lineage, phase synchronization, environment and
 isolated process/storage; preserve and verify restoration of artwork, recovery, underlay and
 settings. An old isolation flag or backup-directory existence alone does not establish that
@@ -208,13 +302,17 @@ fault-mapping, exact-capture/lineage, scheduler suspension/resumption and status
 at their combined boundary. For #249, select its two native cancellation cases, affected test-source
 compilation/packaging and formatting/static checks, and documentation validation. These detect
 split port/runtime completion, lost newer capture, incomplete rollback/rethrow and leaked or
-prematurely released publication ownership. Unchanged #242/#244/#247 tests are not rerun merely
+prematurely released publication ownership. For #251, select its three preparation boundaries and
+separate normal-factory recovery methods, new test-source compilation/packaging and static checks,
+and documentation validation. These verify observed lifecycle order and the selected post-stop
+publication/recovery boundaries, including wrong restart lineage/document, partial publication,
+nonempty persisted history and factory bypass. Unchanged #242/#244/#247/#249 tests are not rerun merely
 to accept the new slice; compare their relevant inputs and retain original evidence identities.
 Documentation validation checks this coverage map and links.
 Preserve the exact inputs and logs outside disposable build directories; reuse unchanged passing
 results through review and commit. Required final non-draft CI runs canonical `check` plus Android
 assembly without a duplicate local full run. QLT-011 through QLT-019 apply; active waivers: none.
-#242, #247 and #249 change no production, schema, API, dependencies or runtime cost. #244 changes the public
+#242, #247, #249 and #251 change no production, schema, API, dependencies or runtime cost. #244 changes the public
 presentation binding and visible admission, with two constant-size availability publications per
 retained job and no pixel scan/copy or per-preview-frame work. Its affected workload is registered
 with #145 for the existing M5-exit gate; no performance collection or Profile generation is part
