@@ -1,9 +1,10 @@
 # M5 recovery fault coverage
 
-Status: bounded host and UI integration scopes; parent lifecycle acceptance remains open
+Status: bounded host and native fault integration scopes; parent lifecycle acceptance remains open
 
-Issues: [#242](https://github.com/hideyukiMORI/NENE-PIXEL/issues/242) and
-[#244](https://github.com/hideyukiMORI/NENE-PIXEL/issues/244), slices of
+Issues: [#242](https://github.com/hideyukiMORI/NENE-PIXEL/issues/242),
+[#244](https://github.com/hideyukiMORI/NENE-PIXEL/issues/244) and
+[#247](https://github.com/hideyukiMORI/NENE-PIXEL/issues/247), slices of
 [#230](https://github.com/hideyukiMORI/NENE-PIXEL/issues/230).
 Contract: [ADR 0045](../adr/0045-android-termination-and-publication.md),
 [ADR 0046](../adr/0046-visible-file-operation-admission.md),
@@ -85,14 +86,60 @@ This lane uses no ordinary artwork, real recovery adapter, DocumentsUI, task exi
 injection. Its memory-port cancellation cleanup does not close the physical picker-drain or
 AtomicFile obligations below. It does not qualify API37, every locale or the complete beta matrix.
 
+## Adapter faults through scheduling and visible status — #247
+
+The native slice composes the real recovery adapter through its existing public
+`create(AtomicFile, dispatcher)` factory. An app `androidTest` subclass delegates normal file
+operations to Android's `AtomicFile` and injects a named failure at the write, finish or read-back
+boundary. The adapter's writer, verifier and outcome mapping remain the production implementation.
+No adapter-internal access, public injection API, reflection, friend path, copied scheduler or new
+dependency is needed. Project and other external ports use synthetic data only.
+
+Three cases connect that adapter to the actual runtime, workflow, ViewModel, worker, scheduler
+and `NenePixelEditor` in a `ComponentActivity`. Two further cases compose the real scheduler with
+its existing injected clock. The ViewModel's private scheduler has no clock injection: observing
+file attempts alone would miss a retry loop whose `Unavailable` result returns before the port.
+The direct scheduler cases therefore observe clock calls as well as file attempts in a bounded
+real-time window longer than their explicitly shortened injected quiet/cap policy. Advancing the
+injected clock alone cannot wake an already waiting real coroutine timer. The actual ViewModel
+cases retain the production policy; the direct cases establish bounded inactivity and explicit
+resumption, not production timing acceptance, infinite-time no-spin or a CPU-usage guarantee.
+
+The synthetic two-frame fixture enters through canonical load, creating Retired generation 1.
+A canonical command creates C1, whose verified Candidate is generation 2; a distinct command
+creates pending C2. Oracles include whole-document equality, exact bytes and generation, opaque
+pending/published/publishing tokens, typed outcomes and actual resource-backed screen text.
+The selected Issue/PR binds these cases to source, APK, environment and raw logs. These descriptions
+alone are not execution results.
+
+| Case | Fault and expected observation |
+| --- | --- |
+| Visible write failure and flush recovery | Inject `IOException` on the real write session. Actual rollback gives `Failed(WRITE, COMPLETED)`; C1 bytes and published identity survive, exact C2 stays pending, and publishing clears. The actual editor displays its localized autosave-failure resource. Remove the fault and request the existing ViewModel flush; exact C2 becomes Candidate generation 3. |
+| Visible finish uncertainty | After real write and sync, fail before delegating finish, closing the stream. Assert `Uncertain(FINISH, NOT_NEEDED)`, unknown lineage, retained C2 and no published/publishing identity. A flush cannot blindly write another Candidate. The actual display is the higher-priority recovery-unavailable resource. C1 remaining in this fixture does not guarantee rollback for every physical finish failure. |
+| Visible read-back uncertainty and offer resolution | Let real finish commit C2, then fail its verification read. No `Published` result may be inferred from C2 bytes on disk. After fault removal, the fixture calls the existing workflow's reinspection and receives exact C2/generation 3. The actual decline callback retires generation 4; the resulting gate change permits pending C2 to publish as generation 5. Reinspection is not a new or claimed user-facing refresh feature. |
+| Failed scheduler suspension and gate recovery | Compose the real scheduler, workflow and adapter with a counting monotonic clock. After write failure, observe stable clock/file-attempt counts across the bounded quiet/cap window. Advance the clock without a new trigger; a real workflow operation-gate transition then resumes the pending publication. |
+| Uncertain scheduler suspension | Observe the same scheduler boundary after read-back uncertainty, including clock activity that would expose port-free `Unavailable` retries. Explicit flush cannot write against unknown lineage. Reinspection and offer resolution use the canonical workflow before publication can resume. |
+
+The finish exception is a controlled method-boundary fault: Android's `finishWrite` itself logs
+several lower-level errors instead of throwing them. This case does not reproduce physical rename
+failure or power loss. Direct `FileDescriptor.sync` failure has no injectable boundary here;
+#242's existing SYNC host result remains separate. Actual files and normal atomic operations in
+this slice do not establish behavior under every storage or process-death fault.
+
+Execution uses a newly allocated synthetic API35 lane and a dedicated test fixture directory,
+never the ordinary recovery filename or underlay/settings stores. Admission records factory
+userdata, absent app/test packages and private paths before installation, plus post-install and
+pre-launch storage. Preserve resulting file bytes and logs outside disposable build output before
+stopping and cleaning the task resources. Existing AVDs and the ordinary device are excluded.
+
 ## Remaining parent acceptance
 
-TERM-CANCEL and TERM-IO-FAILURE remain partial: the #242 adapter fault cases do not execute
-`AutosaveScheduler`, its flush/gate retry and no-spin behavior, or rendered/localized failure
-status. The #244 admission cases connect the real scheduler but do not inject those adapter
-faults. Their combined fault behavior still requires integrated evidence while preserving
-app/adapter module boundaries. Neither slice adds a public injection seam, reflection, copied
-scheduler or dependency; #244's visible-admission behavior follows ADR 0046.
+TERM-CANCEL and TERM-IO-FAILURE remain bounded: #242 supplies adapter/workflow host fault cases,
+#244 supplies retained-job/UI admission, and #247 owns the five native adapter/scheduler/status
+cases above. Their actual accepted execution identities belong to the owning Issues/PRs. These
+scopes do not prove physical sync/rename faults, every locale/API boundary, cancellation through
+the native file adapter, or process-death durability. No public injection seam, reflection,
+copied scheduler or dependency is added; visible admission remains ADR 0046's existing behavior.
 
 TERM-BACK, TERM-RECENTS, TERM-STOP-KILL, TERM-LOW-MEMORY and TERM-PICKER-CANCEL remain native
 integration work under #230 and the [beta matrix](../BETA_ACCEPTANCE_MATRIX.md). Before native
@@ -117,12 +164,16 @@ detect adapter-to-runtime failure/cancellation propagation, false publication id
 retry and leaked lease regressions. Reuse their unchanged accepted results during #244; a UI
 admission change is not a trigger to repeat that host slice. For #244, select the changed worker
 contracts, directly affected presentation conditions, API consumer compilation and the narrow
-native admission cases. Documentation validation checks this coverage map and links.
+native admission cases. For #247, select the five new native fault cases, affected test-source
+compilation/packaging and formatting/static checks, and documentation validation. This detects
+fault-mapping, exact-capture/lineage, scheduler suspension/resumption and status-display regressions
+at their combined boundary. Unchanged #242/#244 tests are not rerun merely to accept the new slice.
+Documentation validation checks this coverage map and links.
 Preserve the exact inputs and logs outside disposable build directories; reuse unchanged passing
 results through review and commit. Required final non-draft CI runs canonical `check` plus Android
 assembly without a duplicate local full run. QLT-011 through QLT-019 apply; active waivers: none.
-#242 changes no production, schema, API, dependencies or runtime cost. #244 changes the public
+#242 and #247 change no production, schema, API, dependencies or runtime cost. #244 changes the public
 presentation binding and visible admission, with two constant-size availability publications per
 retained job and no pixel scan/copy or per-preview-frame work. Its affected workload is registered
 with #145 for the existing M5-exit gate; no performance collection or Profile generation is part
-of either slice. Project and recovery schemas and dependencies are unchanged.
+of these slices. Project and recovery schemas and dependencies are unchanged.
