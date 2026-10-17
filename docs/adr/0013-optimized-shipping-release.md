@@ -87,6 +87,10 @@ from post-#77 production inputs without the optimization policy. B and C use byt
 source-profile input and equivalent production Kotlin/resources, while their Git/config and packaged
 APK identities stay distinct.
 
+[ADR 0047](0047-beta-release-signing-provenance.md) defines the later external signing and
+tagged-artifact procedure without changing these optimization roles or the unsigned Gradle output.
+Its current Profile input is ADR 0010's #190 adoption; P62 identities above remain historical.
+
 Before device use, DEX, resources, and packaged-profile payloads must be equivalent between the
 optimized shipping output and proxy, with only the expected profileable, signature, and container
 metadata differences enumerated. Every optimized output retains exact APK/source/signature state and
