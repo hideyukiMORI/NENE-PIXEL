@@ -118,8 +118,11 @@ Beta disclosure and #230/#232 acceptance retain these existing boundaries:
   integration fault cases; a returned lifecycle callback is not proof of completed publication.
   The [M5 recovery fault coverage](quality/M5_RECOVERY_FAULT_COVERAGE.md) records #242's bounded
   adapter/workflow host slice, #244's actual-UI admission defect/correction, #247's native
-  adapter/scheduler/status fault cases, and #249's selected native caller/port cancellation
-  boundaries. Physical storage faults, other cancellation phases and native lifecycle obligations
+  adapter/scheduler/status fault cases, #249's selected native caller/port cancellation boundaries,
+  and #251's actual-MainActivity TERM-STOP-KILL preparation at before-publication, partial-write
+  and verified-completion phases. #251 requires separately admitted synthetic userdata, exact-PID
+  injection, stopped byte preservation and normal-factory recovery; its source alone is no PASS.
+  Physical storage faults, other cancellation phases and native lifecycle obligations
   beyond those bounded cases remain explicit; their existence alone is not acceptance.
 - Underlay memory is device-local and separate from project/recovery/export; Save As may retain
   the same DocumentId and its remembered underlay. Appearance is session state, while app language

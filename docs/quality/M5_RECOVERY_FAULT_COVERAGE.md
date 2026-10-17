@@ -4,8 +4,9 @@ Status: bounded host and native fault integration scopes; parent lifecycle accep
 
 Issues: [#242](https://github.com/hideyukiMORI/NENE-PIXEL/issues/242),
 [#244](https://github.com/hideyukiMORI/NENE-PIXEL/issues/244),
-[#247](https://github.com/hideyukiMORI/NENE-PIXEL/issues/247) and
-[#249](https://github.com/hideyukiMORI/NENE-PIXEL/issues/249), slices of
+[#247](https://github.com/hideyukiMORI/NENE-PIXEL/issues/247),
+[#249](https://github.com/hideyukiMORI/NENE-PIXEL/issues/249) and
+[#251](https://github.com/hideyukiMORI/NENE-PIXEL/issues/251), slices of
 [#230](https://github.com/hideyukiMORI/NENE-PIXEL/issues/230).
 Contract: [ADR 0045](../adr/0045-android-termination-and-publication.md),
 [ADR 0046](../adr/0046-visible-file-operation-admission.md),
@@ -169,6 +170,49 @@ canonical stopped inventory/encoded archive path as #247. Any explicit test-pack
 recorded separately and cannot be relabelled as natural termination or lifecycle acceptance.
 These direct workflow cases do not add a screen cancellation action or a UI-state guarantee.
 
+## Actual MainActivity stop and process-death preparation — #251
+
+This slice selects three TERM-STOP-KILL boundaries on separately admitted fresh synthetic
+API35/en-US userdata. The new preparation places the existing internal ViewModel in the actual
+MainActivity's normal ViewModelStore from an Application pre-created callback. It checks that
+the Activity retrieves that same ViewModel/runtime/controller and renders the synthetic canvas.
+The actual MainActivity, retained worker, scheduler, workflow and Android recovery writer remain
+on their canonical paths. Recovery registers no placement callback and uses the production factory.
+No production seam, reflection, friend path, copied scheduler, dependency or shutdown writer is added.
+
+The existing two-frame/three-layer fixture is loaded canonically, creating Retired generation 1.
+A first-frame duration command of 110 ms produces verified C1/generation 2. A second-frame duration
+command of 260 ms produces distinct C2. Full-document equality includes identity, revision, both
+frames, all layers, palette and pixels. An independent oracle reconstructs the expected state
+through the real command gateway. These source descriptions are not execution PASS results; #251
+binds the actual candidate, methods, APKs, environment, controller and original logs before collection.
+
+| Phase | Controlled boundary and restart oracle |
+| --- | --- |
+| Before publication | The actual enabled PNG export action holds the canonical operation in its synthetic port before C2 is created. After ActivityScenario stops MainActivity, the post-stop callback, retained Busy/export lease, pending C2, absent publishing token, unchanged write count and exact C1 bytes are recorded. Exact-PID process-death injection must recover C1/generation 2; pending C2 has no survival claim. |
+| During physical publication | Commit C2, stop the actual MainActivity and hold its scheduler-triggered real Android write after its first 16 bytes. Capture unchanged C1 and exact incomplete temporary bytes without adapter inspection. The selected exact-PID kill must recover C1/generation 2. The controlled prefix cannot be accepted as complete C2. |
+| Verified completion | Commit C2 and stop the actual MainActivity. Observe runtime and adapter agreement on exact complete C2/generation 3 before the exact-PID kill. Normal-factory restart must offer and adopt exact C2. |
+
+Preparation emits a write-once phase-ready record with PID, task/callback/VM observations, capture
+projections, generations and physical-byte hashes. Every case records pre-stop write count 2,
+pending C2 and no publishing token; a prior quiet-timer admission is invalid for this selected
+lifecycle order. No explicit test flush replaces MainActivity.onStop. A conservative monotonic deadline starts before
+the existing ten-second gate. Main-thread lifecycle callbacks do no file I/O or blocking; the
+instrumentation thread preserves byte snapshots and the rendezvous record. If no host kill arrives,
+the preparation writes a timeout record and fails. No sleep establishes publication or termination.
+The killed instrumentation output and exit are retained as intentional raw termination, never as
+an ordinary passing test. Acceptance combines the reached phase, declared kill, PID absence,
+canonical stopped snapshot and a separate successful recovery invocation with a different PID.
+
+Each case uses a newly admitted factory userdata lane with absent packages/private paths before
+installation. In-test arguments or an empty guard directory alone cannot authorize ordinary data.
+The normal recovery filename is exclusive to that synthetic lane. Existing bounded native command,
+encoded transport and stopped inventory/archive helpers preserve the interrupted base/temporary
+files before normal recovery can remove the temporary file. Separate recovery binds the prior PID,
+case, fixture and generation, accepts the actual offer UI, and checks whole-document equality,
+Dirty state and empty persisted history. Back/recents, callback-free abrupt kill, API37, real picker
+cleanup and physical power-loss remain excluded. No result here alone accepts parent #230.
+
 ## Remaining parent acceptance
 
 TERM-CANCEL and TERM-IO-FAILURE remain bounded: #242 supplies adapter/workflow host fault cases,
@@ -179,8 +223,9 @@ physical sync/rename faults, every cancellation phase or locale/API boundary, or
 durability. No public injection seam, reflection,
 copied scheduler or dependency is added; visible admission remains ADR 0046's existing behavior.
 
-TERM-BACK, TERM-RECENTS, TERM-STOP-KILL, TERM-LOW-MEMORY and TERM-PICKER-CANCEL remain native
-integration work under #230 and the [beta matrix](../BETA_ACCEPTANCE_MATRIX.md). Before native
+TERM-BACK, TERM-RECENTS, TERM-LOW-MEMORY and TERM-PICKER-CANCEL remain native integration work;
+#251 owns the selected TERM-STOP-KILL execution and combined oracle above, without an execution
+claim from source alone. These remain under #230 and the [beta matrix](../BETA_ACCEPTANCE_MATRIX.md). Before native
 execution, pin the candidate, exact fixture and lineage, phase synchronization, environment and
 isolated process/storage; preserve and verify restoration of artwork, recovery, underlay and
 settings. An old isolation flag or backup-directory existence alone does not establish that
@@ -208,13 +253,17 @@ fault-mapping, exact-capture/lineage, scheduler suspension/resumption and status
 at their combined boundary. For #249, select its two native cancellation cases, affected test-source
 compilation/packaging and formatting/static checks, and documentation validation. These detect
 split port/runtime completion, lost newer capture, incomplete rollback/rethrow and leaked or
-prematurely released publication ownership. Unchanged #242/#244/#247 tests are not rerun merely
+prematurely released publication ownership. For #251, select its three preparation boundaries and
+separate normal-factory recovery methods, new test-source compilation/packaging and static checks,
+and documentation validation. These detect incorrect lifecycle routing, premature or partial
+publication, wrong restart lineage/document, nonempty persisted history and factory bypass at the
+selected process-death boundaries. Unchanged #242/#244/#247/#249 tests are not rerun merely
 to accept the new slice; compare their relevant inputs and retain original evidence identities.
 Documentation validation checks this coverage map and links.
 Preserve the exact inputs and logs outside disposable build directories; reuse unchanged passing
 results through review and commit. Required final non-draft CI runs canonical `check` plus Android
 assembly without a duplicate local full run. QLT-011 through QLT-019 apply; active waivers: none.
-#242, #247 and #249 change no production, schema, API, dependencies or runtime cost. #244 changes the public
+#242, #247, #249 and #251 change no production, schema, API, dependencies or runtime cost. #244 changes the public
 presentation binding and visible admission, with two constant-size availability publications per
 retained job and no pixel scan/copy or per-preview-frame work. Its affected workload is registered
 with #145 for the existing M5-exit gate; no performance collection or Profile generation is part
