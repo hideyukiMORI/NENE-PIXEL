@@ -130,6 +130,18 @@ that upstream releases alone turned the merge gate red. Every other lint severit
 `checkDependencies`, and the no-baseline rule of this decision remain in force; catalog freshness is
 now enforced by the dependency refresh cadence in the Quality Gates document.
 
+Issue #260 records the compatible AndroidX Test refresh on 2026-10-17. Both Compose UI test
+consumers, `:app:android` and `:presentation:compose`, explicitly select Espresso 3.7.0 and the
+existing catalog selection of AndroidX Test ext-junit 1.3.0. Espresso's
+[official release notes](https://developer.android.com/jetpack/androidx/releases/test#espresso-3.7.0)
+record replacing reflective `InputManager.getInstance` access with `getSystemService`, addressing
+the API 37 test-framework initialization failure observed in Issue #229. The official POMs align
+this test closure with core 1.7.0, monitor 1.8.0, runner 1.7.0, and services storage 1.6.0.
+These are explicit consumer dependencies, not shared build policy requiring another convention
+plugin. This update preserves the AndroidX Test/Compose test framework, minimum SDK 26,
+production runtime dependencies, toolchain matrix, and quality-gate semantics. It does not
+authorize a framework fork, hidden-API exemption, or skipped API 37 checks.
+
 ## Rejected alternatives
 
 ### Generate the project from Android Studio defaults
@@ -200,6 +212,7 @@ If a selected tool cannot produce the initial clean build, stop the scaffold cha
 - Compatible minor update: #48
 - Compatible Kotlin tooling update: #81
 - Compatible dependency refresh: #92
+- Compatible AndroidX Test refresh: #260
 - PR: #11
 - Supersedes: none
 - Superseded by: ADR 0017 for the severity of `GradleDependency`, `NewerVersionAvailable`, and, since its
