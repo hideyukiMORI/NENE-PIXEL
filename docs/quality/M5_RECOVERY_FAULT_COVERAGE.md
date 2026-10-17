@@ -170,7 +170,7 @@ canonical stopped inventory/encoded archive path as #247. Any explicit test-pack
 recorded separately and cannot be relabelled as natural termination or lifecycle acceptance.
 These direct workflow cases do not add a screen cancellation action or a UI-state guarantee.
 
-## Actual MainActivity stop and process-death preparation — #251
+## Actual MainActivity stop and process-death — #251
 
 This slice selects three TERM-STOP-KILL boundaries on separately admitted fresh synthetic
 API35/en-US userdata. The new preparation places the existing internal ViewModel in the actual
@@ -218,6 +218,50 @@ case, fixture and generation, accepts the actual offer UI, and checks whole-docu
 Dirty state and empty persisted history. Back/recents, callback-free abrupt kill, API37, real picker
 cleanup and physical power-loss remain excluded. No result here alone accepts parent #230.
 
+### Accepted selected executions — 2026-10-17
+
+All three combined oracles passed on separate synthetic API35/en-US lanes using the actual
+MainActivity, a declared exact-PID SIGKILL and a different-PID normal-factory restart. The
+preparation instrumentation's process-crash output is retained as intentional termination,
+not counted as a passing test. Each separate recovery invocation passed one test and checked
+the entire expected document, Dirty state and empty history. Independent review found no P1/P2.
+These results establish the selected controlled phases, not exclusive flush causality or
+arbitrary OS/power-loss behavior.
+
+| Phase / lab-relative evidence root | Original source / test APK SHA-256 | Original PID → recovery PID; expected state | Kill-stage / recovery-stage record SHA-256 |
+| --- | --- | --- | --- |
+| Before publication: `evidence/issue-251-stopkill-a-20261017-v4/` | `fdc6f96b451e4ff4c17e7b4c99f4a1c1d60c8913` / `79b4dfbd275552927476c8cc555f4beca6483adb51fcec7064d1b498b9ba51a4` | 4839 → 5499; C1/gen2; one recovery PASS, 6.465 s | `21de81c185ee349cb7a5b790494c275180eed5205d9d71a6034c9d6e516d0413` / `de502bb9e3aaed809b85aeda9a0d266f559c5b3ea813dbc6909e1f93318b01dd` |
+| During physical publication: `evidence/issue-251-stopkill-b-20261017-v5/` | `ddbd9a40cd62fa038c37726c5d53cd50ef8d2f0b` / `446671187d09dc0b26aae89892c4ef311800a005c6acbe7418f60d45e9d4ed37` | 4240 → 4818; C1/gen2; one recovery PASS, 5.954 s | `d6a78912ca3bff195278d6c6d068876c5bc3d0bd277c21066173c6414ec67c8d` / `5ed6e7eb8d42ad386f7a6c477473c6db2c015589946793df677539882f2f0cd4` |
+| Verified completion: `evidence/issue-251-stopkill-c-20261017-v5/` | `ddbd9a40cd62fa038c37726c5d53cd50ef8d2f0b` / `446671187d09dc0b26aae89892c4ef311800a005c6acbe7418f60d45e9d4ed37` | 3849 → 4612; C2/gen3; one recovery PASS, 6.057 s | `aedfbbebff1b186dff6d8d5ea07bf55ccedd3bbf9f6b69320001a1b255551e13` / `4254f101042006198d8efffb4fff655d7310052857cd019abb6bc66be06d68a3` |
+
+Each root contains `kill-snapshot/result.json`, `recovery-snapshot/result.json`, original raw
+instrumentation, phase-ready bytes, clock/PID guards, and canonical before/after inventories
+and archives. All use the original main APK from `outputs/issue-251/implementation/check-2/apks/app.apk`,
+SHA-256 `a84e68ff793b5b3a406c52cefa2c8f00d2fe4b721071eeb0679ee14f2307baea`.
+The during-publication archive preserves the exact 16-byte `.new` with SHA-256
+`1b4ed0de6b4845a3679d44f25a31199b2b099abcd531813ab0eee916551df65f` before normal
+recovery removes it; its unchanged base is C1. The completion archive instead contains complete
+C2. Explicit synthetic test-helper stops occur only after target absence and remain separate
+from target termination and lifecycle acceptance.
+
+`outputs/issue-251/native-plan-6/` retains the exact commands, scripts and bound configs.
+The selected test-source ktlint, typed detekt, test-APK assembly and documentation validation
+passed in `outputs/issue-251/implementation/check-6/` (35 s; original Gradle log SHA-256
+`a3603a79b3fde48e1fb80ba1a043ffa69f834a03ba567cf1fa7a4ba17e7f5afa`).
+`a-source-path-reuse.json` there records the unchanged A path despite the later B/C setup change;
+its SHA-256 is `387d6d93407edf07ee58b49cdb79512761859b1d39cd57a41a0bb623873654a3`.
+A keeps its original execution identity. Integration of #232 adds About/privacy content and
+resources, but changes none of the seven native test files, Activity/runtime/recovery paths,
+existing recovery labels, build inputs or dependencies; About remains closed in these cases.
+The final acceptance prose likewise does not invalidate these selected native results.
+
+Original failures remain retained: source/format findings, controller empty-array conversion,
+the post-stop callback race, app-UID clock permission, and the incomplete prelaunch APK transfer.
+They were followed by declared, changed-input corrections, not unchanged retries. The separate
+host-I/O incident is #253; the supported emulator endpoint correction is #256. Neither incident's
+root cause is inferred from a later successful functional case. No broad local suite, performance
+collection, Profile regeneration, threshold relaxation or waiver was used for this slice.
+
 ## Remaining parent acceptance
 
 TERM-CANCEL and TERM-IO-FAILURE remain bounded: #242 supplies adapter/workflow host fault cases,
@@ -229,8 +273,8 @@ durability. No public injection seam, reflection,
 copied scheduler or dependency is added; visible admission remains ADR 0046's existing behavior.
 
 TERM-BACK, TERM-RECENTS, TERM-LOW-MEMORY and TERM-PICKER-CANCEL remain native integration work;
-#251 owns the selected TERM-STOP-KILL execution and combined oracle above, without an execution
-claim from source alone. These remain under #230 and the [beta matrix](../BETA_ACCEPTANCE_MATRIX.md). Before native
+#251 accepts only the selected TERM-STOP-KILL executions and combined oracles above.
+The other obligations remain under #230 and the [beta matrix](../BETA_ACCEPTANCE_MATRIX.md). Before new native
 execution, pin the candidate, exact fixture and lineage, phase synchronization, environment and
 isolated process/storage; preserve and verify restoration of artwork, recovery, underlay and
 settings. An old isolation flag or backup-directory existence alone does not establish that
