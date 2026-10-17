@@ -42,6 +42,19 @@ import org.junit.jupiter.api.Test
  */
 internal class AutosaveScheduleTest {
     @Test
+    fun equalObservationKeepsThePendingRequestScheduleEqual() {
+        val observation = capture(AutosaveStateTokens().next())
+        val requested = idle().observed(observation, START, POLICY).startedRequest()
+
+        val observedAgain = requested.observed(observation, START + HALF_QUIET, POLICY)
+
+        assertEquals(requested, observedAgain)
+        assertEquals(requested.hashCode(), observedAgain.hashCode())
+        assertEquals(requested.quietDeadlineNanos, observedAgain.quietDeadlineNanos)
+        assertEquals(requested.capDeadlineNanos, observedAgain.capDeadlineNanos)
+    }
+
+    @Test
     fun quietWindowBecomesDueOneQuietWindowAfterTheLatestCapture() {
         val captured = idle().observed(capture(AutosaveStateTokens().next()), START, POLICY)
 

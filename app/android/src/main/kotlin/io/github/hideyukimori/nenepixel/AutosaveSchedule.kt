@@ -8,13 +8,18 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveSta
  * and a monotonic nanosecond reading, it answers how long to wait before the next
  * `publishLatestCapture` request. It owns no scope, no timer, and no persistence workflow.
  */
-internal data class AutosaveSchedule(
+internal data class AutosaveSchedule private constructor(
     val observation: AutosaveObservation,
-    val quietDeadlineNanos: Long?,
-    val capDeadlineNanos: Long?,
+    private val deadlines: Deadlines,
     private val suspension: Suspension,
     private val requestedStateToken: AutosaveStateToken?,
 ) {
+    val quietDeadlineNanos: Long?
+        get() = deadlines.quietNanos
+
+    val capDeadlineNanos: Long?
+        get() = deadlines.capNanos
+
     val suspended: Boolean
         get() = suspension != Suspension.None
 
@@ -32,8 +37,7 @@ internal data class AutosaveSchedule(
             !sample.states.requestable -> {
                 AutosaveSchedule(
                     sample,
-                    null,
-                    null,
+                    deadlines.updated(null, null),
                     suspensionAfter(sample),
                     requestAfter(sample),
                 )
@@ -42,8 +46,7 @@ internal data class AutosaveSchedule(
             sample.flushes != observation.flushes -> {
                 AutosaveSchedule(
                     sample,
-                    nowNanos,
-                    nowNanos,
+                    deadlines.updated(nowNanos, nowNanos),
                     Suspension.None,
                     requestAfter(sample),
                 )
@@ -71,8 +74,7 @@ internal data class AutosaveSchedule(
     ): AutosaveSchedule {
         val retryNanos = nowNanos + policy.quietNanos
         return copy(
-            quietDeadlineNanos = retryNanos,
-            capDeadlineNanos = capDeadlineNanos?.coerceAtLeast(retryNanos) ?: retryNanos,
+            deadlines = deadlines.updated(retryNanos, capDeadlineNanos?.coerceAtLeast(retryNanos) ?: retryNanos),
         )
     }
 
@@ -119,19 +121,22 @@ internal data class AutosaveSchedule(
         val captured = currentStates.pending != previousStates.pending
         return AutosaveSchedule(
             observation = sample,
-            quietDeadlineNanos =
-                deadlineAfterChange(
-                    changed = published || completed || captured,
-                    current = quietDeadlineNanos,
-                    nowNanos = nowNanos,
-                    intervalNanos = policy.quietNanos,
-                ),
-            capDeadlineNanos =
-                deadlineAfterChange(
-                    changed = previousDeadlineConsumed(previousStates, currentStates, published),
-                    current = capDeadlineNanos,
-                    nowNanos = nowNanos,
-                    intervalNanos = policy.latencyCapNanos,
+            deadlines =
+                deadlines.updated(
+                    quietNanos =
+                        deadlineAfterChange(
+                            changed = published || completed || captured,
+                            current = quietDeadlineNanos,
+                            nowNanos = nowNanos,
+                            intervalNanos = policy.quietNanos,
+                        ),
+                    capNanos =
+                        deadlineAfterChange(
+                            changed = previousDeadlineConsumed(previousStates, currentStates, published),
+                            current = capDeadlineNanos,
+                            nowNanos = nowNanos,
+                            intervalNanos = policy.latencyCapNanos,
+                        ),
                 ),
             suspension = suspensionAfter(sample),
             requestedStateToken = requestAfter(sample),
@@ -160,14 +165,24 @@ internal data class AutosaveSchedule(
                         gate = null,
                         flushes = 0L,
                     ),
-                quietDeadlineNanos = null,
-                capDeadlineNanos = null,
+                deadlines = Deadlines(null, null),
                 suspension = Suspension.None,
                 requestedStateToken = null,
             )
     }
 
-    internal enum class Suspension { None, Gate, Observation }
+    private enum class Suspension { None, Gate, Observation }
+
+    private data class Deadlines(
+        val quietNanos: Long?,
+        val capNanos: Long?,
+    ) {
+        fun updated(
+            quietNanos: Long?,
+            capNanos: Long?,
+        ): Deadlines =
+            if (this.quietNanos == quietNanos && this.capNanos == capNanos) this else Deadlines(quietNanos, capNanos)
+    }
 }
 
 private fun previousDeadlineConsumed(

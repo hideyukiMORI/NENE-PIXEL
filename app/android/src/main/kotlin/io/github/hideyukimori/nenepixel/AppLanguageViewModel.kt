@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 
 internal class AppLanguageViewModel(
@@ -14,9 +15,12 @@ internal class AppLanguageViewModel(
     val controller = AppLanguageController(storage, viewModelScope, storage.readInitial())
 
     companion object {
-        fun factory(application: Application): ViewModelProvider.Factory =
+        fun factory(
+            application: Application,
+            ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+        ): ViewModelProvider.Factory =
             viewModelFactory {
-                initializer { AppLanguageViewModel(AndroidAppLanguageStorage(application, Dispatchers.IO)) }
+                initializer { AppLanguageViewModel(AndroidAppLanguageStorage(application, ioDispatcher)) }
             }
     }
 }
