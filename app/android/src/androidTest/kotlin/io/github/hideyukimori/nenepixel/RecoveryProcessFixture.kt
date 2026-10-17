@@ -47,7 +47,21 @@ internal class RecoveryProcessFixture(
     val workflow = EditorPersistenceWorkflow.create(runtime, ports.ports, dispatchers.parallel)
     private val controller = EditorController.create(runtime)
     val callbacks =
-        RecoveryProcessCallbacks(::attach) { RecoveryProcessStopObservation(file.startCalls, workflow.autosave.value) }
+        RecoveryProcessCallbacks(::attach) {
+            when (admission.case) {
+                RecoveryProcessCase.BeforePublication -> {
+                    RecoveryProcessStopObservation(file.startCalls, workflow.autosave.value)
+                }
+
+                RecoveryProcessCase.DuringPublication,
+                RecoveryProcessCase.VerifiedCompletion,
+                -> {
+                    // Commit immediately before observing, without suspending before the real onStop.
+                    captureSecond()
+                    RecoveryProcessStopObservation(file.startCalls, workflow.autosave.value)
+                }
+            }
+        }
     val application = admission.context.applicationContext as Application
     lateinit var model: EditorRuntimeViewModel
         private set

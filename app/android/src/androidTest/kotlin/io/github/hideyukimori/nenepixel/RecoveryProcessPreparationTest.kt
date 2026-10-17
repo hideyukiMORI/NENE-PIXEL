@@ -68,13 +68,11 @@ internal class RecoveryProcessPreparationTest {
             }
 
             RecoveryProcessCase.DuringPublication -> {
-                holdWriter(fixture, scenario)
+                holdWriter(fixture)
             }
 
             RecoveryProcessCase.VerifiedCompletion -> {
-                val deadline = SystemClock.elapsedRealtime() + RecoveryProcessAdmission.GATE_MILLIS
-                scenario.onActivity { fixture.captureSecond() }
-                deadline
+                SystemClock.elapsedRealtime() + RecoveryProcessAdmission.GATE_MILLIS
             }
         }
 
@@ -93,14 +91,9 @@ internal class RecoveryProcessPreparationTest {
         return deadline
     }
 
-    private fun holdWriter(
-        fixture: RecoveryProcessFixture,
-        scenario: ActivityScenario<MainActivity>,
-    ): Long {
+    private fun holdWriter(fixture: RecoveryProcessFixture): Long {
         writerGate = fixture.file.hold(cancelFromPort = false)
-        val deadline = SystemClock.elapsedRealtime() + RecoveryProcessAdmission.GATE_MILLIS
-        scenario.onActivity { fixture.captureSecond() }
-        return deadline
+        return SystemClock.elapsedRealtime() + RecoveryProcessAdmission.GATE_MILLIS
     }
 
     private suspend fun assertPhase(fixture: RecoveryProcessFixture) {

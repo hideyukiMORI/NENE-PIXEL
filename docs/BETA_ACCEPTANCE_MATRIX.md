@@ -120,7 +120,9 @@ Beta disclosure and #230/#232 acceptance retain these existing boundaries:
   adapter/workflow host slice, #244's actual-UI admission defect/correction, #247's native
   adapter/scheduler/status fault cases, #249's selected native caller/port cancellation boundaries,
   and #251's actual-MainActivity TERM-STOP-KILL preparation at before-publication, partial-write
-  and verified-completion phases. #251 requires separately admitted synthetic userdata, exact-PID
+  and verified-completion phases. Its partial-write/completion cases commit and observe C2 in the
+  framework pre-stop callback before actual MainActivity.onStop; the export-held case keeps C2
+  before the transition. #251 requires separately admitted synthetic userdata, exact-PID
   injection, stopped byte preservation and normal-factory recovery; its source alone is no PASS.
   Physical storage faults, other cancellation phases and native lifecycle obligations
   beyond those bounded cases remain explicit; their existence alone is not acceptance.

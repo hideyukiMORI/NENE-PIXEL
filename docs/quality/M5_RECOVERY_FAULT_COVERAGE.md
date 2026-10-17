@@ -190,14 +190,18 @@ binds the actual candidate, methods, APKs, environment, controller and original 
 | Phase | Controlled boundary and restart oracle |
 | --- | --- |
 | Before publication | The actual enabled PNG export action holds the canonical operation in its synthetic port before C2 is created. After ActivityScenario stops MainActivity, the post-stop callback, retained Busy/export lease, pending C2, absent publishing token, unchanged write count and exact C1 bytes are recorded. Exact-PID process-death injection must recover C1/generation 2; pending C2 has no survival claim. |
-| During physical publication | Commit C2, stop the actual MainActivity and hold its scheduler-triggered real Android write after its first 16 bytes. Capture unchanged C1 and exact incomplete temporary bytes without adapter inspection. The selected exact-PID kill must recover C1/generation 2. The controlled prefix cannot be accepted as complete C2. |
-| Verified completion | Commit C2 and stop the actual MainActivity. Observe runtime and adapter agreement on exact complete C2/generation 3 before the exact-PID kill. Normal-factory restart must offer and adopt exact C2. |
+| During physical publication | Arm the existing writer gate before the Activity transition. In the framework pre-stop callback, commit C2 and immediately observe it before the real MainActivity.onStop. Hold its scheduler-triggered real Android write after its first 16 bytes. Capture unchanged C1 and exact incomplete temporary bytes without adapter inspection. The selected exact-PID kill must recover C1/generation 2. The controlled prefix cannot be accepted as complete C2. |
+| Verified completion | In the framework pre-stop callback, commit C2 and immediately observe it before the real MainActivity.onStop. Observe runtime and adapter agreement on exact complete C2/generation 3 before the exact-PID kill. Normal-factory restart must offer and adopt exact C2. |
 
 Preparation emits a write-once phase-ready record with PID, task/callback/VM observations, capture
 projections, generations and physical-byte hashes. Every case records pre-stop write count 2,
 pending C2 and no publishing token; a prior quiet-timer admission is invalid for this selected
 lifecycle order. No explicit test flush replaces MainActivity.onStop. The normal quiet timer remains
-active; this test does not isolate flush as the exclusive publication trigger. A conservative monotonic deadline starts before
+active; this test does not isolate flush as the exclusive publication trigger. A retains its export-held
+C2-before-transition path and observation-only pre-stop callback. B/C commit and observe C2 in one
+bounded nonsuspending pre-stop callback, avoiding quiet publication during the Activity transition;
+Main.immediate collectors may observe inline. Both B/C deadlines start before that transition.
+A conservative monotonic deadline starts before
 the existing ten-second gate. Main-thread lifecycle callbacks do no file I/O or blocking; the
 instrumentation thread preserves byte snapshots and the rendezvous record. If no host kill arrives,
 the preparation writes a timeout record and fails. No sleep establishes publication or termination.
