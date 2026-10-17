@@ -252,7 +252,7 @@ passed in `outputs/issue-251/implementation/check-6/` (35 s; original Gradle log
 its SHA-256 is `387d6d93407edf07ee58b49cdb79512761859b1d39cd57a41a0bb623873654a3`.
 A keeps its original execution identity. Integration of #232 adds About/privacy content and
 resources, but changes none of the seven native test files, Activity/runtime/recovery paths,
-existing recovery labels, build inputs or dependencies; About remains closed in these cases.
+existing recovery labels, build configuration or dependencies; About remains closed in these cases.
 The final acceptance prose likewise does not invalidate these selected native results.
 
 Original failures remain retained: source/format findings, controller empty-array conversion,
