@@ -100,9 +100,11 @@ and `NenePixelEditor` in a `ComponentActivity`. Two further cases compose the re
 its existing injected clock. The ViewModel's private scheduler has no clock injection: observing
 file attempts alone would miss a retry loop whose `Unavailable` result returns before the port.
 The direct scheduler cases therefore observe clock calls as well as file attempts in a bounded
-real-time window longer than their explicitly shortened injected quiet/cap policy. Advancing the
-injected clock alone cannot wake an already waiting real coroutine timer. The actual ViewModel
-cases retain the production policy; the direct cases establish bounded inactivity and explicit
+real-time window longer than their explicitly shortened injected quiet/cap policy. The counting
+clock delegates to `System.nanoTime`, so deadlines continue to advance with the real coroutine
+timeouts while recovery or export I/O completes. Pending C2 triggers the initial automatic quiet
+publication; a second initial flush cannot race it. The actual ViewModel cases retain the production
+policy; the direct cases establish bounded inactivity and explicit
 resumption, not production timing acceptance, infinite-time no-spin or a CPU-usage guarantee.
 
 The synthetic two-frame fixture enters through canonical load, creating Retired generation 1.
@@ -117,7 +119,7 @@ alone are not execution results.
 | Visible write failure and flush recovery | Inject `IOException` on the real write session. Actual rollback gives `Failed(WRITE, COMPLETED)`; C1 bytes and published identity survive, exact C2 stays pending, and publishing clears. The actual editor displays its localized autosave-failure resource. Remove the fault and request the existing ViewModel flush; exact C2 becomes Candidate generation 3. |
 | Visible finish uncertainty | After real write and sync, fail before delegating finish, closing the stream. Assert `Uncertain(FINISH, NOT_NEEDED)`, unknown lineage, retained C2 and no published/publishing identity. A flush cannot blindly write another Candidate. The actual display is the higher-priority recovery-unavailable resource. C1 remaining in this fixture does not guarantee rollback for every physical finish failure. |
 | Visible read-back uncertainty and offer resolution | Let real finish commit C2, then fail its verification read. No `Published` result may be inferred from C2 bytes on disk. After fault removal, the fixture calls the existing workflow's reinspection and receives exact C2/generation 3. The actual decline callback retires generation 4; the resulting gate change permits pending C2 to publish as generation 5. Reinspection is not a new or claimed user-facing refresh feature. |
-| Failed scheduler suspension and gate recovery | Compose the real scheduler, workflow and adapter with a counting monotonic clock. After write failure, observe stable clock/file-attempt counts across the bounded quiet/cap window. Advance the clock without a new trigger; a real workflow operation-gate transition then resumes the pending publication. |
+| Failed scheduler suspension and gate recovery | Compose the real scheduler, workflow and adapter with a counting monotonic clock. After write failure, observe stable clock/file-attempt counts across a measured real-time window exceeding the injected quiet/cap deadlines, with no new trigger. A real workflow operation-gate transition then resumes the pending publication. |
 | Uncertain scheduler suspension | Observe the same scheduler boundary after read-back uncertainty, including clock activity that would expose port-free `Unavailable` retries. Explicit flush cannot write against unknown lineage. Reinspection and offer resolution use the canonical workflow before publication can resume. |
 
 The finish exception is a controlled method-boundary fault: Android's `finishWrite` itself logs

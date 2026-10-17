@@ -73,8 +73,10 @@ internal class EditorRecoveryFaultTest {
             // Preserve the uncommitted .new before any real AtomicFile.openRead can remove it.
             record(fixture, "finish-uncertain-with-new")
             fixture.recovery.file.fault = RecoveryFaultPhase.NONE
+            val attempts = fixture.recovery.file.startCalls
             compose.runOnIdle { fixture.model.flushAutosave() }
             runBlocking { fixture.recovery.observeNoAdditionalWrite() }
+            assertEquals(attempts, fixture.recovery.file.startCalls)
             assertStatus(R.string.recovery_unavailable)
             record(fixture, "flush-no-blind-write")
         } finally {

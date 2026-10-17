@@ -16,7 +16,6 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
-import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 
 /** One real scheduler, with its existing clock seam; no copied scheduling algorithm (#247). */
@@ -28,7 +27,6 @@ internal class AutosaveRecoveryFaultProbe(
     private val failure = AtomicReference<Throwable?>(null)
     private val scope =
         CoroutineScope(owner + dispatcher + CoroutineExceptionHandler { _, cause -> failure.set(cause) })
-    private val nanos = AtomicLong(1_000_000_000_000L)
     private val reads = AtomicInteger()
     private val failureObserved = CompletableDeferred<Unit>()
 
@@ -37,15 +35,11 @@ internal class AutosaveRecoveryFaultProbe(
     private val scheduler = AutosaveScheduler(fixture.workflow, policy, ::clockNanos)
     private val schedulerJob = scheduler.launchIn(scope)
 
-    fun flush() {
+    private fun flush() {
         scheduler.flush()
     }
 
     fun launchExport() = scope.async { fixture.workflow.exportPng() }
-
-    fun advanceBeyondCap() {
-        nanos.addAndGet(policy.latencyCapNanos * 2L)
-    }
 
     suspend fun settle() {
         barrier()
@@ -62,23 +56,26 @@ internal class AutosaveRecoveryFaultProbe(
     }
 
     /**
-     * The injected time crosses both deadlines; 250 real ms also exceeds this 100-ms test policy.
-     * The window only observes
-     * absence of clock/I/O activity; it never supplies a publication-completion oracle.
+     * The counted platform clock advances with the real coroutine timer. This 250-ms window
+     * exceeds the 100-ms test cap and only observes absence of clock/I/O activity; it never
+     * supplies a publication-completion oracle.
      */
     suspend fun observeNoSpin(stage: String) {
         withTimeout(BUDGET_MILLIS) { failureObserved.await() }
         barrier()
-        advanceBeyondCap()
         val before = reads.get()
         val starts = fixture.file.startCalls
         val opens = fixture.file.readCalls
+        val started = System.nanoTime()
         delay(OBSERVATION_MILLIS)
+        barrier()
+        val elapsed = System.nanoTime() - started
+        assertTrue("observation crosses the test cap", elapsed >= policy.latencyCapNanos)
         assertActive()
         assertEquals("scheduler clock activity within bounded window", before, reads.get())
         assertEquals(starts, fixture.file.startCalls)
         assertEquals(opens, fixture.file.readCalls)
-        fixture.record(stage, "clockCalls=$before nanos=${nanos.get()} observationMillis=$OBSERVATION_MILLIS")
+        fixture.record(stage, "clockCalls=$before elapsedNanos=$elapsed observationMillis=$OBSERVATION_MILLIS")
     }
 
     suspend fun close() {
@@ -97,7 +94,7 @@ internal class AutosaveRecoveryFaultProbe(
         if (outcome is AutosaveLastOutcome.Failed || outcome is AutosaveLastOutcome.Uncertain) {
             failureObserved.complete(Unit)
         }
-        return nanos.get()
+        return System.nanoTime()
     }
 
     private suspend fun barrier() {

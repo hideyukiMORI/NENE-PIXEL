@@ -26,7 +26,6 @@ internal class AutosaveRecoveryFaultTest {
                 fixture.captureSecond(RecoveryFaultPhase.WRITE)
                 val running = AutosaveRecoveryFaultProbe(fixture)
                 probe = running
-                running.flush()
                 awaitFailed(fixture)
                 fixture.assertFailed()
                 running.observeNoSpin("failed-no-spin")
@@ -50,13 +49,14 @@ internal class AutosaveRecoveryFaultTest {
                 fixture.captureSecond(RecoveryFaultPhase.READ_BACK_AFTER_COMMIT)
                 val running = AutosaveRecoveryFaultProbe(fixture)
                 probe = running
-                running.flush()
                 awaitUncertain(fixture)
                 fixture.assertUncertain(RecoveryRetirementFailure.READ_BACK)
                 running.observeNoSpin("uncertain-no-spin")
                 fixture.file.fault = RecoveryFaultPhase.NONE
+                val attempts = fixture.file.startCalls
                 running.flushAndObserve()
                 running.observeNoSpin("unavailable-no-spin-after-flush")
+                assertEquals(attempts, fixture.file.startCalls)
                 resolveOffer(fixture, running)
             } finally {
                 try {
@@ -83,7 +83,6 @@ internal class AutosaveRecoveryFaultTest {
         }
         assertEquals(attempts, fixture.file.startCalls)
         probe.settle()
-        probe.advanceBeyondCap()
         fixture.ports.export.release()
         withTimeout(BUDGET_MILLIS) { export.await() }
         awaitPublished(fixture)
@@ -100,14 +99,12 @@ internal class AutosaveRecoveryFaultTest {
         fixture.assertCandidate(fixture.second, 3L)
         assertEquals(RecoveryInitializationResult.Ready, fixture.workflow.initializeRecovery())
         probe.settle()
-        probe.advanceBeyondCap()
         withTimeout(BUDGET_MILLIS) {
             fixture.workflow.autosave.first { it.lastOutcome == AutosaveLastOutcome.OfferPending }
         }
         assertEquals(attempts, fixture.file.startCalls)
         fixture.record("scheduler-exact-c2-offer")
         probe.settle()
-        probe.advanceBeyondCap()
         fixture.workflow.declineRecovery()
         awaitPublished(fixture)
         fixture.assertRetiredFinish(4, 4L)
