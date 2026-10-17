@@ -85,3 +85,4 @@ An ADR must include:
 | [0044](0044-cohesive-application-construction.md) | accepted | Four explicit persistence capabilities and coherent internal immutable construction, preserving canonical ownership, transition semantics and captured gesture admission |
 | [0045](0045-android-termination-and-publication.md) | accepted | Existing Android exit, cancellation and verified-publication boundaries; explicit lifecycle fault-injection gaps owned by beta acceptance |
 | [0046](0046-visible-file-operation-admission.md) | accepted | Read-only retained-job availability connects the existing app worker to every affected file-operation control without a queue or new runtime phase |
+| [0047](0047-beta-release-signing-provenance.md) | accepted | One unsigned optimized release followed by external signing and exact tagged-artifact provenance; selected first beta values, with new-key custody and license execution preconditions |

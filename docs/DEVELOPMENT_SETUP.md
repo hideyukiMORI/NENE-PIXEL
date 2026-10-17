@@ -52,6 +52,15 @@ The M0 reproducibility smoke profile is a Pixel 8 Pro AVD running API 35 / Andro
 
 The verified fresh-clone transcript, including cold-launch and clean-tree evidence, is recorded in [Fresh-clone and M0 Exit Proof](quality/FRESH_CLONE_PROOF.md).
 
+## Prepare an Android beta artifact
+
+Follow the [Android beta release procedure](ANDROID_BETA_RELEASE.md) and
+[ADR 0047](adr/0047-beta-release-signing-provenance.md) for the existing optimized unsigned
+release, external signing, version/tag identity and final provenance checks. The procedure does
+not resolve new-key custody, public signer fingerprint or license terms. The selected first beta
+version still needs a later build-file change; the procedure alone authorizes no build, device
+operation, signing or distribution.
+
 ## Regenerate the Baseline Profile
 
 Current adoption follows [ADR 0010](adr/0010-generated-critical-journey-baseline-profile.md): one
