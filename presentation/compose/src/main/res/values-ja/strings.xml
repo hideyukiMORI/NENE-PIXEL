@@ -143,6 +143,14 @@
         <item quantity="other">%1$d色 · 描く色を選択</item>
     </plurals>
     <string name="mvp_information">このバージョンについて</string>
+    <string name="mvp_privacy_title">プライバシーと通信</string>
+    <string name="mvp_privacy">アカウント、広告、アクセス解析、クラッシュ報告の自動送信なしで、オフライン編集できます。作品や下絵を開発者へ送信しません。選んだクラウドのファイル提供元や、リンクを開くブラウザは、それぞれの規則で通信する場合があります。</string>
+    <string name="mvp_private_data_title">この端末に残るデータ</string>
+    <string name="mvp_private_data">復旧には最後に自動保存が完了した内容を使います。下絵は作品や書き出しと別にコピーして記憶する場合があり、非表示でも残り、「削除」で削除を要求します。別名保存した作品は下絵の記憶を共有し、作品ファイルを消しても下絵は消えません。アプリデータ消去や通常のアンインストールで専用記録は消えますが、キャッシュ消去では消えません。Androidのバックアップ・端末間転送から除外する設定なので、大切な作品は自分で保存してください。書き込み中断や削除失敗で古いコピーが残る場合があります。言語は別に保持し、「システムに従う」でアプリの指定を解除できます。</string>
+    <string name="mvp_external_data_title">アプリ外のファイル</string>
+    <string name="mvp_external_data">ファイルと保存先はAndroidの選択画面で選びます。保存した作品、PNG、パレットはアプリデータ消去・アンインストール後も残るため、提供元で削除してください。提供元の同期、バックアップ、ごみ箱、保持期間はアプリの管理外です。出力の削除に失敗すると、新しい不完全なファイルが残る場合があります。詳しい説明はブラウザで開きます。</string>
+    <string name="mvp_privacy_details">プライバシーとデータの詳しい説明を読む</string>
+    <string name="mvp_privacy_link_unavailable">リンクを開けるブラウザがありません。上の要点はオフラインでも確認できます。</string>
     <string name="close_information">閉じる</string>
     <string name="mvp_scope_title">描画できる範囲</string>
     <string name="mvp_scope">オフラインで使える編集ツールです。フレームは16枚まで、全フレームでレイヤーは合計16枚まで作れます。縦・横それぞれ%1$d～%2$dピクセルで作成できます。色は作品のパレットから選びます。パレットの編集とJSONでの書き出し・読み込みができます。PNGを新しい作品として開いたり、新しいレイヤーとして取り込んだりできます。フレームを繰り返し、または1回だけプレビュー再生できます。</string>

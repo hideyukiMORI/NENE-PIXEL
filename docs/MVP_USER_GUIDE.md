@@ -1,5 +1,7 @@
 # NENE-PIXEL MVP 利用案内 / release notes
 
+現在のデータ取扱いは [プライバシーとデータの取扱い](PRIVACY_AND_DATA_HANDLING.md) を参照してください。
+
 対象: Android 8.0（API 26）以降、プロジェクト形式 v1。M3 / Issue #89。
 アプリの「ファイル → このバージョンについて」でも、英語・日本語・簡体字中国語で制限を確認できます。
 

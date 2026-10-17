@@ -19,6 +19,9 @@ work and dependencies. The [M3 exit proof](docs/quality/M3_EXIT_PROOF.md) and
 [M3 MVP user guide / release notes](docs/MVP_USER_GUIDE.md) describe the earlier single-layer
 release; they are historical evidence, not a complete guide to the current editor.
 
+[Privacy and data handling / プライバシー / 隐私](docs/PRIVACY_AND_DATA_HANDLING.md) explains
+on-device records, Android backup settings and user-selected external providers in all three languages.
+
 ## Current editor
 
 - Canvases from 1 to 256 pixels per side, pencil and transparent eraser, gesture undo/redo,

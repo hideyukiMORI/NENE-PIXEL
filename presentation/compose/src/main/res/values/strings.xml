@@ -148,6 +148,14 @@
         <item quantity="other">%1$d colors · Select a drawing color</item>
     </plurals>
     <string name="mvp_information">About this version</string>
+    <string name="mvp_privacy_title">Privacy and communication</string>
+    <string name="mvp_privacy">Editing works offline, without accounts, ads, analytics or automatic crash uploads. The app does not send artwork or reference images to the developer. A selected cloud file provider, or a browser opened from a link, may use the internet under its own policy.</string>
+    <string name="mvp_private_data_title">Data on this device</string>
+    <string name="mvp_private_data">Recovery keeps the last completed autosave. Reference images may be copied and remembered separately from projects and exports; hiding keeps the copy, while Remove requests its deletion. Save As copies share the same remembered reference. Deleting a project file does not delete it. App-data clearing or normal uninstall removes these private records; clearing cache does not. The app is configured to exclude them from Android backup and transfer, so save important projects yourself. Pending writes or failed removal may leave an older copy. Language is remembered separately; choose System to clear the app override.</string>
+    <string name="mvp_external_data_title">Files outside the app</string>
+    <string name="mvp_external_data">You choose files and destinations through Android. Saved projects, PNGs and palettes remain after uninstall or app-data clearing; delete them through their file provider. Its sync, backups, trash and retention are outside the app’s control. Failed output cleanup may leave an incomplete new file. Opening the full statement uses a browser.</string>
+    <string name="mvp_privacy_details">Read the full privacy and data statement</string>
+    <string name="mvp_privacy_link_unavailable">No browser could open the link. The privacy summary above remains available offline.</string>
     <string name="close_information">Close</string>
     <string name="mvp_scope_title">Drawing</string>
     <string name="mvp_scope">An offline editor with up to 16 frames and 16 layers in total. Width and height range (pixels): %1$d–%2$d. Choose colors from the document palette. You can edit the palette and export or import it as JSON. You can open a PNG file as a new document or import it as a new layer. Preview frames in a loop or once.</string>
