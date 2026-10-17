@@ -10,18 +10,12 @@ import io.github.hideyukimori.nenepixel.core.application.persistence.AutosaveSta
  */
 internal data class AutosaveSchedule private constructor(
     val observation: AutosaveObservation,
-    private val deadlines: Deadlines,
-    private val suspension: Suspension,
-    private val requestedStateToken: AutosaveStateToken?,
+    val quietDeadlineNanos: Long?,
+    val capDeadlineNanos: Long?,
+    private val request: RequestState,
 ) {
-    val quietDeadlineNanos: Long?
-        get() = deadlines.quietNanos
-
-    val capDeadlineNanos: Long?
-        get() = deadlines.capNanos
-
     val suspended: Boolean
-        get() = suspension != Suspension.None
+        get() = request.suspension != Suspension.None
 
     /**
      * Folds one sample into the schedule. A new capture restarts the quiet window; a completed
@@ -37,8 +31,8 @@ internal data class AutosaveSchedule private constructor(
             !sample.states.requestable -> {
                 AutosaveSchedule(
                     sample,
-                    deadlines.updated(null, null),
-                    suspensionAfter(sample),
+                    null,
+                    null,
                     requestAfter(sample),
                 )
             }
@@ -46,9 +40,9 @@ internal data class AutosaveSchedule private constructor(
             sample.flushes != observation.flushes -> {
                 AutosaveSchedule(
                     sample,
-                    deadlines.updated(nowNanos, nowNanos),
-                    Suspension.None,
-                    requestAfter(sample),
+                    nowNanos,
+                    nowNanos,
+                    requestAfter(sample, Suspension.None),
                 )
             }
 
@@ -74,14 +68,16 @@ internal data class AutosaveSchedule private constructor(
     ): AutosaveSchedule {
         val retryNanos = nowNanos + policy.quietNanos
         return copy(
-            deadlines = deadlines.updated(retryNanos, capDeadlineNanos?.coerceAtLeast(retryNanos) ?: retryNanos),
+            quietDeadlineNanos = retryNanos,
+            capDeadlineNanos = capDeadlineNanos?.coerceAtLeast(retryNanos) ?: retryNanos,
         )
     }
 
     /** Stops requesting until the persistence-operation gate changes or a lifecycle flush arrives. */
-    fun suspendedUntilGate(): AutosaveSchedule = copy(suspension = Suspension.Gate)
+    fun suspendedUntilGate(): AutosaveSchedule = copy(request = request.updated(suspension = Suspension.Gate))
 
-    fun startedRequest(): AutosaveSchedule = copy(requestedStateToken = observation.states.pending)
+    fun startedRequest(): AutosaveSchedule =
+        copy(request = request.updated(requestedStateToken = observation.states.pending))
 
     fun applied(
         result: AutosaveRequestResult,
@@ -89,14 +85,17 @@ internal data class AutosaveSchedule private constructor(
         nowNanos: Long,
         policy: AutosavePolicy,
     ): AutosaveSchedule {
-        if (this.requestedStateToken != requestedStateToken) return this
-        val completedRequest = copy(requestedStateToken = null)
+        if (request.requestedStateToken != requestedStateToken) return this
         return when (result) {
             is AutosaveRequestResult.Published,
             AutosaveRequestResult.NoCapture,
-            -> completedRequest.copy(suspension = Suspension.Observation)
+            -> {
+                copy(request = request.updated(Suspension.Observation, null))
+            }
 
-            AutosaveRequestResult.Deferred -> completedRequest.deferred(nowNanos, policy)
+            AutosaveRequestResult.Deferred -> {
+                copy(request = request.updated(requestedStateToken = null)).deferred(nowNanos, policy)
+            }
 
             AutosaveRequestResult.OfferPending,
             AutosaveRequestResult.Unavailable,
@@ -105,7 +104,9 @@ internal data class AutosaveSchedule private constructor(
             AutosaveRequestResult.IdentityExhausted,
             is AutosaveRequestResult.Failed,
             is AutosaveRequestResult.Uncertain,
-            -> completedRequest.suspendedUntilGate()
+            -> {
+                copy(request = request.updated(Suspension.Gate, null))
+            }
         }
     }
 
@@ -121,37 +122,36 @@ internal data class AutosaveSchedule private constructor(
         val captured = currentStates.pending != previousStates.pending
         return AutosaveSchedule(
             observation = sample,
-            deadlines =
-                deadlines.updated(
-                    quietNanos =
-                        deadlineAfterChange(
-                            changed = published || completed || captured,
-                            current = quietDeadlineNanos,
-                            nowNanos = nowNanos,
-                            intervalNanos = policy.quietNanos,
-                        ),
-                    capNanos =
-                        deadlineAfterChange(
-                            changed = previousDeadlineConsumed(previousStates, currentStates, published),
-                            current = capDeadlineNanos,
-                            nowNanos = nowNanos,
-                            intervalNanos = policy.latencyCapNanos,
-                        ),
+            quietDeadlineNanos =
+                deadlineAfterChange(
+                    changed = published || completed || captured,
+                    current = quietDeadlineNanos,
+                    nowNanos = nowNanos,
+                    intervalNanos = policy.quietNanos,
                 ),
-            suspension = suspensionAfter(sample),
-            requestedStateToken = requestAfter(sample),
+            capDeadlineNanos =
+                deadlineAfterChange(
+                    changed = previousDeadlineConsumed(previousStates, currentStates, published),
+                    current = capDeadlineNanos,
+                    nowNanos = nowNanos,
+                    intervalNanos = policy.latencyCapNanos,
+                ),
+            request = requestAfter(sample),
         )
     }
 
     private fun suspensionAfter(sample: AutosaveObservation): Suspension =
-        when (suspension) {
+        when (request.suspension) {
             Suspension.None -> Suspension.None
             Suspension.Gate -> if (sample.gate == observation.gate) Suspension.Gate else Suspension.None
             Suspension.Observation -> if (sample == observation) Suspension.Observation else Suspension.None
         }
 
-    private fun requestAfter(sample: AutosaveObservation): AutosaveStateToken? =
-        if (sample.gate == observation.gate) requestedStateToken else null
+    private fun requestAfter(
+        sample: AutosaveObservation,
+        suspension: Suspension = suspensionAfter(sample),
+    ): RequestState =
+        request.updated(suspension, if (sample.gate == observation.gate) request.requestedStateToken else null)
 
     private fun deadlineNanos(): Long =
         listOfNotNull(quietDeadlineNanos, capDeadlineNanos).minOrNull() ?: Long.MAX_VALUE
@@ -165,23 +165,27 @@ internal data class AutosaveSchedule private constructor(
                         gate = null,
                         flushes = 0L,
                     ),
-                deadlines = Deadlines(null, null),
-                suspension = Suspension.None,
-                requestedStateToken = null,
+                quietDeadlineNanos = null,
+                capDeadlineNanos = null,
+                request = RequestState(Suspension.None, null),
             )
     }
 
     private enum class Suspension { None, Gate, Observation }
 
-    private data class Deadlines(
-        val quietNanos: Long?,
-        val capNanos: Long?,
+    private data class RequestState(
+        val suspension: Suspension,
+        val requestedStateToken: AutosaveStateToken?,
     ) {
         fun updated(
-            quietNanos: Long?,
-            capNanos: Long?,
-        ): Deadlines =
-            if (this.quietNanos == quietNanos && this.capNanos == capNanos) this else Deadlines(quietNanos, capNanos)
+            suspension: Suspension = this.suspension,
+            requestedStateToken: AutosaveStateToken? = this.requestedStateToken,
+        ): RequestState =
+            if (this.suspension == suspension && this.requestedStateToken == requestedStateToken) {
+                this
+            } else {
+                RequestState(suspension, requestedStateToken)
+            }
     }
 }
 
